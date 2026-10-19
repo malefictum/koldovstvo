@@ -32305,7 +32305,7 @@ C.homeOf = g => { const id = (g && g.camp) || ''; return /edvin|moshchi/.test(id
 const HOME_ALSO = {terak: ['terak', 'gorets']};
 C.checkAdv = function (g, h, stat, skill) {
   const A = [], D = [];
-  if (skill) { const help = C.alive(g).find(x => x !== h && R.skill(x, skill) > 0); if (help) A.push(`помогает ${help.name}`); }
+  if (skill) { const help = C.alive(g).concat((g.mercs || []).filter(m => !m.dead && m.hp > 0 && m.stats)).find(x => x !== h && R.skill(x, skill) > 0); if (help) A.push(`помогает ${help.name}`); } // наёмники тоже подсобят, если сами обучены
   if (skill === 'Скрытность' && h.eq && h.eq.body) { const b = R.item(R.baseId ? R.baseId(h.eq.body) : h.eq.body); if (b && (IRON.test(b.name || '') || (b.dex_cap != null && b.dex_cap <= 1))) D.push('гремит железо'); }
   if (C.fatigue && C.fatigue(g) >= 1) D.push('усталость');
   // дивный и чудесный инструмент (+4, +5) — дело идёт само
@@ -37296,7 +37296,7 @@ const HAND_FIX = {
 };
 (function () { const AN = (window.ATLAS || {}).anchors; if (!AN) return; Object.entries(HAND_FIX).forEach(([b, ps]) => Object.entries(ps).forEach(([p, [h1, h2]]) => { const a = AN[b + '_' + p]; if (!a) return; if (h1) a.hand = h1; if (h2) a.hand2 = h2; })); })();
 const WLEN = {sword: .5, axe: .46, hatchet: .36, mace: .44, spear: 1.0, bow: .66, crossbow: .5, staff: .95, dagger: .28, greataxe: .66, sling: .3, club: .44};
-const CLOAK = {k: 3.9, ox: 0.5, oy: 0.7, maxh: 0.7, flip: 0}; const HELM_FLIP = true; /* капюшон нарисован лицом влево, а головы — вправо */ let HOOD_W = 1.55; const HOODS = {k: 2.65, ox: 0.41, oy: 0.02, cut: 0.6}; const HELM_UP = {hood: .5, conical: .33, aventail: .30, mask: .26, cap: .34, fur: .27, monkhood: .34, volhvhood: .36, scarf: .36};
+const CLOAK = {k: 3.9, ox: 0.5, oy: 0.7, maxh: 0.7, flip: 0}; const HELM_FLIP = true; /* капюшон нарисован лицом влево, а головы — вправо */ let HOOD_W = 1.55; const HOODS = {k: 2.65, ox: 0.41, oy: 0.02, cut: 0.6}; const HELM_UP = {hood: .5, conical: .33, aventail: .30, mask: .26, cap: .34, fur: .19, monkhood: .34, volhvhood: .36, scarf: .36};
 /* перекраска светлой ткани спрайта в цвет верхней одежды: металл и кожа — как есть */
 const TINT_BASE = /^(scholar|monk|volhv|vedunya|m_shirt|f_dress|m_gambeson|f_gambeson|m_leather|f_leather)$/, TINT_CACHE = {};
 function tintSprite(fname, a, hex) {
