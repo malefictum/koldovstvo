@@ -24442,7 +24442,8 @@ R.derive = function (h) {
 const sk0 = R.skill;
 R.skill = function (h, skill) {
   let v = sk0(h, skill); if (!h || !h.eq || !['Скрытность', 'Ловкость рук'].includes(skill)) return v;
-  const b = R.item(h.eq.body); if (b && b.def >= 7) v -= 4; else if (b && b.def >= 5) v -= 2;
+  // помеха от самого доспеха — по простой вещи: волшебная закалка не делает его тяжелее
+  const b = h.eq.body && R.item(R.baseId(h.eq.body)); if (b && b.def >= 7) v -= 4; else if (b && b.def >= 5) v -= 2;
   return v;
 };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -24549,14 +24550,19 @@ const STAT_PROP = {usilenie: 'str', provorstvo: 'dex', vynoslivost: 'con', mudro
 C.statSync = function (h, g) {
   if (!h || !h.stats) return;
   if (!h.statsBase) h.statsBase = Object.assign({}, h.stats);
+  // статы, поменянные напрямую после прошлого пересчёта (верность наёмника, возврат из Нави, дары саг), — это перемена основы,
+  // а не вещей: переносим её в основу, иначе пересчёт откатывал бы её и статы «падали» при надевании вещи
+  else if (h._statsOut) Object.keys(h.stats).forEach(k => { const d = (h.stats[k] || 0) - (h._statsOut[k] || 0); if (d) h.statsBase[k] = (h.statsBase[k] || 0) + d; });
+  else Object.keys(h.stats).forEach(k => { if ((h.stats[k] || 0) < (h.statsBase[k] || 0)) h.statsBase[k] = h.stats[k]; });
   const st = Object.assign({}, h.statsBase);
   Object.entries(STAT_PROP).forEach(([p, k]) => { const l = sumProp(h, p); if (l) st[k] = Math.max(st[k], Math.min(18, 14 + l)); });
   (h.buffs || []).forEach(b => { if (b.stat) st[b.stat] = Math.max(st[b.stat], b.val); });
-  h.stats = st;
+  h.stats = st; h._statsOut = Object.assign({}, st);
 };
 /* ---------- производные ---------- */
 const dv0 = R.derive;
 R.derive = function (h) {
+  if (h && h.stats && h.eq) C.statSync(h); // надел или снял вещь — статы сразу верные, не только в бою
   const D = dv0(h);
   const w = D.weapon, r = D.ranged;
   if (w && w.atkBonus) D.atk += w.atkBonus; if (w && w.dmgPlus) D.dmgBonus += w.dmgPlus;
@@ -34991,7 +34997,7 @@ G.Net = {S, MAX, LS, myUid, Transfer, loadPeer, setHooks: h => { hooks = h || {}
 (function (G) {
 'use strict';
 if (typeof window === 'undefined' || !window.localStorage) return;
-const CFG = {apiKey: 'AIzaSyAt_vYZguVNF0yJLv_S-i5ZfifnzutIEg0', authDomain: (location.hostname === 'malefictum.github.io' ? 'malefictum.github.io' : 'witchcraft-rpg.firebaseapp.com'), projectId: 'witchcraft-rpg',
+const CFG = {apiKey: 'AIzaSyAt_vYZguVNF0yJLv_S-i5ZfifnzutIEg0', authDomain: (typeof location !== 'undefined' && location.hostname === 'malefictum.github.io' ? 'malefictum.github.io' : 'witchcraft-rpg.firebaseapp.com'), projectId: 'witchcraft-rpg',
   storageBucket: 'witchcraft-rpg.firebasestorage.app', messagingSenderId: '677124111014', appId: '1:677124111014:web:45788ee3415822ba571267'};
 const SDK = 'https://www.gstatic.com/firebasejs/10.12.2/firebase-';
 const SKIP = /^kldv-(zoom|sound|type|walk|wfx|goto|tips-seen|tips|cloud-.*)$/;
