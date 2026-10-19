@@ -1686,10 +1686,10 @@ S_.fallbackDice = {0: '1d4', 1: '1d6+1', 2: '2d6', 3: '3d6+2', 4: '5d6'};
 S_.areaTargets = function (S, u, s, target) {
   if (!target) return [];
   if (s.area && s.area.shape === 'cone') {
-    const len = Math.max(2, Math.min(6, Math.round(s.area.size || 2)));
+    const len = Math.max(2, Math.min(12, Math.round(s.area.size || 2)));
     return S.units.filter(x => x !== u && !x.dead && !x.gone && B.dist(u, x) <= len && B.dist(target, x) <= B.dist(u, x) && B.dist(target, x) <= Math.ceil(B.dist(u, x) / 2) + 1);
   }
-  const rad = Math.max(1, Math.min(3, Math.round((s.area && s.area.size) || 1)));
+  const rad = Math.max(1, Math.min(15, Math.round((s.area && s.area.size) || 1))); // радиус как в описании (клетка — 5 футов, как в D&D)
   return S.units.filter(x => !x.dead && !x.gone && B.dist(x, target) <= rad);
 };
 /* ожидаемый урон по одной цели — тот же счёт, что в cast: кости + прибавка по кругу, у заговора нижняя граница, яд — ещё два хода */
@@ -1834,7 +1834,7 @@ B.ai = function (S, u) {
       const mode = S_.targetMode(s), rg = S_.range(s);
       if (s.kind.includes('summon') && !S.units.some(x => x.summoner === u.id && !x.dead && !x.gone)) { const v = 6 + s.circle * 6; if (v > bestV) { bestV = v; best = [s, B.neigh(u.c, u.r)[0]]; } continue; }
       if (mode === 'area' && (s.kind.includes('damage') || s.kind.includes('control') || s.kind.includes('debuff'))) {
-        const cone = s.area && s.area.shape === 'cone', reach = cone ? Math.max(2, Math.min(6, Math.round(s.area.size || 2))) : Math.max(1, rg) + 1;
+        const cone = s.area && s.area.shape === 'cone', reach = cone ? Math.max(2, Math.min(12, Math.round(s.area.size || 2))) : Math.max(1, rg) + 1;
         const ck = s.kind.includes('control') ? S_.controlKind(s) : null;
         for (const e of en) {
           if (S_.vsUnholy(s) && !e.nechist) continue;
@@ -25981,6 +25981,24 @@ B.startTurn = function (S, u) {
   const ni = u.fx && u.fx.noInnate; const r = stX.apply(this, arguments);
   if (ni && !(u.fx && u.fx.noInnate) && ni.keep && !u.ranged) { u.ranged = ni.keep; B.log(S, `${u.name}: врождённая сила возвращается.`, ''); }
   return r;
+};
+
+/* Волна Смерти: от самого заклинателя на 15 клеток, всем живым, своим тоже; нежить и он сам не задеты, «Защита от Смерти» спасает целиком */
+const VOLNA = 'necro_volna_smerti';
+const volnaHit = (S, u) => S.units.filter(x => x !== u && !x.dead && !x.gone && !x.undead && B.dist(x, u) <= 15);
+FX[VOLNA] = (S, u, s) => { const dc = dcOf(s, u), L = Math.min(10, u.level), xs = volnaHit(S, u);
+  if (!xs.length) { say(S, 'Холод смерти расходится — живых вокруг нет.', ''); return; }
+  say(S, `${u.name}: холод смерти расходится на пятнадцать клеток.`, 'spell');
+  xs.forEach(x => { if (fx(x, 'deathWard')) { B.log(S, `${x.name}: защита от смерти — холод проходит мимо.`, ''); return; }
+    let d = R.roll(L, 3) + R.roll(S_.circleDice(4), 6) + (S_.dmgHook ? S_.dmgHook(u, s, x) : 0); const sv = B.saveRoll(x, 'Стойкость', dc); if (sv) d = Math.max(1, Math.floor(d / 2));
+    B.log(S, `${x.name}: смертный холод — ${d}${sv ? ' (выдержал наполовину)' : ''}.`, 'hit'); B.damage(S, x, d, s.name, u); }); };
+const tmV = S_.targetMode; S_.targetMode = sp => sp && sp.id === VOLNA ? 'self' : tmV(sp);
+/* ИИ: волну — только когда своих живых в пятнадцати клетках нет, а врагов задело бы двое и больше */
+const aiV = B.ai;
+B.ai = function (S, u) {
+  try { if (!S.acted && (u.spells || []).includes(VOLNA) && !u.conds.fear && S_.usableNow(S, u).some(x => x.id === VOLNA)) {
+    const xs = volnaHit(S, u); if (!xs.some(x => x.side === u.side) && xs.filter(x => x.side !== u.side).length >= 2) { S_.cast(S, u, DATA.spellById[VOLNA], u); return; } } } catch (e) {}
+  return aiV.apply(this, arguments);
 };
 S_.FX = FX;
 /* ИИ не повторяет одно и то же особое заклинание каждый ход */
