@@ -27537,6 +27537,7 @@ S_.cast = function (S, u, s, target) {
   /* ---------- Хворь: кашель ---------- */
   if (s.id === 'black_hvor' && target && target.hp != null && hp0 != null && target.hp < hp0 && !target.dead && !target.undead && target.group !== 'духи') {
     const n = Math.max(3, S_.duration(s, u.level)); target.conds.atkDown = Math.max(target.conds.atkDown || 0, n); B.log(S, `${target.name} заходится кашлем.`, 'ctrl', `хворь: −2 к атаке, ${n} ход.`);
+    if (target.ref && target.side === 'party') { S._ail = S._ail || {}; (S._ail[target.id] = S._ail[target.id] || {}).hvor = 1; } // герою хворь остаётся и после боя
   }
   return r;
 };
@@ -29746,6 +29747,11 @@ C.AILS = {
     catchTxt: h => `${v(h, 'укушен', 'укушена')} оборотнем`,
     pen: s => ({chk: s >= 2 ? 1 : 0})},
 };
+/* «Хворь» чёрной магии: каждые сутки −1d6 хитов и Стойкость, кашель −1 к проверкам и атаке; лечит лекарь или «Исцеление» */
+C.AILS.mor = {name: 'Наведённый мор', dc: 13, self: 0.5, grow: 0.3,
+  say: ['кашляет, на щеках лихорадочный румянец', 'заходится кашлем, по ночам жар', 'мор жжёт изнутри, кашель с кровью'],
+  catchTxt: h => `${v(h, 'подхватил', 'подхватила')} наведённую хворь`,
+  pen: s => ({chk: 1, atk: 1, hp: 0.1 * s}), bleed: () => R.d(6)};
 const AIL_IDS = Object.keys(C.AILS);
 C.ailsOf = h => (h && Array.isArray(h.ails) ? h.ails : []);
 C.ailSeen = h => C.ailsOf(h).filter(a => !a.hide);
@@ -29954,6 +29960,7 @@ C.battleEnd = function (g, S, spec) {
     }
     if (s.hit.und && (s.down || s.low) && !saveFort(h, 13)) C.ailAdd(g, h, 'gnil', 1);
     if (s.hit.und && R.rand() < 0.3 && !saveFort(h, 12)) C.ailAdd(g, h, 'trupny', 1);
+    if (s.hit.hvor && !C.ailsOf(h).some(a => a.id === 'mor')) { C.ailAdd(g, h, 'mor', 1); out.push(`${h.name}: наведённая хворь не ушла с боем — кашель, жар, отдых не впрок.`); }
     if (s.hit.wolf && !C.ailsOf(h).some(a => a.id === 'volchya') && !saveFort(h, 14)) C.ailAdd(g, h, 'volchya', 1, true);
     capHp(h);
   });
