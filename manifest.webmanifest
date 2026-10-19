@@ -1,0 +1,42 @@
+{
+  "id": "./",
+  "name": "Колдовство",
+  "short_name": "Колдовство",
+  "description": "Ролевая игра по миру Порубежья: создайте героя, путешествуйте по краю, проходите саги и случайные задания, сражайтесь на гексах в одиночку или с друзьями по сети.",
+  "lang": "ru",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "display_override": [
+    "fullscreen",
+    "standalone"
+  ],
+  "orientation": "any",
+  "background_color": "#15120f",
+  "theme_color": "#2b2117",
+  "categories": [
+    "games",
+    "entertainment"
+  ],
+  "icons": [
+    {
+      "src": "img/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "img/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}
