@@ -1385,7 +1385,7 @@ B.advOf = function (S, u, t, ranged, hid) {
     if (B.rangeBand && B.rangeBand(u, t) === -5) D.push('предел дальности');
     if (B.cover && B.cover(S, u, t)) D.push('укрытие');
     if (B.enemiesOf(S, u).some(x => B.dist(x, u) === 1)) D.push('враг вплотную');
-    const X = S && S.wx; if (X) { if (X.night && !(B.darkSight && B.darkSight(u)) && B.dist(u, t) > 4) D.push('темень'); if (X.kind === 'fog') D.push('туман'); }
+    const X = S && S.wx; if (X) { if (X.night && !(B.darkSight && B.darkSight(u)) && B.dist(u, t) > Math.max(4, u.nightSight || 0)) D.push('темень'); if (X.kind === 'fog') D.push('туман'); }
   }
   const a = A.length && !D.length ? 1 : D.length && !A.length ? -1 : 0;
   return {a, A, D, why: a > 0 ? 'преимущество: ' + A.join(', ') : a < 0 ? 'помеха: ' + D.join(', ') : (A.length && D.length ? `преимущество и помеха гасят друг друга (${A.concat(D).join(', ')})` : '')};
@@ -24600,7 +24600,7 @@ B.fromHero = function (h, side, ai) {
   if (D.rangedDmg && u.ranged && !(u.ranged.bonus >= D.rangedDmg)) { /* уже учтено в profs */ }
   u.fast3 = sumProp(h, 'bystrota', ['weapon']) >= 3;
   u.regen = sumProp(h, 'regeneratsiya'); u.initBonus = (u.initBonus || 0) + 2 * sumProp(h, 'bystrota', ['weapon']) - (curses(h).includes('proklyatie_medlitelnost') ? 2 : 0);
-  u.blindFight = (u.blindFight || 0) + sumProp(h, 'nochnoe_zrenie');
+  u.blindFight = (u.blindFight || 0) + sumProp(h, 'nochnoe_zrenie'); u.nightSight = 10 * sumProp(h, 'nochnoe_zrenie');
   u.elemRes = {}; u.elemSave = {}; Object.entries(ELEM).forEach(([k, el]) => { const l = sumProp(h, 'zashch_' + k); if (l) { u.elemRes[el] = 2 * l; u.elemSave[el] = 2 * l; } });
   u.spellRes = sumProp(h, 'zashch_magiya'); u.mindSave = 2 * sumProp(h, 'zashch_razuma');
   u.elemPow = {}; Object.entries(ELEM).forEach(([k, el]) => { const l = sumProp(h, 'sila_' + k); if (l) u.elemPow[el] = l; });
@@ -28933,7 +28933,7 @@ const heavyArmor = u => { try { const b = u.ref && u.ref.eq && u.ref.eq.body; co
 B.sightRange = function (S, u) {
   const X = S && S.wx; if (!X || !u) return Infinity;
   let r = Infinity;
-  if (X.night && !darkSight(u)) r = Math.min(r, 4 + (keen(u) ? 1 : 0) + (u.torch ? 2 : 0));
+  if (X.night && !darkSight(u)) r = Math.min(r, Math.max(4 + (keen(u) ? 1 : 0) + (u.torch ? 2 : 0), u.nightSight || 0));
   if (X.kind === 'fog') r = Math.min(r, 3 + (u.cls === 'lovchiy' || (u.ref && u.ref.cls === 'lovchiy') ? 1 : 0));
   else if (X.kind === 'blizzard') r = Math.min(r, 5);
   return r;
