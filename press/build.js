@@ -9,11 +9,11 @@ const C = {bg: '#0d0a08', bg2: '#16110c', bg3: '#1e1710', fg: '#e8dfcf', mut: '#
 const FONT = 'alegreya';
 const pad = (t, s = 'var(--wp--preset--spacing--40, 2rem)') => ({top: t, bottom: t, left: s, right: s});
 
-const P = (html, o = {}) => B('core/paragraph', {content: html, align: o.align, fontSize: o.size,
-  style: {color: {text: o.color || C.fg}, typography: Object.assign({lineHeight: o.lh || '1.65'}, o.ty || {}), spacing: o.sp}, fontFamily: o.font});
-const Label = (t, align = 'center') => P(t, {align, color: C.gold, ty: {textTransform: 'uppercase', letterSpacing: '0.22em', fontSize: '0.82rem', fontWeight: '600'}, lh: '1.4'});
-const H = (t, lvl = 2, o = {}) => B('core/heading', {content: t, level: lvl, textAlign: o.align || 'center', fontFamily: FONT,
-  style: {color: {text: o.color || C.gold2}, typography: Object.assign({fontWeight: '700', lineHeight: '1.15', fontSize: o.fs || (lvl === 2 ? 'clamp(2rem, 4.2vw, 3.2rem)' : lvl === 3 ? '1.6rem' : '1.25rem')}, o.ty || {}), spacing: o.sp}});
+const P = (html, o = {}) => B('core/paragraph', {content: html, fontFamily: o.font === null ? undefined : (o.font || FONT),
+  style: {color: {text: o.color || C.fg}, typography: Object.assign({lineHeight: o.lh || '1.6', fontSize: '1.15rem', textAlign: o.align}, o.ty || {}), spacing: o.sp}});
+const Label = (t, align = 'center') => P(t, {align, color: C.gold, ty: {textTransform: 'uppercase', letterSpacing: '0.24em', fontSize: '0.9rem', fontWeight: '700'}, lh: '1.4'});
+const H = (t, lvl = 2, o = {}) => B('core/heading', {content: t, level: lvl, fontFamily: FONT,
+  style: {color: {text: o.color || C.gold2}, typography: Object.assign({textAlign: o.align || 'center', fontWeight: '700', lineHeight: '1.15', fontSize: o.fs || (lvl === 2 ? 'clamp(2rem, 4.2vw, 3.2rem)' : lvl === 3 ? '1.6rem' : '1.25rem')}, o.ty || {}), spacing: o.sp}});
 const Btn = (t, href, outline) => B('core/button', {text: t, url: href, linkTarget: '_blank', rel: 'noreferrer noopener',
   className: outline ? 'is-style-outline' : undefined, fontFamily: FONT,
   style: {color: outline ? {text: C.gold2} : {background: C.gold, text: C.ink}, border: {radius: '2px', width: outline ? '2px' : undefined, color: outline ? C.gold : undefined},
@@ -24,18 +24,18 @@ const Gal = (keys, cols, o = {}) => B('core/gallery', {columns: cols, linkTo: 'n
   style: {spacing: {blockGap: {top: o.gap || '14px', left: o.gap || '14px'}, margin: {top: '2.5rem'}}}}, keys.map(([k, alt]) => Img(k, {alt})));
 const Sec = (inner, o = {}) => B('core/group', {align: 'full', tagName: 'section', anchor: o.id,
   style: {color: {background: o.bg || C.bg, text: C.fg}, spacing: {padding: pad(o.py || 'clamp(4rem, 9vw, 7.5rem)'), margin: {top: '0', bottom: '0'}, blockGap: o.gap}},
-  layout: {type: 'constrained', contentSize: o.cs || '760px', wideSize: '1240px'}}, inner);
+  layout: {type: 'constrained', contentSize: o.cs || '760px', wideSize: o.ws || '1240px'}}, inner);
 const Cov = (k, inner, o = {}) => B('core/cover', {url: url(k), id: M[k], alt: '', dimRatio: o.dim ?? 30, overlayColor: undefined, customOverlayColor: '#0d0a08',
   minHeight: o.mh || 80, minHeightUnit: 'vh', align: 'full', isDark: true, hasParallax: !!o.par, contentPosition: o.pos || 'center center', tagName: 'section', anchor: o.id,
-  style: {spacing: {padding: pad(o.py || '6rem'), margin: {top: '0', bottom: '0'}}, color: {text: C.fg}},
-  layout: {type: 'constrained', contentSize: o.cs || '820px'}}, inner);
+  style: {spacing: {padding: Object.assign(pad(o.py || '6rem'), o.pl ? {left: o.pl} : {}), margin: {top: '0', bottom: '0'}}, color: {text: C.fg}},
+  layout: {type: 'constrained', contentSize: o.cs || '820px', justifyContent: o.just}}, inner);
 const Cols = (cols, o = {}) => B('core/columns', {align: o.align || 'wide', style: {spacing: {blockGap: {left: o.gap || '2rem', top: '2rem'}, margin: {top: o.mt || '3rem'}}}}, cols);
 const Col = (inner, o = {}) => B('core/column', {style: o.style}, inner);
 const Card = (k, title, text, sub) => Col([Img(k, {style: {border: {radius: '2px'}}}), sub ? Label(sub, 'left') : null, H(title, 3, {align: 'left', sp: {margin: {top: '0.6rem'}}}), P(text, {color: C.mut})].filter(Boolean));
 const Stat = (n, t) => Col([H(n, 2, {fs: 'clamp(2.4rem, 5vw, 3.6rem)', sp: {margin: {bottom: '0.2rem'}}}), P(t, {align: 'center', color: C.mut, ty: {textTransform: 'uppercase', letterSpacing: '0.16em', fontSize: '0.8rem'}})]);
 const Sep = () => B('core/separator', {className: 'is-style-dots', style: {color: {background: C.gold}}, backgroundColor: undefined});
 const LI = t => B('core/list-item', {content: t});
-const List = items => B('core/list', {style: {color: {text: C.fg}, typography: {lineHeight: '1.75'}, spacing: {padding: {left: '1.2em'}}}}, items.map(LI));
+const List = items => B('core/list', {fontFamily: FONT, style: {color: {text: C.fg}, typography: {lineHeight: '1.75', fontSize: '1.15rem'}, spacing: {padding: {left: '1.2em'}}}}, items.map(LI));
 const MT = (k, inner, right) => B('core/media-text', {mediaId: M[k] || undefined, mediaUrl: M[k] ? url(k) : k, mediaType: 'image', mediaPosition: right ? 'right' : 'left',
   verticalAlignment: 'center', align: 'wide', mediaWidth: 54, isStackedOnMobile: true, style: {spacing: {margin: {top: '3rem'}}}}, inner);
 
@@ -56,7 +56,7 @@ const page = [
   Sec([
     Label('Свободный человек'),
     H('Край помнит каждого'),
-    P('Ты не служишь ни князю, ни Оку, ни старым богам. Нанимаешься, торгуешься, решаешь, кого выдать дознавателю, а кого спрятать. Сёла запоминают твоё имя, капища — твои дары, Око — твои грехи.', {align: 'center', ty: {fontSize: '1.2rem'}}),
+    P('Ты не служишь ни князю, ни Оку, ни старым богам. Нанимаешься, торгуешься, решаешь, кого выдать дознавателю, а кого спрятать. Сёла запоминают твоё имя, капища — твои дары, Око — твои грехи.', {align: 'center', ty: {fontSize: '1.3rem'}}),
     MT('f_kurgan', [
       H('Одна жизнь', 3, {align: 'left'}),
       P('Сохраниться и переиграть нельзя. Павший герой остаётся в летописи навсегда, а его сага продолжается без него.', {color: C.mut}),
@@ -71,8 +71,8 @@ const page = [
     H('Тринадцать дорог'),
     P('Дружинник держит строй, тать бьёт в спину, волхв зовёт грозу Перуна, книжник учит любую школу по книгам. Каждому герою — свой народ, своё ремесло и свой наставник. А серебро позовёт под твою руку наёмников.', {align: 'center', color: C.mut}),
     Gal([['cls_druzhinnik', 'Дружинник'], ['cls_yaryi', 'Ярый'], ['cls_obetnik', 'Обетник'], ['cls_vedmak', 'Ведьмак'], ['cls_lovchiy', 'Ловчий'], ['cls_tat', 'Тать'], ['cls_dushegub', 'Душегуб'],
-      ['cls_guslyar', 'Гусляр'], ['cls_chernets', 'Чернец'], ['cls_volhv', 'Волхв'], ['cls_zhrets', 'Жрец иной веры'], ['cls_knizhnik', 'Книжник'], ['cls_charovnik', 'Чаровник'], ['cls_merc', 'Наёмники']], 7, {align: 'full', gap: '12px'}),
-  ], {bg: C.bg2, cs: '760px'}),
+      ['cls_guslyar', 'Гусляр'], ['cls_chernets', 'Чернец'], ['cls_volhv', 'Волхв'], ['cls_zhrets', 'Жрец иной веры'], ['cls_knizhnik', 'Книжник'], ['cls_charovnik', 'Чаровник'], ['cls_merc', 'Наёмники']], 7, {align: 'wide', gap: '12px'}),
+  ], {bg: C.bg2, cs: '760px', ws: '1480px'}),
 
   /* 5. Мир */
   Cov('kv_world', [
@@ -104,7 +104,7 @@ const page = [
     H('Мир без глав', 2, {align: 'left'}),
     P('Один большой мир: края по уровням, поручения без конца и война Ока с навью, которая идёт и без тебя. От Нолгримских бродов до Великой Степи, Империи, Поморья, Пар-Насса и Подземья.', {ty: {fontSize: '1.15rem'}}),
     P('Имения можно купить и оставить в наследство. Герой между главами саги может уйти в чужую игру к друзьям.', {color: C.mut}),
-  ], {mh: 75, dim: 50, pos: 'center left', cs: '1240px'}),
+  ], {mh: 75, dim: 50, pos: 'center left', cs: '620px', just: 'left', pl: 'clamp(2rem, 8vw, 9rem)'}),
 
   /* 8. Бой */
   Sec([
