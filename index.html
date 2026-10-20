@@ -35179,6 +35179,8 @@ C.folkPerson = function (g, role, at) {
   const s0 = F.sex; F.sex = s0 === 'f' ? 'm' : 'f';
   try { const p = fp0.apply(this, arguments); p.t = ALT_T[role] || p.t; return p; } finally { F.sex = s0; }
 };
+/* старые сохранения: переходят на новый расклад, как только ни одно дело мастера не висит (иначе не найти заказчика) */
+C.folkMixUp = g => { if (!g || g.folkMix) return; if ((g.jobs || []).some(j => j.folk && ['open', 'done'].includes(j.status))) return; g.folkMix = 1; g.folkJobs = {}; };
 const ng0 = C.newGame;
 C.newGame = function () { const g = ng0.apply(this, arguments); if (g) g.folkMix = 1; return g; };
 
@@ -35217,7 +35219,7 @@ C.relAdd = function (g, role, at, d, why) {
   const r = C.relOf(g, role, at), was = r.rep, cap = capOf(g, r, role, at);
   r.rep = d > 0 ? (was >= cap ? was : Math.min(cap, was + d)) : Math.max(0, was + d);
   const p = C.folkPerson(g, role, at), t0 = C.relTier({rep: was}), t1 = C.relTier(r);
-  if (t1 !== t0 && !r.bond) C.note(g, `${p.n}: ${['вы снова чужие', 'теперь вы знакомы по делу', 'теперь вы друзья', p.sex === 'f' ? 'смотрит на вас иначе, чем раньше' : 'смотрит на вас иначе, чем раньше'][t1]}${why ? ' (' + why + ')' : ''}.`);
+  if (false && t1 !== t0 && !r.bond) C.note(g, `${p.n}: ${['вы снова чужие', 'теперь вы знакомы по делу', 'теперь вы друзья', p.sex === 'f' ? 'смотрит на вас иначе, чем раньше' : 'смотрит на вас иначе, чем раньше'][t1]}${why ? ' (' + why + ')' : ''}.`);
   return r.rep - was;
 };
 const WORD = (g, r, p, role, at) => { const t = C.relTier(r);
@@ -35354,7 +35356,6 @@ function folkTalk(g, sc, role, at, p, r, k, fam) {
   else if (t === 3 && r.love && kn) lines.splice(0, 1, ['n', fill(pickL(g, LOVE.same, k), p, kn)]);
   else if (t === 3) lines.splice(0, 1, ['n', fill(pickL(g, CLOSE, k), p, kn || C.alive(g)[0])]);
   else if (t >= 1) lines.splice(0, 1, ['n', fill(pickL(g, GREET[t], k), p, C.alive(g)[0])]);
-  lines.push(['n', `Между вами: ${C.relText(g, role, at)}.`]);
   // подарки, что накопились
   if (fam && r.gifts && r.gifts.length) ch.unshift({t: `Забрать, что ${p.sex === 'f' ? 'она' : 'он'} отложил${p.sex === 'f' ? 'а' : ''}: ${r.gifts.length}`, do: g2 => { const rr = C.relOf(g2, role, at), h2 = heroById(g2, rr.who) || C.alive(g2)[0];
     const got = (rr.gifts || []).splice(0); got.forEach(id => h2.inv.push(id)); g2.folkLast = `${h2.name} получает: ${got.map(id => (R.item(id) || {}).name || id).join(', ').toLowerCase()}.`; C.note(g2, g2.folkLast); return 'folk'; }});
@@ -35399,9 +35400,9 @@ function folkTalk(g, sc, role, at, p, r, k, fam) {
 const decorateHub = (g, sc) => { if (!sc || !C.folkHere) return sc;
   const roles = C.folkHere(g); sc = Object.assign({}, sc, {choices: (sc.choices || []).map((c, i) => { const role = roles[i]; if (!c.card || !role) return c; return Object.assign({}, c, {card: Object.assign({}, c.card, {sub: c.card.sub + ' · ' + C.relWord(g, role, g.loc)})}); })});
   return sc; };
-const wrapScenes = camp => { FREE_SC.forEach(id => wrapOne(camp, id, decorate)); wrapOne(camp, 'folk_hub', (g, id, sc) => decorateHub(g, sc)); };
+const wrapScenes = camp => { FREE_SC.forEach(id => wrapOne(camp, id, decorate)); wrapOne(camp, 'folk_hub', (g, id, sc) => sc); };
 function wrapOne(camp, id, fn) { const raw = camp.scenes[id]; if (!raw || raw._hearts) return;
-  const f = function (g) { const sc = typeof raw === 'function' ? raw.apply(this, arguments) : raw; try { return fn(g, id, sc); } catch (e) { return sc; } }; f._hearts = 1; camp.scenes[id] = f; }
+  const f = function (g) { if (id === 'folk_hub') C.folkMixUp(g); const sc = typeof raw === 'function' ? raw.apply(this, arguments) : raw; try { return fn(g, id, sc); } catch (e) { return sc; } }; f._hearts = 1; camp.scenes[id] = f; }
 /* подарок: из сумы — по цене */
 const SC = {};
 SC.folk_gift = g => {
@@ -35415,7 +35416,7 @@ SC.folk_gift = g => {
     g2.folkLast = `${p.n} принимает подарок — ${o.x.name.toLowerCase()}: «${C.relTier(rr) >= 3 ? 'Ты… ты не должен был{hs:|а}. Но спасибо' : C.relTier(rr) >= 2 ? 'Вот это подарок! Спасибо, друг' : 'Хм. Благодарю'}».${add > 0 ? '' : ' Ближе подарками не стать — нужно что-то большее.'}`.replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h2.sex === 'f' ? f : m);
     C.note(g2, g2.folkLast); g2.relGift = null; return 'folk'; }}));
   ch.push({t: 'Назад', do: g2 => { g2.relGift = null; return 'folk'; }});
-  return {title: `Подарок: ${p.n}`, bg: C.FOLK[role].bg, art: C.FOLK[role].art, lines: [['n', items.length ? 'Что подарить? Дорогое трогает сильнее.' : 'В сумах нечего дарить.'], ['n', `Между вами: ${C.relText(g, role, at)}.`]], choices: ch};
+  return {title: `Подарок: ${p.n}`, bg: C.FOLK[role].bg, art: C.FOLK[role].art, lines: [['n', items.length ? 'Что подарить? Дорогое трогает сильнее.' : 'В сумах нечего дарить.']], choices: ch};
 };
 Object.values(C.CAMPS).forEach(camp => { Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); wrapScenes(camp); });
 const reg0 = C.register;
@@ -35434,7 +35435,15 @@ const fin0 = Q.finish; Q.finish = function (g, j) { const r = fin0.apply(this, a
 const rep0 = Q.report; Q.report = function (g, j) { const r = rep0.apply(this, arguments); onPaid(g, j); return r; };
 const tick0 = Q.tick; Q.tick = function (g) { const before = new Set((g.jobs || []).filter(j => j.status === 'open').map(j => j.id)); const r = tick0.apply(this, arguments);
   (g.jobs || []).forEach(j => { if (before.has(j.id) && j.status === 'late' && j.folk && j.folkAt) C.relAdd(g, j.folk, j.folkAt, j.heart ? -20 : -10, 'дело брошено'); }); return r; };
-const ol0 = Q.offerLines; Q.offerLines = function (g, j) { const L = ol0.apply(this, arguments); if (j && j.heartLine) L.unshift(['n', j.heartLine]); return L; };
+/* чем ближе — тем дела интереснее: плата выше, у друзей — дела потруднее и подороже */
+const mj0 = C.folkMakeJob;
+C.folkMakeJob = function (g, role) { const j = mj0.apply(this, arguments); if (!j) return j;
+  const at = atKey(g), r = C.relOf(g, role, at), t = C.relTier(r);
+  j.pay = Math.round((j.pay || 0) * [0.9, 1, 1.2, 1.35, 1.5][t] / 10) * 10;
+  if (t >= 2 && Q.DIFF && j.diff === 'easy') { j.diff = 'mid'; }
+  if (t >= 2) { const p = C.folkPerson(g, role, at); j.friendLine = fill(['{N} понижает голос: «Тебе — скажу то, что другим не говорю». ', '«Чужим бы не доверил{ns:|а}. А вам — можно». ', '{N} отводит вас в сторону: «Дело непростое. Но и плата — не как всем». '][hash(j.id) % 3], p, C.alive(g)[0]); }
+  j.txt = Q.offerText(g, j); return j; };
+const ol0 = Q.offerLines; Q.offerLines = function (g, j) { const L = ol0.apply(this, arguments); if (j && j.heartLine) L.unshift(['n', j.heartLine]); else if (j && j.friendLine) L.unshift(['n', j.friendLine]); return L; };
 
 /* ---------- семья: подарки копятся ---------- */
 const giftFor = (g, role) => {
@@ -35455,7 +35464,7 @@ const letters = g => {
     g.mail = (g.mail || []).concat({from: p.n, t: p.t, face: p.face, sex: p.sex, kind, to: h.name, text, gift: giftText, day: g.day}).slice(-6);
     C.note(g, `Гонец догоняет отряд: грамотка от ${p.n} — ${h.name}. ${text} В свёртке — ${giftText}.`); });
 };
-const dayTick = g => { if (!g || !g.folkRel) return; try { letters(g); } catch (e) {}
+const dayTick = g => { C.folkMixUp(g); if (!g || !g.folkRel) return; try { letters(g); } catch (e) {}
   Object.entries(g.folkRel).forEach(([k, r]) => { if (!r.bond || r.camp !== g.camp) return; const role = k.split('@')[0]; if (!['trade', 'herb'].includes(role)) return;
     r.giftAt = r.giftAt == null ? g.day : r.giftAt; r.gifts = r.gifts || [];
     while (r.giftAt < g.day) { r.giftAt++; if (r.gifts.length < 5) { const id = giftFor(g, role); if (id) r.gifts.push(id); } } }); };
