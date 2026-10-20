@@ -170,7 +170,7 @@ button{font:inherit;cursor:pointer}
 #ipop .ipc{display:grid;grid-template-columns:112px 1fr;gap:12px;align-items:center;padding-right:70px}
 #ipop .ipico{width:112px;height:112px;border:1px solid rgba(107,85,55,.45);border-radius:8px;background:rgba(43,33,23,.08)}
 #ipop h3{margin:0 0 4px;font-size:21px}#ipop .ipk{font:700 12px var(--t-label);letter-spacing:.06em;text-transform:uppercase;color:#6b4a26}
-#ipop .ipkv{display:grid;grid-template-columns:1fr 1fr;gap:4px 14px;margin-top:12px}#ipop .ipkv>div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(107,85,55,.35);padding:2px 0}#ipop .ipkv span{color:#5b4a38}#ipop .ipkv b{white-space:nowrap;text-align:right}#ipop .ipkv small{font-weight:400;color:#6b5a44}
+#ipop .ipkv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 14px;margin-top:12px}#ipop .ipkv>div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(107,85,55,.35);padding:2px 0}#ipop .ipkv span{color:#5b4a38}#ipop .ipkv span{flex:none}#ipop .ipkv b{text-align:right;min-width:0;overflow-wrap:anywhere}#ipop .ipkv>div.w{grid-column:1/-1}#ipop .ipkv small{font-weight:400;color:#6b5a44}
 #ipop h4.jh{font:700 13px var(--t-label);letter-spacing:.08em;text-transform:uppercase;color:#6b4a26;margin:14px 0 4px}
 #ipop .ipfx{margin:0;padding-left:18px;line-height:1.4}#ipop .ipw{color:#8a3b2b;margin:8px 0 0}#ipop .iplore{font-style:italic;color:#5b4a38;margin:12px 0 0;line-height:1.4}
 .bi[data-ipop],.sc[data-ipop],.dico[data-ipop]{cursor:pointer}.bi[data-ipop]:hover{border-color:#8a6d44;background:rgba(255,255,255,.25)}
@@ -36338,7 +36338,7 @@ function itemKind(x) {
 function itemCard(id, h) {
   const x = R.item(id); if (!x) return '';
   const o = x.magic || null, base = o ? R.item(o.base) : x, rows = [], fx = [];
-  const kv = (k, v) => rows.push(`<div><span>${esc(k)}</span><b>${v}</b></div>`);
+  const kv = (k, v) => rows.push(`<div${String(v).replace(/<[^>]*>/g, '').length > 22 ? ' class="w"' : ''}><span>${esc(k)}</span><b>${v}</b></div>`);
   if (x._t === 'w') {
     kv('Урон', esc(x.dmg) + (x.dmgPlus ? ` +${x.dmgPlus}` : '')); if (x.dmg_large && x.dmg_large !== x.dmg) kv('По крупным', esc(x.dmg_large));
     if (x.atkBonus) kv('К попаданию', '+' + x.atkBonus); if (x.type) kv('Удар', esc(x.type)); if (x.crit) kv('Крит', esc(x.crit)); if (x.range) kv('Дальность', Array.isArray(x.range) ? esc(`${x.range[0]} клеток без помехи, до ${x.range[1]} — −2, до ${x.range[2]} — −5${x.rangeFt ? ` (${x.rangeFt[0]}/${x.rangeFt[1]} футов)` : ''}`) : esc(String(x.range)));
