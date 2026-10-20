@@ -26897,23 +26897,24 @@ DATA.items.ryba_solenaya_funt = {_t: 'g', id: 'ryba_solenaya_funt', name: 'Ры�
 C.FOOD.solonina_funt = 1; C.FOOD.ryba_solenaya_funt = 1; DATA.items.sol_1_funt.notes = '';
 Object.keys(C.RAW).forEach(id => { delete C.FOOD[id]; const x = DATA.items[id]; if (x) { x.price = RAW_PRICE[id]; x.category = 'еда'; x.notes = (x.notes ? x.notes.replace(/\s*Еды: [^.]*\./, '') + ' ' : '') + (id === 'sol_1_funt' ? ('Для засолки мяса и рыбы: засоленное не портится.') : 'Продукт: сырым не едят — варят на костре.'); } });
 /* прок готовой еды на ночлеге: хиты и Сила */
-C.FOOD_FX = {harch_v_dorogu_na_den_suhari_vyalenoe_myaso: {hp: 0}, eda_na_den_skudnaya: {hp: 0}, eda_na_den_obychnaya: {hp: 1}, eda_na_den_horoshaya: {hp: 3},
-  hleb_karavay: {hp: 1}, syr_golovka: {hp: 2}, solonina_funt: {hp: 1}, ryba_solenaya_funt: {hp: 0}, ryba_solenaya_10_kg: {hp: 1}, prostoe_blyudo: {hp: 1}, pohlebka: {hp: 2}, sytnoe_blyudo: {hp: 4}, otmennoe_blyudo: {hp: 6, pw: 1}, lesnoy_pripas: {hp: 0}};
+/* засолы, харч и копчёное держат «в духе», не выше; добрая еда — «бодр», стряпня и сытное — «воодушевлён», пир (5+) — ещё и дух сверху */
+C.FOOD_FX = {harch_v_dorogu_na_den_suhari_vyalenoe_myaso: {hp: 0}, eda_na_den_skudnaya: {hp: 0}, eda_na_den_obychnaya: {hp: 2}, eda_na_den_horoshaya: {hp: 5},
+  hleb_karavay: {hp: 1}, syr_golovka: {hp: 3}, solonina_funt: {hp: 1}, ryba_solenaya_funt: {hp: 0}, ryba_solenaya_10_kg: {hp: 1}, prostoe_blyudo: {hp: 2}, pohlebka: {hp: 3}, sytnoe_blyudo: {hp: 6}, otmennoe_blyudo: {hp: 9, pw: 2}, lesnoy_pripas: {hp: 0}};
 const READY_PRICE = {harch_v_dorogu_na_den_suhari_vyalenoe_myaso: 150, eda_na_den_skudnaya: 30, eda_na_den_obychnaya: 60, eda_na_den_horoshaya: 120, hleb_karavay: 40, syr_golovka: 300, ryba_solenaya_10_kg: 900, prostoe_blyudo: 50, pohlebka: 60, sytnoe_blyudo: 120, otmennoe_blyudo: 250};
 /* рецепты: что нужно (группы продуктов) → сколько порций и какой прок */
 C.RECIPES = {
   pohl: {name: 'Похлёбка', need: [['meat|fish', 1], ['veg|mush', 1]], out: 3, hp: 2, base: 1},
   kasha: {name: 'Каша', need: [['grain', 1]], out: 2, hp: 1, base: 1},
-  zharkoe: {name: 'Жаркое', need: [['meat', 2]], out: 3, hp: 4},
-  uha: {name: 'Уха', need: [['fish', 2], ['veg', 1]], out: 4, hp: 3},
-  lepeshki: {name: 'Лепёшки', need: [['flour', 1], ['fat', 1]], out: 3, hp: 1, keep: 1},
+  zharkoe: {name: 'Жаркое', need: [['meat', 2]], out: 3, hp: 6},
+  uha: {name: 'Уха', need: [['fish', 2], ['veg', 1]], out: 4, hp: 5},
+  lepeshki: {name: 'Лепёшки', need: [['flour', 1], ['fat', 1]], out: 3, hp: 2, keep: 1},
   vyalenoe: {name: 'Вяленое мясо в дорогу', need: [['meat', 3]], out: 4, harch: 1},
-  gribnaya: {name: 'Грибная похлёбка', need: [['mush', 3], ['veg', 1]], out: 2, hp: 2, pw: 1},
-  pirog: {name: 'Пирог', need: [['flour', 1], ['meat|fish', 1], ['fat', 1]], out: 5, hp: 5},
-  shchi: {name: 'Щи', need: [['veg', 2], ['meat', 1]], out: 4, hp: 3},
+  gribnaya: {name: 'Грибная похлёбка', need: [['mush', 3], ['veg', 1]], out: 2, hp: 3, pw: 2},
+  pirog: {name: 'Пирог', need: [['flour', 1], ['meat|fish', 1], ['fat', 1]], out: 5, hp: 8},
+  shchi: {name: 'Щи', need: [['veg', 2], ['meat', 1]], out: 4, hp: 5},
   solonina: {name: 'Засолка мяса', need: [['meat', 2], ['salt', 1]], out: 3, item: 'solonina_funt', base: 1},
   zasol_ryby: {name: 'Засолка рыбы', need: [['fish', 2], ['salt', 1]], out: 3, item: 'ryba_solenaya_funt', base: 1},
-  kulesh: {name: 'Кулеш', need: [['grain', 1], ['meat', 1], ['veg', 1]], out: 5, hp: 4},
+  kulesh: {name: 'Кулеш', need: [['grain', 1], ['meat', 1], ['veg', 1]], out: 5, hp: 6},
 };
 Object.entries(C.RECIPES).forEach(([rid, r]) => {
   const id = r.item || (r.harch ? 'harch_v_dorogu_na_den_suhari_vyalenoe_myaso' : 'dish_' + rid); r.item = id;
@@ -27139,9 +27140,9 @@ C.shopExtra = (g, city) => [...new Set((sx0 ? sx0(g, city) : []).concat(Object.k
 'use strict';
 const C = G.C;
 /* сырьё для готовки: овощи, грибы, масло, зерно, мука — не портятся; сырое мясо и свежая рыба — дольше, чтобы был смысл покупать впрок */
-C.SPOIL = {myaso_1_funt: 7, myaso_na_odnogo: 7, ryba_svezhaya_1_funt: 5,
-  hleb_karavay: 5, eda_na_den_skudnaya: 3, eda_na_den_obychnaya: 3, eda_na_den_horoshaya: 3, prostoe_blyudo: 2, pohlebka: 2, sytnoe_blyudo: 2, otmennoe_blyudo: 2, lesnoy_pripas: 3};
-Object.keys(C.RECIPES || {}).forEach(k => { const r = C.RECIPES[k]; if (/^dish_/.test(r.item) && !r.keep) C.SPOIL[r.item] = 2; if (r.keep) C.SPOIL[r.item] = 6; });
+C.SPOIL = {myaso_1_funt: 12, myaso_na_odnogo: 12, ryba_svezhaya_1_funt: 8,
+  hleb_karavay: 10, eda_na_den_skudnaya: 6, eda_na_den_obychnaya: 6, eda_na_den_horoshaya: 6, prostoe_blyudo: 5, pohlebka: 5, sytnoe_blyudo: 5, otmennoe_blyudo: 5, lesnoy_pripas: 6};
+Object.keys(C.RECIPES || {}).forEach(k => { const r = C.RECIPES[k]; if (/^dish_/.test(r.item) && !r.keep) C.SPOIL[r.item] = 5; if (r.keep) C.SPOIL[r.item] = 12; });
 Object.keys(C.RAW).forEach(id => { const x = DATA.items[id]; if (!x || C.SPOIL[id]) return; x.notes = (x.notes || '').replace(/\s*Портится[^.]*\./, ''); if (!/не портится/i.test(x.notes)) x.notes = (x.notes + ' Не портится.').trim(); x.notes = x.notes.replace(/(не портится\.)\s*Не портится\./, '$1'); });
 Object.entries(C.SPOIL).forEach(([id, d]) => { const x = DATA.items[id]; if (x) x.notes = (x.notes || '').replace(/\s*Портится[^.]*\./, '') + ` Портится за ${d} ${d === 1 ? 'день' : d < 5 ? 'дня' : 'дней'}.`; });
 ['harch_v_dorogu_na_den_suhari_vyalenoe_myaso', 'solonina_funt', 'ryba_solenaya_funt', 'sol_1_funt', 'syr_golovka', 'ryba_solenaya_10_kg', 'zerno_1_funt', 'muka_1_funt', 'repa_1_funt', 'orehi_1_funt'].forEach(id => { const x = DATA.items[id]; if (x && !/не портится/i.test(x.notes || '')) x.notes = (x.notes || '') + ' Не портится.'; });
@@ -27153,6 +27154,13 @@ C.spoilSync = function (g, h, day) {
     while (q.length < n) q.push(day + C.SPOIL[id] + (C.keepExtra ? C.keepExtra(g, id) : 0)); // новое — со свежим сроком
     h.spoil[id] = q;
   });
+};
+/* передать еду другому — вместе с её сроком: уходит самая старая штука, срок едет с ней. Звать ДО того, как вещь переложили. */
+C.spoilGive = function (g, A, B, id) {
+  if (!g || !A || !B || A === B || !A.inv || !B.inv || !C.SPOIL[id]) return;
+  C.spoilSync(g, A, g.day - 1); C.spoilSync(g, B, g.day - 1);
+  const qa = A.spoil[id]; if (!qa || !qa.length) return;
+  const t = qa.shift(), qb = B.spoil[id] || (B.spoil[id] = []); qb.push(t); qb.sort((a, b) => a - b);
 };
 C.spoilTick = function (g) {
   const lost = [];
@@ -27182,12 +27190,12 @@ const R = G.R, C = G.C, B = G.B, W = G.W;
 C.SPIRIT_RU = {'-3': 'сломлен', '-2': 'пал духом', '-1': 'хмур', 0: 'ровен', 1: 'в духе', 2: 'бодр', 3: 'воодушевлён'};
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const team = g => C.alive(g).concat(g.mercs || []);
-/* потолок от сытости: голод −1 (с 3-го дня −2); последняя еда: харч и скудное +1, обычное +2, сытное +3 */
+/* потолок от сытости: голод −1 (с 3-го дня −2); последняя еда: харч, засолы, копчёное и скудное +1, обычное +2, сытное и стряпня +3 */
 C.spiritCap = function (h) {
   if (h.hunger > 0) return h.hunger >= 3 ? -2 : -1;
   if (h.kind === 'merc') return 2;
-  const q = h.mealQ == null ? 1 : h.mealQ;
-  return q >= 3 ? 3 : q >= 1 ? 2 : 1;
+  const q = h.mealQ == null ? 2 : h.mealQ;
+  return q >= 3 ? 3 : q >= 2 ? 2 : 1;
 };
 C.spiritOf = h => clamp(h.spirit || 0, -3, C.spiritCap(h));
 /* прибавки: к проверкам и Воле ±1 при |дух| 2, ±2 при 3; к попаданию ±1 только на краях шкалы */
@@ -27196,7 +27204,7 @@ C.spiritAtk = h => { const s = C.spiritOf(h); return s >= 3 ? 1 : s <= -2 ? -1 :
 C.spiritText = function (h) {
   const s = C.spiritOf(h), c = C.spiritChk(h), a = C.spiritAtk(h), cap = C.spiritCap(h);
   const fx = [c ? `${c > 0 ? '+' : '−'}${Math.abs(c)} к проверкам и Воле` : '', a ? `${a > 0 ? '+' : '−'}1 к попаданию` : ''].filter(Boolean).join(', ');
-  const why = h.hunger > 0 ? 'голод не даёт воспрянуть' : cap === 3 ? 'сыт — может воспрянуть до конца' : cap === 2 ? 'сыт, но для полного воодушевления нужен сытный ужин' : 'на харче выше «в духе» не подняться';
+  const why = h.hunger > 0 ? 'голод не даёт воспрянуть' : cap === 3 ? 'сыт — может воспрянуть до конца' : cap === 2 ? 'сыт, но для полного воодушевления нужен сытный ужин' : 'на харче и солонине выше «в духе» не подняться';
   return `${C.SPIRIT_RU[s]}${fx ? ' — ' + fx : ''}. ${why[0].toUpperCase() + why.slice(1)}.`;
 };
 /* сдвинуть дух у всех (или у одного), с записью в журнал */
@@ -27253,7 +27261,7 @@ if (W && W.nightCamp) { const nc0 = W.nightCamp;
   W.nightCamp = function (g) { const before = new Map(team(g).map(h => [h.id, (h.inv || []).slice()])); const p0 = g.purse;
     const r = nc0.apply(this, arguments);
     team(g).forEach(h => { const left = h.inv.slice(), gone = []; (before.get(h.id) || []).forEach(id => { const i = left.indexOf(id); if (i >= 0) left.splice(i, 1); else if (C.FOOD && C.FOOD[id]) gone.push(id); }); if (gone.length && h.kind !== 'merc') h.mealQ = Math.max(...gone.map(id => ((C.FOOD_FX || {})[id] || {}).hp || 0)); });
-    const glad = team(g).filter(h => h.kind !== 'merc' && h.fedDay != null && h.mealQ >= 3); glad.forEach(h => C.spiritAdd(g, 1, 'Сытный ужин у костра.', h));
+    const glad = team(g).filter(h => h.kind !== 'merc' && h.fedDay != null && h.mealQ >= 3); glad.forEach(h => C.spiritAdd(g, h.mealQ >= 5 ? 2 : 1, h.mealQ >= 5 ? 'Пир у костра.' : 'Сытный ужин у костра.', h));
     if (r && r.enc) C.spiritAdd(g, -1, 'Ночь без сна, тревога у костра.');
     if (g.purse < p0 && !(r && r.enc)) C.spiritAdd(g, -1, 'Обобрали во сне — обидно.');
     return r; }; }
@@ -31638,7 +31646,7 @@ C.rollMagic = function (L, opt) {
    • «Поварское искусство» — +1 день хранения за ступень (лучший повар в отряде бережёт общий припас).
    • «Поиск трав» (или знахарь — волхв, жрец, ведьмак) — пересыпают травами: +1 день, мастер трав — +2.
    • Выживание (лучник-ловчий, ярый, волхв по классу или профессия «Выживание») — коптить и вялить у костра:
-     свежее мясо и рыба → копчёное: держится 12 дней (рыба 10), а не 3. Четверть дня, раз в сутки; копчёное дёшево — мясо стоит гривенник.
+     свежее мясо и рыба → копчёное: держится 21 день (рыба 16), а не 12. Четверть дня, раз в сутки; копчёное дёшево — мясо стоит гривенник.
    • «Сготовить на всех» — у костра лучший повар собирает продукты со всех и варит лучшее, что выходит; еда расходится поровну. */
 (function (G) {
 'use strict';
@@ -31657,7 +31665,7 @@ C.keepText = g => { const a = C.keepCook(g), b = C.keepHerb(g); if (!a && !b) re
 DATA.items.kopchenoe_myaso = {_t: 'g', id: 'kopchenoe_myaso', name: 'Копчёное мясо, фунт', price: 20, category: 'еда', weight_kg: 0.4, notes: 'Прокопчено у костра на ольховом дыму: тёмное, жёсткое, пахнет дымом. Еды на день. На ночлеге: +1 хитов.'};
 DATA.items.kopchenaya_ryba = {_t: 'g', id: 'kopchenaya_ryba', name: 'Рыба копчёная', price: 16, category: 'еда', weight_kg: 0.4, notes: 'Вяленая на дыму рыба. Еды на день.'};
 /* копчёное не вечное: дольше свежего вчетверо, но короче солонины и харча */
-C.SMOKE_KEEP = {kopchenoe_myaso: 12, kopchenaya_ryba: 10};
+C.SMOKE_KEEP = {kopchenoe_myaso: 21, kopchenaya_ryba: 16};
 Object.entries(C.SMOKE_KEEP).forEach(([id, d]) => { C.SPOIL[id] = d; DATA.items[id].notes += ` Портится за ${d} дней.`; });
 C.FOOD.kopchenoe_myaso = 1; C.FOOD.kopchenaya_ryba = 1; C.FOOD_FX.kopchenoe_myaso = {hp: 1}; C.FOOD_FX.kopchenaya_ryba = {hp: 0};
 const SMOKE = {myaso_1_funt: 'kopchenoe_myaso', myaso_na_odnogo: 'kopchenoe_myaso', ryba_svezhaya_1_funt: 'kopchenaya_ryba'};
@@ -31670,7 +31678,7 @@ C.smoke = function (g) {
   const s = survivor(g).h, cap = C.smokeCap(g); let n = 0;
   team(g).forEach(h => { for (let i = 0; i < h.inv.length && n < cap; i++) { const to = SMOKE[h.inv[i]]; if (to) { h.inv[i] = to; n++; } } });
   g.smokeDay = g.day; C.pass(g, 1);
-  const t = `${s.name} разводит дымный огонь из ольхи и развешивает на рогатинах мясо и рыбу. К вечеру — ${n} ${n === 1 ? 'кусок' : n < 5 ? 'куска' : 'кусков'} копчёного: теперь недели полторы не пропадёт.`;
+  const t = `${s.name} разводит дымный огонь из ольхи и развешивает на рогатинах мясо и рыбу. К вечеру — ${n} ${n === 1 ? 'кусок' : n < 5 ? 'куска' : 'кусков'} копчёного: теперь недели три не пропадёт.`;
   C.note(g, t); return {ok: true, text: t};
 };
 /* сготовить на всех */
@@ -31683,7 +31691,7 @@ C.cookAll = function (g, opt) {
   const hs = (opt.givers || C.alive(g)).filter(h => h.inv && !h.dead); if (opt.cook && !hs.includes(opt.cook)) hs.push(opt.cook); if (!hs.length) return {err: 'некому'};
   const cook = opt.cook || hs.slice().sort((a, b) => (T(b, 'povar') - T(a, 'povar')) || (C.recipesOfHero(b).length - C.recipesOfHero(a).length))[0];
   // продукты — к повару (кроме надетого и прочего)
-  (opt.givers ? hs : team(g)).forEach(h => { if (h === cook) return; for (let i = h.inv.length - 1; i >= 0; i--) if (C.RAW[h.inv[i]]) { cook.inv.push(h.inv[i]); h.inv.splice(i, 1); } });
+  (opt.givers ? hs : team(g)).forEach(h => { if (h === cook) return; for (let i = h.inv.length - 1; i >= 0; i--) if (C.RAW[h.inv[i]]) { if (C.spoilGive) C.spoilGive(g, h, cook, h.inv[i]); cook.inv.push(h.inv[i]); h.inv.splice(i, 1); } });
   // кто ещё знает рецепты — подсказывает повару
   const known = new Set(hs.flatMap(h => C.recipesOfHero(h)));
   const keepBook = cook.cookbook; cook.cookbook = [...new Set((cook.cookbook || []).concat([...known]))];
@@ -34826,6 +34834,104 @@ C.sellPrice = (g, h, x) => {
 C.scavCap = (g, h, x, pr) => { const buy = C.buyPrice ? C.buyPrice(g, h, x) : (x && x.price) || 0; return buy ? Math.min(pr, Math.floor(buy * 0.95)) : pr; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* meals.js */
+/* Колдовство — сытость: что съел, то и даёт до следующей еды. Без DOM.
+   • Харч, солонина, солёная рыба, скудная еда, лесной припас — только утоляют голод: ни хитов, ни духа.
+   • Всё прочее даёт «сытость» до следующей еды (не дольше суток после неё):
+     rg — хиты в час вне боя, tmp — временные хиты в начале каждого боя, chk — к проверкам,
+     atk — к попаданию, fort / will — к Стойкости / Воле. На ночлеге — как прежде: hp хитов и pw Силы.
+   • Дух: стряпня и добрая еда поднимают потолок духа (spirit.js), пир (5+) — дух сверху. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, W = G.W;
+if (!C.FOOD_FX || !C.FOOD) return;
+const POOR = ['harch_v_dorogu_na_den_suhari_vyalenoe_myaso', 'solonina_funt', 'ryba_solenaya_funt', 'ryba_solenaya_10_kg', 'eda_na_den_skudnaya', 'lesnoy_pripas'];
+const FX = {
+  hleb_karavay: {hp: 1, rg: 0.5}, eda_na_den_obychnaya: {hp: 2, rg: 0.5}, prostoe_blyudo: {hp: 2, rg: 0.5},
+  syr_golovka: {hp: 3, fort: 1}, pohlebka: {hp: 3, rg: 1},
+  eda_na_den_horoshaya: {hp: 5, rg: 1, chk: 1}, sytnoe_blyudo: {hp: 6, rg: 1, tmp: 5}, otmennoe_blyudo: {hp: 9, pw: 2, rg: 2, tmp: 8, chk: 1},
+  kopchenoe_myaso: {hp: 1}, kopchenaya_ryba: {hp: 1},
+  dish_kasha: {hp: 1, rg: 0.5}, dish_pohl: {hp: 2, rg: 0.5}, dish_lepeshki: {hp: 2, rg: 0.5},
+  dish_zharkoe: {hp: 6, tmp: 5, atk: 1}, dish_uha: {hp: 5, rg: 1, fort: 1}, dish_gribnaya: {hp: 3, pw: 2, will: 1},
+  dish_pirog: {hp: 8, rg: 1, tmp: 3, chk: 1}, dish_shchi: {hp: 5, rg: 1, fort: 1}, dish_kulesh: {hp: 6, rg: 1, tmp: 4},
+};
+POOR.forEach(id => { C.FOOD_FX[id] = {hp: 0}; });
+Object.entries(FX).forEach(([id, f]) => { if (DATA.items[id]) C.FOOD_FX[id] = f; });
+C.mealPoor = id => POOR.includes(id);
+const num = v => String(v).replace('.', ',');
+C.mealFxText = f => [f.rg ? `+${num(f.rg)} хит${f.rg === 1 ? '' : 'а'} в час вне боя` : '', f.tmp ? `+${f.tmp} временных хитов в бою` : '', f.chk ? `+${f.chk} к проверкам` : '',
+  f.atk ? `+${f.atk} к попаданию` : '', f.fort ? `+${f.fort} к Стойкости` : '', f.will ? `+${f.will} к Воле` : ''].filter(Boolean).join(', ');
+/* подписи в лавке и суме */
+Object.keys(C.FOOD_FX).forEach(id => { const x = DATA.items[id], f = C.FOOD_FX[id]; if (!x) return;
+  x.notes = (x.notes || '').replace(/\s*На ночлеге:[^.]*\./, '').replace(/\s*Сытость[^.]*\./, '').replace(/\s*Только утоляет голод[^.]*\./, '').trim();
+  if (POOR.includes(id)) { x.notes += ' Только утоляет голод: ни хитов, ни духа.'; return; }
+  if (f.hp || f.pw) x.notes += ` На ночлеге: +${f.hp || 0} хитов${f.pw ? `, +${f.pw} Силы` : ''}.`;
+  const t = C.mealFxText(f); if (t) x.notes += ` Сытость до следующей еды: ${t}.`;
+  x.notes = x.notes.trim(); });
+
+/* ---------- сытость героя ---------- */
+const team = g => C.alive(g).concat(g.mercs || []).filter(h => h && h.inv);
+const curDay = () => (C._g && C._g.day != null ? C._g.day : null);
+C.mealOf = function (h, g) {
+  const m = h && h.meal; if (!m || !m.id || (h.hunger || 0) > 0) return null;
+  const day = g && g.day != null ? g.day : curDay(); if (day != null && m.day != null && day - m.day > 1) return null;
+  const f = C.FOOD_FX[m.id]; return f && !POOR.includes(m.id) ? f : null;
+};
+const setMeal = (h, gone, day) => {
+  if (!gone.length || h.kind === 'merc') return;
+  const best = gone.slice().sort((a, b) => ((C.FOOD_FX[b] || {}).hp || 0) - ((C.FOOD_FX[a] || {}).hp || 0))[0];
+  h.meal = {id: best, day: day != null ? day : curDay()}; h.mealAcc = 0;
+};
+const goneOf = (before, after) => { const left = after.slice(), gone = []; before.forEach(id => { const i = left.indexOf(id); if (i >= 0) left.splice(i, 1); else if (C.FOOD[id]) gone.push(id); }); return gone; };
+C.mealText = function (h, g) {
+  const f = C.mealOf(h, g); if (!f) return '';
+  const t = C.mealFxText(f), nm = ((R.item(h.meal.id) || {}).name || '').toLowerCase();
+  return t ? `Сыт (${nm}): ${t}.` : '';
+};
+
+/* съел — запомнили, что именно */
+const eat0 = C.eatOne;
+if (eat0) C.eatOne = function (h) { const before = (h.inv || []).slice(); const ok = eat0.apply(this, arguments);
+  if (ok) { const gone = goneOf(before, h.inv || []); if (gone.length) setMeal(h, gone); else if (h.meal) h.meal.day = curDay(); }
+  return ok; };
+if (W && W.nightCamp) { const nc0 = W.nightCamp;
+  W.nightCamp = function (g) { const before = new Map(team(g).map(h => [h.id, h.inv.slice()]));
+    const r = nc0.apply(this, arguments);
+    team(g).forEach(h => setMeal(h, goneOf(before.get(h.id) || [], h.inv), g.day));
+    return r; }; }
+/* ужин в корчме — обычная еда */
+if (C.lodge) { const lodge0 = C.lodge;
+  C.lodge = function (g, perHead) { const cost = perHead * team(g).length, paid = g.purse >= cost; const r = lodge0.apply(this, arguments);
+    if (paid) C.alive(g).forEach(h => { h.meal = {id: 'eda_na_den_obychnaya', day: g.day}; h.mealAcc = 0; });
+    return r; }; }
+
+/* хиты в час вне боя */
+const regen = (g, hours) => {
+  if (!g || !g.heroes || !(hours > 0)) return;
+  C.alive(g).forEach(h => { const f = C.mealOf(h, g); if (!f || !f.rg || h.hp >= h.hpMax) return;
+    h.mealAcc = (h.mealAcc || 0) + f.rg * hours; const n = Math.floor(h.mealAcc); if (n > 0) { h.mealAcc -= n; h.hp = Math.min(h.hpMax, h.hp + n); } });
+};
+let inH = 0;
+if (C.passH) { const ph0 = C.passH; C.passH = function (g, h) { if (!g || !(h > 0) || g._planRun) return ph0.apply(this, arguments); inH++; try { return ph0.apply(this, arguments); } finally { inH--; regen(g, h); } }; }
+const pass0 = C.pass;
+C.pass = function (g, steps) { const r = pass0.apply(this, arguments); if (!inH && g && !g._sleeping && steps > 0) regen(g, steps * 6); return r; };
+
+/* проверки и бой */
+const ck0 = R.check;
+R.check = function (h, stat, skill, dc) { const r = ck0.apply(this, arguments); const f = h && h.meal ? C.mealOf(h) : null;
+  if (f && f.chk) { r.total += f.chk; r.ok = r.roll === 20 || (r.roll !== 1 && r.total >= dc); } return r; };
+const fh0 = B.fromHero;
+B.fromHero = function (h) { const u = fh0.apply(this, arguments); const f = h && h.meal ? C.mealOf(h) : null;
+  if (f && u) {
+    if (f.atk) { u.atk += f.atk; u.atkR += f.atk; }
+    if ((f.fort || f.will) && u.saves) u.saves = Object.assign({}, u.saves, {fort: (u.saves.fort || 0) + (f.fort || 0), will: (u.saves.will || 0) + (f.will || 0)});
+    if (f.tmp) u.thp = Math.max(u.thp || 0, f.tmp);
+  }
+  return u; };
+/* в окне героя — рядом с духом */
+if (C.spiritText) { const st0 = C.spiritText; C.spiritText = function (h) { const t = st0.apply(this, arguments), m = C.mealText(h); return m ? `${t} ${m}` : t; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -36658,7 +36764,7 @@ let SHOP = {tab: 'buy', cat: 'weapon', who: null};
 /* вкладка лавки «В корчму»: оставить вещь на продажу другим игрокам */
 function lotTab(h) {
   const worn = id => Object.values(h.eq).includes(id) && h.inv.filter(v => v === id).length <= Object.values(h.eq).filter(v => v === id).length;
-  const bag = [...new Set(h.inv)].filter(id => { const x = R.item(id); return x && x.price && !worn(id); }), mine = lotsLoad();
+  const bag = [...new Set(h.inv)].filter(id => { const x = R.item(id); return x && x.price && !worn(id) && !perishable(id); }), mine = lotsLoad();
   return `<p class="note">Вещь уходит с ${esc(h.name)} на прилавок корчмы. Её видят все, пока вы в сети — даже в походе; купят — золото придёт в кошель отряда. Снять лот можно только в корчме, вкладка «Торговый ряд» → «Мои лоты».</p>
     <div class="sgrid">${bag.map(id => { const x = R.item(id); return `<div class="sc" data-ipop="${esc(id)}" data-ih="${h.id}"><canvas class="sico" data-ico="${iconOf(id) || ''}" width="56" height="56"></canvas><div class="sn"><b>${esc(x.name)}</b><span class="note">${esc(itemNote(x))}</span></div><div class="sp"><span class="kpw"><input type="number" class="kprice" data-lp="${esc(id)}" min="1" value="${Math.max(1, Math.round((x.price || 100) / 100))}" title="Цена в золотых">зм</span><button class="btn small" data-lot="${esc(id)}">Оставить на продажу</button></div></div>`; }).join('') || '<p class="note">В суме нечего оставить: надетое сперва снимите.</p>'}</div>
     ${mine.length ? `<h4 class="jh">На прилавке</h4><p class="note">${esc(mine.map(l => `${(R.item(l.item) || {}).name} (${l.heroName}) — ${R.priceText(l.price)}`).join('; '))}</p>` : ''}`;
@@ -36713,7 +36819,7 @@ function showShop(back, local) {
       g.purse -= bp * n; for (let i = 0; i < n; i++) h.inv.push(it.id); save(); renderTop(); toast(`${h.name}: куплено — ${it.name}${n > 1 ? ' ×' + n : ''}.`); draw();
     });
     m.querySelectorAll('[data-lot]').forEach(b => b.onclick = () => { const id = b.dataset.lot, inp = m.querySelector(`[data-lp="${CSS.escape(id)}"]`), gold = Math.floor(+(inp && inp.value) || 0);
-      if (gold < 1) return toast('Цена — хотя бы один золотой.'); const i = h.inv.indexOf(id); if (i < 0) return;
+      if (gold < 1) return toast('Цена — хотя бы один золотой.'); if (perishable(id)) return toast('Скоропорт на прилавок не берут.'); const i = h.inv.indexOf(id); if (i < 0) return;
       h.inv.splice(i, 1); save(); lotsSave(lotsLoad().concat([{id: Math.random().toString(36).slice(2, 10), heroId: h.id, heroName: h.name, item: id, price: gold * 100, at: Date.now()}]));
       toast(`${R.item(id).name} оставлена на продажу за ${gold} зм. Купят — золото придёт в кошель.`); renderTop(); draw(); });
     const identOne = id => { if (NET()) return act({a: 'ident', hero: h.id, item: id}); if (g.purse < ip || !h.inv.includes(id)) return false;
@@ -38648,6 +38754,7 @@ function battleCmd(c, pid) {
   return bop(c.op, c);
 }
 /* ---------- обмен ---------- */
+const perishable = id => !!(C.SPOIL && C.SPOIL[id]);
 function takeItem(h, id) {
   const i = h.inv.indexOf(id); if (i < 0) return false; h.inv.splice(i, 1);
   const left = h.inv.filter(x => x === id).length; let used = 0;
@@ -38661,7 +38768,8 @@ function doTrade(A, Bh, give, want) {
   give = give || {}; want = want || {};
   if (!tradeOk(A, give)) return `У ${A.name} уже нет того, что предлагалось.`;
   if (!tradeOk(Bh, want)) return `У ${Bh.name} уже нет того, что просили.`;
-  (give.items || []).forEach(id => { takeItem(A, id); Bh.inv.push(id); }); (want.items || []).forEach(id => { takeItem(Bh, id); A.inv.push(id); });
+  const sg = (X, Y, id) => { if (C.spoilGive) C.spoilGive(g, X, Y, id); };
+  (give.items || []).forEach(id => { sg(A, Bh, id); takeItem(A, id); Bh.inv.push(id); }); (want.items || []).forEach(id => { sg(Bh, A, id); takeItem(Bh, id); A.inv.push(id); });
   A.gold -= give.gold || 0; Bh.gold = (Bh.gold || 0) + (give.gold || 0); Bh.gold -= want.gold || 0; A.gold += want.gold || 0;
   const t = p => [].concat((p.items || []).map(id => (R.item(id) || {name: id}).name), p.gold ? [R.priceText(p.gold)] : []).join(', ') || 'ничего';
   C.note(g, `${A.name} → ${Bh.name}: ${t(give)}${(want.items || []).length || want.gold ? `; взамен — ${t(want)}` : ''}.`);
@@ -38669,7 +38777,7 @@ function doTrade(A, Bh, give, want) {
 /* наёмнику — только дарить: своё он не отдаёт, лучшее надевает сам */
 function giftMerc(A, M, items) {
   const give0 = {items}; if (!items.length) return 'нечего отдать'; if (!tradeOk(A, give0)) return 'столько у героя нет';
-  items.forEach(id => { takeItem(A, id); M.inv.push(id); }); const worn = C.mercWear ? C.mercWear(M, items) : [];
+  items.forEach(id => { if (C.spoilGive) C.spoilGive(g, A, M, id); takeItem(A, id); M.inv.push(id); }); const worn = C.mercWear ? C.mercWear(M, items) : [];
   const t = `${A.name} → ${M.name}: ${items.map(id => (R.item(id) || {name: id}).name).join(', ')}${worn.length ? `; надел: ${worn.join(', ')}` : ''}.`;
   C.note(g, t); save(); if (!NET()) toast(t);
 }
@@ -39099,7 +39207,7 @@ function showHall(opt) {
     else if (KR.tab === 'mine') {
       body = mineL.map(l => { const x = R.item(l.item); if (!x) return ''; return sellCard(x, `<span class="pr">${esc(R.priceText(l.price))}</span>`, `<button class="btn small" data-kback="${esc(l.id)}">Отозвать</button>`).replace('<div class="sn">', `<div class="sn"><span class="tag">${esc(l.heroName)}</span>`); }).join('') || '<p class="note">На прилавке пусто. Выставить можно здесь или в городе, в лавке: «В корчму».</p>'; }
     else { if (!meH) body = '<p class="note">Выберите героя слева — выставлять будем из его сумы.</p>';
-      else { const bag = [...new Set(meH.inv)].filter(id => { const x = R.item(id); return x && !Object.values(meH.eq || {}).includes(id) && x.price; });
+      else { const bag = [...new Set(meH.inv)].filter(id => { const x = R.item(id); return x && !Object.values(meH.eq || {}).includes(id) && x.price && !perishable(id); });
         body = bag.map(id => { const x = R.item(id); return sellCard(x, `<span class="kpw"><input type="number" class="kprice" data-kp="${esc(id)}" min="1" value="${Math.max(1, Math.round((x.price || 100) / 100))}" title="Цена в золотых">зм</span>`, `<button class="btn small" data-ksell="${esc(id)}">Выставить</button>`); }).join('') || `<p class="note">В суме у ${esc(meH.name)} нечего выставить: надетое не продаётся, снимите сперва.</p>`; } }
     return `<h3 class="ttl">Торговый ряд</h3>${tabs}<div class="sgrid">${body}</div><p class="note">Цена — в золотых. Вещь уходит с героя на прилавок; купят — золото придёт герою, даже если вы в это время в походе. Отозвать — во вкладке «Мои лоты».</p>`;
   }
@@ -39137,7 +39245,7 @@ function showHall(opt) {
     if ($('#h-join')) { $('#h-join').onclick = () => join($('#h-code').value.trim()); $('#h-code').onkeydown = e => { if (e.key === 'Enter') $('#h-join').click(); }; }
     c.querySelectorAll('[data-ktab]').forEach(b => b.onclick = () => { KR.tab = b.dataset.ktab; draw('force'); });
     c.querySelectorAll('[data-ksell]').forEach(b => b.onclick = () => { const id = b.dataset.ksell, inp = c.querySelector(`[data-kp="${CSS.escape(id)}"]`), gold = Math.floor(+(inp && inp.value) || 0);
-      if (gold < 1) return toast('Цена — хотя бы один золотой.'); const hid = KR.hero, w = heroWhere(hid); if (!w || !w.h.inv.includes(id)) return;
+      if (gold < 1) return toast('Цена — хотя бы один золотой.'); if (perishable(id)) return toast('Скоропорт на прилавок не берут.'); const hid = KR.hero, w = heroWhere(hid); if (!w || !w.h.inv.includes(id)) return;
       heroMutate(hid, h => { const i = h.inv.indexOf(id); if (i >= 0) h.inv.splice(i, 1); });
       lotsSave(lotsLoad().concat([{id: Math.random().toString(36).slice(2, 10), heroId: hid, heroName: w.h.name, item: id, price: gold * 100, at: Date.now()}]));
       toast(`${R.item(id).name} — на прилавке за ${gold} зм.`); draw('force'); });
