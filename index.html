@@ -23163,7 +23163,7 @@ C.nearestRaise = function (g) {
 const SCENES = {
   carry_dead: g => { const k = g.carryDead, bs = C.bodies(g); if (!k || !bs.length) return {title: 'Дорога', bg: 'road', lines: [['n', 'Дорога дальше.']], choices: [{t: 'Дальше', go: 'map'}]};
     const n = C.CAMPS[g.camp].map.nodes[k.to] || {name: 'храм', kind: 'храм'}, ms = g.mercs.map(m => m.name).join(', '), b = bs[bs.length - 1];
-    return {title: 'Тело несут', bg: 'road', lines: [['n', `${b.name} пал${b.hero.sex === 'f' ? 'а' : ''}. ${ms} ${g.mercs.length > 1 ? 'не бросили: заворачивают тело в плащ и несут' : (g.mercs[0].sex === 'f' ? 'не бросила' : 'не бросил') + ': заворачивает тело в плащ и несёт'} в ${n.name} — туда, где ещё могут вернуть из Нави.`]],
+    return {title: 'Тело несут', bg: 'road', lines: [['n', `${b.name} пал${(b.hero || b).sex === 'f' ? 'а' : ''}. ${ms} ${g.mercs.length > 1 ? 'не бросили: заворачивают тело в плащ и несут' : ((g.mercs[0] || {}).sex === 'f' ? 'не бросила' : 'не бросил') + ': заворачивает тело в плащ и несёт'} в ${n.name} — туда, где ещё могут вернуть из Нави.`]],
       choices: [{t: k.h ? `Донести до места: ${n.name} (${C.hoursText ? C.hoursText(k.h) : k.h + ' ч'})` : 'Внести внутрь', do: g2 => { const kk = g2.carryDead; if (!kk) return 'map'; if (kk.h) C.passH(g2, kk.h); g2.loc = kk.to; g2.pos = null; g2.posNode = null; if (W && W.isHex && W.isHex(g2)) W.pos(g2); return 'carry_dead2'; }}]};
   },
   carry_dead2: g => { const bs = C.bodies(g), n = C.CAMPS[g.camp].map.nodes[g.loc] || {kind: 'храм'}, oko = n.kind !== 'капище';
