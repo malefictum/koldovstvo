@@ -35152,8 +35152,9 @@ if (B && B.start) {
    • Ступени: 0–19 чужие, 20–49 по делу, 50–79 друзья, 80–99 сердце, 100 — семья. На каждой ступени человек говорит иначе.
    • С 80 мастер иного пола заигрывает с героем. Выше 85 не подняться без «сердечного дела» — особой просьбы, которая
      появляется на этой ступени. После него — влюблённость; на 100 герой делает предложение (или мужчина-мастер
-     делает предложение героине). Мастер того же пола на 100 братается с героем: побратим, посестра.
-   • Служители Ока обетов не нарушают: с ними — только братство. Волхвы и жрицы капищ — как все.
+     делает предложение героине). С мастером своего пола — только дружба, до 79.
+   • Служители Ока обетов не нарушают: с ними — только дружба. Волхвы и жрицы капищ — как все.
+   • Цифры отношения игроку не показываются — только слово: чужие, по делу, друзья, сердце, семья.
    • Муж, жена, побратим: всё своё ремесло — учёба, заказы, слухи, обряды — даром. Купец (купчиха) каждый день
      откладывает диковинку в подарок, знахарка (знахарь) — зелье; забрать — зайдя в гости (копится до пяти).
    • У одного героя — одна семья и один побратим.
@@ -35168,7 +35169,7 @@ const atKey = g => g.folkAt || g.loc;
 const relKey = (role, at) => role + '@' + at;
 
 /* ---------- мастера обоего пола (новые игры) ---------- */
-const MIX = {war: 0.25, hunt: 0.35, book: 0.3, song: 0.35, trade: 0.4, thief: 0.35, forge: 0.15, charm: 0.4, jewel: 0.35, herb: 0.3, weave: 0.25};
+const MIX = {war: 0.35, hunt: 0.45, book: 0.45, song: 0.5, trade: 0.5, thief: 0.45, forge: 0.3, charm: 0.5, jewel: 0.5, herb: 0.35, weave: 0.35};
 const ALT_T = {war: 'поляница дружинного двора', hunt: 'охотница', book: 'книжница', song: 'гуслярка', trade: 'купчиха', thief: 'из тихих людей', forge: 'кузнечиха',
   charm: 'резчица-чародейка', jewel: 'мастерица-ювелир', herb: 'знахарь', weave: 'портной'};
 const fp0 = C.folkPerson;
@@ -35202,7 +35203,7 @@ const heroById = (g, id) => C.alive(g).find(h => h.id === id);
 const bonded = (g, h, kind) => Object.values(g.folkRel || {}).some(r => r.bond === kind && r.who === h.id);
 /* к кому из отряда тянется: иного пола, ещё без семьи; при той же любви — тот, кого выбрали */
 const suitor = (g, role, at, p) => {
-  const r = C.relOf(g, role, at); if (r.who) { const h = heroById(g, r.who); if (h) return h; }
+  const r = C.relOf(g, role, at); if (r.who) { const h = heroById(g, r.who); if (h && h.sex !== p.sex) return h; }
   if (!romanceOk(g, role, at)) return null;
   const hs = C.alive(g).filter(h => h.kind !== 'merc' && h.sex !== p.sex && !bonded(g, h, 'wed') && !h.spouse);
   return hs.sort((a, b) => (b.stats.cha || 0) - (a.stats.cha || 0))[0] || null;
@@ -35210,9 +35211,10 @@ const suitor = (g, role, at, p) => {
 const kin = (g, role, at, p) => { const r = C.relOf(g, role, at); if (r.who) return heroById(g, r.who);
   return C.alive(g).filter(h => h.kind !== 'merc' && h.sex === p.sex && !bonded(g, h, 'brat')).sort((a, b) => (b.stats.cha || 0) - (a.stats.cha || 0))[0] || null; };
 /* потолок без сердечного дела */
-const capOf = (g, r) => r.bond || r.love ? 100 : 85;
+/* потолок: семья и любовь — 100; есть кому ответить на чувства (герой иного пола) — 85 до сердечного дела; иначе — дружба, 79 */
+const capOf = (g, r, role, at) => { if (r.bond || r.love) return 100; const p = C.folkPerson(g, role, at); return romanceOk(g, role, at) && suitor(g, role, at, p) ? 85 : 79; };
 C.relAdd = function (g, role, at, d, why) {
-  const r = C.relOf(g, role, at), was = r.rep, cap = capOf(g, r);
+  const r = C.relOf(g, role, at), was = r.rep, cap = capOf(g, r, role, at);
   r.rep = d > 0 ? (was >= cap ? was : Math.min(cap, was + d)) : Math.max(0, was + d);
   const p = C.folkPerson(g, role, at), t0 = C.relTier({rep: was}), t1 = C.relTier(r);
   if (t1 !== t0 && !r.bond) C.note(g, `${p.n}: ${['вы снова чужие', 'теперь вы знакомы по делу', 'теперь вы друзья', p.sex === 'f' ? 'смотрит на вас иначе, чем раньше' : 'смотрит на вас иначе, чем раньше'][t1]}${why ? ' (' + why + ')' : ''}.`);
@@ -35222,7 +35224,7 @@ const WORD = (g, r, p, role, at) => { const t = C.relTier(r);
   if (t === 4) return r.bond === 'wed' ? (p.sex === 'f' ? 'жена' : 'муж') : (p.sex === 'f' ? 'посестра' : 'побратим');
   if (t === 3) { const s = romanceOk(g, role, at) ? suitor(g, role, at, p) : null; return r.love ? (p.sex === 'f' ? 'влюблена' : 'влюблён') : s ? 'сердце тянется' : 'близкие друзья'; }
   return ['чужие', 'по делу', 'друзья'][t]; };
-C.relText = function (g, role, at) { at = at || atKey(g); const r = C.relOf(g, role, at), p = C.folkPerson(g, role, at); return `${r.rep} из 100 — ${WORD(g, r, p, role, at)}`; };
+C.relText = function (g, role, at) { at = at || atKey(g); const r = C.relOf(g, role, at), p = C.folkPerson(g, role, at); return WORD(g, r, p, role, at); };
 C.relWord = function (g, role, at) { const r = C.relOf(g, role, at), p = C.folkPerson(g, role, at); return WORD(g, r, p, role, at); };
 
 /* ---------- реплики ---------- */
@@ -35345,14 +35347,14 @@ function folkTalk(g, sc, role, at, p, r, k, fam) {
   const t = C.relTier(r), lines = sc.lines || [], ch = sc.choices || [];
   const back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].t || '') ? ch.pop() : null;
   // реплика по ступени
-  const ro = romanceOk(g, role, at), s = t >= 3 && ro ? suitor(g, role, at, p) : null, kn = t >= 3 && !s ? kin(g, role, at, p) : null;
+  const ro = romanceOk(g, role, at), s = t >= 3 && ro ? suitor(g, role, at, p) : null, kn = null; /* однополые — только дружба (до 79) */
   if (t === 4) { const h = fam; if (h) lines.splice(0, 1, ['n', fill(pickL(g, r.bond === 'wed' ? FAMILY[p.sex] : FAMILY.same, k), p, h)]); }
   else if (t === 3 && r.love && s) lines.splice(0, 1, ['n', fill(pickL(g, LOVE[p.sex], k), p, s)]);
   else if (t === 3 && s) lines.splice(0, 1, ['n', fill(pickL(g, FLIRT[p.sex === 'f' ? 'f' : 'm'], k), p, s)], [p.n, fill(FLIRT_R[role] || '', p, s)]);
   else if (t === 3 && r.love && kn) lines.splice(0, 1, ['n', fill(pickL(g, LOVE.same, k), p, kn)]);
   else if (t === 3) lines.splice(0, 1, ['n', fill(pickL(g, CLOSE, k), p, kn || C.alive(g)[0])]);
   else if (t >= 1) lines.splice(0, 1, ['n', fill(pickL(g, GREET[t], k), p, C.alive(g)[0])]);
-  lines.push(['n', `Отношение: ${C.relText(g, role, at)}.`]);
+  lines.push(['n', `Между вами: ${C.relText(g, role, at)}.`]);
   // подарки, что накопились
   if (fam && r.gifts && r.gifts.length) ch.unshift({t: `Забрать, что ${p.sex === 'f' ? 'она' : 'он'} отложил${p.sex === 'f' ? 'а' : ''}: ${r.gifts.length}`, do: g2 => { const rr = C.relOf(g2, role, at), h2 = heroById(g2, rr.who) || C.alive(g2)[0];
     const got = (rr.gifts || []).splice(0); got.forEach(id => h2.inv.push(id)); g2.folkLast = `${h2.name} получает: ${got.map(id => (R.item(id) || {}).name || id).join(', ').toLowerCase()}.`; C.note(g2, g2.folkLast); return 'folk'; }});
@@ -35360,14 +35362,14 @@ function folkTalk(g, sc, role, at, p, r, k, fam) {
   if (!r.bond) ch.push({t: 'Поговорить', do: g2 => { const rr = C.relOf(g2, role, at), h2 = C.alive(g2)[0]; const tt = C.relTier(rr);
     const say = tt >= 3 ? (s ? fill(pickL(g2, rr.love ? LOVE[p.sex] : FLIRT[p.sex], k + 't'), p, s) : fill(pickL(g2, CLOSE, k + 't'), p, kn || h2)) : TALK[role] ? fill(pickL(g2, TALK[role][tt], k + 't' + g2.time), p, h2) : `${p.n} кивает.`;
     let add = 0; if (rr.talkDay !== g2.day) { rr.talkDay = g2.day; if (rr.rep < 40) add = C.relAdd(g2, role, at, 2); else if (rr.love) add = C.relAdd(g2, role, at, 3); }
-    if (C.passH) C.passH(g2, 0.5); g2.folkLast = say + (add > 0 ? ` Отношение +${add}.` : ''); return 'folk'; }});
+    if (C.passH) C.passH(g2, 0.5); g2.folkLast = say + (add > 0 ? ' Разговор пришёлся по душе.' : ''); return 'folk'; }});
   // подарок
   if (!r.bond) ch.push({t: 'Сделать подарок', if: g2 => C.relOf(g2, role, at).giftDay !== g2.day, off: 'сегодня уже дарили', do: g2 => { g2.relGift = k; return 'folk_gift'; }});
   // любовь: ответить, сердечное дело, предложение
   if (t >= 3 && !r.bond) {
     if (s && !r.who && ro) ch.push({t: `${s.name}: ответить на ${p.sex === 'f' ? 'её' : 'его'} взгляды`, do: g2 => { const rr = C.relOf(g2, role, at); rr.who = s.id; g2.folkLast = fill(p.sex === 'f' ? '{N} вспыхивает и улыбается: «Я знала. Я так и знала»' : '{N} смеётся, будто гора с плеч: «Ну наконец-то. Я уж думал — показалось»', p, s); C.relAdd(g2, role, at, 2); return 'folk'; }});
     if (!s && kn && !r.who) ch.push({t: `${kn.name}: протянуть руку как сво${p.sex === 'f' ? 'ей' : 'ему'}`, do: g2 => { C.relOf(g2, role, at).who = kn.id; g2.folkLast = fill('{N} крепко жмёт руку: «Вот это по-нашему»', p, kn); return 'folk'; }});
-    const who = r.who && heroById(g, r.who);
+    const who = r.who && heroById(g, r.who) && heroById(g, r.who).sex !== p.sex ? heroById(g, r.who) : null;
     if (who && !r.love && r.rep >= 80) {
       const hj = (g.jobs || []).find(j => j.heartKey === k && ['open', 'done'].includes(j.status));
       if (!hj) ch.push({t: `${p.n} просит о личном`, do: g2 => { const j = C.folkMakeJob(g2, role); if (!j) { g2.folkLast = `${p.n}: «Нет… Потом. Не сейчас»`; return 'folk'; }
@@ -35408,12 +35410,12 @@ SC.folk_gift = g => {
   const items = C.alive(g).flatMap(h => [...new Set(h.inv)].filter(id => { const x = R.item(id); return x && x.price && !Object.values(h.eq || {}).includes(id) && !(C.FOOD && C.FOOD[id] && x.price < 100); }).map(id => ({h, id, x: R.item(id)})))
     .sort((a, b) => b.x.price - a.x.price).slice(0, 10);
   const gain = x => Math.max(1, Math.min(10, Math.round(Math.sqrt(x.price / 100) * 2)));
-  const ch = items.map(o => ({t: `${o.h.name}: ${o.x.name} — отношение +${gain(o.x)}`, do: g2 => { const h2 = C.alive(g2).find(y => y.id === o.h.id); const i = h2 ? h2.inv.indexOf(o.id) : -1; if (i < 0) return 'folk';
+  const ch = items.map(o => ({t: `${o.h.name}: ${o.x.name}${gain(o.x) >= 8 ? ' — щедрый подарок' : gain(o.x) <= 2 ? ' — безделица' : ''}`, do: g2 => { const h2 = C.alive(g2).find(y => y.id === o.h.id); const i = h2 ? h2.inv.indexOf(o.id) : -1; if (i < 0) return 'folk';
     h2.inv.splice(i, 1); const rr = C.relOf(g2, role, at); rr.giftDay = g2.day; const add = C.relAdd(g2, role, at, gain(o.x));
-    g2.folkLast = `${p.n} принимает подарок — ${o.x.name.toLowerCase()}: «${C.relTier(rr) >= 3 ? 'Ты… ты не должен был{hs:|а}. Но спасибо' : C.relTier(rr) >= 2 ? 'Вот это подарок! Спасибо, друг' : 'Хм. Благодарю'}».${add > 0 ? ' Отношение +' + add + '.' : ' Ближе этим не стать — нужно что-то большее.'}`.replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h2.sex === 'f' ? f : m);
+    g2.folkLast = `${p.n} принимает подарок — ${o.x.name.toLowerCase()}: «${C.relTier(rr) >= 3 ? 'Ты… ты не должен был{hs:|а}. Но спасибо' : C.relTier(rr) >= 2 ? 'Вот это подарок! Спасибо, друг' : 'Хм. Благодарю'}».${add > 0 ? '' : ' Ближе подарками не стать — нужно что-то большее.'}`.replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h2.sex === 'f' ? f : m);
     C.note(g2, g2.folkLast); g2.relGift = null; return 'folk'; }}));
   ch.push({t: 'Назад', do: g2 => { g2.relGift = null; return 'folk'; }});
-  return {title: `Подарок: ${p.n}`, bg: C.FOLK[role].bg, art: C.FOLK[role].art, lines: [['n', items.length ? 'Что подарить? Дорогое трогает сильнее.' : 'В сумах нечего дарить.'], ['n', `Отношение: ${C.relText(g, role, at)}.`]], choices: ch};
+  return {title: `Подарок: ${p.n}`, bg: C.FOLK[role].bg, art: C.FOLK[role].art, lines: [['n', items.length ? 'Что подарить? Дорогое трогает сильнее.' : 'В сумах нечего дарить.'], ['n', `Между вами: ${C.relText(g, role, at)}.`]], choices: ch};
 };
 Object.values(C.CAMPS).forEach(camp => { Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); wrapScenes(camp); });
 const reg0 = C.register;
