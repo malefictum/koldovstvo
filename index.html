@@ -324,6 +324,55 @@ button{font:inherit;cursor:pointer}
 #t-online{font-size:12px;opacity:.85;margin-left:4px}
 @media (max-width:1100px){.kgrid{grid-template-columns:minmax(0,1fr) minmax(260px,320px)}.kgrid .kme{grid-column:1/-1}}
 @media (max-width:760px){.kgrid{grid-template-columns:1fr}}
+/* корчма: зал-чат */
+.korchma .khead{position:relative;overflow:hidden;min-height:132px;align-items:flex-end;padding:18px 20px;background:linear-gradient(90deg,rgba(18,13,8,.94) 0%,rgba(18,13,8,.72) 46%,rgba(18,13,8,.35) 100%),url(img/bg_s_tavern.webp) center 40%/cover;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.korchma .khead::after{content:"";position:absolute;inset:auto 0 0 0;height:3px;background:linear-gradient(90deg,transparent,var(--brass),transparent);opacity:.7}
+.korchma .kht{display:grid;gap:4px;margin-right:auto}.korchma .kkick{font:700 11px var(--t-label);letter-spacing:.18em;text-transform:uppercase;color:#d9b977}
+.korchma .khead h2{font-size:clamp(28px,3.8vw,42px);text-wrap:balance}.korchma .krooms{margin-right:0}
+.korchma .kroom{background:rgba(10,7,4,.55);backdrop-filter:blur(2px)}
+.kgrid{grid-template-columns:minmax(220px,260px) minmax(0,1fr) minmax(280px,340px)}
+.kstack{display:grid;gap:14px;align-content:start;min-width:0}
+.kct{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.kct .note{font-size:13px}
+.kcount{font:700 12px/20px var(--t-label);min-width:22px;height:20px;padding:0 6px;border-radius:10px;background:#6b4a26;color:#fff3d2;text-align:center}
+.kchat{grid-template-rows:auto 1fr auto;padding:0;gap:0}.kchat .chat-in{border-radius:0 0 8px 8px}.kchat .kct{padding:12px 16px 8px;border-bottom:1px solid rgba(107,85,55,.35)}
+.kchat .hlog{min-height:52vh;max-height:64vh;border-radius:0;background:linear-gradient(rgba(255,250,235,.28),rgba(255,250,235,.12));padding:12px 14px;gap:2px}
+.kchat .chat-in{padding:10px 12px;background:rgba(60,40,20,.08)}
+.korchma.trade .kchat .hlog{min-height:220px;max-height:40vh}
+.kmsg{display:grid;grid-template-columns:38px minmax(0,1fr);gap:9px;align-items:start;margin-top:8px;font-style:normal}.kmsg.cont{margin-top:0}
+.kav{width:38px;height:38px;border-radius:50%;overflow:hidden;border:2px solid #8a6d44;background:#3a2d1f;padding:0;display:grid;place-items:center;cursor:pointer;flex:none}
+.kav canvas{width:100%;height:100%;display:block}.kav.ini{color:#f1deb2;font:700 16px var(--t-display);cursor:default}.kav.sp{border:0;background:none;height:0}
+.kav.big{width:72px;height:72px;font-size:30px}
+.kb{min-width:0;display:grid;gap:2px;justify-items:start}
+.kmeta{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:13px}.kmeta b{font:700 14px var(--t-label);color:#5a2f12;cursor:pointer}.kmeta b:not([data-who]){cursor:default}
+.kmeta small{color:var(--ink-2)}.kmeta time{color:#8b7656;font-size:12px;font-variant-numeric:tabular-nums}
+.ktxt{background:#fbf3df;border:1px solid rgba(138,109,68,.45);border-radius:4px 12px 12px 12px;padding:6px 11px;max-width:min(560px,100%);overflow-wrap:anywhere;box-shadow:0 1px 0 rgba(60,40,20,.08)}
+.kmsg.mine{grid-template-columns:minmax(0,1fr) 38px}.kmsg.mine .kav{grid-column:2;grid-row:1}.kmsg.mine .kb{grid-column:1;grid-row:1;justify-items:end}
+.kmsg.mine .kmeta{flex-direction:row-reverse}.kmsg.mine .ktxt{background:#e9d6aa;border-color:#b08d55;border-radius:12px 4px 12px 12px}
+.kmems{display:grid;gap:6px;max-height:46vh;overflow:auto}
+.kmem{position:relative;display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;text-align:left;font:inherit;color:inherit;padding:6px 8px;border:1px solid rgba(107,85,55,.4);border-radius:8px;background:rgba(255,255,255,.22);cursor:pointer;transition:background .15s,border-color .15s}
+.kmem:hover{background:rgba(255,255,255,.45);border-color:#8a6d44}.kmem.me{border-color:#b08d55;background:rgba(201,163,92,.18)}
+.kmem>canvas,.kmem>.kav{width:44px;height:44px;border-radius:50%;border:2px solid #8a6d44}
+.kmem .kdot{position:absolute;left:42px;top:38px;border:2px solid #f3e7c9}
+.kmi{display:grid;min-width:0}.kmi b{font:700 14px var(--t-label);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kmi em{font-style:normal;font-size:11px;color:#8b6a3a;text-transform:uppercase;letter-spacing:.08em}
+.kmi small{font-size:12.5px;color:var(--ink-2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.kmi .kr{color:#7d6646}
+.kdot{display:inline-block;width:11px;height:11px;border-radius:50%;background:#6d9b4a;flex:none}.kdot.g{background:#d39a35}.kdot.t{background:#5d7ea8}
+.kcenter .inv{background:linear-gradient(rgba(255,255,255,.35),rgba(255,255,255,.18));border-left:4px solid #8a6d44}
+.kcode{border-top:1px dashed rgba(107,85,55,.45);padding-top:6px}.kcode label{margin-top:4px!important}
+.kcard{display:grid;grid-template-columns:minmax(200px,300px) minmax(0,1fr);gap:20px;align-items:start}.kcard.solo{display:block}
+.kdoll{position:relative;border-radius:10px;background:radial-gradient(circle at 50% 35%,#5a4529,#241a10 72%);border:1px solid #8a6d44;box-shadow:inset 0 0 40px rgba(0,0,0,.6)}
+.kdoll canvas{width:100%;height:auto;display:block}
+.kbadge{position:absolute;top:10px;left:10px;width:38px;height:38px;border-radius:50%;background:radial-gradient(#e7c983,#a37a35);color:#2a1a08;font:700 18px/38px var(--t-display);text-align:center;box-shadow:0 2px 6px rgba(0,0,0,.5)}
+.kcr{display:grid;gap:12px;min-width:0}.kch{display:flex;gap:14px;align-items:center}.kch h3{margin:2px 0 0;font:400 28px/1.3 var(--t-display)}.kcard .kch{padding-right:44px}
+.kch .kface{width:72px;height:72px;border-radius:50%;border:2px solid #8a6d44;flex:none}.kch .sub{color:var(--ink-2)}
+.kwhere{display:flex;gap:6px;align-items:center;font-size:13px;color:#6b5537;margin-top:3px}
+.khp{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:10px;align-items:center;font-size:13px}.khp span{font:700 12px var(--t-label);text-transform:uppercase;letter-spacing:.08em;color:#6b4a26}
+.kbar{height:10px;border-radius:5px;background:rgba(60,40,20,.2);overflow:hidden}.kbar i{display:block;height:100%;background:linear-gradient(#c9533e,#8e2b1d)}.khp b{font-variant-numeric:tabular-nums}
+.kstats{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:6px}.kstats div{display:grid;justify-items:center;padding:6px 2px;border:1px solid rgba(107,85,55,.4);border-radius:6px;background:rgba(255,255,255,.25)}
+.kstats small{font-size:11px;color:var(--ink-2);text-align:center}.kstats b{font:700 20px var(--t-display);font-variant-numeric:tabular-nums}
+.keq{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:6px}.kit{display:flex;gap:8px;align-items:center;padding:4px 6px;border:1px solid rgba(107,85,55,.35);border-radius:6px;background:rgba(255,255,255,.2);cursor:pointer;font-size:13px}.kit canvas{width:36px;height:36px;flex:none}
+@media (max-width:1100px){.kgrid{grid-template-columns:minmax(0,1fr) minmax(260px,320px)}.kgrid .kme{grid-column:1/-1}}
+@media (max-width:760px){.kgrid{grid-template-columns:1fr}.kcard{grid-template-columns:1fr}.kdoll{max-width:260px;margin:0 auto}.kstats{grid-template-columns:repeat(3,minmax(0,1fr))}.kchat .hlog{min-height:46vh}.korchma .khead{min-height:110px}}
+
 .fxl{list-style:none;margin:0;padding:0;display:grid;gap:6px}.fxl li{padding:6px 10px;border-radius:6px;border-left:3px solid #4f7fa8;background:rgba(79,127,168,.1);display:grid;gap:1px}.fxl li.fb{border-left-color:#a3341f;background:rgba(163,52,31,.09)}
 .fxl li b{font:700 14px var(--t-label)}.fxl .fl{font:700 12px var(--t-label);color:#2f5a7a}.fxl li.fb .fl{color:#8a2a18}.fxl small{color:var(--ink-2);font-size:13px}.ipface{width:72px;height:72px;border-radius:6px}
 #blog .ldmg,#side .ldmg,.ldmg{color:#ff6a4d;font:700 15px var(--t-label);margin-left:4px;text-shadow:0 1px 2px #000}.lheal{color:#7fdc6a;font:700 15px var(--t-label);margin-left:4px;text-shadow:0 1px 2px #000}.ldmgn{color:#ff8f74}
@@ -28989,6 +29038,9 @@ C.weatherLine = g => { const w = C.WEATHER[C.weather(g)]; return w ? w.line[0] :
 const DARK = /нежить|звери|духи/;
 const darkSight = u => !!(u.undead || DARK.test(u.group || (u.ref && u.ref.group) || '') || (u.fx && u.fx.soulSight));
 const keen = u => ['tat', 'dushegub', 'lovchiy'].includes(u.cls || (u.ref && u.ref.cls));
+if (DATA.items.fakel) DATA.items.fakel.notes = 'Горит час. Ночью в бою сам ложится во вторую, свободную руку: обзор +2 клетки. Со щитом, вторым клинком или двуручным оружием его не взять — из сумы он не светит.';
+/* свободная рука для факела: ни щита, ни второго клинка, и главное оружие не двуручное */
+C.freeHand = h => { if (!h || !h.eq) return false; if (h.eq.shield) return false; const w = h.eq.weapon && R.item(R.baseId ? R.baseId(h.eq.weapon) : h.eq.weapon); return !(w && w.hands === 2); };
 const has = (u, re) => { const inv = (u.ref && u.ref.inv) || []; return inv.some(id => re.test(R.baseId ? R.baseId(id) : id)); };
 const WARM = /^(svita_sherstyanaya|plashch_pohodnyy|odeyalo_zimnee|rukavitsy$|shuba|tulup|kozhukh)/;
 const heavyArmor = u => { try { const b = u.ref && u.ref.eq && u.ref.eq.body; const a = b && R.item(R.baseId ? R.baseId(b) : b); return !!(a && ((a.steps_penalty || 0) < 0 || (a.weight_kg || 0) >= 15)); } catch (e) { return false; } };
@@ -29069,13 +29121,15 @@ B.start = function (o) {
     S.wx = {kind: C.WEATHER[kind] ? kind : 'clear', night};
     const X = S.wx, w = C.WEATHER[X.kind];
     S.units.forEach(u => {
-      if (X.night && u.side === 'party' && has(u, /^fakel/)) u.torch = true;
+      if (X.night && u.side === 'party' && has(u, /^fakel/) && C.freeHand(u.ref)) { u.torch = true; if (u.look) u.look = Object.assign({}, u.look, {torch: true}); }
       if (w.cold && !['lovchiy', 'yaryi'].includes(u.cls) && !/духи/.test(u.group || '')) u.steps = Math.max(2, u.steps - 1);
       if (w.cold && u.kind !== 'monster' && !has(u, WARM)) u.chilled = true;
       if (X.kind === 'heat' && u.kind !== 'monster' && heavyArmor(u)) u.heavyHot = true;
     });
     const parts = [];
-    if (X.night) parts.push(S.units.some(u => u.torch) ? 'Ночь, факел выхватывает из темноты пару саженей.' : 'Ночь, темень — дальше четырёх шагов не разглядеть.');
+    if (X.night) { const tl = S.units.filter(u => u.torch).map(u => u.name), busy = S.units.filter(u => u.side === 'party' && !u.torch && has(u, /^fakel/)).map(u => u.name);
+      parts.push(tl.length ? `Ночь. ${tl.join(', ')} ${tl.length > 1 ? 'берут' : 'берёт'} факел в свободную руку — свет на пару саженей дальше.` : 'Ночь, темень — дальше четырёх шагов не разглядеть.');
+      if (busy.length) parts.push(`${busy.join(', ')}: обе руки заняты — факел остаётся в суме.`); }
     if (X.kind !== 'clear' && X.kind !== 'cloudy') parts.push(R.pick(w.line));
     if (parts.length) S.log.splice(Math.min(1, S.log.length), 0, {t: parts.join(' '), cls: '', round: S.round, n: ''});
   } catch (e) { /* бой важнее погоды */ }
@@ -36537,6 +36591,7 @@ function afterLoad() {
   if (!NET() && window.Net) setTimeout(() => korchmaEnsure('game'), 300);
   if (g.pendingCreate > 0 && !C.alive(g).length && !g.net) return showCreate();
   if (g.pendingBattle) { const spec = rebuildSpec(g.pendingBattle); return startBattle(spec); }
+  if (g.carryDead && !/^carry_dead/.test(g.scene || '')) return showScene('carry_dead');
   if (g.scene === 'map') return showMap();
   showScene(g.scene || startScene());
 }
@@ -37907,6 +37962,12 @@ function drawHero(u, p, H0) {
   if (L.shield) { const sh = A['s_' + L.shield + (pose === 'atk' && !swing ? '_up' : '_rest')] || A['s_' + L.shield + '_rest']; if (sh) { const sH = H * 0.36, sW = sH * sh[2] / sh[3]; const sx = an.cx != null ? x0 + an.head[0] * Wd - H * 0.25 - sW * 0.2 : x0 + Wd * 0.18 - sW * 0.2; ctx.drawImage(IMG.heroes, sh[0], sh[1], sh[2], sh[3], sx, y0 + H * 0.3, sW, sH); } }
   if (L.off && !L.shield) { const oa = A['w_' + L.off + '_rest']; if (oa) { const k2 = (WLEN[L.off] || .4) * 0.85 * H / Math.hypot(oa[2], oa[3]), ow = oa[2] * k2, oh = oa[3] * k2, gp = GRIP[L.off] || [0.13, 0.87];
       ctx.save(); if (an.hand2) ctx.translate(x0 + an.hand2[0] * Wd, y0 + an.hand2[1] * H); else if (pose === 'atk') ctx.translate(x0 + Wd * 0.34, y0 + H * 0.35); else ctx.translate(x0 + Wd * 0.14, y0 + H * 0.55); ctx.rotate(pose === 'atk' ? -0.5 : -0.35); ctx.drawImage(IMG.heroes, oa[0], oa[1], oa[2], oa[3], -gp[0] * ow, -gp[1] * oh, ow, oh); ctx.restore(); } }
+  if (L.torch && !L.shield && !L.off && !dead && ATLAS.items && ATLAS.items.fakel && IMG.items) { const fa = ATLAS.items.fakel, fl = H * 0.42, k3 = fl / Math.hypot(fa[2], fa[3]), fw = fa[2] * k3, fh = fa[3] * k3;
+    ctx.save(); if (an.hand2) ctx.translate(x0 + an.hand2[0] * Wd, y0 + an.hand2[1] * H); else ctx.translate(x0 + Wd * 0.16, y0 + H * 0.56); ctx.rotate(-0.62);
+    ctx.drawImage(IMG.items, fa[0], fa[1], fa[2], fa[3], -0.18 * fw, -0.88 * fh, fw, fh);
+    const t = (typeof performance !== 'undefined' ? performance.now() : 0) / 180, fx = 0.62 * fw, fy = -0.8 * fh, gr = H * (0.5 + 0.04 * Math.sin(t));
+    const gg = ctx.createRadialGradient(fx, fy, 0, fx, fy, gr); gg.addColorStop(0, 'rgba(255,196,100,.62)'); gg.addColorStop(0.35, 'rgba(255,160,60,.22)'); gg.addColorStop(1, 'rgba(255,140,40,0)');
+    ctx.globalCompositeOperation = 'lighter'; ctx.fillStyle = gg; ctx.beginPath(); ctx.arc(fx, fy, gr, 0, Math.PI * 2); ctx.fill(); ctx.restore(); }
   if (L.weapon && !/scholar|vedunya/.test(L.base) || (L.weapon === 'staff')) {
     const wa = A['w_' + L.weapon + '_rest'];
     if (wa) {
@@ -39334,18 +39395,29 @@ var KR = {room: 'common', tab: 'buy', hero: null, role: '', msg: '', draw: null}
 function korchmaHooks() { Net.Hall.setHooks({
   state: () => { const n = $('#t-online'); if (n) n.textContent = onlineText(); if ($('.screen.korchma') && KR.draw) KR.draw(true); },
   msg: m => { if (!$('.screen.korchma')) return; if (m.room !== KR.room) { KR.unread = KR.unread || {}; KR.unread[m.room] = (KR.unread[m.room] || 0) + 1; const t = document.querySelector(`[data-room="${m.room}"] .badge`); if (t) t.textContent = KR.unread[m.room]; return; }
-    const lg = $('#k-log'); if (!lg) return; if (lg.querySelector('.cm.sys.empty')) lg.innerHTML = ''; lg.insertAdjacentHTML('beforeend', kLine(m)); bindInv(lg); lg.scrollTop = lg.scrollHeight; },
+    const lg = $('#k-log'); if (!lg) return; if (lg.querySelector('.cm.sys.empty')) lg.innerHTML = ''; const last = lg.lastElementChild, prev = last && last.dataset.uid ? {uid: last.dataset.uid, ts: +last.dataset.ts} : null; lg.insertAdjacentHTML('beforeend', kLine(m, prev)); bindInv(lg); paintFaces(lg); bindWho(lg); lg.scrollTop = lg.scrollHeight; },
   invite: i => inviteOffer(i),
   buyreq: (m, reply) => onBuyReq(m, reply),
 }); }
 function korchmaEnsure(role) {
   if (!window.Net || !Net.Hall) return;
   const hero = role === 'game' && g ? C.alive(g)[0] : (KR.hero && poolLoad().find(h => h.id === KR.hero));
-  const me = {name: myName(), role, hero: hero ? {name: hero.name, cls: (R.CLASSES[hero.cls] || {}).name || '', level: hero.level, portrait: hero.portrait} : null};
+  const me = {name: myName(), role, hero: hero ? kPub(hero, role) : null};
   const key = JSON.stringify(me); if (KR.role === key && Net.Hall.on()) return; KR.role = key;
   korchmaHooks();
   Net.Hall.join(me).then(() => lotsPublish()).catch(() => {});
 }
+/* что видно о герое в корчме: облик, снаряжение, характеристики — без сумы и кошелька */
+function kPub(h, role) { let look = null; try { look = B.lookFor(h, R.derive(h)); } catch (e) {}
+  const eq = {}; Object.entries(h.eq || {}).forEach(([k, v]) => { if (v && typeof v === 'string') eq[k] = v; });
+  const camp = role === 'game' && g && C.CAMPS[g.camp] ? C.CAMPS[g.camp].name : '';
+  return {name: h.name, cls: (R.CLASSES[h.cls] || {}).name || '', clsId: h.cls, level: h.level, portrait: h.portrait, people: h.people, sex: h.sex, hp: h.hp, hpMax: h.hpMax, stats: h.stats, eq, look, camp,
+    place: role === 'game' && g && g.place ? String(g.place).slice(0, 40) : ''}; }
+const kSafeLook = L => { if (!L || typeof L !== 'object') return null; const o = {}; for (const [k, v] of Object.entries(L)) { if (!/^\w{1,16}$/.test(k)) continue;
+  if (v === null || typeof v === 'boolean' || (typeof v === 'number' && isFinite(v))) o[k] = v; else if (typeof v === 'string' && /^[\w-]{1,40}$/.test(v)) o[k] = v; } return o.base ? o : null; };
+const kMember = uid => ((Net.Hall.state().members || []).find(x => x.uid === uid));
+const kTime = ts => { try { return ts ? new Date(ts).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : ''; } catch (e) { return ''; } };
+const ROLE_DOT = {hall: 'k', title: 'k', wait: 'k', game: 'g', table: 't', host: 't'};
 const ROLE_RU = {hall: 'в корчме', title: 'в корчме', wait: 'в корчме', game: 'в походе', table: 'за столом', host: 'держит стол'};
 function onlineText() { const M = Net.Hall.state().members || [], n = M.length; if (!n) return '';
   const k = M.filter(m => ['hall', 'title', 'wait'].includes(m.role)).length, gm = M.filter(m => m.role === 'game').length, t = M.filter(m => ['table', 'host'].includes(m.role)).length;
@@ -39361,8 +39433,36 @@ function inviteOffer(i) {
   d.querySelector('#ko-no').onclick = () => d.remove();
   d.querySelector('#ko-go').onclick = () => { d.remove(); if (g && !g.net) save(); showHall({code: i.code}); };
 }
-const kLine = m => `<div class="cm${m.local ? ' mine' : ''}"><b>${esc(m.name)}</b>: ${esc(m.text)}${m.inv ? (Net.savedBack() && Net.savedBack().code === m.inv ? ` <button class="btn small" data-back="1">Вернуться за стол <b class="tcode">${esc(m.inv)}</b></button>` : ` <button class="btn small" data-inv="${esc(m.inv)}">Принять зов <b class="tcode">${esc(m.inv)}</b></button>`) : ''}</div>`;
+const kInvBtn = m => m.inv ? (Net.savedBack() && Net.savedBack().code === m.inv ? ` <button class="btn small" data-back="1">Вернуться за стол <b class="tcode">${esc(m.inv)}</b></button>` : ` <button class="btn small" data-inv="${esc(m.inv)}">Принять зов <b class="tcode">${esc(m.inv)}</b></button>`) : '';
+const kLine = (m, prev) => { const M = m.uid ? kMember(m.uid) : null, h = M && M.hero, mine = m.local || (m.uid && window.Net && m.uid === Net.myUid());
+  const cont = prev && prev.uid && prev.uid === m.uid && m.ts && prev.ts && m.ts - prev.ts < 180e3;
+  const av = h && h.portrait ? `<button class="kav" ${m.uid ? `data-who="${esc(m.uid)}"` : ''} title="${esc(h.name)}">${faceHTML(h.portrait, '')}</button>` : `<span class="kav ini">${esc(String(m.name || '?').slice(0, 1).toUpperCase())}</span>`;
+  return `<div class="cm kmsg${mine ? ' mine' : ''}${cont ? ' cont' : ''}" data-uid="${esc(m.uid || '')}" data-ts="${+m.ts || 0}">${cont ? '<span class="kav sp"></span>' : av}<div class="kb">${cont ? '' : `<div class="kmeta"><b ${m.uid && M ? `data-who="${esc(m.uid)}"` : ''}>${esc(m.name)}</b>${h ? `<small>${esc(h.name)} · ${esc(h.cls)}, ${esc(String(h.level))}-й</small>` : ''}<time>${kTime(m.ts)}</time></div>`}<div class="ktxt">${esc(m.text)}${kInvBtn(m)}</div></div></div>`; };
+const kLog = list => { let prev = null; return list.map(m => { const t = kLine(m, prev); prev = m; return t; }).join(''); };
 let bindInv = () => {};
+function bindWho(root) { root.querySelectorAll('[data-who]').forEach(b => b.onclick = () => showMember(b.dataset.who)); }
+/* карточка чужого героя: кукла, снаряжение, характеристики */
+function showMember(uid) {
+  const M = kMember(uid); if (!M) return toast('Он уже ушёл из корчмы.');
+  const h = M.hero, mine = uid === Net.myUid(), dot = ROLE_DOT[M.role] || 'k';
+  const where = esc(ROLE_RU[M.role] || 'в корчме') + (h && h.camp ? ' · ' + esc(h.camp) + (h.place ? ', ' + esc(h.place) : '') : '');
+  if (!h) { openModal(`<div class="kcard solo"><div class="kch"><span class="kav ini big">${esc(String(M.name || '?').slice(0, 1).toUpperCase())}</span><div><h3>${esc(M.name)}</h3><div class="kwhere"><i class="kdot ${dot}"></i>${where}</div><p class="note">Сидит без героя — пока только смотрит да слушает.</p></div></div></div>`, 'sm'); return; }
+  const pp = R.PEOPLES[h.people] || {}, st = h.stats && typeof h.stats === 'object' ? h.stats : {}, hp = Math.max(0, +h.hp || 0), hm = Math.max(1, +h.hpMax || 1);
+  const eq = Object.entries(h.eq || {}).map(([k, id]) => [k, R.item(String(id))]).filter(([, x]) => x);
+  const ORD = ['weapon', 'ranged', 'shield', 'body', 'head', 'cloak', 'hands', 'legs', 'feet', 'neck', 'ring'];
+  eq.sort((a, b) => (ORD.indexOf(a[0]) + 99) % 99 - (ORD.indexOf(b[0]) + 99) % 99);
+  openModal(`<div class="kcard"><div class="kdoll"><canvas data-kdoll width="300" height="380"></canvas><div class="kbadge">${esc(String(h.level))}</div></div>
+    <div class="kcr"><div class="kch">${faceHTML(h.portrait, 'kface')}<div><h3>${esc(h.name)}</h3><div class="sub">${esc(h.cls)}, ${esc(String(h.level))}-й уровень${pp.name ? ' · ' + esc(h.sex === 'f' ? pp.f : pp.name) : ''}</div>
+      <div class="kwhere"><i class="kdot ${dot}"></i>${mine ? 'это вы' : 'игрок ' + esc(M.name)} · ${where}</div></div></div>
+    <div class="khp"><span>Хиты</span><div class="kbar"><i style="width:${Math.round(100 * Math.min(1, hp / hm))}%"></i></div><b>${hp} / ${hm}</b></div>
+    <div class="kstats">${R.STATS.map(([k, n]) => `<div title="${esc(n)}"><small>${esc(n.length > 9 ? n.slice(0, 6) + '.' : n)}</small><b>${esc(String(+st[k] || '—'))}</b></div>`).join('')}</div>
+    <h4 class="jh">Снаряжение</h4><div class="keq">${eq.map(([k, x]) => `<div class="kit" data-ipop="${esc(x.id)}"><canvas data-ico="${iconOf(x.id) || ''}" width="56" height="56"></canvas><span>${esc(x.name)}</span></div>`).join('') || '<p class="note">Налегке — ничего не надето.</p>'}</div>
+    </div></div>`, 'md');
+  paintFaces($('#modal')); paintIcons($('#modal'));
+  const c = $('#modal canvas[data-kdoll]'), look = kSafeLook(h.look);
+  if (c && look && window.__kldv && IMG.heroes) { const x = c.getContext('2d'); const gr = x.createRadialGradient(c.width / 2, c.height * 0.88, 8, c.width / 2, c.height * 0.88, c.width * 0.45); gr.addColorStop(0, 'rgba(0,0,0,.5)'); gr.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = gr; x.fillRect(0, 0, c.width, c.height);
+    try { window.__kldv.drawHero(c, {look, side: 'hero', pose: 'stand', portrait: h.portrait}, c.width / 2, c.height * 0.93 - c.height * 0.8 / 4.3, c.height * 0.8); } catch (e) {} }
+}
 function showHall(opt) {
   if (!window.Net) return;
   battle = null; g = null; renderTop();
@@ -39380,10 +39480,10 @@ function showHall(opt) {
   function center() {
     const S0 = Net.Hall.state(), me = KR.hero && heroWhere(KR.hero), meH = me && me.h;
     if (KR.room === 'common') {
-      return `<h3 class="ttl">Зов столов</h3><div class="invs">${S0.invites.map(i => { const why = meH ? (meH.level > i.hi ? `${meH.name} слишком опытен (${i.lo}–${i.hi})` : meH.level < i.lo ? `нужен ${i.lo}-й уровень` : '') : '';
+      return `<div class="kct"><h3 class="ttl">Столы</h3><span class="kcount">${S0.invites.length}</span></div><div class="invs">${S0.invites.map(i => { const why = meH ? (meH.level > i.hi ? `${meH.name} слишком опытен (${i.lo}–${i.hi})` : meH.level < i.lo ? `нужен ${i.lo}-й уровень` : '') : '';
         return `<div class="inv"><div><b>${esc(i.camp)}</b><span class="note"> · ${i.lo}–${i.hi}-й ур. · мест: ${i.seats}</span></div><div class="note">${esc(i.from)}${i.place ? ' · ' + esc(i.place) + ', день ' + i.day : ''}</div>
           <div class="row"><b class="icode tcode">${esc(i.code)}</b>${why ? `<span class="note why">${esc(why)}</span>` : ''}${mine(i.code) ? '<button class="btn small primary" data-back="1">Вернуться на своё место</button>' : `<button class="btn small primary" data-inv="${esc(i.code)}" ${i.seats ? '' : 'disabled'}>Принять зов</button>`}</div></div>`; }).join('') || '<p class="note">Пока никто не зовёт. Позвать можно из своей игры: «Позвать» вверху. Зов придёт и тем, кто сейчас в походе.</p>'}</div>
-        <h3 class="ttl">Войти по коду</h3><div class="row"><input id="h-code" maxlength="4" style="text-transform:uppercase;width:110px" placeholder="ABCD"><button class="btn primary" id="h-join">Войти</button>${Net.savedBack() ? `<button class="btn primary" id="h-back" data-back="1">Вернуться за стол <b class="tcode">${esc(Net.savedBack().code)}</b></button>` : ''}</div>`;
+        <div class="kcode"><label for="h-code">Сесть по коду</label><div class="row"><input id="h-code" maxlength="4" style="text-transform:uppercase;width:110px" placeholder="ABCD"><button class="btn primary" id="h-join">Войти</button>${Net.savedBack() ? `<button class="btn primary" id="h-back" data-back="1">Вернуться за стол <b class="tcode">${esc(Net.savedBack().code)}</b></button>` : ''}</div></div>`;
     }
     // торговый ряд — как лавка в игре
     const lots = Net.Hall.lots(), myUid = Net.myUid(), wal = KR.hero ? walletOf(KR.hero) : 0, mineL = lotsLoad();
@@ -39399,26 +39499,30 @@ function showHall(opt) {
         body = bag.map(id => { const x = R.item(id); return sellCard(x, `<span class="kpw"><input type="number" class="kprice" data-kp="${esc(id)}" min="1" value="${Math.max(1, Math.round((x.price || 100) / 100))}" title="Цена в золотых">зм</span>`, `<button class="btn small" data-ksell="${esc(id)}">Выставить</button>`); }).join('') || `<p class="note">В суме у ${esc(meH.name)} нечего выставить: надетое не продаётся, снимите сперва.</p>`; } }
     return `<h3 class="ttl">Торговый ряд</h3>${tabs}<div class="sgrid">${body}</div><p class="note">Цена — в золотых. Вещь уходит с героя на прилавок; купят — золото придёт герою, даже если вы в это время в походе. Отозвать — во вкладке «Мои лоты».</p>`;
   }
-  function people() { const M = Net.Hall.state().members || [];
-    return M.map(m => `<span class="lh">${m.hero ? faceHTML(m.hero.portrait, '') : ''}<span>${esc(m.name)}<small>${esc(ROLE_RU[m.role] || 'в корчме')}${m.hero ? ' · ' + esc(m.hero.name + ', ' + m.hero.level + '-й') : ''}</small></span></span>`).join('') || '<span class="note">никого</span>'; }
+  function people() { const M = (Net.Hall.state().members || []).slice().sort((a, b) => (b.uid === Net.myUid()) - (a.uid === Net.myUid()));
+    return M.map(m => { const h = m.hero, me = m.uid === Net.myUid();
+      return `<button class="kmem${me ? ' me' : ''}" data-who="${esc(m.uid)}" title="Посмотреть героя">${h && h.portrait ? faceHTML(h.portrait, '') : `<span class="kav ini">${esc(String(m.name || '?').slice(0, 1).toUpperCase())}</span>`}<i class="kdot ${ROLE_DOT[m.role] || 'k'}"></i>
+        <span class="kmi"><b>${esc(m.name)}${me ? ' <em>вы</em>' : ''}</b><small>${h ? esc(h.name) + ' · ' + esc(h.cls) + ', ' + esc(String(h.level)) + '-й' : 'без героя'}</small><small class="kr">${esc(ROLE_RU[m.role] || 'в корчме')}${h && h.camp ? ' · ' + esc(h.camp) : ''}</small></span></button>`; }).join('') || '<span class="note">никого</span>'; }
   function draw(soft) {
     const ps = pool(); const S0 = Net.Hall.state();
     if (soft && $('.screen.korchma')) { // обновить, не трогая чат и поля ввода
       const c = $('#k-center'); const typing = document.activeElement && c && c.contains(document.activeElement) && /INPUT|TEXTAREA/.test(document.activeElement.tagName); if (c && (soft === 'force' || !typing)) { c.innerHTML = center(); bindCenter(); }
-      const pp = $('#k-people'); if (pp) { pp.innerHTML = people(); paintFaces(pp); } const on = $('#k-on'); if (on) on.textContent = onlineText() || 'вы одни';
+      const pp = $('#k-people'); if (pp) { pp.innerHTML = people(); paintFaces(pp); bindWho(pp); } const pc = $('#k-pc'); if (pc) pc.textContent = (S0.members || []).length; const on = $('#k-on'); if (on) on.textContent = onlineText() || 'вы одни';
       const tb = document.querySelector('[data-room="trade"] small'); if (tb) tb.textContent = Net.Hall.lots().length ? Net.Hall.lots().length + ' лот.' : ''; return; }
-    const chat = (S0.chat && S0.chat[KR.room]) || [];
-    $('#main').innerHTML = `<div class="screen korchma"><div class="khead"><div><h2>Корчма</h2><span class="note" id="k-on">${esc(onlineText() || 'вы одни')}</span></div>
-      <div class="krooms">${[['common', 'Общий зал', ''], ['trade', 'Торговый ряд', Net.Hall.lots().length ? Net.Hall.lots().length + ' лот.' : '']].map(([k, t, sub]) => `<button class="kroom ${KR.room === k ? 'on' : ''}" data-room="${k}"><b>${t}</b><small>${sub}</small><span class="badge">${(KR.unread || {})[k] || ''}</span></button>`).join('')}</div>
+    const chat = (S0.chat && S0.chat[KR.room]) || [], trade = KR.room === 'trade';
+    const chatBox = `<section class="kcol kchat"><div class="kct"><h3 class="ttl">${trade ? 'Разговор у прилавков' : 'Общий зал'}</h3><span class="note">${trade ? 'торг, обмен, «почём?»' : 'здесь слышно всех — и тех, кто у очага, и тех, кто в походе'}</span></div>
+       <div class="chat-log hlog" id="k-log">${kLog(chat) || '<div class="cm sys empty">Тишина. Можно поздороваться.</div>'}</div>
+       <form class="chat-in" id="h-form"><input id="h-in" maxlength="300" autocomplete="off" placeholder="${trade ? 'Предложить, поторговаться…' : 'Сказать залу…'}"><button class="btn small primary">Сказать</button></form></section>`;
+    const peopleBox = `<section class="kcol kpeople"><div class="kct"><h3 class="ttl">В зале</h3><span class="kcount" id="k-pc">${(S0.members || []).length}</span></div><div class="kmems" id="k-people">${people()}</div><p class="note">Нажмите на гостя — покажет героя.</p></section>`;
+    const centerBox = `<section class="kcol kcenter" id="k-center">${center()}</section>`;
+    $('#main').innerHTML = `<div class="screen korchma${trade ? ' trade' : ''}"><div class="khead"><div class="kht"><span class="kkick">Порубежье · у очага</span><h2>Корчма «Три Дороги»</h2><span class="note" id="k-on">${esc(onlineText() || 'вы одни')}</span></div>
+      <div class="krooms">${[['common', 'Общий зал', 'столы и разговоры'], ['trade', 'Торговый ряд', Net.Hall.lots().length ? Net.Hall.lots().length + ' лот.' : 'купить, продать']].map(([k, t, sub]) => `<button class="kroom ${KR.room === k ? 'on' : ''}" data-room="${k}"><b>${t}</b><small>${sub}</small><span class="badge">${(KR.unread || {})[k] || ''}</span></button>`).join('')}</div>
       <button class="btn" id="h-title">На титул</button></div>
-     <div class="kgrid"><div class="kcol kme"><h3 class="ttl">Вы</h3><label for="h-name">Имя</label><input id="h-name" maxlength="16" value="${esc(Net.LS('name') || '')}" placeholder="${esc(myName())}">
+     <div class="kgrid"><aside class="kcol kme"><h3 class="ttl">Вы</h3><label for="h-name">Имя за столом</label><input id="h-name" maxlength="16" value="${esc(Net.LS('name') || '')}" placeholder="${esc(myName())}">
        <label>Герой</label><div class="pool hpool">${ps.map(h => `<button class="pcard ${h.id === KR.hero ? 'on' : ''}" data-hh="${h.id}">${faceHTML(h.portrait, '')}<div><b>${esc(h.name)}</b><div class="note">${esc(R.CLASSES[h.cls].name)}, ${h.level}-й ур.${heroSaga(h.id) || (sagaMeta()[SAGA_I] || {ids: []}).ids.includes(h.id) ? ' · в походе' : ''}</div></div></button>`).join('') || '<p class="note">Своих героев пока нет.</p>'}</div>
-       <button class="btn" id="h-new">Новый герой</button><p class="note" id="h-st">${esc(KR.msg)}</p></div>
-      <div class="kcol" id="k-center">${center()}</div>
-      <div class="kcol kside"><h3 class="ttl">${KR.room === 'trade' ? 'Разговор у прилавков' : 'Разговор в зале'}</h3><div class="chat-log hlog" id="k-log">${chat.map(kLine).join('') || '<div class="cm sys empty">Тишина. Можно поздороваться.</div>'}</div>
-       <form class="chat-in" id="h-form"><input id="h-in" maxlength="300" autocomplete="off" placeholder="${KR.room === 'trade' ? 'Предложить, поторговаться…' : 'Сказать залу…'}"><button class="btn small primary">Сказать</button></form>
-       <h3 class="ttl">Кто в сети</h3><div class="hmem" id="k-people">${people()}</div></div></div></div>`;
-    paintFaces($('#main')); const lg = $('#k-log'); if (lg) lg.scrollTop = lg.scrollHeight;
+       <button class="btn" id="h-new">Новый герой</button><p class="note" id="h-st">${esc(KR.msg)}</p></aside>
+      ${trade ? centerBox + `<div class="kstack">${chatBox}${peopleBox}</div>` : chatBox + `<div class="kstack">${centerBox}${peopleBox}</div>`}</div></div>`;
+    paintFaces($('#main')); bindWho($('#main')); const lg = $('#k-log'); if (lg) lg.scrollTop = lg.scrollHeight;
     const m = $('#main');
     m.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { KR.room = b.dataset.room; (KR.unread || {})[KR.room] = 0; draw(); });
     m.querySelectorAll('[data-hh]').forEach(b => b.onclick = () => { KR.hero = b.dataset.hh; korchmaEnsure('hall'); draw(); });
@@ -39557,7 +39661,7 @@ function coinize(root) {
 }
 new MutationObserver(ms => { ms.forEach(m => { m.addedNodes.forEach(n => { if (n.nodeType === 1 && n.querySelector && !n.closest('.dd') && (n.tagName === 'SELECT' || n.querySelector('select:not(.dd-src)'))) enhanceSelects(n.tagName === 'SELECT' ? n.parentNode : n); if (n.nodeType === 1) coinize(n); else if (n.nodeType === 3 && n.parentNode) coinize(n.parentNode); }); if (m.type === 'characterData' && m.target.parentNode) coinize(m.target.parentNode); }); }).observe(document.body, {childList: true, subtree: true, characterData: true});
 coinize(document.body);
-window.__kldv = { camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
+window.__kldv = { hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
   /* картинка для сайта: фигура бойца целиком и значок вещи */
   fig: (c, u) => { const x = c.getContext('2d'), W = c.width, Hc = c.height; x.clearRect(0, 0, W, Hc);
     const fit = (img, a, flip, filt) => { const k = Math.min(W * 0.94 / a[2], Hc * 0.94 / a[3]), w = a[2] * k, h = a[3] * k; x.save(); if (filt) x.filter = filt; x.translate(W / 2, Hc * 0.97); if (flip) x.scale(-1, 1); x.drawImage(img, a[0], a[1], a[2], a[3], -w / 2, -h, w, h); x.restore(); return true; };
