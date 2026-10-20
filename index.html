@@ -663,6 +663,15 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .sig.big{width:30px;height:30px;align-self:center}
 .spcard .sc-h{align-items:center}.spcard.sm .sc-h{flex-direction:row;flex-wrap:wrap}.spcard.sm .sc-h small{flex-basis:100%}
 .spcard .sc-h small.rgl{flex-basis:100%;font-style:normal;opacity:.55;font-size:12px;margin-top:-4px}
+
+/* окно ночлега */
+.rooms{display:grid;grid-template-columns:1fr 260px;gap:14px}@media(max-width:700px){.rooms{grid-template-columns:1fr}}
+.rgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.room{display:flex;flex-direction:column;align-items:stretch;gap:4px;padding:6px;border:1px solid var(--rim);border-radius:6px;background:linear-gradient(#4a3a28,#2e2318);color:var(--paper);cursor:pointer;text-align:center}
+.room .rimg{display:block;aspect-ratio:16/10;background-size:cover;background-position:center;border-radius:4px;box-shadow:inset 0 0 0 1px rgba(0,0,0,.6)}
+.room b{font:700 15px var(--t-label)}.room small{opacity:.75;font-size:12px}
+.room.on{border-color:var(--brass);box-shadow:0 0 0 2px var(--brass) inset}.room.off{opacity:.45}.room.off .rimg{filter:grayscale(.8)}
+.rside{display:flex;flex-direction:column;gap:8px}.rtxt{margin:0;font-style:italic}.rfx{margin:0;padding-left:18px}.rcost{margin:0}
 </style>
 <div id="app">
   <header id="top">
@@ -2391,7 +2400,7 @@ C.checkPreview = function (g, sceneId, idx) {
 C._PREVIEW = {preview: true};
 /* проверка лучшим героем */
 C.bestCheck = function (g, stat, skill, dc) {
-  const hs = C.alive(g); if (!hs.length) return {ok: false, total: 0, dc};
+  const hs = C.alive(g); if (!hs.length) return {ok: false, total: 0, dc, roll: 1, hero: {name: 'Никто', stats: {}}};
   // «беру на себя»: в сетевой игре проверку бросает тот, кто вызвался
   const cl = g.claimHero && hs.find(x => x.id === g.claimHero);
   if (cl) { g.claimHero = null; const r = R.check(cl, stat, skill, dc); r.hero = cl; return r; }
@@ -34908,11 +34917,7 @@ if (W && W.nightCamp) { const nc0 = W.nightCamp;
     const r = nc0.apply(this, arguments);
     team(g).forEach(h => setMeal(h, goneOf(before.get(h.id) || [], h.inv), g.day));
     return r; }; }
-/* ужин в корчме — обычная еда */
-if (C.lodge) { const lodge0 = C.lodge;
-  C.lodge = function (g, perHead) { const cost = perHead * team(g).length, paid = g.purse >= cost; const r = lodge0.apply(this, arguments);
-    if (paid) C.alive(g).forEach(h => { h.meal = {id: 'eda_na_den_obychnaya', day: g.day}; h.mealAcc = 0; });
-    return r; }; }
+/* ужин в корчме — по разряду ночлега (inn.js) */
 
 /* хиты в час вне боя */
 const regen = (g, hours) => {
@@ -34939,6 +34944,88 @@ B.fromHero = function (h) { const u = fh0.apply(this, arguments); const f = h &&
   return u; };
 /* в окне героя — рядом с духом */
 if (C.spiritText) { const st0 = C.spiritText; C.spiritText = function (h) { const t = st0.apply(this, arguments), m = C.mealText(h); return m ? `${t} ${m}` : t; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* inn.js */
+/* Колдовство — разряды ночлега в корчмах. Без DOM.
+   Бедный угол (2 мм), крестьянская горница (2 см), купеческая светлица (2 зм), знатные палаты (15 зм) — с каждого, наёмники тоже.
+   Разряд решает, сколько вылечишься, сколько вернётся Силы, чем накормят и как поднимется дух.
+   В селе — бедный угол и горница; в городе и на торгу — ещё светлица; в столицах — и палаты.
+   Своя еда из сумы в счёт: за ужином каждый ест лучшее из того, что есть — своё или корчемное. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C.lodge) return;
+C.INN = [
+  {id: 'poor', name: 'Бедный угол', where: 'сеновал да лавка у печи', price: 2, art: 'room_poor', text: 'Сеновал над конюшней или лавка у печи в общей избе. Тепло, тесно, соседи храпят, и за кошелём лучше приглядывать. Спится вполглаза.', food: 'eda_na_den_skudnaya', foodRu: 'пустая похлёбка да сухарь', heal: 'half'},
+  {id: 'peasant', name: 'Крестьянская горница', where: 'горница на двоих', price: 20, art: 'room_peasant', text: 'Горница на двоих: лавки с овчинами, печь, кадка с водой. Выспитесь как следует.', food: 'eda_na_den_obychnaya', foodRu: 'щи, каша и хлеб', heal: 'full'},
+  {id: 'merchant', name: 'Купеческая светлица', where: 'светлица с периной', price: 200, art: 'room_merchant', text: 'Светлица с периной и замком на двери: купцы берегут и товар, и сон. Вещи в сохранности, наутро — в духе.', food: 'eda_na_den_horoshaya', foodRu: 'жаркое, пироги и пиво', heal: 'full', spirit: 1, safe: 1},
+  {id: 'noble', name: 'Знатные палаты', where: 'палаты с печью изразцовой', price: 1500, art: 'room_noble', text: 'Палаты с изразцовой печью, медвежьими шкурами и слугой у двери. Встанете воодушевлёнными, как после праздника.', food: 'otmennoe_blyudo', foodRu: 'пир: дичь, рыба, мёд и вино', heal: 'full', spirit: 3, safe: 1},
+];
+C.INN_BY = Object.fromEntries(C.INN.map(t => [t.id, t]));
+const CAPITAL = /Таррен|Эдвин|Аврелиан|Тривий|Ставка|Пар-Насс|Солёная Гавань|Акропол/;
+/* что есть в этом месте */
+C.innTiers = function (g, place) {
+  const camp = C.CAMPS[g.camp], n = camp && camp.map && camp.map.nodes && camp.map.nodes[g.loc] || {}, nm = (n.name || '') + ' ' + (place || '');
+  const cap = CAPITAL.test(nm), town = cap || ['город', 'торг'].includes(n.kind) || /постоял|странноприим/i.test(place || '');
+  return C.INN.filter(t => t.id === 'poor' || t.id === 'peasant' || (t.id === 'merchant' && town) || (t.id === 'noble' && cap));
+};
+const party = g => C.alive(g).concat(g.mercs || []);
+/* ночлег: старая цена «perHead» больше не решает — решает разряд (выбранный в сцене, иначе горница) */
+const lodge0 = C.lodge;
+C.lodge = function (g, perHead, place) {
+  const t = C._innTier || C.INN_BY.peasant, n = party(g).length, cost = t.price * n, paid = g.purse >= cost;
+  const before = new Map(party(g).map(h => [h.id, {hp: h.hp, pw: h.power}]));
+  const tier = paid ? t : C.INN_BY.poor;
+  const r = lodge0.call(this, g, tier.price, place);
+  // бедный угол: полсна — половина хитов и Силы (и уровень сверху)
+  if (tier.heal === 'half') party(g).forEach(h => { const b = before.get(h.id); if (!b) return;
+    h.hp = Math.min(h.hpMax, Math.max(b.hp, b.hp + Math.ceil(h.hpMax / 2) + (h.level || 1)));
+    const pm = R.powerMax ? R.powerMax(h) : h.power; h.power = Math.min(pm, Math.max(b.pw, b.pw + Math.ceil(pm / 2))); });
+  // ужин: корчемная еда разряда, но своя из сумы — если лучше (её и съедят)
+  const fx = C.FOOD_FX || {};
+  C.alive(g).forEach(h => {
+    const mine = (h.inv || []).filter(id => C.FOOD && C.FOOD[id] && ((fx[id] || {}).hp || 0) > ((fx[tier.food] || {}).hp || 0)).sort((a, b) => ((fx[b] || {}).hp || 0) - ((fx[a] || {}).hp || 0))[0];
+    const eat = mine || tier.food; if (mine) h.inv.splice(h.inv.indexOf(mine), 1);
+    h.meal = {id: eat, day: g.day}; h.mealAcc = 0; h.fedDay = g.day; h.hunger = 0; h.mealQ = (fx[eat] || {}).hp || 0;
+    if (tier.spirit && C.spiritCap) { h.spirit = Math.min(C.spiritCap(h), Math.max(h.spirit || 0, 0) + tier.spirit); }
+  });
+  // в бедном углу могут обчистить
+  if (tier.id === 'poor' && g.purse > 0 && R.rand() < 0.15) { const take = Math.max(1, Math.floor(g.purse / 10)); g.purse -= take; C.note(g, `Ночью в общем углу кто-то пошарил по сумам: пропало ${R.priceText(take)}.`); }
+  const food = tier.foodRu;
+  C.note(g, paid || t.id === 'poor' ? `${place || 'Корчма'} — ${tier.name.toLowerCase()} (${tier.where}), на ужин — ${food}.${tier.heal === 'half' ? ' Спится плохо: раны затянулись наполовину.' : ''}`
+    : `${place || 'Корчма'}: на «${t.name.toLowerCase()}» денег не хватило — пустили в бедный угол.`);
+  return r;
+};
+/* перекус в дороге: любую готовую еду из сумы — полчаса, голод утолён, сытость от съеденного */
+C.snackWhy = (g, h, id) => !h || !h.inv || !h.inv.includes(id) ? 'такой еды нет' : !(C.FOOD && C.FOOD[id]) || (C.RAW && C.RAW[id]) ? 'это сырым не едят' : '';
+C.snack = function (g, h, id) {
+  const w = C.snackWhy(g, h, id); if (w) return {err: w};
+  h.inv.splice(h.inv.indexOf(id), 1); const v = C.FOOD[id] || 1;
+  if (v > 1) h.foodLeft = Math.round(((h.foodLeft || 0) + v - 1) * 100) / 100;
+  const fx = (C.FOOD_FX || {})[id] || {};
+  h.hunger = 0; h.fedDay = g.day; h.meal = {id, day: g.day}; h.mealAcc = 0; h.mealQ = fx.hp || 0;
+  if (C.passH) C.passH(g, 0.5);
+  const nm = ((R.item(id) || {}).name || id).toLowerCase(), t = C.mealFxText ? C.mealFxText(fx) : '';
+  const text = `${h.name} перекусывает: ${nm}.${t ? ' Сытость: ' + t + '.' : ' Голод утолён.'}`; C.note(g, text); return {ok: true, text};
+};
+/* в сцене: вместо одной кнопки «Заночевать» — по кнопке на каждый разряд */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments); if (!sc || !sc.choices) return sc;
+  const out = []; let changed = false;
+  sc.choices.forEach(c => {
+    if (!(typeof c.do === 'function' && /C\.lodge\(/.test(String(c.do)) && /ночев|ночлег/i.test(c.label || ''))) { out.push(c); return; }
+    changed = true; const n = party(g).length;
+    const here = C.innTiers(g, sc.title).map(t => t.id);
+    C.INN.forEach((t, k) => { const cost = t.price * n, food = t.foodRu, has = here.includes(t.id);
+      out.push(Object.assign({}, c, {i: 1000 + c.i * 10 + k, inn: {id: t.id, k, cost}, label: `Заночевать: ${t.name.toLowerCase()} — ${R.priceText(t.price)} с каждого, на ужин ${food}`,
+        dis: c.dis || (!has ? (t.id === 'noble' ? 'палаты есть только в столицах' : 'светлицы есть только в городах') : t.id !== 'poor' && g.purse < cost ? 'не хватает денег' : undefined),
+        do: (g2, ctx) => { C._innTier = t; try { return c.do(g2, ctx); } finally { C._innTier = null; } }})); });
+  });
+  if (changed) sc.choices = out;
+  return sc;
+};
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* songs.js */
@@ -35971,7 +36058,7 @@ function heroSheet(h) {
     ${(() => { const L = C.heroOwnLoad ? C.heroOwnLoad(g, h) : C.heroLoad ? C.heroLoad(h) : null, kinds = TRADE_KIND.filter(([k]) => k === 'all' || h.inv.some(id => tradeKind(id) === k)), f = INVF[h.id] || 'all';
       return `<h4 class="jh">Сума${L ? ` <span class="note" style="text-transform:none;letter-spacing:0">· несёт ${esc((Math.round(L.all * 10) / 10 + '').replace('.', ','))} кг из ${C.heroCap(h)}</span>` : ''}</h4>
       <div class="row invbar">${kinds.length > 2 ? `<div class="tfilt">${kinds.map(([k, t]) => `<button class="btn small ${f === k ? 'on' : ''}" data-invf="${k}" data-h="${h.id}">${t}</button>`).join('')}</div>` : ''}${canGive(h) ? `<button class="btn small" data-give="${h.id}">Передать вещи…</button>` : ''}</div>`; })()}
-    <div class="bag" data-invbag="${h.id}">${[...new Set(h.inv)].map(id => { const n = h.inv.filter(v => v === id).length, wn = Object.values(h.eq).filter(v => v === id).length; const f = INVF[h.id] || 'all'; return `<div class="bi ${wn ? 'on' : ''}" data-kind="${tradeKind(id)}" ${f !== 'all' && tradeKind(id) !== f ? 'hidden' : ''} data-ipop="${esc(id)}" data-ih="${h.id}" title="${esc((R.item(id) || {name: id}).name)}${wn ? (n > 1 ? ` — надето ${wn} из ${n}` : ' — надето') : ''}"><canvas data-ico="${iconOf(id) || ''}" width="64" height="64"></canvas><span>${esc((R.item(id) || {name: id}).name.replace(/\s*\(.*\)/, ''))}${n > 1 ? ` <b class="bn">×${n}</b>` : ''}${/^m\?:/.test(id) ? '<small class="nr"> не опознано</small>' : ''}</span>${C.drinkableOut && C.drinkableOut(id) && mineH(h) && !battle ? `<button class="btn small" data-drink="${id}" data-h="${h.id}">Выпить</button>` : ''}${C.isScroll && C.isScroll(id) && mineH(h) && !battle && h.cls === 'knizhnik' ? (C.canStudy(h, id, g) ? `<small class="nr" title="${esc(C.canStudy(h, id, g))}">${esc(C.canStudy(h, id, g))}</small>` : `<button class="btn small" data-study="${id}" data-h="${h.id}" title="Сидеть над свитком ${esc(C.dayText(C.studyDays(C.scrollSpell(id))))}; удача — заклинание выучено, неудача — свиток цел, снова можно завтра, но с каждой неудачей он может рассыпаться">Изучить · ${Math.round(C.studyChanceSv(h, id) * 100)}%${C.studyRisk && C.studyRisk(h, id) ? ` <small>рассыплется: ${Math.round(C.studyRisk(h, id) * 100)}%</small>` : ''}</button>`) : ''}</div>`; }).join('')}</div>`;
+    <div class="bag" data-invbag="${h.id}">${[...new Set(h.inv)].map(id => { const n = h.inv.filter(v => v === id).length, wn = Object.values(h.eq).filter(v => v === id).length; const f = INVF[h.id] || 'all'; return `<div class="bi ${wn ? 'on' : ''}" data-kind="${tradeKind(id)}" ${f !== 'all' && tradeKind(id) !== f ? 'hidden' : ''} data-ipop="${esc(id)}" data-ih="${h.id}" title="${esc((R.item(id) || {name: id}).name)}${wn ? (n > 1 ? ` — надето ${wn} из ${n}` : ' — надето') : ''}"><canvas data-ico="${iconOf(id) || ''}" width="64" height="64"></canvas><span>${esc((R.item(id) || {name: id}).name.replace(/\s*\(.*\)/, ''))}${n > 1 ? ` <b class="bn">×${n}</b>` : ''}${/^m\?:/.test(id) ? '<small class="nr"> не опознано</small>' : ''}</span>${C.drinkableOut && C.drinkableOut(id) && mineH(h) && !battle ? `<button class="btn small" data-drink="${id}" data-h="${h.id}">Выпить</button>` : ''}${C.snackWhy && !C.snackWhy(g, h, id) && mineH(h) && !battle ? `<button class="btn small" data-eat="${id}" data-h="${h.id}" title="Перекусить: полчаса, голод утолён${C.mealFxText && C.mealFxText((C.FOOD_FX || {})[id] || {}) ? '; сытость: ' + esc(C.mealFxText(C.FOOD_FX[id])) : ''}">Съесть</button>` : ''}${C.isScroll && C.isScroll(id) && mineH(h) && !battle && h.cls === 'knizhnik' ? (C.canStudy(h, id, g) ? `<small class="nr" title="${esc(C.canStudy(h, id, g))}">${esc(C.canStudy(h, id, g))}</small>` : `<button class="btn small" data-study="${id}" data-h="${h.id}" title="Сидеть над свитком ${esc(C.dayText(C.studyDays(C.scrollSpell(id))))}; удача — заклинание выучено, неудача — свиток цел, снова можно завтра, но с каждой неудачей он может рассыпаться">Изучить · ${Math.round(C.studyChanceSv(h, id) * 100)}%${C.studyRisk && C.studyRisk(h, id) ? ` <small>рассыплется: ${Math.round(C.studyRisk(h, id) * 100)}%</small>` : ''}</button>`) : ''}</div>`; }).join('')}</div>`;
 }
 /* ---------- книга заклинаний: список по кругам, полное описание по нажатию ---------- */
 const BOOKSEL = {};
@@ -36078,6 +36165,7 @@ function showParty(id, keep) {
     if (NET()) { act({a: 'brole', key: k, role}); return; } const e = C.setBeastRole(g, k, role); if (e) return toast(e); save(); renderTop(); showParty(b.dataset.h, true); });
   $('#modal').querySelectorAll('[data-tans]').forEach(b => b.onclick = () => act({a: 'teachAns', id: b.dataset.tans, yes: !!b.dataset.yes}));
   $('#modal').querySelectorAll('[data-feed]').forEach(b => b.onclick = () => { if (NET()) { act({a: 'feed', from: b.dataset.from, to: b.dataset.feed}); return; } const all2 = C.alive(g).concat(g.mercs || []); const r = C.feedHero(g, all2.find(x => x.id === b.dataset.from), all2.find(x => x.id === b.dataset.feed)); if (r.err) return toast(r.err); save(); toast(r.text); showParty(b.dataset.feed, true); });
+  $('#modal').querySelectorAll('[data-eat]').forEach(b => b.onclick = () => { if (NET()) { act({a: 'eat', hero: b.dataset.h, item: b.dataset.eat}); return; } const r = C.snack(g, all.find(x => x.id === b.dataset.h), b.dataset.eat); if (r.err) return toast(r.err); save(); renderTop(); showParty(b.dataset.h); toast(r.text); });
   $('#modal').querySelectorAll('[data-drink]').forEach(b => b.onclick = () => { if (NET()) { act({a: 'drink', hero: b.dataset.h, item: b.dataset.drink}); closeModal(); return; } const r = C.drinkOut(g, all.find(x => x.id === b.dataset.h), b.dataset.drink); if (r.err) return toast(r.err); save(); renderTop(); showParty(b.dataset.h); toast(r.text); });
   $('#modal').querySelectorAll('[data-recipes]').forEach(b => b.onclick = () => showRecipes(b.dataset.recipes));
   $('#modal').querySelectorAll('[data-proflist]').forEach(b => b.onclick = () => showProfList(b.dataset.proflist));
@@ -36632,7 +36720,25 @@ const KIND = [[/нового героя|за стол/i, 'recruit'], [/^(Нан�
   [/Подойти|Выслушать|Разговор|Спросить|Ответить|Расспросить|Заговорить|Уговорить|Поручиться|Попросить|Говорить|Сослаться|Окликнуть|Потребовать|Рассказать|Обещать|Пригрозить/, 'chat'],
   [/Прочесть|Проверить|Разобрать|Помочь Аллексе|Пройти по следам|поискать|Проследить/, 'spyglass'], [/Вскрыть|Подкрасться|Выкрасть/, 'key'], [/обряд|клятв|Исцелить|Лечить|Перевязать|молитв/i, 'candles'], [/^(К |В |Во |Ко |На |За |Тайно к|Пойти|Спуститься|Войти|Идти)/, 'keep']];
 const kindOf = (c, pv) => { const k = KIND.find(([re]) => re.test(c.label)); return pv && (!k || k[1] === 'next') ? 'scales' : k ? k[1] : (pv ? 'scales' : 'next'); };
+/* ночлег: четыре разряда — одной кнопкой, выбор в окне с картинками */
 function choiceBtn(id, c) {
+  if (c.inn) { if (c.inn.k) return ''; return `<button class="btn ch" data-inn="${esc(id)}"><span class="ui-i i-candles"></span><span class="ct">Ночлег: выбрать комнату</span></button>`; }
+  return choiceBtn0(id, c);
+}
+function showRooms(id) {
+  const sc = C.sceneOf(g, id); if (!sc) return; const rooms = sc.choices.filter(c => c.inn), n = C.alive(g).length + (g.mercs || []).length;
+  let sel = (rooms.find(c => !c.dis && c.inn.id === 'peasant') || rooms.find(c => !c.dis) || rooms[0]);
+  const draw = () => { const t = C.INN_BY[sel.inn.id];
+    openModal(`<h3 class="ttl"><span class="ui-i i-candles"></span>${esc(sc.title)}: ночлег</h3><div class="rooms"><div class="rgrid">${rooms.map(c => { const r = C.INN_BY[c.inn.id];
+      return `<button class="room ${c === sel ? 'on' : ''} ${c.dis ? 'off' : ''}" data-room="${c.i}" title="${esc(c.dis || '')}"><span class="rimg" style="background-image:url(img/${r.art}.webp)"></span><b>${esc(r.name)}</b><small>${esc(R.priceText(r.price))} с каждого</small></button>`; }).join('')}</div>
+      <div class="rside"><p class="rtxt">${esc(t.text)}</p><ul class="rfx"><li>Ужин: ${esc(t.foodRu)}</li><li>${t.heal === 'half' ? 'Хиты и Сила — наполовину' : 'Хиты и Сила — полностью'}</li>${t.spirit ? `<li>Дух: ${t.spirit >= 3 ? 'воодушевлён' : '+' + t.spirit}</li>` : ''}${t.safe ? '<li>Вещи в сохранности</li>' : t.id === 'poor' ? '<li>Могут обчистить</li>' : ''}</ul>
+      <p class="rcost">За отряд (${n}): <b>${esc(R.priceText(t.price * n))}</b> · в кошеле ${esc(R.priceText(g.purse))}</p>${sel.dis ? `<p class="note warn">${esc(sel.dis)}</p>` : ''}
+      <button class="btn primary" id="room-ok" ${sel.dis ? 'disabled' : ''}>Снять</button></div></div>`, 'md');
+    $('#modal').querySelectorAll('[data-room]').forEach(b => b.onclick = () => { sel = rooms.find(c => c.i === +b.dataset.room); draw(); });
+    $('#room-ok').onclick = () => { if (sel.dis) return; closeModal(); choose(id, sel.i); }; };
+  draw();
+}
+function choiceBtn0(id, c) {
   let label = c.label, chk = ''; const cl0 = g.claimHero; if (NET() && CLAIM && myHeroes().some(h => h.id === CLAIM)) g.claimHero = CLAIM; let pv; try { pv = C.checkPreview(g, id, c.i); } finally { g.claimHero = cl0; }
   // проверка — отдельной строкой под действием: само действие читается первым
   if (pv) { const pc = Math.round(pv.chance * 100) + '%', sn = C.STAT_NAME[pv.stat];
@@ -36759,6 +36865,7 @@ function showScene(id, talk) {
   typeLines($('#main .scene'), id + '|' + lines.map(l => l[1]).join('|').length + '|' + (lines[0] ? lines[0][1].slice(0, 40) : '') + '|' + (lines.length ? lines[lines.length - 1][1].slice(-40) : ''));
   if (NET()) { const cs = $('#claimSel'); if (cs) cs.onchange = () => { CLAIM = cs.value; const sc2 = C.sceneOf(g, id); if (sc2) $('#main').querySelectorAll('.choices [data-ch]').forEach(b => { const c2 = sc2.choices.find(x => x.i === +b.dataset.ch); const chk = c2 && b.querySelector('.chk'); if (chk) { const t = document.createElement('div'); t.innerHTML = choiceBtn(id, c2); const n2 = t.querySelector('.chk'); if (n2) chk.replaceWith(n2); } }); }; paintVotes(); }
   $('#main').querySelectorAll('[data-ch]').forEach(b => b.onclick = () => choose(id, +b.dataset.ch));
+  $('#main').querySelectorAll('[data-inn]').forEach(b => b.onclick = () => showRooms(id));
   $('#main').querySelectorAll('[data-talk]').forEach(b => b.onclick = () => {
     const p = b.dataset.talk || null;
     if (NET()) { const only = p && !sc.lines.some(l => l[0] === p || l[2] === p) ? sc.choices.filter(c => c.who === p) : []; if (only.length === 1) return choose(id, only[0].i); return act({a: 'talk', id, who: p}); }
@@ -38691,7 +38798,7 @@ function doCmd(c, pid) {
   try { const e = doCmd1(c || {}, pid); if (e) return {ok: false, error: e}; publish(); if (MODAL_REFRESH && !$('#modal').hidden) MODAL_REFRESH(); renderTop(); return {ok: true}; }
   catch (err) { console.error(err); return {ok: false, error: 'у хозяина ошибка: ' + err.message}; }
 }
-const PURSE_CMDS = new Set(['teach', 'drink', 'brewr', 'cook', 'rcp', 'ocast', 'abil', 'brew', 'med', 'study', 'scribe', 'read', 'insight', 'brole', 'feed']);
+const PURSE_CMDS = new Set(['teach', 'drink', 'eat', 'brewr', 'cook', 'rcp', 'ocast', 'abil', 'brew', 'med', 'study', 'scribe', 'read', 'insight', 'brole', 'feed']);
 function doCmd1(c, pid) {
   if (PURSE_CMDS.has(c.a) && g && g.net && !c._wp) return withPurse(pid, () => doCmd1(Object.assign({}, c, {_wp: 1}), pid));
   const a = c.a;
@@ -38736,6 +38843,7 @@ function doCmd1(c, pid) {
       if (c.t && ownerOf(c.t) && ownerOf(c.t) !== pid) { const tt = heroById(c.t), hh = heroById(c.hero), pn = (C.PROF_LIST.find(x => x.id === c.prof) || {}).name || c.prof;
         g.teachReq = (g.teachReq || []).filter(x => !(x.hero === c.hero && x.prof === c.prof)).concat({id: Date.now().toString(36), hero: c.hero, t: c.t, prof: c.prof, pid});
         Net.sysChat(`${hh.name} просит ${tt.name} научить «${pn}». Согласиться может ${pname(ownerOf(c.t))} — в окне героя ${tt.name}.`); save(); rerender(); return; } const hh = C.alive(g).find(x => x.id === c.hero), tt = C.alive(g).find(x => x.id === c.t); const r = hh ? C.learnProf(g, hh, c.prof, {teacher: tt}) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
+    case 'eat': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.snack(g, hh, c.item) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'drink': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.drinkOut(g, hh, c.item) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'brewr': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.brewRecipe(g, hh, c.rec) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'cook': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.cook(g, hh, c.rid) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
