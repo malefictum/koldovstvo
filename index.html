@@ -24871,7 +24871,7 @@ C.drinkOut = function (g, h, id) {
   const i = h.inv.indexOf(id); if (i < 0) return {err: 'зелья нет'};
   let text = '';
   if (DRINK_HEAL[id]) { const v = R.dice(DRINK_HEAL[id]); h.hp = Math.min(h.hpMax, h.hp + v); text = `${h.name} пьёт ${R.item(id).name.toLowerCase()}: +${v} хитов.`; }
-  else if (id === 'zelye_razrushenie') { const n = C.cleanse ? C.cleanse(g, h) : 0; text = n ? `${h.name} пьёт отворотное зелье — проклятие сходит с вещей.` : `${h.name} пьёт отворотное зелье. Проклятий на нём не было.`; }
+  else if (id === 'zelye_razrushenie') { const cs = C.cursedOn ? C.cursedOn(h) : []; const n = cs.length && C.removeCurse ? (C.removeCurse(h, cs[0]), 1) : (C.cleanse ? C.cleanse(g, h) : 0); /* одно проклятие — как в описании */ text = n ? `${h.name} пьёт отворотное зелье — проклятие сходит с вещей.` : `${h.name} пьёт отворотное зелье. Проклятий на нём не было.`; }
   else if (STAT_POT[id] || RES_POT[id]) { h.buffs = (h.buffs || []).concat(STAT_POT[id] ? {stat: STAT_POT[id][0], val: STAT_POT[id][1], battle: true} : {res: RES_POT[id], battle: true}); if (C.statSync) C.statSync(h); text = `${h.name} пьёт ${R.item(id).name.toLowerCase()} — сила его продержится до конца ближайшего боя.`; }
   else if (['zelye_protivoyadie', 'protivoyadie', 'zelye_nyuhatelnaya_sol'].includes(id)) { text = `${h.name} пьёт ${R.item(id).name.toLowerCase()}. Голова яснее.`;
     if (id !== 'zelye_nyuhatelnaya_sol' && C.ailDrop) ['trupny', 'ponos'].forEach(a => { if (C.ailsOf(h).some(x => x.id === a)) { C.ailDrop(h, a); text += ` ${C.AILS[a].name} отступает.`; } }); }
@@ -24912,7 +24912,7 @@ B.usePotion = function (S, u, id, tgt) {
     else if (['zelye_protivoyadie', 'protivoyadie'].includes(id)) { delete t.conds.dot; B.log(S, `${t.name}: яд отступает.`, 'heal'); }
     else if (id === 'zelye_nyuhatelnaya_sol') { ['held', 'sleep', 'fear'].forEach(c => delete t.conds[c]); B.log(S, `${t.name} вдыхает соль и приходит в себя.`, 'heal'); }
     else if (id === 'zelye_razrushenie') { B.log(S, 'Отворотное зелье в бою не поможет — его пьют в тишине.', 'bad'); return 'не в бою'; }
-    else if (STAT_POT[id]) { const [st, v] = STAT_POT[id], add = v >= 20 ? 3 : 2; if (st === 'str') { t.atk += add; t.attacks[0].bonus = (t.attacks[0].bonus || 0) + add; } else if (st === 'dex') { t.def += add; t.atkR += add; } else if (st === 'con') { t.hp += 5 * add; t.hpMax += 5 * add; } else t.spellMod = (t.spellMod || 0) + add; B.log(S, `${t.name} пьёт «${nm}» — сила играет в жилах.`, 'buff'); }
+    else if (STAT_POT[id]) { const [st, v] = STAT_POT[id], cur = t.ref && t.ref.stats ? (t.ref.stats[st] || 10) : 10, add = Math.max(0, R.mod(v) - R.mod(cur)); /* как вне боя: характеристика становится не ниже зелья, прибавка — разница */ if (st === 'str') { t.atk += add; t.attacks[0].bonus = (t.attacks[0].bonus || 0) + add; } else if (st === 'dex') { t.def += add; t.atkR += add; } else if (st === 'con') { t.hp += 5 * add; t.hpMax += 5 * add; } else t.spellMod = (t.spellMod || 0) + add; B.log(S, `${t.name} пьёт «${nm}» — сила играет в жилах.`, 'buff'); }
     else if (RES_POT[id]) { const rs = RES_POT[id]; t.elemSave = t.elemSave || {}; rs.split('+').forEach(el => { if (el === 'spell') t.spellRes = (t.spellRes || 0) + 4; else if (el === 'mind') t.mindSave = (t.mindSave || 0) + 4; else { t.elemSave[el] = (t.elemSave[el] || 0) + 4; } }); B.log(S, `${t.name} пьёт «${nm}».`, 'buff'); }
     if (bonus) S.bonus = true; else S.acted = true;
   }
@@ -24947,12 +24947,19 @@ C.forgeItems = h => [...new Set(h.inv)].filter(id => { const it = R.item(id); re
 const asMagic = id => C.magicParse(id) || {unknown: false, base: id, bonus: 0, props: [], special: '', curse: ''};
 const reId = (h, oldId, newId) => { h.inv = h.inv.map((x, i) => x === oldId && h.inv.indexOf(oldId) === i ? newId : x); Object.keys(h.eq).forEach(k => { if (h.eq[k] === oldId) h.eq[k] = newId; }); };
 C.reId = reId;
+/* направленная перековка дорога не серебром, а сырьём: металл ступени (по 2/3/4 на часть вещи) и самоцвет для харалуга и булата */
+const GEM_MIN = [0, 0, 2000, 5000];
+C.forgeNeed = (id, nb) => ({mat: C.MAT_ITEM[nb], n: units(R.item(id)) * [0, 2, 3, 4][nb], gem: GEM_MIN[nb] || 0});
+const gemOf = (h, min) => min ? h.inv.find(x => { const it = R.item(x); return it && it.category === 'самоцветы' && (it.price || 0) >= min && !/koltso|grivna|obruch/.test(x); }) : null;
+C.forgeHas = (h, nd) => h.inv.filter(x => x === nd.mat).length >= nd.n && (!nd.gem || !!gemOf(h, nd.gem));
+C.forgeTake = (h, nd) => { for (let i = 0; i < nd.n; i++) h.inv.splice(h.inv.indexOf(nd.mat), 1); if (nd.gem) { const gm = gemOf(h, nd.gem); h.inv.splice(h.inv.indexOf(gm), 1); } };
+C.forgeNeedText = nd => `${R.item(nd.mat).name.toLowerCase().replace(/, 1 ед\.?/, '')} ×${nd.n}${nd.gem ? ` и самоцвет от ${R.priceText(nd.gem)}` : ''}`;
 C.orderPrice = (id, nb) => { const o = asMagic(id); const n = C.magicId(Object.assign({}, o, {unknown: false, bonus: nb})); return Math.max(100, R.item(n).price - (R.item(id).price || 0)); };
 C.forgeSelf = function (g, h, id, nb) {
   const o = asMagic(id); if (o.unknown) return {err: 'сначала распознать'}; if (nb !== o.bonus + 1) return {err: 'по одной ступени'}; if (nb > 3) return {err: 'выше булата — только клады'};
   const t = T(h, 'kuzn_volsh'); if (!t) return {err: 'нужно Кузнечное волшебство'};
-  const mat = C.MAT_ITEM[nb], need = units(R.item(id)); if (h.inv.filter(x => x === mat).length < need) return {err: `нужно: ${R.item(mat).name.toLowerCase()} ×${need}`};
-  for (let i = 0; i < need; i++) h.inv.splice(h.inv.indexOf(mat), 1);
+  const nd = C.forgeNeed(id, nb); if (!C.forgeHas(h, nd)) return {err: `нужно: ${C.forgeNeedText(nd)}`};
+  C.forgeTake(h, nd);
   C.pass(g, 4);
   const r = R.d(20), tot = r + R.mod(h.stats.int) + 2 * t, dc = BONUS_DC[nb], ok = r === 20 || (r !== 1 && tot >= dc);
   let text;
@@ -24974,10 +24981,11 @@ C.forgeProp = function (g, h, id, pid, el) {
   if (!cur && o.props.length >= 2) return {err: 'больше двух свойств вещь не держит'};
   if (lvl > t + 1) return {err: `ступень свойства ${lvl} — не по умению`};
   const e = EN[pid]; const dc = (e.dc_by_level || [e.dc])[lvl - 1]; if (!dc || dc > 30) return {err: 'такой ступени не бывает'};
-  const c = C.propComp(pid, el); if (!c.id) return {err: 'нет нужного компонента в мире'};
+  const c0 = C.propComp(pid, el); if (!c0.id) return {err: 'нет нужного компонента в мире'}; const c = {id: c0.id, n: c0.n * lvl}, gem = lvl >= 2 ? gemOf(h, lvl >= 3 ? 5000 : 2000) : null;
   if (h.inv.filter(x => x === c.id).length < c.n) return {err: `нужно: ${R.item(c.id).name.toLowerCase()} ×${c.n}`};
+  if (lvl >= 2 && !gem) return {err: `для ${lvl}-й ступени нужен ещё самоцвет от ${R.priceText(lvl >= 3 ? 5000 : 2000)}`};
   if (!(g.recipes || []).includes(pid)) { if (g.purse < 10000) return {err: 'рецепт стоит 100 зм'}; g.purse -= 10000; g.recipes = (g.recipes || []).concat(pid); }
-  for (let i = 0; i < c.n; i++) h.inv.splice(h.inv.indexOf(c.id), 1);
+  for (let i = 0; i < c.n; i++) h.inv.splice(h.inv.indexOf(c.id), 1); if (gem) h.inv.splice(h.inv.indexOf(gem), 1);
   C.pass(g, 4);
   const r = R.d(20), tot = r + R.mod(h.stats.int) + 2 * t, ok = r === 20 || (r !== 1 && tot >= dc);
   let text;
@@ -25022,17 +25030,17 @@ SC.forge = g => {
   const o = asMagic(it), t = T(h, 'kuzn_volsh'), x = R.item(it);
   lines.push(['n', `${x.name}. ${x.notes || ''}`]);
   if (o.unknown) lines.push(['n', 'Мастер вертит вещь: «Тут что-то наложено. Сперва узнай, что — потом ковать»']);
-  if (!o.unknown && o.bonus < 3) { const nb = o.bonus + 1, pr = C.orderPrice(it, nb);
-    ch.push({t: `Заказать мастеру: ${['', 'сталь', 'харалуг', 'булат'][nb]} (+${nb}) — ${R.priceText(pr)}, день работы`, if: g2 => g2.purse >= pr, off: g2 => `не хватает серебра: в кошеле ${R.priceText(g2.purse)}`,
-      do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); g2.purse -= pr; C.pass(g2, 4); const n = C.magicId(Object.assign({}, o, {bonus: nb})); reId(hh, it, n); g2.forge.item = n; g2.forgeLast = `Мастер перековал: ${R.item(n).name}.`; C.note(g2, g2.forgeLast); return 'forge'; }});
-    if (t) { const mat = C.MAT_ITEM[nb], need = units(x), have = h.inv.filter(y => y === mat).length, dc = BONUS_DC[nb], chn = Math.round(Math.max(1, Math.min(19, 21 - (dc - R.mod(h.stats.int) - 2 * t))) * 5);
-      ch.push({t: `Ковать самому: +${nb}, ${R.item(mat).name.toLowerCase()} ×${need} (есть ${have}), удача ${chn}%`, if: () => have >= need, off: `нужно: ${R.item(mat).name.toLowerCase()} ×${need}`,
+  if (!o.unknown && o.bonus < 3) { const nb = o.bonus + 1, pr = Math.max(100, Math.round(C.orderPrice(it, nb) / 2)), nd = C.forgeNeed(it, nb);
+    ch.push({t: `Заказать мастеру: ${['', 'сталь', 'харалуг', 'булат'][nb]} (+${nb}) — ${R.priceText(pr)} за работу, сырьё ваше: ${C.forgeNeedText(nd)}`, if: g2 => g2.purse >= pr && C.forgeHas(h, nd), off: g2 => g2.purse < pr ? `не хватает серебра: в кошеле ${R.priceText(g2.purse)}` : `нужно сырьё: ${C.forgeNeedText(nd)}`,
+      do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); if (!C.forgeHas(hh, nd)) return 'forge'; C.forgeTake(hh, nd); g2.purse -= pr; C.pass(g2, 4); const n = C.magicId(Object.assign({}, o, {bonus: nb})); reId(hh, it, n); g2.forge.item = n; g2.forgeLast = `Мастер перековал: ${R.item(n).name}.`; C.note(g2, g2.forgeLast); return 'forge'; }});
+    if (t) { const mat = nd.mat, need = nd.n, have = h.inv.filter(y => y === mat).length, dc = BONUS_DC[nb], chn = Math.round(Math.max(1, Math.min(19, 21 - (dc - R.mod(h.stats.int) - 2 * t))) * 5);
+      ch.push({t: `Ковать самому: +${nb}, ${C.forgeNeedText(nd)} (металла есть ${have}), удача ${chn}%`, if: () => C.forgeHas(h, nd), off: `нужно: ${C.forgeNeedText(nd)}`,
         do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const r = C.forgeSelf(g2, hh, it, nb); g2.forgeLast = r.err || r.text; g2.forge.item = null; return 'forge'; }}); } }
   if (!o.unknown && t) C.propsFor(it).forEach(pid => {
     const els = pid === 'dop_uron' ? Object.keys(DOP_STONE) : [null];
     els.forEach(el => { const full = el ? 'dop_uron_' + el : pid, cur = o.props.find(p => p.id === full), lvl = cur ? cur.lvl + 1 : 1, e = EN[pid]; const dc = e && (e.dc_by_level || [e.dc])[lvl - 1]; if (!dc || dc > 30 || lvl > t + 1 || (!cur && o.props.length >= 2)) return;
-      const c = C.propComp(pid, el); if (!c.id) return; const have = h.inv.filter(y => y === c.id).length, chn = Math.round(Math.max(1, Math.min(19, 21 - (dc - R.mod(h.stats.int) - 2 * t))) * 5), rec = (g.recipes || []).includes(pid);
-      ch.push({t: `Наложить «${C.propName({id: full, lvl})}»: ${R.item(c.id).name.toLowerCase()} ×${c.n} (есть ${have})${rec ? '' : ', рецепт 100 зм'}, удача ${chn}%`, if: g2 => have >= c.n && (rec || g2.purse >= 10000), off: have < c.n ? `нужно: ${R.item(c.id).name.toLowerCase()}` : 'не хватает серебра на рецепт',
+      const c0 = C.propComp(pid, el); if (!c0.id) return; const c = {id: c0.id, n: c0.n * lvl}, gmin = lvl >= 3 ? 5000 : lvl >= 2 ? 2000 : 0, gemOk = !gmin || !!gemOf(h, gmin); const have = h.inv.filter(y => y === c.id).length, chn = Math.round(Math.max(1, Math.min(19, 21 - (dc - R.mod(h.stats.int) - 2 * t))) * 5), rec = (g.recipes || []).includes(pid);
+      ch.push({t: `Наложить «${C.propName({id: full, lvl})}»: ${R.item(c.id).name.toLowerCase()} ×${c.n} (есть ${have})${gmin ? ` и самоцвет от ${R.priceText(gmin)}` : ''}${rec ? '' : ', рецепт 100 зм'}, удача ${chn}%`, if: g2 => have >= c.n && gemOk && (rec || g2.purse >= 10000), off: have < c.n ? `нужно: ${R.item(c.id).name.toLowerCase()} ×${c.n}` : !gemOk ? `нужен самоцвет от ${R.priceText(gmin)}` : 'не хватает серебра на рецепт',
         do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const r = C.forgeProp(g2, hh, it, pid, el); g2.forgeLast = r.err || r.text; g2.forge.item = null; return 'forge'; }}); }); });
   if (!t) lines.push(['n', 'Ковать и заговаривать самому может тот, кто учился «Кузнечному волшебству».']);
   ch.push({t: 'Другая вещь', do: g2 => { g2.forge = {hero: h.id}; return 'forge'; }}, back);
@@ -30797,9 +30805,9 @@ SC.est_forge = g => {
   const k = C.estateOrderK(g);
   (C.forgeItems ? C.forgeItems(h) : []).forEach(id => {
     const o = asMagic(id); if (o.unknown || o.bonus >= 3 || !C.orderPrice || !C.magicId) return;
-    const nb = o.bonus + 1, pr = r10(C.orderPrice(id, nb) * k);
-    ch.push({t: `${R.item(id).name}: перековать на ${['', 'сталь', 'харалуг', 'булат'][nb]} (+${nb}) — ${R.priceText(pr)}, день работы`, own: h.id, if: g2 => g2.purse >= pr, off: `не хватает серебра: нужно ${R.priceText(pr)}`,
-      do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); if (!hh.inv.includes(id)) return 'est_forge'; g2.purse -= pr; C.pass(g2, 4); const n = C.magicId(Object.assign({}, o, {bonus: nb})); C.reId(hh, id, n); g2.estForgeLast = `Свой кузнец отдаёт работу: ${R.item(n).name}. Взял за уголь и железо, за руки — ничего.`; C.note(g2, g2.estForgeLast); return 'est_forge'; }});
+    const nb = o.bonus + 1, pr = r10(C.orderPrice(id, nb) / 2 * k), nd = C.forgeNeed(id, nb); // своему кузнецу — дешевле работа, но сырьё всё равно своё
+    ch.push({t: `${R.item(id).name}: перековать на ${['', 'сталь', 'харалуг', 'булат'][nb]} (+${nb}) — ${R.priceText(pr)} за уголь и работу, сырьё: ${C.forgeNeedText(nd)}`, own: h.id, if: g2 => g2.purse >= pr && C.forgeHas(h, nd), off: g2 => g2.purse < pr ? `не хватает серебра: нужно ${R.priceText(pr)}` : `нужно сырьё: ${C.forgeNeedText(nd)}`,
+      do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); if (!hh.inv.includes(id) || !C.forgeHas(hh, nd)) return 'est_forge'; C.forgeTake(hh, nd); g2.purse -= pr; C.pass(g2, 4); const n = C.magicId(Object.assign({}, o, {bonus: nb})); C.reId(hh, id, n); g2.estForgeLast = `Свой кузнец отдаёт работу: ${R.item(n).name}. Взял за уголь и железо, за руки — ничего.`; C.note(g2, g2.estForgeLast); return 'est_forge'; }});
   });
   if (!ch.length) lines.push(['n', `У ${h.name} нечего перековывать.`]);
   ch.push({t: 'Другой герой', free: 1, do: g2 => { g2.estForge = null; return 'est_forge'; }}); ch.push(back);
@@ -31646,8 +31654,8 @@ C.keepExtra = (g, id) => { if (!g) return 0; const x = C.keepCook(g) + C.keepHer
 C.keepText = g => { const a = C.keepCook(g), b = C.keepHerb(g); if (!a && !b) return ''; return `Припас лежит дольше на ${a + b} дн.${a ? ` (повар +${a}` : ' ('}${a && b ? ', ' : ''}${b ? `травы +${b}` : ''})`; };
 /* копчёное */
 /* цена — от сырья: фунт мяса 10, рыбы 8; дороже харча копчёное не продать (иначе «купил мясо — закоптил — продал» вшестеро) */
-DATA.items.kopchenoe_myaso = {_t: 'g', id: 'kopchenoe_myaso', name: 'Копчёное мясо, фунт', price: 30, category: 'еда', weight_kg: 0.4, notes: 'Прокопчено у костра на ольховом дыму: тёмное, жёсткое, пахнет дымом. Еды на день. На ночлеге: +1 хитов.'};
-DATA.items.kopchenaya_ryba = {_t: 'g', id: 'kopchenaya_ryba', name: 'Рыба копчёная', price: 20, category: 'еда', weight_kg: 0.4, notes: 'Вяленая на дыму рыба. Еды на день.'};
+DATA.items.kopchenoe_myaso = {_t: 'g', id: 'kopchenoe_myaso', name: 'Копчёное мясо, фунт', price: 20, category: 'еда', weight_kg: 0.4, notes: 'Прокопчено у костра на ольховом дыму: тёмное, жёсткое, пахнет дымом. Еды на день. На ночлеге: +1 хитов.'};
+DATA.items.kopchenaya_ryba = {_t: 'g', id: 'kopchenaya_ryba', name: 'Рыба копчёная', price: 16, category: 'еда', weight_kg: 0.4, notes: 'Вяленая на дыму рыба. Еды на день.'};
 /* копчёное не вечное: дольше свежего вчетверо, но короче солонины и харча */
 C.SMOKE_KEEP = {kopchenoe_myaso: 12, kopchenaya_ryba: 10};
 Object.entries(C.SMOKE_KEEP).forEach(([id, d]) => { C.SPOIL[id] = d; DATA.items[id].notes += ` Портится за ${d} дней.`; });
@@ -34739,6 +34747,60 @@ camp.scenes.war_job_lost = g => { const k = g.warJob; delete g.warJob; if (k) C.
   return sc; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* foecast.js */
+/* Колдовство — колдуны из бестиария колдуют. Без DOM.
+   У чародеев, жрецов, ведунов и шаманов в описании есть школа и запас Силы, а в бою они махали посохом.
+   Ассортимент подобран осторожно: в основном чары по одной цели, поддержка своих; по площади — не больше одного
+   небольшого заклинания и только у старших. Запас Силы — из описания: на 2–4 заклинания за бой, а не на всю схватку. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B;
+if (!B || !B.fromMonster) return;
+// id: [Сила, набор] или [Сила, {школа: набор, …}] — тогда школа выбирается на бой
+const FOE_CAST = {
+  charodey_uchenik: [10, {white: ['white_magicheskaya_strela', 'white_zamorozka', 'white_nalozhit_zaschitu'], black: ['black_proklyatie', 'black_sglaz', 'black_neudacha'],
+    necro: ['necro_vysosat_zhizn', 'necro_ledyanoe_prikosnovenie', 'necro_proklyatie_mertvyh'], holy: ['holy_kara', 'holy_molitva_o_zdravii', 'holy_svyatoy_schit']}],
+  charodey_master: [12, {white: ['white_magicheskaya_strela', 'white_udar_holoda', 'white_razryad', 'white_magicheskiy_schit'], black: ['black_proklyatie', 'black_sglaz', 'black_hvor', 'black_oderzhimost'],
+    necro: ['necro_vysosat_zhizn', 'necro_ledyanoe_prikosnovenie', 'necro_prizrachnye_puty', 'necro_prizrachnaya_bronya'], holy: ['holy_kara', 'holy_okovy_molitvy', 'holy_udar_boga', 'holy_vosstanovlenie_sil']}],
+  charodey_velikiy: [20, {white: ['white_razryad', 'white_molniya', 'white_udar_holoda', 'white_magicheskiy_schit', 'white_ognennoe_yadro'], black: ['black_hvor', 'black_sglaz', 'black_oderzhimost', 'black_proklyatie', 'black_smerch'],
+    necro: ['necro_vysosat_zhizn', 'necro_prizrachnye_puty', 'necro_ledyanoe_prikosnovenie', 'necro_prizyv_zombi', 'necro_yadovityy_tuman'], holy: ['holy_udar_boga', 'holy_obraschenie', 'holy_okovy_molitvy', 'holy_vosstanovlenie_sil', 'holy_izgnanie']}],
+  zhrets_staryh_bogov: [6, ['holy_kara', 'holy_zaschita_ot_zla', 'holy_molitva_o_zdravii']],
+  chernets_edinogo: [6, ['holy_kara', 'holy_svyatoe_slovo', 'holy_zaschita_ot_zla']],
+  ratnik_edinogo: [4, ['holy_svyatoy_schit', 'holy_zaschita_ot_zla']],
+  vedmak: [4, ['druid_lechenie_travami', 'alchem_usilenie']],
+  guslyar: [4, ['astro_udacha', 'astro_durnoy_chas']],
+  koldun_pesyeglavtsev: [6, ['druid_telekinez', 'druid_lechenie_travami', 'druid_uvelichit_zdorove']],
+  perevertysh_pesyeglavtsev: [8, ['druid_perunova_strela', 'druid_svyazat_travami', 'druid_lechenie_travami']],
+  polkan_mudrets: [6, ['astro_paduchaya_zvezda', 'astro_slepota', 'astro_udacha']],
+  polkan_ognennyy_volhv: [8, ['white_vyzvat_ogon', 'white_goryaschie_ruki']],
+  vozhd_ordy: [6, ['black_sglaz', 'alchem_usilenie']],
+  shaman_ordy: [8, ['alchem_kislota', 'alchem_oglushenie', 'alchem_razmytie']],
+  dvuglavyy_volot: [10, ['black_proklyatie', 'black_sglaz', 'black_groza']],
+  lesnoy_charodey: [8, ['white_magicheskaya_strela', 'white_udar_holoda', 'white_shok']],
+  staryy_vedun: [12, ['druid_perunova_strela', 'druid_svyazat_travami', 'druid_regeneratsiya', 'druid_lechenie_travami', 'druid_otvar_geroya']],
+  zhritsa_mokoshi: [10, ['holy_kara', 'holy_vosstanovlenie_sil', 'holy_molitva_o_zdravii', 'holy_blagoslovenie']],
+  starejshina_gortsev: [8, ['astro_paduchaya_zvezda', 'astro_uyazvimost', 'astro_udacha']],
+  runnyy_zaklinatel: [8, ['white_magicheskaya_strela', 'white_nalozhit_zaschitu', 'alchem_usilenie']],
+  podzemnyy_charodey: [8, ['necro_vysosat_zhizn', 'necro_ledyanoe_prikosnovenie', 'black_sglaz']],
+  podzemnyy_koldun: [10, ['necro_vysosat_zhizn', 'necro_prizrachnye_puty', 'black_proklyatie']],
+  tyomnaya_zhritsa: [12, ['black_proklyatie', 'black_hvor', 'necro_vysosat_zhizn']],
+  duh_vihrya: [10, ['white_razryad', 'white_magicheskiy_schit']],
+  duh_grozy: [8, ['white_magicheskaya_strela', 'white_shok']],
+};
+C.FOE_CAST = FOE_CAST;
+const ok = id => DATA.spellById[id] && B.Spells && B.Spells.battleUsable(DATA.spellById[id]);
+const fm0 = B.fromMonster;
+B.fromMonster = function (m, side, extra) {
+  const u = fm0.apply(this, arguments);
+  const fc = m && FOE_CAST[m.id];
+  if (fc && !(extra && extra.spells && extra.spells.length) && !(u.spells && u.spells.length)) {
+    const set = Array.isArray(fc[1]) ? fc[1] : fc[1][R.pick(Object.keys(fc[1]))];
+    u.spells = set.filter(ok); u.power = u.powerMax = fc[0]; u.caster = true;
+  }
+  return u;
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* econ.js */
 /* Колдовство — сводная проверка цен: что бы ни прибавляли умения, молва и скупщики, проданное не дороже купленного.
    Без DOM. Грузится последним из правил (после war), чтобы обернуть все надбавки разом. */
@@ -34754,6 +34816,8 @@ const sp0 = C.sellPrice;
 C.sellPrice = (g, h, x) => {
   let p = sp0(g, h, x); if (!p || !x) return p;
   if (POT[x.id]) p = Math.min(p, Math.max(1, Math.floor(POT[x.id] * 1.5)));
+  // волшебная вещь: лавочник платит за основу как обычно, а за чары — лишь четверть (с чарами связываться боязно, Око косится)
+  if (C.isMagic && C.isMagic(x.id) && R.baseId) { const b = R.item(R.baseId(x.id)); const bp = (b && b.price) || 0; if (x.price > bp) p = Math.min(p, Math.max(1, Math.floor(bp / 2 + (x.price - bp) / 4))); }
   const buy = C.buyPrice ? C.buyPrice(g, h, x) : x.price;
   if (buy) p = Math.min(p, Math.floor(buy * 0.9)); // лавочник не отдаст больше, чем сам выручит
   return Math.max(0, p);
@@ -35095,12 +35159,13 @@ function hallChat(name, text, inv, room) {
   hallSend({t: 'hchat', name: msg.name, text, inv: msg.inv, room: msg.room, cid, uid: msg.uid});
 }
 function hallSetLots(lots) { H.myLots = (lots || []).slice(0, 24); if (!H.on || !H.me) return; hallSend({t: 'lots', uid: H.me.uid, lots: H.myLots}); }
-const BUYW = {};
+const BUYW = {}, LATE = {};
+/* ответ продавца опоздал: сделка у него уже прошла — вещь всё равно доходит до покупателя (Hall.onLate) */
 function hallBuy(lot, buyer) { return new Promise(res => { if (!H.on) return res({ok: false, why: 'нет связи с корчмой'}); const rid = rnd(8); BUYW[rid] = res;
-  hallSend({t: 'buy', rid, lot: lot.id, seller: lot.uid, buyer}); setTimeout(() => { if (BUYW[rid]) { delete BUYW[rid]; res({ok: false, why: 'продавец не ответил'}); } }, 12000); }); }
+  hallSend({t: 'buy', rid, lot: lot.id, seller: lot.uid, buyer}); setTimeout(() => { if (BUYW[rid]) { delete BUYW[rid]; LATE[rid] = {lot, buyer}; setTimeout(() => { delete LATE[rid]; }, 600000); res({ok: false, late: true, why: 'продавец пока не ответил; если сделка всё же пройдёт — вещь придёт сама'}); } }, 20000); }); }
 const Hall = {H, join: hallJoin, update: hallUpdate, leave: hallLeave, invite: inv => hallSend({t: 'invite', inv}), uninvite: code => hallSend({t: 'uninvite', code}), chat: hallChat,
   setLots: hallSetLots, buy: hallBuy, lots: allLots, online: () => Object.keys(H.members).length,
-  state: () => Object.assign(hallState(false), {chat: H.chat}), setHooks: h => { const user = h || {}; hhooks = Object.assign({}, user, {buyres: m => { const f = BUYW[m.rid]; if (f) { delete BUYW[m.rid]; f(m); } if (user.buyres) user.buyres(m); }}); }, on: () => H.on};
+  state: () => Object.assign(hallState(false), {chat: H.chat}), setHooks: h => { const user = h || {}; hhooks = Object.assign({}, user, {buyres: m => { const f = BUYW[m.rid]; if (f) { delete BUYW[m.rid]; f(m); } else if (LATE[m.rid]) { const x = LATE[m.rid]; delete LATE[m.rid]; if (m.ok && Hall.onLate) Hall.onLate(x.lot, x.buyer, m); } if (user.buyres) user.buyres(m); }}); }, on: () => H.on};
 
 /* ================= ПЕРЕНОС НА ДРУГОЕ УСТРОЙСТВО =================
    Без своего сервера: тот же брокер PeerJS, что и для стола. Отдающий поднимает точку с коротким кодом,
@@ -35381,9 +35446,17 @@ function sagaDrop(i) { try { localStorage.removeItem(sagaKey(i, 'save')); localS
 /* герой идёт в другой саге — туда его не взять, иначе вещи и опыт раздвоятся */
 const FREE_I = 9;
 /* герой занят сагой, пока у неё есть поход или летопись с ним между главами (а не только файл похода) */
-function sagaHolds(i, id) { const M = sagaMeta(); if (!M[i] || !(M[i].ids || []).includes(id)) return false;
-  try { if (localStorage.getItem(sagaKey(i, 'save'))) return true; const raw = localStorage.getItem(sagaKey(i, 'chron')); if (!raw) return false; const ch = JSON.parse(raw); return !!(ch && ch.done && ch.done.length && C.nextCamp(ch)); } catch (e) { return false; } }
-function heroSaga(id) { const M = sagaMeta(); for (const i of [1, 2, 3, 4, 5, FREE_I].filter(i => i <= SAGA_N || i === FREE_I)) if (i !== SAGA_I && sagaHolds(i, id)) return M[i]; return null; }
+/* между главами (похода нет, есть летопись) герой может сходить в сетевую игру — тогда сага его отпускает (sagaRelease) */
+function sagaHolds(i, id, net) { const M = sagaMeta(); if (!M[i] || !(M[i].ids || []).includes(id)) return false;
+  try { if (localStorage.getItem(sagaKey(i, 'save'))) return true; if (net) return false; const raw = localStorage.getItem(sagaKey(i, 'chron')); if (!raw) return false; const ch = JSON.parse(raw); return !!(ch && ch.done && ch.done.length && C.nextCamp(ch) && (ch.heroes || []).some(x => (x.id || x) === id)); } catch (e) { return false; } }
+function heroSaga(id, net) { const M = sagaMeta(); for (const i of [1, 2, 3, 4, 5, FREE_I].filter(i => i <= SAGA_N || i === FREE_I)) if (i !== SAGA_I && sagaHolds(i, id, net)) return M[i]; return null; }
+/* герой ушёл за сетевой стол между главами: летопись его саги больше на него не рассчитывает, а его доля общего кошеля (она уже у него в пуле) из летописи списывается — серебро не двоится */
+function sagaRelease(id) { const M = sagaMeta(); let ch0 = false;
+  [1, 2, 3, 4, 5, FREE_I].filter(i => i <= SAGA_N || i === FREE_I).forEach(i => { if (!M[i] || !(M[i].ids || []).includes(id)) return; try { if (localStorage.getItem(sagaKey(i, 'save'))) return;
+    const raw = localStorage.getItem(sagaKey(i, 'chron')); if (!raw) return; const ch = JSON.parse(raw); const hs = ch.heroes || []; const k = hs.findIndex(x => (x.id || x) === id); if (k < 0) return;
+    const share = Math.floor((ch.purse || 0) / Math.max(1, hs.length)); ch.purse = Math.max(0, (ch.purse || 0) - share); hs.splice(k, 1); ch.heroes = hs;
+    localStorage.setItem(sagaKey(i, 'chron'), JSON.stringify(ch)); const ix = (M[i].ids || []).indexOf(id); if (ix >= 0) { M[i].ids.splice(ix, 1); if (M[i].who) M[i].who.splice(ix, 1); } ch0 = true; } catch (e) {} });
+  if (ch0) sagaMetaPut(M); }
 /* новая сага — на свободное место; мест пять */
 function sagaNew() { const i = sagaFree(); if (!i) { toast('Все пять саг заняты. Оставьте одну, чтобы начать новую.'); return false; } setSaga(i); sagaDrop(i); return true; }
 function loadSave() { try { const s = localStorage.getItem(SAVE_KEY); return s ? C.load(s) : null; } catch (e) { return null; } }
@@ -38297,7 +38370,7 @@ function poolSolo() {
 function poolWhy(h, campId, inParty) {
   if (h.dead) return 'пал' + (h.sex === 'f' ? 'а' : '');
   if (h._trial) return 'пробный герой — только для своей игры';
-  { const sg = heroSaga(h.id); if (sg) return `идёт в саге «${sg.name}»`; }
+  { const sg = heroSaga(h.id, !!(g && g.net)); if (sg) return `идёт в саге «${sg.name}»`; }
   const [lo, hi] = C.levelsOf(campId);
   if (h.level > hi) return `${h.level}-й уровень — выше потолка (${lo}–${hi})`;
   if (h.level < lo) return `нужен хотя бы ${lo}-й уровень`;
@@ -38350,7 +38423,7 @@ function showSwap(back) {
    ${cur ? `<div class="pool"><div class="pcard">${faceHTML(cur.portrait, '')}<div><b>${esc(cur.name)}</b><div class="note">${esc(R.CLASSES[cur.cls] ? R.CLASSES[cur.cls].name : cur.cls)}, ${cur.level}-й ур.</div></div></div></div>` : ''}
    <div class="row" style="margin-top:10px"><button class="btn primary" id="sw-in">${cur ? 'Сменить героя' : 'Позвать своего'}</button></div>`);
   $('#sw-in').onclick = () => showPool({camp: g.camp, level: 1, inParty: g.heroes.map(h => h.id), done: h0 => {
-    if (NET()) { act({a: 'swapHero', old: cur ? cur.id : null, hero: h0}); return showScene(back); }
+    if (NET()) { sagaRelease(h0.id); act({a: 'swapHero', old: cur ? cur.id : null, hero: h0}); return showScene(back); }
     const x = JSON.parse(JSON.stringify(h0)); delete x._at; delete x._camp; delete x._dead;
     // из корчмы герой выходит каким туда сел: раны, хвори и голод при нём (лечит дорога и отдых, а не смена героя)
     x.hp = x.hp > 0 ? Math.min(x.hp, x.hpMax) : x.hpMax; x.power = x.power != null && R.powerMax ? Math.min(x.power, R.powerMax(x)) : (R.powerMax ? R.powerMax(x) : x.power); x.dead = false; x.down = false; x.ails = x.ails || []; x.hurts = x.hurts || []; x.hunger = x.hunger || 0; x.busy = null;
@@ -38507,6 +38580,11 @@ function addNetHero(h, pid) {
   const [lo, hi] = C.levelsOf(g.camp);
   if (h.level > hi) return `${h.name} (${h.level}-й ур.) не сядет за этот стол: здесь ${lo}–${hi}-й уровень.`;
   if (h.level < lo) return `Сюда нужен герой хотя бы ${lo}-го уровня.`;
+  { // хозяин сверяет присланного героя: уровень по опыту, разумные характеристики и хиты — подделанного не сажаем
+    const L = h.level | 0, xp = h.xp || 0, cl = R.CLASSES[h.cls];
+    if (L < 1 || L > 20 || (!h._trial && R.xpFor && (xp < R.xpFor(L) || (L < 20 && xp >= R.xpFor(L + 1) * 4)))) return 'герой не сходится с опытом';
+    if (Object.values(h.stats).some(v => typeof v !== 'number' || v < 3 || v > 22)) return 'у героя невозможные характеристики';
+    if ((h.hpMax || 0) > L * ((cl.hd || 10) + 6) + 60) return 'у героя невозможные хиты'; }
   if (h.dead || g.fallen.some(f => f.id === h.id)) return 'этот герой пал';
   if (g.heroes.some(x => x.id === h.id)) return 'этот герой уже в отряде';
   if (C.alive(g).length >= 4) return 'В отряде уже четверо. Кто-то должен отпустить своего героя (окно «Стол»).';
@@ -38844,7 +38922,7 @@ function joinHero() {
   if (myHeroes().length) return toast('Ваш герой уже за столом: один игрок — один герой.');
   if (C.alive(g).length >= 4) return toast('В отряде уже четверо. Кто-то должен отпустить героя.');
   const lv = levelNew();
-  showPool({camp: g.camp, level: lv, inParty: g.heroes.map(h => h.id), done: h => act({a: 'addHero', hero: h})});
+  showPool({camp: g.camp, level: lv, inParty: g.heroes.map(h => h.id), done: h => { sagaRelease(h.id); act({a: 'addHero', hero: h}); }});
 }
 
 /* ---------- окно «Стол» ---------- */
@@ -38940,6 +39018,7 @@ function heroMutate(id, fn) {
   return true;
 }
 const walletOf = id => { const w = heroWhere(id); return !w ? 0 : w.game ? w.game.purse || 0 : w.h.gold || 0; };
+typeof Net !== "undefined" && Net.Hall && (Net.Hall.onLate = (l, b) => { if (!b || !b.heroId || !heroMutate(b.heroId, (h, game) => { pay(h, game, l.price); h.inv.push(l.item); })) return; toast(`Корчма: продавец ответил поздно, но сделка прошла — ${R.item(l.item) ? R.item(l.item).name : 'вещь'} у ${b.hero || 'героя'}.`); if (KR.draw) KR.draw('force'); });
 const pay = (h, game, n) => { if (game) { const a = Math.min(game.purse || 0, n); game.purse -= a; n -= a; } h.gold = Math.max(0, (h.gold || 0) - n); };
 /* продавец решает: вещь ещё на прилавке — золото герою, лот закрыт */
 function onBuyReq(m, reply) {
@@ -39069,7 +39148,7 @@ function showHall(opt) {
     c.querySelectorAll('[data-kbuy]').forEach(b => b.onclick = async () => { const l = Net.Hall.lots().find(x => x.id === b.dataset.kbuy); if (!l || !KR.hero) return;
       if (walletOf(KR.hero) < l.price) return toast('Не хватает денег.');
       b.disabled = true; b.textContent = 'Торгуемся…';
-      const hh = heroWhere(KR.hero).h, r = await Net.Hall.buy(l, {uid: Net.myUid(), name: myName(), hero: hh.name});
+      const hh = heroWhere(KR.hero).h, r = await Net.Hall.buy(l, {uid: Net.myUid(), name: myName(), hero: hh.name, heroId: KR.hero});
       if (!r.ok) { toast('Не вышло: ' + (r.why || 'сделка сорвалась') + '.'); return draw('force'); }
       heroMutate(KR.hero, (h, game) => { pay(h, game, l.price); h.inv.push(l.item); });
       toast(`${hh.name}: куплено — ${R.item(l.item).name} за ${R.priceText(l.price)}.`); draw('force'); });
@@ -39086,7 +39165,7 @@ function seatPending() {
   if (!g || !NETG()) return;
   const h = PENDING_HERO && poolLoad().find(x => x.id === PENDING_HERO); PENDING_HERO = null;
   if (myHeroes().length) return;
-  if (h && !poolWhy(h, g.camp, g.heroes.map(x => x.id))) return act({a: 'addHero', hero: h});
+  if (h && !poolWhy(h, g.camp, g.heroes.map(x => x.id))) { sagaRelease(h.id); return act({a: 'addHero', hero: h}); }
   joinHero();
 }
 
@@ -39134,8 +39213,10 @@ function onBye(why) { netLeave(); openModal(`<h3>Стол</h3><p>${esc(why)}</p>
 function onPresence(pid, on, kicked, left) {
   if (!NETH()) return;
   const nm = pname(pid), gone = left && g ? heroesOf(pid).map(h => h.name) : [];
-  // ушёл посреди боя — его боец доигрывает бой сам, иначе ход встанет навсегда
-  if ((left || kicked) && g && battle && !battle.over) heroesOf(pid).forEach(h => { const u = battle.units.find(x => x.ref && x.ref.id === h.id); if (u) u.ai = true; });
+  // ушёл посреди боя — его боец просто сбегает с поля, иначе ход встанет навсегда
+  if ((left || kicked) && g && battle && !battle.over) { heroesOf(pid).forEach(h => { const u = battle.units.find(x => x.ref && x.ref.id === h.id && !x.dead && !x.gone); if (!u) return;
+      u.gone = true; u.escaped = true; B.log(battle, `${u.name} бросает бой и уходит с поля — хозяин покинул стол.`, 'flee', 'ушёл с поля'); });
+    if (B.checkEnd) B.checkEnd(battle); }
   if (left && g) { heroesOf(pid).forEach(h => { const i = g.heroes.indexOf(h); if (i >= 0) g.heroes.splice(i, 1); delete g.net.own[h.id]; C.note(g, `${h.name} уходит из отряда.`); });
     if (leader() === pid) g.net.leader = 'p0'; save(); rerender(); }
   if (kicked && g) { heroesOf(pid).forEach(h => { const i = g.heroes.indexOf(h); if (i >= 0) g.heroes.splice(i, 1); delete g.net.own[h.id]; C.note(g, `${h.name} уходит своей дорогой.`); }); save(); rerender(); }
