@@ -36097,7 +36097,8 @@ const ERR = {'auth/invalid-credential': 'почта или пароль не п�
 const msg = e => (e && ERR[e.code]) || (e && e.message) || 'что-то пошло не так';
 Cloud.msg = msg;
 const run = async f => { Cloud.err = ''; try { await Cloud.load(); return await f(); } catch (e) { Cloud.err = msg(e); emit(); throw new Error(Cloud.err); } };
-Cloud.google = () => run(() => auth.signInWithPopup(new firebase.auth.GoogleAuthProvider()));
+/* select_account: Google каждый раз спрашивает аккаунт — иначе сменить почту (выйти и войти другой) нельзя */
+Cloud.google = () => run(() => { const pr = new firebase.auth.GoogleAuthProvider(); try { pr.setCustomParameters({prompt: 'select_account'}); } catch (e) {} return auth.signInWithPopup(pr); });
 Cloud.signIn = (e, p) => run(() => auth.signInWithEmailAndPassword(e, p));
 Cloud.signUp = (e, p) => run(() => auth.createUserWithEmailAndPassword(e, p));
 Cloud.reset = e => run(() => auth.sendPasswordResetEmail(e));
