@@ -324,6 +324,10 @@ button{font:inherit;cursor:pointer}
 #t-online{font-size:12px;opacity:.85;margin-left:4px}
 @media (max-width:1100px){.kgrid{grid-template-columns:minmax(0,1fr) minmax(260px,320px)}.kgrid .kme{grid-column:1/-1}}
 @media (max-width:760px){.kgrid{grid-template-columns:1fr}}
+.kletter{display:grid;gap:12px;max-width:520px}.klh{display:flex;gap:14px;align-items:center}.klh .kface{width:72px;height:72px;border-radius:50%;border:2px solid #8a6d44;flex:none}
+.klh small{font:700 11px var(--t-label);letter-spacing:.14em;text-transform:uppercase;color:#8b6a3a}.klh h3{margin:2px 0;font:400 26px/1.25 var(--t-display)}
+.kltext{margin:0;padding:14px 18px;font:italic 18px/1.55 var(--t-text);color:#3a2a18;background:linear-gradient(#e9dcc0,#dccaa3);border:1px solid #b39a6e;border-radius:3px 10px 4px 12px;box-shadow:inset 0 0 18px rgba(120,90,50,.25)}
+.klgift{margin:0;color:var(--ink-2)}
 /* корчма: зал-чат */
 .korchma .khead{position:relative;overflow:hidden;min-height:132px;align-items:flex-end;padding:18px 20px;background:linear-gradient(90deg,rgba(18,13,8,.94) 0%,rgba(18,13,8,.72) 46%,rgba(18,13,8,.35) 100%),url(img/bg_s_tavern.webp) center 40%/cover;box-shadow:0 6px 24px rgba(0,0,0,.45)}
 .korchma .khead::after{content:"";position:absolute;inset:auto 0 0 0;height:3px;background:linear-gradient(90deg,transparent,var(--brass),transparent);opacity:.7}
@@ -35139,6 +35143,328 @@ if (B && B.start) {
 }
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* hearts.js */
+/* Колдовство — люди помнят: отношение мастеров и горожан, дружба, любовь, свадьба. Без DOM.
+   • У каждого мастера (folk.js) своё отношение к отряду, 0–100. Начальное — 0–50, от молвы стороны: служители — от Ока
+     или капища, тихие люди — от дурной славы, прочие — от молвы села.
+   • Растёт от сделанных для него дел (+15), от учёбы и заказов (+3), от разговоров (до 40) и подарков. Просроченное
+     дело — −10.
+   • Ступени: 0–19 чужие, 20–49 по делу, 50–79 друзья, 80–99 сердце, 100 — семья. На каждой ступени человек говорит иначе.
+   • С 80 мастер иного пола заигрывает с героем. Выше 85 не подняться без «сердечного дела» — особой просьбы, которая
+     появляется на этой ступени. После него — влюблённость; на 100 герой делает предложение (или мужчина-мастер
+     делает предложение героине). Мастер того же пола на 100 братается с героем: побратим, посестра.
+   • Служители Ока обетов не нарушают: с ними — только братство. Волхвы и жрицы капищ — как все.
+   • Муж, жена, побратим: всё своё ремесло — учёба, заказы, слухи, обряды — даром. Купец (купчиха) каждый день
+     откладывает диковинку в подарок, знахарка (знахарь) — зелье; забрать — зайдя в гости (копится до пяти).
+   • У одного героя — одна семья и один побратим.
+   • В новых играх мастера бывают обоего пола: охотница, купчиха, книжница, кузнечиха… */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C.Q, W = G.W;
+if (!C.FOLK || !C.folkPerson || !Q) return;
+const hash = str => { let x = 2166136261; for (const ch of String(str)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const nodeOf = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[g.loc]) || null;
+const atKey = g => g.folkAt || g.loc;
+const relKey = (role, at) => role + '@' + at;
+
+/* ---------- мастера обоего пола (новые игры) ---------- */
+const MIX = {war: 0.25, hunt: 0.35, book: 0.3, song: 0.35, trade: 0.4, thief: 0.35, forge: 0.15, charm: 0.4, jewel: 0.35, herb: 0.3, weave: 0.25};
+const ALT_T = {war: 'поляница дружинного двора', hunt: 'охотница', book: 'книжница', song: 'гуслярка', trade: 'купчиха', thief: 'из тихих людей', forge: 'кузнечиха',
+  charm: 'резчица-чародейка', jewel: 'мастерица-ювелир', herb: 'знахарь', weave: 'портной'};
+const fp0 = C.folkPerson;
+C.folkPerson = function (g, role, at) {
+  const F = C.FOLK[role];
+  if (!g || !g.folkMix || !F || MIX[role] == null || (hash('sex|' + g.camp + '|' + at + '|' + role) % 1000) / 1000 >= MIX[role]) return fp0.apply(this, arguments);
+  const s0 = F.sex; F.sex = s0 === 'f' ? 'm' : 'f';
+  try { const p = fp0.apply(this, arguments); p.t = ALT_T[role] || p.t; return p; } finally { F.sex = s0; }
+};
+const ng0 = C.newGame;
+C.newGame = function () { const g = ng0.apply(this, arguments); if (g) g.folkMix = 1; return g; };
+
+/* ---------- отношение ---------- */
+const trust = (g, s) => (g.chron && g.chron.trust ? g.chron.trust[s] || 0 : 0);
+const isKap = (g, at) => { const n = C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[at]; return !!n && n.kind === 'капище'; };
+const startRep = (g, role, at) => {
+  let v;
+  if (role === 'temple') v = 25 + 7 * trust(g, isKap(g, at) ? 'kap' : 'oko');
+  else if (role === 'thief') v = 10 + (C.folkRep && C.folkRep(g) ? 20 : 0) + 6 * trust(g, 'nav') - (g.flags && g.flags.tihie_burned ? 40 : 0);
+  else v = 20 + 6 * (C.repOf ? C.repOf(g) : 0) + 2 * Math.max(-3, Math.min(3, g.fame || 0));
+  return Math.max(0, Math.min(50, Math.round(v + (hash(g.camp + '|' + at + '|' + role) % 7) - 3)));
+};
+C.relOf = function (g, role, at) {
+  at = at || atKey(g); g.folkRel = g.folkRel || {}; const k = relKey(role, at);
+  if (!g.folkRel[k]) g.folkRel[k] = {rep: startRep(g, role, at), camp: g.camp};
+  return g.folkRel[k];
+};
+C.relTier = r => r.bond ? 4 : r.rep >= 80 ? 3 : r.rep >= 50 ? 2 : r.rep >= 20 ? 1 : 0;
+const romanceOk = (g, role, at) => role !== 'temple' || isKap(g, at);
+const heroById = (g, id) => C.alive(g).find(h => h.id === id);
+const bonded = (g, h, kind) => Object.values(g.folkRel || {}).some(r => r.bond === kind && r.who === h.id);
+/* к кому из отряда тянется: иного пола, ещё без семьи; при той же любви — тот, кого выбрали */
+const suitor = (g, role, at, p) => {
+  const r = C.relOf(g, role, at); if (r.who) { const h = heroById(g, r.who); if (h) return h; }
+  if (!romanceOk(g, role, at)) return null;
+  const hs = C.alive(g).filter(h => h.kind !== 'merc' && h.sex !== p.sex && !bonded(g, h, 'wed') && !h.spouse);
+  return hs.sort((a, b) => (b.stats.cha || 0) - (a.stats.cha || 0))[0] || null;
+};
+const kin = (g, role, at, p) => { const r = C.relOf(g, role, at); if (r.who) return heroById(g, r.who);
+  return C.alive(g).filter(h => h.kind !== 'merc' && h.sex === p.sex && !bonded(g, h, 'brat')).sort((a, b) => (b.stats.cha || 0) - (a.stats.cha || 0))[0] || null; };
+/* потолок без сердечного дела */
+const capOf = (g, r) => r.bond || r.love ? 100 : 85;
+C.relAdd = function (g, role, at, d, why) {
+  const r = C.relOf(g, role, at), was = r.rep, cap = capOf(g, r);
+  r.rep = d > 0 ? (was >= cap ? was : Math.min(cap, was + d)) : Math.max(0, was + d);
+  const p = C.folkPerson(g, role, at), t0 = C.relTier({rep: was}), t1 = C.relTier(r);
+  if (t1 !== t0 && !r.bond) C.note(g, `${p.n}: ${['вы снова чужие', 'теперь вы знакомы по делу', 'теперь вы друзья', p.sex === 'f' ? 'смотрит на вас иначе, чем раньше' : 'смотрит на вас иначе, чем раньше'][t1]}${why ? ' (' + why + ')' : ''}.`);
+  return r.rep - was;
+};
+const WORD = (g, r, p, role, at) => { const t = C.relTier(r);
+  if (t === 4) return r.bond === 'wed' ? (p.sex === 'f' ? 'жена' : 'муж') : (p.sex === 'f' ? 'посестра' : 'побратим');
+  if (t === 3) { const s = romanceOk(g, role, at) ? suitor(g, role, at, p) : null; return r.love ? (p.sex === 'f' ? 'влюблена' : 'влюблён') : s ? 'сердце тянется' : 'близкие друзья'; }
+  return ['чужие', 'по делу', 'друзья'][t]; };
+C.relText = function (g, role, at) { at = at || atKey(g); const r = C.relOf(g, role, at), p = C.folkPerson(g, role, at); return `${r.rep} из 100 — ${WORD(g, r, p, role, at)}`; };
+C.relWord = function (g, role, at) { const r = C.relOf(g, role, at), p = C.folkPerson(g, role, at); return WORD(g, r, p, role, at); };
+
+/* ---------- реплики ---------- */
+const fill = (s, p, h) => String(s).replace(/\{ns:([^|}]*)\|([^}]*)\}/g, (_, m, f) => p.sex === 'f' ? f : m).replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h && h.sex === 'f' ? f : m)
+  .replace(/\{n\}/g, p.n).replace(/\{N\}/g, /^(брат|сестра) /.test(p.n) ? p.n.split(' ')[1] : p.n.split(' ')[0]).replace(/\{h\}/g, h ? h.name : 'путник');
+/* по ремеслу: 0 — чужие, 1 — по делу, 2 — друзья */
+const TALK = {
+  war: [['{n} меряет вас взглядом, как новобранцев на плацу: «Ходите прямо — уже хорошо. Остальное — за плату».', '«Оружие на поясе — не значит, что умеете с ним. Есть дело — говорите. Нет — не мешайте строю»'],
+    ['{n} кивает: «А, это вы. Пару дней назад про вас спрашивали у ворот — я сказал{ns:|а}: свои, пусть идут».', '«Дело сделали чисто — люблю таких. Нужно будет плечо — заходите, найду»'],
+    ['{n} сам{ns:|а} наливает вам квасу: «Садись, {h}. На плацу я строг{ns:|а}, а тут — свои. Рассказывай, где носило».', '«Знаешь, {h}, я многих учил{ns:|а}. Мало кому доверил{ns:|а} бы спину. Тебе — доверю»']],
+  hunt: [['{n} не отрывается от тетивы: «Следы читать — не книжки. Ходите тише, зверя распугаете».', '«Чужих в лесу видно издали. По походке, по запаху. Вы — чужие»'],
+    ['{n} кидает вам вяленого мяса: «Ешьте. Дорога длинная, а вы, вижу, держитесь».', '«Зверь в последние дни беспокойный. Если пойдёте за реку — смотрите под ноги и в небо»'],
+    ['{n} смеётся тихо, по-лесному: «{h}, ты уже ступаешь, как свой. Ещё год — и олень тебя не заметит».', '«Пойдём как-нибудь на зорьке на тягу, {h}. Просто так. Посидим, послушаем лес»']],
+  herb: [['{n} принюхивается: «От вас пахнет дорогой и железом. Больные — садитесь. Здоровые — не толпитесь».', '«Травы рвать — не цветы на венок. Слушайте и не трогайте ничего на полках»'],
+    ['{n} перевязывает пучок зверобоя: «Вы мне тогда помогли — я помню. Заходите, если что болит. Или не болит»', '«Вот, возьмите: от дурного сна. Не продаю — даю, раз уж вы свои»'],
+    ['{n} наливает горячего взвара: «Садись, {h}, грейся. Рассказывай — только не про раны, про них я и так всё вижу».', '«Знаешь, {h}, травы говорят только с теми, кто слушает. Ты — слушаешь. Редкость»']],
+  book: [['{n} поверх свитка: «Если вы не читать пришли — то и не шуметь, будьте добры».', '«Книги не любят грязных рук и громких голосов. Вы пока — и то и другое»'],
+    ['{n} откладывает перо: «А, мои добытчики. Рукопись, что вы принесли, — бесценна. Спасибо».', '«Есть у меня для вас пара страниц про ваш край. Почитайте на досуге — если у вас бывает досуг»'],
+    ['{n} показывает вам свою сокровищницу — сундук с ветхими свитками: «Тебе, {h}, можно. Другим не показываю».', '«Знаешь, {h}, я пишу летопись. Ты в ней уже на трёх страницах. И, кажется, будешь ещё»']],
+  temple: [['{n} складывает руки: «Свет видит всех. Даже тех, кто пришёл с мечом. Чего ищете?»', '«Двери открыты. Но тишину берегите — здесь молятся»'],
+    ['{n} кивает: «Вы сделали доброе дело. Это записано — не мной, выше».', '«Если тяжело на душе — приходите. Не только за благословением»'],
+    ['{n} задерживает вас у порога: «{h}, я молюсь за тебя. Каждый вечер. Не спрашивай — просто знай».', '«Ты стал{hs:|а} мне ближе, {h}, чем многие из братии. Не говори им»']],
+  song: [['{n} трогает струну и косится: «Денег не дадите — песни не будет. Дадите — будет. Всё честно».', '«Новые лица. Новые песни. Или старые — про новых дураков»'],
+    ['{n} подмигивает: «А я про вас песенку сложил{ns:|а}. Пока в два куплета, но вы стараетесь — будет и третий».', '«Слухи, слухи… Про вас тоже говорят. Хорошее — я разношу, плохое — не дослышу»'],
+    ['{n} поёт вполголоса, глядя на вас: «…и шел{hs:| шла} {h} через тёмный лес, и лес расступался…» — «Нравится? Это про тебя».', '«{h}, садись ближе. Тебе — без денег. Для своих петь — самое лучшее»']],
+  trade: [['{n} щёлкает костяшками: «Смотреть — даром. Трогать — за деньги. Торговаться — за большие деньги».', '«Вы у меня впервые? Тогда цены — как для впервые»'],
+    ['{n} разводит руками: «Для вас — без надбавки. Почти. Вы мне дело сделали — я помню добро».', '«Пришёл товар из-за моря. Вам покажу первым — вы люди надёжные»'],
+    ['{n} достаёт из-под прилавка кувшин: «Это не на продажу. Это для своих. Садись, {h}, выпьем за удачную дорогу».', '«Знаешь, {h}, в торговле друзей не бывает. Но ты — бывает»']],
+  thief: [['{n} не поднимает глаз: «Ты меня не знаешь. Я тебя не знаю. Так и останется — пока не докажешь обратное».', '«Говори тише. Или лучше — молчи»'],
+    ['{n} крутит монету: «Работаешь чисто. Это ценят. Есть кое-что для тех, кто умеет молчать».', '«Тихие люди помнят тех, кто их не сдал. Ты в списке — в хорошем»'],
+    ['{n} впервые улыбается: «{h}, если тебя когда возьмут — скажи, что знаешь меня. Откроют любой замок».', '«Своих у меня мало. Ты — свой. Это не про деньги»']],
+  forge: [['{n} не отрывается от наковальни: «Железо — несите. Разговоры — не несите».', '«Подковы, клинки, кольца для кольчуги. Ничего другого не умею и не хочу»'],
+    ['{n} вытирает руки: «Ваш клинок держит? Ещё бы. Я на совесть делал{ns:|а}. Приносите — подправлю».', '«Для вас — лучший уголь. Не всем так»'],
+    ['{n} протягивает тебе молот: «На, {h}, ударь. Чувствуешь? Это и есть ремесло. Тебе бы подмастерьем — да ты по дорогам носишься».', '«Вечером тут тихо, {h}. Посиди со мной у горна. Огонь — он хорошо слушает»']],
+  weave: [['{n} перекусывает нитку: «Мерки снимаю. Сплетни не снимаю. Чего надо?»', '«Обувь чинить — завтра. Сегодня — только смотреть»'],
+    ['{n} разглаживает ткань: «Вам подошло, что я шил{ns:|а}? Вижу — подошло. Заходите ещё».', '«Для вас — льняная подкладка без платы. Негоже своим в колючем ходить»'],
+    ['{n} вдруг краснеет: «{h}, я тебе тут… рубашку сшил{ns:|а}. Вышивка — от сглаза. Носи под доспехом».', '«Садись, {h}, расскажи, где был{hs:|а}. Я шью — и слушаю. Так время быстрее»']],
+  charm: [['{n} стряхивает стружку: «Дерево слышит, кто входит. Вы ему пока не нравитесь».', '«Посохи — не на продажу. Посохи — на заказ. И не всем»'],
+    ['{n} кивает: «Дерево к вам потеплело. И я. Что принесли?»', '«Ваш посох поёт ровно. Хорошо держите — я слышу»'],
+    ['{n} показывает тебе резную шкатулку: «{h}, я вырезал{ns:|а} её, думая о тебе. Не спрашивай, что внутри. Пока пусто».', '«Знаешь, {h}, руки помнят то, о чём думаешь, когда режешь. Последний месяц я режу — и думаю о тебе»']],
+  jewel: [['{n} щурится над лупой: «Если не покупать — то хотя бы не дышать на камни».', '«Камень любит тишину и хороший свет. Вы — заслоняете свет»'],
+    ['{n} показывает перстень: «Вот, глядите — вашим добытым камнем огранил{ns:|а}. Красиво вышло».', '«Для вас — по-честному. Не по-купечески»'],
+    ['{n} кладёт перед тобой маленький камешек: «Это тебе, {h}. Он без цены. Он просто похож на твои глаза».', '«{h}, я много камней видел{ns:|а}. Но смотреть на тебя — интереснее»']],
+};
+/* сердце: заигрывание (общие — по полу мастера; плюс по ремеслу) */
+const FLIRT = {
+  m: ['{n} смотрит на {h} чуть дольше, чем нужно: «Опять ты. Я уж думал — забыла дорогу».', '«{h}, у тебя на щеке сажа. Нет, не там… дай я». {N} касается пальцами — и не сразу убирает руку.',
+    '«Когда ты уходишь в дорогу, у меня всё из рук валится. Странно, да?»', '{n} делает вид, что не ждал: «А, это ты… Я как раз… ничего. Заходи».',
+    '«Ты красивая, когда злишься, {h}. И когда не злишься — тоже»', '«Береги себя там, {h}. Мне без тебя скучно. Вот, сказал — и легче»',
+    '{N} краснеет до ушей: «Я тут подумал… Вечером на площади пляшут. Если ты не против…»', '«Говорят, у вас, путников, в каждом селе по милому. Это правда? Только скажи честно»'],
+  f: ['{n} поправляет волосы, когда видит {h}: «Ой… А я не ждала. Совсем не ждала. Совсем».', '«{h}, ты похудел. Тебя там вообще кормят? Садись, я сама накормлю».',
+    '«Девки на колодце про тебя спрашивали. Я сказала — ты занят. Ты ведь занят?»', '{N} смеётся и отводит глаза: «Ты так смотришь… что я забываю, о чём говорила».',
+    '«Возвращайся живым, {h}. Слышишь? Это не просьба»', '«Мне сегодня ты снился. Нет, не скажу что. Не проси»',
+    '{N} будто случайно касается твоей руки: «Ой. Холодная. Давай согрею»', '«Говорят, у вас, путников, в каждом селе по милой. Это правда? Только скажи честно»'],
+};
+const FLIRT_R = {war: '«Хочешь, поставлю тебе удар? Лично. Наедине. Это — бесплатно»', hunt: '«Я тебе на зорьке покажу, где глухари токуют. Только тебе»', herb: '«Вот, приворотной травы нет. Да мне и не надо»',
+  book: '«Я вписал{ns:|а} тебя в летопись. Потом вычеркнул{ns:|а} — слишком много было про глаза»', temple: '«Я молюсь за тебя. И, прости меня, не только за спасение души»', song: '«Сложил{ns:|а} про тебя песню. Петь при всех не буду. Только тебе»',
+  trade: '«Для тебя — всё со скидкой. Даже сердце»', thief: '«Я крал{ns:|а} кошельки, коней, тайны. Но вот сердце у меня украли впервые»', forge: '«Я выковал{ns:|а} тебе гвоздь на счастье. Носи у сердца»',
+  weave: '«Я вышил{ns:|а} на рубашке узор. Если приглядишься — там твоё имя»', charm: '«Это дерево растёт рядом с моим домом. Я вырезал{ns:|а} из него оберег — от всех, кроме меня»', jewel: '«Этот камень — тебе. Отказываться нельзя. Обижусь»'};
+/* близкий друг того же пола (или служитель Ока): доверие без флирта */
+const CLOSE = ['{n} обнимает {h} за плечи: «Ты мне как родн{hs:ой|ая}. Не забывай дорогу».', '«Будь что будет, {h} — за тебя я в огонь пойду. И ты, знаю, — за меня»', '«Свои — это не те, с кем кровь. Это те, с кем вместе в беде были. Ты — свой»'];
+/* сердечное дело — с чем просит о помощи */
+const HEART = {
+  m: '{N} долго мнётся, потом выпаливает: «{h}… Мне нужна твоя помощь. Не за деньги. Сделаешь — и я скажу тебе то, что давно хочу сказать».',
+  f: '{N} теребит край платка: «{h}, я попрошу тебя об одном. Не за деньги — для меня. Сделаешь — скажу тебе то, что давно держу в сердце».',
+  same: '{N} протягивает руку: «{h}, есть дело — личное. Сделаешь — будем как брат и брат. Или как сёстры. Кто как назовёт»',
+};
+const LOVE = {
+  m: ['{n} не скрывает радости: «Пришла! Я весь день ждал. Весь — это правда».', '«Ты мне снишься каждую ночь, {h}. Скоро буду ждать ночи, как праздника»',
+    '«Хочешь — уйду с тобой в дорогу? Шучу. Нет, не шучу»', '{N} берёт твою руку в свои: «Всё, что у меня есть — твоё. Ремесло, дом, я»'],
+  f: ['{n} кидается навстречу: «Живой! Целый! А я тут места себе не нахожу».', '«Мне ничего не надо, {h}. Только чтобы ты возвращался»',
+    '«Я думала, такое только в песнях бывает. А вот — бывает»', '{N} кладёт голову тебе на плечо: «Не уходи сегодня. Хоть до утра»'],
+  same: ['«Брат по оружию — это не слова, {h}. Это когда твою спину я помню лучше своего лица»', '{n} кивает тебе как равн{hs:ому|ой}: «С тобой — хоть к навям под землю»'],
+};
+const FAMILY = {
+  m: ['{n} целует жену в висок: «Ну, где носило мою красавицу? Садись, всё готово».', '«Дом без тебя пустой, {h}. Я с ним разговариваю — он молчит»', '«Как наши? В смысле — твои в отряде? Пусть заходят. Теперь — мои тоже»', '«Береги себя, жена. Я старый уже — второй раз так не повезёт»'],
+  f: ['{n} обнимает мужа на пороге: «Явился! Небось голодный. Небось раненый. Небось опять подвиг какой»', '«Я тебе в суму сложила — не смотри, сам найдёшь»', '«Соседки завидуют. Пусть. Ты — мой»', '«Обещай вернуться, муж. Не к ужину — так к утру»'],
+  same: ['{n} хлопает {h} по плечу: «Побратим! Садись. Моё — твоё, ты знаешь»', '«Для своих — всё даром. Не спорь. Ты свой{hs:|я}»'],
+};
+/* приветствие по ступени: 1 — по делу, 2 — друзья (0 — своё, из folk.js; 3–4 — сердце и семья) */
+const GREET = {
+  1: ['{n} кивает: «А, вы. Проходите, раз пришли».', '{n} откладывает работу: «Снова к нам? Говорите, что нужно».', '{n} узнаёт вас и чуть смягчается: «Вы-то мне и нужны были».',
+    '«Здравствуйте, здравствуйте. Дело — так дело», — {n} вытирает руки и подходит ближе.', '{n} поднимает голову: «Опять вы. Ну, вы хоть платите исправно».'],
+  2: ['{n} улыбается во весь рот: «О, свои пришли! Садитесь, садитесь».', '{n} машет рукой издали: «Наконец-то! Я уж думал{ns:|а} — забыли дорогу».',
+    '«{h}! Как дорога? Рассказывай, не томи», — {n} уже двигает к вам скамью.', '{n} хлопает по скамье рядом: «Сюда. Для друзей место всегда есть».', '{n} обнимает вас по очереди: «Живые! Вот это я понимаю — праздник».'],
+};
+/* грамотки в дороге: от любимых и родных — с гостинцем */
+const LETTER = {
+  love: {m: ['«{h}, пишу, а руки дрожат. Возвращайся скорее. Без тебя и работа не в радость»', '«Каждый вечер выхожу на дорогу — вдруг ты. Шлю гостинец, не ругайся»', '«Мне сказали, ты далеко. Пусть это письмо будет к тебе ближе, чем я»'],
+    f: ['«{h}, пишу тебе при лучине, а сама улыбаюсь как дура. Вернись живым — больше ничего не прошу»', '«Положила тебе в дорогу, что смогла. Ешь, не жадничай. Скучаю»', '«Снился ты мне. Хороший сон. Приезжай — расскажу»']},
+  wed: {m: ['«Жена моя, дома всё ладно. Скучаю так, что сам себе не рад. Шлю тебе — не забывай мужа»', '«Не геройствуй там. Мне ты нужна целая. Вот, держи в дорогу»', '«Соседи спрашивают, где моя. Говорю — мир спасает. Смеются. А я горжусь»'],
+    f: ['«Муж мой, береги себя. Я молюсь за тебя каждый вечер. В свёртке — от меня»', '«Дома всё ладно, корова отелилась, крыша не течёт. Только тебя нет. Возвращайся»', '«Не пей там много. И не смотри на чужих. Шучу — смотри, но домой приходи»']},
+  brat: {m: ['«Побратим, слышал — ты далеко. Держи гостинец. Будет туго — пиши, приду»', '«Не посрами нашу кровь, брат. А посрамишь — приходи, вместе отмоемся»'],
+    f: ['«Посестра, держи гостинец. И не вздумай там сгинуть — я с тобой ещё не наговорилась»', '«Как ты там? Пиши, хоть раз в месяц. Я тут за тебя свечку держу»']},
+};
+const LETTER_GIFT = {herb: ['zele_lecheniya'], trade: ['coin'], jewel: ['coin'], forge: ['coin'], hunt: ['kopchenoe_myaso', 'dish_pirog'], weave: ['dish_pirog', 'coin'], war: ['zele_lecheniya', 'coin'],
+  temple: ['zele_lecheniya'], song: ['coin', 'dish_pirog'], book: ['coin'], thief: ['coin'], charm: ['coin', 'zele_lecheniya']};
+C.mailNext = g => (g.mail || [])[0] || null;
+C.mailDone = g => { if (g.mail && g.mail.length) g.mail.shift(); };
+const pickL = (g, list, k) => list[(g.day + hash(k)) % list.length];
+
+/* ---------- вход в разговор с мастером ---------- */
+const FREE_SC = new Set(['folk', 'folk_learn', 'folk_craft', 'svc_temple', 'jeweler']);
+const decorate = function (g, id, sc0) {
+  if (!sc0 || !g || !g.folkRole || !C.FOLK[g.folkRole] || !FREE_SC.has(id)) return sc0;
+  const sc = Object.assign({}, sc0, {choices: (sc0.choices || []).slice(), lines: Array.isArray(sc0.lines) ? sc0.lines.slice() : sc0.lines});
+  const role = g.folkRole, at = atKey(g), p = C.folkPerson(g, role, at), r = C.relOf(g, role, at), k = relKey(role, at);
+  const fam = r.bond ? heroById(g, r.who) : null;
+  // даром для своих: учёба, заказы, слухи, обряды
+  if (fam) sc.choices = (sc.choices || []).map(c => { if (!c || !c.do || /^(Назад|Уйти|Другая вещь|Другой герой)/.test(c.t || '')) return c;
+    const d0 = c.do, if0 = c.if; return Object.assign({}, c, {
+      if: if0 ? g2 => if0(new Proxy(g2, {get: (t, q) => q === 'purse' ? t.purse + 1e7 : t[q]})) : if0,
+      do: function (g2) { const before = g2.purse; g2.purse += 1e7; let out; try { out = d0.apply(this, arguments); } finally { const spent = before + 1e7 - g2.purse; g2.purse = Math.max(0, g2.purse - 1e7); if (spent > 0) { g2.purse = before; C.note(g2, `${p.n} денег не берёт: «Своим — даром»`); } } return out; }}); });
+  else if (id !== 'folk') sc.choices = (sc.choices || []).map(c => { if (!c || !c.do) return c; const d0 = c.do;
+    return Object.assign({}, c, {do: function (g2) { const before = g2.purse; const out = d0.apply(this, arguments); if (g2.purse < before) { const day = g2.day; const rr = C.relOf(g2, role, at); if (rr.svcDay !== day || (rr.svcN || 0) < 2) { rr.svcN = rr.svcDay === day ? (rr.svcN || 0) + 1 : 1; rr.svcDay = day; C.relAdd(g2, role, at, 3); } } return out; }}); });
+  if (id !== 'folk') return sc;
+  return folkTalk(g, sc, role, at, p, r, k, fam);
+};
+function folkTalk(g, sc, role, at, p, r, k, fam) {
+  const t = C.relTier(r), lines = sc.lines || [], ch = sc.choices || [];
+  const back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].t || '') ? ch.pop() : null;
+  // реплика по ступени
+  const ro = romanceOk(g, role, at), s = t >= 3 && ro ? suitor(g, role, at, p) : null, kn = t >= 3 && !s ? kin(g, role, at, p) : null;
+  if (t === 4) { const h = fam; if (h) lines.splice(0, 1, ['n', fill(pickL(g, r.bond === 'wed' ? FAMILY[p.sex] : FAMILY.same, k), p, h)]); }
+  else if (t === 3 && r.love && s) lines.splice(0, 1, ['n', fill(pickL(g, LOVE[p.sex], k), p, s)]);
+  else if (t === 3 && s) lines.splice(0, 1, ['n', fill(pickL(g, FLIRT[p.sex === 'f' ? 'f' : 'm'], k), p, s)], [p.n, fill(FLIRT_R[role] || '', p, s)]);
+  else if (t === 3 && r.love && kn) lines.splice(0, 1, ['n', fill(pickL(g, LOVE.same, k), p, kn)]);
+  else if (t === 3) lines.splice(0, 1, ['n', fill(pickL(g, CLOSE, k), p, kn || C.alive(g)[0])]);
+  else if (t >= 1) lines.splice(0, 1, ['n', fill(pickL(g, GREET[t], k), p, C.alive(g)[0])]);
+  lines.push(['n', `Отношение: ${C.relText(g, role, at)}.`]);
+  // подарки, что накопились
+  if (fam && r.gifts && r.gifts.length) ch.unshift({t: `Забрать, что ${p.sex === 'f' ? 'она' : 'он'} отложил${p.sex === 'f' ? 'а' : ''}: ${r.gifts.length}`, do: g2 => { const rr = C.relOf(g2, role, at), h2 = heroById(g2, rr.who) || C.alive(g2)[0];
+    const got = (rr.gifts || []).splice(0); got.forEach(id => h2.inv.push(id)); g2.folkLast = `${h2.name} получает: ${got.map(id => (R.item(id) || {}).name || id).join(', ').toLowerCase()}.`; C.note(g2, g2.folkLast); return 'folk'; }});
+  // поговорить
+  if (!r.bond) ch.push({t: 'Поговорить', do: g2 => { const rr = C.relOf(g2, role, at), h2 = C.alive(g2)[0]; const tt = C.relTier(rr);
+    const say = tt >= 3 ? (s ? fill(pickL(g2, rr.love ? LOVE[p.sex] : FLIRT[p.sex], k + 't'), p, s) : fill(pickL(g2, CLOSE, k + 't'), p, kn || h2)) : TALK[role] ? fill(pickL(g2, TALK[role][tt], k + 't' + g2.time), p, h2) : `${p.n} кивает.`;
+    let add = 0; if (rr.talkDay !== g2.day) { rr.talkDay = g2.day; if (rr.rep < 40) add = C.relAdd(g2, role, at, 2); else if (rr.love) add = C.relAdd(g2, role, at, 3); }
+    if (C.passH) C.passH(g2, 0.5); g2.folkLast = say + (add > 0 ? ` Отношение +${add}.` : ''); return 'folk'; }});
+  // подарок
+  if (!r.bond) ch.push({t: 'Сделать подарок', if: g2 => C.relOf(g2, role, at).giftDay !== g2.day, off: 'сегодня уже дарили', do: g2 => { g2.relGift = k; return 'folk_gift'; }});
+  // любовь: ответить, сердечное дело, предложение
+  if (t >= 3 && !r.bond) {
+    if (s && !r.who && ro) ch.push({t: `${s.name}: ответить на ${p.sex === 'f' ? 'её' : 'его'} взгляды`, do: g2 => { const rr = C.relOf(g2, role, at); rr.who = s.id; g2.folkLast = fill(p.sex === 'f' ? '{N} вспыхивает и улыбается: «Я знала. Я так и знала»' : '{N} смеётся, будто гора с плеч: «Ну наконец-то. Я уж думал — показалось»', p, s); C.relAdd(g2, role, at, 2); return 'folk'; }});
+    if (!s && kn && !r.who) ch.push({t: `${kn.name}: протянуть руку как сво${p.sex === 'f' ? 'ей' : 'ему'}`, do: g2 => { C.relOf(g2, role, at).who = kn.id; g2.folkLast = fill('{N} крепко жмёт руку: «Вот это по-нашему»', p, kn); return 'folk'; }});
+    const who = r.who && heroById(g, r.who);
+    if (who && !r.love && r.rep >= 80) {
+      const hj = (g.jobs || []).find(j => j.heartKey === k && ['open', 'done'].includes(j.status));
+      if (!hj) ch.push({t: `${p.n} просит о личном`, do: g2 => { const j = C.folkMakeJob(g2, role); if (!j) { g2.folkLast = `${p.n}: «Нет… Потом. Не сейчас»`; return 'folk'; }
+        j.heartKey = k; j.heart = 1; j.pay = Math.round((j.pay || 0) * 0.5 / 10) * 10; j.heartLine = fill(who.sex === p.sex ? HEART.same : HEART[p.sex], p, who);
+        g2.folkJobs = g2.folkJobs || {}; const bk = at + '#' + role; g2.folkJobs[bk] = g2.folkJobs[bk] || {day: g2.day, offers: []}; g2.folkJobs[bk].offers.push(j);
+        g2.jobOffer = j.id; g2.jobFrom = g2.folkAt ? 'road' : 'town'; g2.folkLast = null; return 'q_offer'; }});
+    }
+    if (who && r.love && r.rep >= 100) {
+      const wed = who.sex !== p.sex;
+      if (wed && p.sex === 'm') lines.push(['n', fill('{N} вдруг опускается на одно колено. В руке — кольцо: «{h}. Я не умею красиво. Выходи за меня»', p, who)]);
+      ch.push({t: wed ? (p.sex === 'm' ? `${who.name}: ответить «да»` : `${who.name}: сделать предложение`) : `${who.name}: побрататься${p.sex === 'f' ? ' — стать посестрами' : ''}`,
+        if: g2 => !(wed ? bonded(g2, who, 'wed') || who.spouse : bonded(g2, who, 'brat')), off: wed ? 'у героя уже есть семья' : 'у героя уже есть побратим',
+        do: g2 => { const rr = C.relOf(g2, role, at), h2 = heroById(g2, rr.who); if (!h2) return 'folk'; rr.bond = wed ? 'wed' : 'brat'; rr.bondDay = g2.day; rr.giftAt = g2.day;
+          if (wed) h2.spouse = {n: p.n, role, at, camp: g2.camp, sex: p.sex};
+          if (C.spiritAdd) C.spiritAdd(g2, wed ? 2 : 1, wed ? 'Свадьба! Гуляли до утра.' : 'Братчина: пили из одного ковша.');
+          if (C.passH) C.passH(g2, wed ? 6 : 2);
+          g2.folkLast = wed ? fill(p.sex === 'm' ? 'Свадьбу играют всем селом: {N} не отходит от невесты ни на шаг, гусли звенят до рассвета. {h} теперь замужем — и есть дом, куда возвращаться.' : 'Свадьбу играют всем селом: {N} в венке из васильков, жених сам не свой от счастья. {h} теперь женат — и есть дом, куда возвращаться.', p, h2)
+            : fill('Режут ладони, смешивают кровь в ковше с мёдом, пьют по кругу. Теперь {N} и {h} — побратимы до смерти.', p, h2);
+          C.note(g2, g2.folkLast); if (h2.deeds) h2.deeds = h2.deeds.concat(wed ? `обвенчал${h2.sex === 'f' ? 'ась' : 'ся'}: ${p.n}` : `побратался: ${p.n}`).slice(-12); return 'folk'; }});
+    }
+  }
+  if (back) ch.push(back);
+  sc.lines = lines; sc.choices = ch;
+  return sc;
+}
+/* в списке мастеров — как к вам относятся */
+const decorateHub = (g, sc) => { if (!sc || !C.folkHere) return sc;
+  const roles = C.folkHere(g); sc = Object.assign({}, sc, {choices: (sc.choices || []).map((c, i) => { const role = roles[i]; if (!c.card || !role) return c; return Object.assign({}, c, {card: Object.assign({}, c.card, {sub: c.card.sub + ' · ' + C.relWord(g, role, g.loc)})}); })});
+  return sc; };
+const wrapScenes = camp => { FREE_SC.forEach(id => wrapOne(camp, id, decorate)); wrapOne(camp, 'folk_hub', (g, id, sc) => decorateHub(g, sc)); };
+function wrapOne(camp, id, fn) { const raw = camp.scenes[id]; if (!raw || raw._hearts) return;
+  const f = function (g) { const sc = typeof raw === 'function' ? raw.apply(this, arguments) : raw; try { return fn(g, id, sc); } catch (e) { return sc; } }; f._hearts = 1; camp.scenes[id] = f; }
+/* подарок: из сумы — по цене */
+const SC = {};
+SC.folk_gift = g => {
+  const k = g.relGift || '', [role, at] = k.split('@'); if (!C.FOLK[role]) return {title: 'Пусто', lines: [['n', 'Никого.']], choices: [{t: 'Назад', go: 'folk'}]};
+  const p = C.folkPerson(g, role, at), r = C.relOf(g, role, at);
+  const items = C.alive(g).flatMap(h => [...new Set(h.inv)].filter(id => { const x = R.item(id); return x && x.price && !Object.values(h.eq || {}).includes(id) && !(C.FOOD && C.FOOD[id] && x.price < 100); }).map(id => ({h, id, x: R.item(id)})))
+    .sort((a, b) => b.x.price - a.x.price).slice(0, 10);
+  const gain = x => Math.max(1, Math.min(10, Math.round(Math.sqrt(x.price / 100) * 2)));
+  const ch = items.map(o => ({t: `${o.h.name}: ${o.x.name} — отношение +${gain(o.x)}`, do: g2 => { const h2 = C.alive(g2).find(y => y.id === o.h.id); const i = h2 ? h2.inv.indexOf(o.id) : -1; if (i < 0) return 'folk';
+    h2.inv.splice(i, 1); const rr = C.relOf(g2, role, at); rr.giftDay = g2.day; const add = C.relAdd(g2, role, at, gain(o.x));
+    g2.folkLast = `${p.n} принимает подарок — ${o.x.name.toLowerCase()}: «${C.relTier(rr) >= 3 ? 'Ты… ты не должен был{hs:|а}. Но спасибо' : C.relTier(rr) >= 2 ? 'Вот это подарок! Спасибо, друг' : 'Хм. Благодарю'}».${add > 0 ? ' Отношение +' + add + '.' : ' Ближе этим не стать — нужно что-то большее.'}`.replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h2.sex === 'f' ? f : m);
+    C.note(g2, g2.folkLast); g2.relGift = null; return 'folk'; }}));
+  ch.push({t: 'Назад', do: g2 => { g2.relGift = null; return 'folk'; }});
+  return {title: `Подарок: ${p.n}`, bg: C.FOLK[role].bg, art: C.FOLK[role].art, lines: [['n', items.length ? 'Что подарить? Дорогое трогает сильнее.' : 'В сумах нечего дарить.'], ['n', `Отношение: ${C.relText(g, role, at)}.`]], choices: ch};
+};
+Object.values(C.CAMPS).forEach(camp => { Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); wrapScenes(camp); });
+const reg0 = C.register;
+if (reg0) C.register = function (camp) { const r = reg0.apply(this, arguments); Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); wrapScenes(camp); return r; };
+
+/* ---------- дела: плата добром ---------- */
+const relForJob = (g, j) => j.folk && j.folkAt ? C.relOf(g, j.folk, j.folkAt) : null;
+const onPaid = (g, j) => {
+  if (!j || !j.folk || j.relDone || j.status !== 'paid') return; j.relDone = 1;
+  const r = relForJob(g, j); if (!r) return;
+  if (j.heart) { r.love = 1; const p = C.folkPerson(g, j.folk, j.folkAt); C.relAdd(g, j.folk, j.folkAt, Math.max(0, 90 - r.rep) + 2);
+    const h = heroById(g, r.who); C.note(g, h ? fill(h.sex !== p.sex ? '{N} говорит наконец то, что давно хотел{ns:|а}: «Я люблю тебя, {h}»' : '{N}: «Теперь ты мне — родн{hs:ой|ая}. Без всяких слов»', p, h) : `${p.n} благодарит от сердца.`); return; }
+  C.relAdd(g, j.folk, j.folkAt, Math.round(15 * Math.max(0.5, Math.min(1.5, j.mul == null ? 1 : j.mul))), 'дело сделано');
+};
+const fin0 = Q.finish; Q.finish = function (g, j) { const r = fin0.apply(this, arguments); onPaid(g, j); return r; };
+const rep0 = Q.report; Q.report = function (g, j) { const r = rep0.apply(this, arguments); onPaid(g, j); return r; };
+const tick0 = Q.tick; Q.tick = function (g) { const before = new Set((g.jobs || []).filter(j => j.status === 'open').map(j => j.id)); const r = tick0.apply(this, arguments);
+  (g.jobs || []).forEach(j => { if (before.has(j.id) && j.status === 'late' && j.folk && j.folkAt) C.relAdd(g, j.folk, j.folkAt, j.heart ? -20 : -10, 'дело брошено'); }); return r; };
+const ol0 = Q.offerLines; Q.offerLines = function (g, j) { const L = ol0.apply(this, arguments); if (j && j.heartLine) L.unshift(['n', j.heartLine]); return L; };
+
+/* ---------- семья: подарки копятся ---------- */
+const giftFor = (g, role) => {
+  if (role === 'trade') { const pool = (C.masterStock ? C.masterStock(g, true) : []).filter(id => R.item(id)); return pool.length ? R.pick(pool) : null; }
+  if (role === 'herb') return R.item('zele_lecheniya') ? 'zele_lecheniya' : null;
+  return null;
+};
+const letters = g => {
+  Object.entries(g.folkRel || {}).forEach(([k, r]) => { if (!(r.love || r.bond) || r.camp !== g.camp) return; const [role, at] = k.split('@'); const h = heroById(g, r.who); if (!h) return;
+    if (g.loc === at && !g.folkAt) { r.letterAt = g.day; return; }
+    r.letterAt = r.letterAt == null ? g.day : r.letterAt; if (g.day - r.letterAt < 3 + hash(k + r.letterAt) % 3) return; r.letterAt = g.day;
+    const p = C.folkPerson(g, role, at), kind = r.bond === 'wed' ? 'wed' : r.bond ? 'brat' : 'love', pool = LETTER[kind][p.sex] || LETTER[kind].m;
+    const text = fill(pool[hash(k + g.day) % pool.length], p, h);
+    let gift = R.pick(LETTER_GIFT[role] || ['coin']), giftText;
+    if (gift !== 'coin' && !R.item(gift)) gift = 'coin';
+    if (gift === 'coin') { const sum = (3 + hash(k + g.day) % 8) * 100; g.purse += sum; giftText = R.priceText(sum); }
+    else { h.inv.push(gift); giftText = (R.item(gift).name || '').toLowerCase(); }
+    g.mail = (g.mail || []).concat({from: p.n, t: p.t, face: p.face, sex: p.sex, kind, to: h.name, text, gift: giftText, day: g.day}).slice(-6);
+    C.note(g, `Гонец догоняет отряд: грамотка от ${p.n} — ${h.name}. ${text} В свёртке — ${giftText}.`); });
+};
+const dayTick = g => { if (!g || !g.folkRel) return; try { letters(g); } catch (e) {}
+  Object.entries(g.folkRel).forEach(([k, r]) => { if (!r.bond || r.camp !== g.camp) return; const role = k.split('@')[0]; if (!['trade', 'herb'].includes(role)) return;
+    r.giftAt = r.giftAt == null ? g.day : r.giftAt; r.gifts = r.gifts || [];
+    while (r.giftAt < g.day) { r.giftAt++; if (r.gifts.length < 5) { const id = giftFor(g, role); if (id) r.gifts.push(id); } } }); };
+const pass0 = C.pass;
+C.pass = function (g) { const d0 = g && g.day; const r = pass0.apply(this, arguments); if (g && g.day !== d0) try { dayTick(g); } catch (e) {} return r; };
+/* хозяйство отряда: в окне героя — кто ему родной */
+C.heroBond = function (g, h) { const out = []; Object.entries(g.folkRel || {}).forEach(([k, r]) => { if (r.who !== h.id || !r.bond) return; const [role, at] = k.split('@');
+  const p = C.folkPerson(g, role, at), n = C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[at];
+  out.push(`${r.bond === 'wed' ? (p.sex === 'f' ? 'Жена' : 'Муж') : (p.sex === 'f' ? 'Посестра' : 'Побратим')}: ${p.n}, ${p.t}${n ? ' (' + n.name + ')' : ''}`); }); return out; };
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* songs.js */
 /* Колдовство — слова песен гусляра. Пока звучит напев, над гусляром всплывают строки — по порядку, куплет за куплетом.
    Всё своё, сложено для игры. Строки не длиннее 34 знаков, иначе облачко обрежет. Без DOM. */
@@ -36140,6 +36466,7 @@ function heroSheet(h) {
     <div><h4 class="jh" title="Спасброски">Стойкость духа и тела</h4><div class="kv"><div ${whyA('fort')}><span>Стойкость</span><b>+${D.saves.fort}</b></div><div ${whyA('refl')}><span>Реакция</span><b>+${D.saves.refl}</b></div><div ${whyA('will')}><span>Воля</span><b>+${D.saves.will}</b></div></div></div></div>
     ${C.heroResText ? C.heroResText(h).map(t => `<div class="note" style="margin-top:4px">${esc(t)}.</div>`).join('') : ''}
     ${C.spiritText ? `<div class="note spirit s${C.spiritOf(h)}" style="margin-top:4px"><b>Боевой дух:</b> ${esc(C.spiritText(h))}</div>` : ''}
+    ${C.heroBond && g && C.heroBond(g, h).length ? `<div class="note" style="margin-top:4px"><b>Родные:</b> ${esc(C.heroBond(g, h).join('; '))}</div>` : ''}
     ${h.kind === 'merc' && C.bondText ? `<div class="note" style="margin-top:4px">${esc(C.bondText(h))}</div>` : ''}
     ${(h.buffs || []).length ? `<div class="note" style="margin-top:4px;color:#2f5a7a"><b>Действует сейчас:</b> ${esc(h.buffs.map(b => b.stat ? `зелье — ${STAT_RU[b.stat] || b.stat} ${b.val}` : `зелье — защита: ${String(b.res).split('+').map(x => x === 'spell' ? 'чары' : (C.DT_RU && C.DT_RU[x]) || x).join(', ')}`).join('; '))}, до конца ближайшего боя.</div>` : ''}
     ${C.ailText && C.ailText(h) ? `<div class="note" style="margin-top:4px;color:#8a3b2b"><b>Хворь и раны:</b> ${esc(C.ailText(h))}.${C.ailTip && C.ailTip(h) ? ` <span title="${esc(C.ailTip(h))}">(${esc(C.ailTip(h))})</span>` : ''}</div>` : ''}
@@ -36931,6 +37258,15 @@ function drawDMap(anim) {
   DMAP = {seed: d.seed, at: d.at};
 }
 window.addEventListener('resize', () => { if ($('#main .dmap')) drawDMap(false); });
+/* грамотка от любимых и родных: догоняет в дороге */
+function showMail() {
+  if (!g || NETG() || battle || !C.mailNext) return; const m = C.mailNext(g); if (!m || !$('#modal').hidden) return;
+  C.mailDone(g); save();
+  const head = m.kind === 'wed' ? (m.sex === 'f' ? 'От жены' : 'От мужа') : m.kind === 'brat' ? (m.sex === 'f' ? 'От посестры' : 'От побратима') : 'От того, кто ждёт';
+  openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>Берестяная грамотка · ${esc(head)}</small><h3>${esc(m.from)}</h3><div class="note">${esc(m.t)} · кому: ${esc(m.to)}</div></div></div>
+    <p class="kltext">${esc(m.text)}</p><p class="klgift">В свёртке — <b>${esc(m.gift)}</b>.</p><div class="row"><button class="btn primary" id="kl-ok">Спрятать грамотку за пазуху</button></div></div>`, 'sm');
+  $('#kl-ok').onclick = () => { closeModal(); setTimeout(showMail, 300); };
+}
 function showScene(id, talk) {
   battle = null;
   if (id === 'map') return showMap();
@@ -37123,6 +37459,7 @@ function showShop(back, local) {
 /* ---------- карта края ---------- */
 function showMap() {
   if (window.W && W.isHex(g)) return showHexMap();
+  setTimeout(showMail, 700);
   battle = null; g.scene = 'map'; if (NETH()) SCR = {k: 'map'}; save(); renderTop();
   const nodes = C.nodes(g), edges = C.edges(g), routes = C.routes(g);
   const P = id => CAMP_OF().map.nodes[id];
@@ -37204,6 +37541,7 @@ function weatherFx(host, target) {
   WFX = {cv, raf: requestAnimationFrame(step)};
 }
 function showHexMap() {
+  setTimeout(showMail, 700);
   setTimeout(() => tip1('map'), 400);
   battle = null; g.scene = 'map';
   W.pos(g); W.revealKnown(g); if (NETH()) SCR = {k: 'map', walking: false}; save(); renderTop();
