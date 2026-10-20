@@ -35082,6 +35082,63 @@ C.sceneOf = function (g, id) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* drinks.js */
+/* Колдовство — питьё в суме: мёд, сбитень, вино, пиво. Пьют вне боя, кнопкой «Выпить». Без DOM.
+   • Взвар травяной — хмеля нет, пара хитов и ясная голова (хмель сходит).
+   • Сбитень — греет: в ближайшем бою холод не берёт.
+   • Мёд ставленый, крепкий мёд — кураж: в ближайшем бою страх не берёт (крепкий ещё и пару хитов даёт).
+   • Пиво ведром, вино кувшином, корчагой, бочкой — пускают по кругу: хмель всем, дух отряда +1 (заморское и бочка +2), не чаще раза в сутки.
+   Хмель — тот же, что в корчме (tavern.js): перебрал — проверки и удары −2. Пьяному не наливают. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B;
+if (!C || !C.drinkOut) return;
+const D = {
+  vzvar_travyanoy: {hm: 0, hp: '1d4', clear: 1.5, text: 'Горячий взвар: пара хитов, и голова яснее — хмель сходит.'},
+  sbiten_kruzhka: {hm: 0.5, warm: 1, text: 'Сбитень греет: в ближайшем бою холод не берёт.'},
+  med_stavlenyy_kovsh: {hm: 1.5, kurazh: 1, text: 'Ковш мёда — кураж: в ближайшем бою страх не берёт.'},
+  krepkiy_med_charka: {hm: 2, kurazh: 1, hp: '1d4', text: 'Чарка крепкого мёда — огонь в жилах: пара хитов и кураж, в ближайшем бою страх не берёт.'},
+  pivo_vedro: {hm: 1, round: 1, sp: 1, text: 'Ведро пускают по кругу: хмель всем, дух отряда +1 (раз в сутки).'},
+  vino_kuvshin: {hm: 1, round: 1, sp: 1, text: 'Кувшин по кругу: хмель всем, дух отряда +1 (раз в сутки).'},
+  vino_zamorskoe_korchaga: {hm: 1, round: 1, sp: 2, text: 'Заморское по кругу: хмель всем, дух отряда +2 (раз в сутки).'},
+  bochka_vina: {hm: 1.5, round: 1, sp: 2, text: 'Бочку вскрывают на всех: хмель всем, дух отряда +2 (раз в сутки).'},
+};
+C.BAG_DRINKS = D;
+Object.entries(D).forEach(([id, d]) => { const x = DATA.items[id]; if (x) x.notes = (x.notes && !/^На сайте|Заменяет|^Сайт/.test(x.notes) ? x.notes.replace(/\s*(На сайте|Заменяет)[^.]*\./g, '').trim() + ' ' : '') + d.text + (d.hm ? ' Хмельное.' : ''); });
+const can0 = C.drinkableOut;
+C.drinkableOut = id => !!D[id] || can0(id);
+const out0 = C.drinkOut;
+C.drinkOut = function (g, h, id) {
+  const d = D[id]; if (!d) return out0.apply(this, arguments);
+  const i = h.inv.indexOf(id); if (i < 0) return {err: 'питья нет'};
+  if (d.hm && C.isDrunk && C.isDrunk(h)) return {err: `${h.name} и так пьян — хватит`};
+  const nm = (R.item(id).name || '').replace(/\s*\(.*\)/, '').toLowerCase(), who = d.round ? C.alive(g) : [h];
+  h.inv.splice(i, 1);
+  const bits = [];
+  who.forEach(x => { if (d.hm) x.drunk = (x.drunk || 0) + d.hm; });
+  if (d.clear) h.drunk = Math.max(0, (h.drunk || 0) - d.clear) || undefined;
+  if (d.hp) { const v = R.dice(d.hp), was = h.hp; h.hp = Math.min(h.hpMax, h.hp + v); if (h.hp > was) bits.push('+' + (B && B.plural ? B.plural(h.hp - was, 'хит', 'хита', 'хитов') : (h.hp - was) + ' хит.')); }
+  if (d.warm) { h.warmDrink = 1; bits.push('греет: в ближайшем бою холод не берёт'); }
+  if (d.kurazh) { h.kurazh = 1; bits.push('кураж: в ближайшем бою страх не берёт'); }
+  if (d.sp && C.spiritAdd) { if (g.drinkDay === g.day) bits.push('дух уже поднимали сегодня'); else { g.drinkDay = g.day; C.spiritAdd(g, d.sp, 'Выпили по кругу — повеселели.'); bits.push(`дух отряда +${d.sp}`); } }
+  const tipsy = who.filter(x => C.drunkWord && C.drunkWord(x) !== 'трезв').map(x => `${x.name} — ${C.drunkWord(x)}`);
+  const text = (d.round ? `${h.name} пускает по кругу: ${nm}.` : `${h.name} пьёт: ${nm}.`) + (bits.length ? ' ' + bits.join('; ').replace(/^./, c => c.toUpperCase()) + '.' : '') + (tipsy.length ? ' ' + tipsy.join(', ') + '.' : '');
+  if (C.passH) C.passH(g, 0.1);
+  C.note(g, text); return {ok: true, text};
+};
+/* бой: кураж и тепло берут с собой в ближайшую схватку */
+if (B && B.start) {
+  const bs0 = B.start;
+  B.start = function () { const S = bs0.apply(this, arguments);
+    try { (S.units || []).forEach(u => { const h = u.ref; if (!h || u.side !== 'party') return;
+      if (h.kurazh) { u.kurazh = 1; delete h.kurazh; }
+      if (h.warmDrink) { delete u.chilled; delete h.warmDrink; } }); } catch (e) {}
+    return S; };
+  const st0 = B.startTurn;
+  B.startTurn = function (S, u) { if (u && u.kurazh && u.conds && u.conds.fear) { delete u.conds.fear; B.log(S, `${u.name}: мёд в крови — страх не берёт.`); } return st0.apply(this, arguments); };
+}
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* songs.js */
 /* Колдовство — слова песен гусляра. Пока звучит напев, над гусляром всплывают строки — по порядку, куплет за куплетом.
    Всё своё, сложено для игры. Строки не длиннее 34 знаков, иначе облачко обрежет. Без DOM. */
