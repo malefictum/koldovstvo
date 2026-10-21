@@ -31397,6 +31397,7 @@ function treasury(g, d, r) {
   let m = (R.d(4) + 2) * (60 + 50 * L); const items = [];
   if (C.rollMagic) items.push(C.rollMagic(L + 1, {unknown: true}));
   items.push(...dropFor(g, d, L + 2).slice(0, 2));
+  if (C.chestExtra) items.push(...C.chestExtra(g, L));
   if (d.bossDown && C.rollMagic && R.rand() < 0.35) items.push(C.rollMagic(L + 2, {unknown: true}));
   if (tat && R.rand() < 0.5 + 0.1 * T(tat, 'zamki')) { m += 40 * L * R.d(4); say(d, `${tat.name} простукивает дно сундука — двойное. Там ещё.`); }
   take(g, m, items, 'В сундуках:'); C.giveXP(g, 40 * L, d.name.toLowerCase() + ' обчищен');
@@ -35813,6 +35814,65 @@ const gift0 = Q.gift;
 Q.gift = function (g, j, GV, ex) { gift0.apply(this, arguments); if (!j || !j.matReward || j.matGiven) return; j.matGiven = 1;
   const h = C.recipient ? C.recipient(g, j.matReward.id) : C.alive(g)[0]; if (!h) return; for (let i = 0; i < j.matReward.n; i++) h.inv.push(j.matReward.id);
   C.note(g, `${j.v.giver.n} отдаёт из запаса: ${R.item(j.matReward.id).name.replace(/,\s*1 ед\.$/, '').toLowerCase()} ×${j.matReward.n}.`); };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* rarity.js */
+/* Колдовство — одна лестница редкости для ремесла. Без DOM.
+   • Обычное (+1, 1–5 зм): сталь, ткань простая, дерево, шкуры, медь, серебро; камни за 20 зм — лавка, звери, ларь мастера.
+   • Редкое (+2, 8–20 зм): харалуг, ткань богатая, медвежья шкура, змеиная кожа, клыки, когти, перья, золото; камни за 50 зм —
+     городская лавка, звери и нечисть, дела мастеров.
+   • Драгоценное (+3, 40–100 зм): булат, паволока, чешуя змея, зуб волота, глаз лиха, звёздное железо, редкие металлы;
+     камни за 100 зм и дороже — не в лавках: ларь мастера, плата мастеров, сильные чудища, сундуки подземелий.
+   • Самоцветы выпадают со всех врагов со 2-го уровня (12%), цена до 25 зм × уровень; лежат в сундуках подземелий.
+   • Компоненты свойств — по силе: «Быстрота» — звёздное железо, «Баланс» — харалуг ×2; защита от каждой стихии — камень за 50 зм. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C.shopExtra || !DATA.items.bulat_1_ed) return;
+const set = (id, price) => { if (DATA.items[id]) DATA.items[id].price = price; };
+set('haralug_1_ed', 800); set('bulat_1_ed', 4000); set('zoloto', 1000); set('serebro', 300);
+C.RARITY = {
+  1: ['stal_1_ed', 'tkan_prostaya_1_ed', 'derevo_1_ed', 'tr_shkura_zverya', 'tr_volchya_shkura', 'med', 'serebro'],
+  2: ['haralug_1_ed', 'tkan_bogataya_1_ed', 'tr_medvezhya_shkura', 'tr_zmeinaya_kozha', 'tr_kabanyi_klyki', 'tr_kogti_zverya', 'tr_perya', 'zoloto'],
+  3: ['bulat_1_ed', 'tkan_divnaya_pavoloka_1_ed', 'tr_cheshuya_zmeya', 'tr_volot_zub', 'tr_glaz_liha', 'zvezdnoe_zhelezo_1_ed', 'podzemnoe_serebro', 'alatyr', 'navya_ruda', 'gromovaya_strela'],
+};
+C.rarityOf = id => +(Object.keys(C.RARITY).find(k => C.RARITY[k].includes(id)) || 0);
+const GEMS = () => Object.values(DATA.items).filter(x => x.category === 'самоцветы' && x.price && !/koltso|grivna|obruch/.test(x.id));
+/* лавка: обычное — везде, редкое — в городе, драгоценного — нет; камни за 20 зм — в городе */
+const sx0 = C.shopExtra;
+C.shopExtra = function (g, city) {
+  let out = sx0.apply(this, arguments);
+  if (g && g.shopMode === 'rare') return out;
+  out = out.filter(id => C.rarityOf(id) !== 3 && !(C.rarityOf(id) === 2 && !city));
+  ['stal_1_ed', 'tkan_prostaya_1_ed', 'derevo_1_ed'].forEach(id => { if (DATA.items[id] && !out.includes(id)) out.push(id); });
+  if (city) { ['haralug_1_ed', 'tkan_bogataya_1_ed'].forEach(id => { if (DATA.items[id] && !out.includes(id)) out.push(id); });
+    GEMS().filter(x => x.price <= 2000).forEach(x => { if (!out.includes(x.id)) out.push(x.id); }); }
+  return out;
+};
+/* добыча: камни со всех; у сильных чудищ — драгоценный материал */
+const pickGem = L => { const gs = GEMS().filter(x => x.price <= 2500 * L); if (!gs.length) return null;
+  const w = gs.map(x => 1 / Math.sqrt(x.price)), sum = w.reduce((a, b) => a + b, 0); let r = R.rand() * sum; for (let i = 0; i < gs.length; i++) { r -= w[i]; if (r <= 0) return gs[i].id; } return gs[0].id; };
+C.pickGem = pickGem;
+const d0 = C.dropOf;
+if (d0) C.dropOf = function (u, g) {
+  const out = d0.apply(this, arguments); if (!u || u.summonLeft != null) return out;
+  const L = Math.max(1, u.level || 1), hasGem = out.some(id => (R.item(id) || {}).category === 'самоцветы');
+  if (!hasGem && L >= 2 && R.rand() < 0.12) { const gm = pickGem(L); if (gm) out.push(gm); }
+  if (L >= 6 && R.rand() < 0.08) { const pool = C.RARITY[3].filter(id => R.item(id)); out.push(R.pick(pool)); }
+  return out;
+};
+/* сундуки подземелий: камень и материал по глубине */
+C.chestExtra = function (g, L) {
+  const out = []; if (R.rand() < 0.6) { const gm = pickGem(Math.max(2, L)); if (gm) out.push(gm); }
+  if (R.rand() < 0.5) { const t = L <= 3 ? 1 : L <= 7 ? 2 : 3, pool = C.RARITY[t].filter(id => R.item(id)), id = R.pick(pool), n = t === 1 ? 3 : t === 2 ? 2 : 1 + (R.rand() < 0.3 ? 1 : 0);
+    for (let i = 0; i < n; i++) out.push(id); }
+  return out;
+};
+/* компоненты свойств — по силе */
+const EN = C.EN || {}; const setComp = (id, comp) => { if (EN[id]) EN[id].component = comp; };
+setComp('bystrota', 'звёздное железо, 1 ед.'); setComp('balans', 'харалуг, 2 ед.');
+setComp('zashch_ogon', 'сердолик'); setComp('zashch_holod', 'жемчуг речной'); setComp('zashch_molniya', 'циркон');
+setComp('zashch_yad', 'хризолит'); setComp('zashch_kislota', 'нефрит'); setComp('zashch_smert', 'аметист');
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* songs.js */
