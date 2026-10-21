@@ -35602,6 +35602,191 @@ add(H.CLOSE, ['«Таких, как ты, {h}, в нашем краю по па�
   '«Знаешь, кому бы я доверил{ns:|а} последний хлеб? Тебе. Остальным — не знаю»', '«Если у тебя когда-нибудь не будет дома, {h}, — мой дом твой»']);
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* crafting.js */
+/* Колдовство — ремесло у мастеров. Без DOM.
+   • Улучшать вещь можно только самому и только в мастерской: в кузне (металл), швейной (ткань и кожа), резной (дерево).
+     Нужна своя профессия: «Кузнечное дело», «Ткацкое дело», «Резьба». Денег за работу нет — только свой материал.
+   • Ступень профессии — потолок: обучен +1, профессионал +2, мастер и эксперт +3.
+   • Материала тем больше, чем выше ступень и крупнее вещь; на харалуг и булат — ещё самоцвет.
+   • Бросок: d20 + Сила (кузня) или Ловкость (шитьё, резьба) + 2 × ступень профессии против 14 / 18 / 22.
+     Неудача — пропадает половина материала (самоцвет цел), вещь цела.
+   • Свойства — так же самому: «Кузнечное волшебство», «Ткацкое дело», «Резьба».
+   • У мастера ещё: купить материал — дорого и что есть (запас меняется раз в несколько дней), учиться,
+     брать дела — мастера-ремесленники платят и материалом.
+   • Посох из особого дерева — из своей заготовки, «Резьба» не ниже уровня дерева.
+   • Ювелир — по-прежнему за плату; четыре редких металла теперь можно добыть и купить. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C.Q;
+if (!C.FOLK || !C.PROF || !C.magicId) return;
+const P = C.PROF, T = (h, id) => C.profTier(h, id);
+const hash = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const asMagic = id => C.magicParse(id) || {unknown: false, base: id, bonus: 0, props: [], special: '', curse: ''};
+const atKey = g => g.folkAt || g.loc;
+const nodeScene = g => { const n = C.CAMPS[g.camp].map.nodes[g.loc]; return n ? n.scene : 'map'; };
+
+/* ---------- новая наука: резьба ---------- */
+if (!P.rezba) {
+  const p = {id: 'rezba', name: 'Резьба', stat: 'dex', mentor: 'charm', skills: [], fx: 'сам улучшаешь луки, самострелы, пращи, щиты, посохи и дубины и накладываешь на них свойства', lim: {}};
+  Object.keys(R.CLASSES).forEach(k => { p.lim[k] = ['lovchiy', 'volhv', 'tat', 'guslyar', 'zhrets'].includes(k) ? 4 : 2; });
+  C.PROF_LIST.push(p); P.rezba = p;
+}
+if (C.FOLK.charm && C.FOLK.charm.teach && !C.FOLK.charm.teach.includes('rezba')) C.FOLK.charm.teach.unshift('rezba');
+if (P.kuzn) P.kuzn.fx = 'сам улучшаешь оружие и доспехи в кузне; со 2-й ступени точит оружие отряда: +1 к урону (+2 у эксперта)';
+if (P.tkach) P.tkach.fx = 'сам улучшаешь стёганку, кожу, шапки, рукавицы и обувь и накладываешь на них свойства';
+
+/* ---------- новые материалы: заготовки для посохов, редкие металлы ювелира ---------- */
+const STAFFS = () => (DATA.enchant || []).filter(e => e.kind === 'посох');
+const staffLvl = e => +((/Уровень материала (\d)/.exec(e.notes || '') || [])[1] || 1);
+STAFFS().forEach(e => { const id = 'zag_' + e.id.replace(/^posoh_/, ''), L = staffLvl(e); if (DATA.items[id]) return;
+  DATA.items[id] = {id, _t: 'g', category: 'материалы', name: 'Заготовка для посоха: ' + e.name.replace(/^Посох:\s*/, '').toLowerCase(), price: [0, 3000, 6000, 12000, 25000][L] || 3000, weight_kg: 1.5,
+    notes: `Резчик сделает из неё посох: ${e.effect} Нужна «Резьба» не ниже ${['', 'обученного', 'профессионала', 'мастера', 'эксперта'][L]}.`}; e._zag = id; e._lvl = L; });
+const RARE = [['podzemnoe_serebro', 'Подземное серебро, 1 ед.', 3000, 'yuvelir_podzemnoe_serebro'], ['alatyr', 'Алатырь-камень', 8000, 'yuvelir_alatyr'], ['navya_ruda', 'Навья руда, 1 ед.', 5000, 'yuvelir_navya_ruda'], ['gromovaya_strela', 'Громовая стрела (камень Перуна)', 6000, 'yuvelir_gromovaya_strela']];
+RARE.forEach(([id, name, price]) => { if (!DATA.items[id]) DATA.items[id] = {id, _t: 'g', category: 'материалы', name, price, weight_kg: 0.3, notes: 'Редкость: из неё ювелир сделает кольцо или оберег.'}; });
+if (C.jewelOpts) { const jo0 = C.jewelOpts; C.jewelOpts = h => { const base = jo0(h);
+  RARE.forEach(([id, , , en]) => { const need = id === 'alatyr' || id === 'gromovaya_strela' ? 1 : 4; if (C.EN && C.EN[en] && h.inv.filter(x => x === id).length >= need && !base.some(o => o.id === en)) base.push({id: en, mat: id, n: need, extra: 0}); });
+  return base; }; }
+
+/* ---------- что нужно на ступень ---------- */
+const MAT = {
+  metal: {self: 'kuzn', props: 'kuzn_volsh', stat: 'str', names: ['', 'сталь', 'харалуг', 'булат'], role: 'forge', title: 'Кузня', learn: '«Кузнечное дело»'},
+  cloth: {self: 'tkach', props: 'tkach', stat: 'dex', names: ['', 'добротная', 'мастерская', 'дивная'], role: 'weave', title: 'Швейная', learn: '«Ткацкое дело»'},
+  wood: {self: 'rezba', props: 'rezba', stat: 'dex', names: ['', 'добротная', 'мастерская', 'дивная'], role: 'charm', title: 'Резная мастерская', learn: '«Резьбу»'},
+};
+C.CRAFT_RULES = MAT;
+const size = x => !x ? 1 : x._t === 'a' && x.slot === 'тело' ? 2 : (x.hands === 2 || /rostovoi|mindal|samostrel_tyazh|luk_dolgiy|luk_sostavnoy/.test(x.id)) ? 1.5 : 1;
+const GEM = [0, 0, 2000, 5000];
+C.matNeed = (id, mat, nb) => { const x = R.item(R.baseId ? R.baseId(id) : id), k = size(x);
+  if (mat === 'metal') return {ids: [C.MAT_ITEM[nb]], n: Math.round(2 * k * [0, 2, 3, 4][nb]), gem: GEM[nb]};
+  if (mat === 'cloth') return {ids: (C.CRAFT_MAT.cloth || {})[nb] || [], n: Math.round(k * [0, 2, 3, 4][nb]), gem: 0};
+  return {ids: (C.CRAFT_MAT.wood || {})[nb] || [], n: Math.round(k * [0, 4, 3, 3][nb]), gem: 0}; };
+const gemOf = (h, min) => min ? h.inv.find(x => { const it = R.item(x); return it && it.category === 'самоцветы' && (it.price || 0) >= min && !/koltso|grivna|obruch/.test(x); }) : null;
+C.matHave = (h, need) => { const c = {}; need.ids.forEach(i => { c[i] = h.inv.filter(x => x === i).length; }); const best = need.ids.find(i => c[i] >= need.n);
+  if (!best) return null; if (need.gem && !gemOf(h, need.gem)) return null; return {id: best, n: need.n, gem: need.gem ? gemOf(h, need.gem) : null}; };
+C.matText = need => `${need.ids.map(i => R.item(i) ? R.item(i).name.replace(/,\s*1 ед\.$/, '').toLowerCase() : i).join(' или ')} ×${need.n}${need.gem ? ` и самоцвет от ${R.priceText(need.gem)}` : ''}`;
+C.craftChance = (h, mat, nb) => { const M = MAT[mat], t = T(h, M.self), dc = [0, 14, 18, 22][nb]; return Math.round(Math.max(1, Math.min(19, 21 - (dc - R.mod(h.stats[M.stat]) - 2 * t))) * 5); };
+C.craftSelf = function (g, h, id, nb, mat) {
+  const M = MAT[mat], o = asMagic(id); if (o.unknown) return {err: 'сначала распознать'}; if (nb !== o.bonus + 1 || nb > 3) return {err: 'по одной ступени, не выше третьей'};
+  const t = T(h, M.self); if (!t) return {err: `Улучшать самому может тот, кто учился ${M.learn}.`};
+  if (nb > Math.min(3, t)) return {err: `${['', 'обученному', 'профессионалу', 'мастеру'][Math.min(3, t)]} — не выше +${Math.min(3, t)}`};
+  const need = C.matNeed(id, mat, nb), m = C.matHave(h, need); if (!m) return {err: `нужно: ${C.matText(need)}`};
+  C.pass(g, 4);
+  const r = R.d(20), tot = r + R.mod(h.stats[M.stat]) + 2 * t, dc = [0, 14, 18, 22][nb], ok = r === 20 || (r !== 1 && tot >= dc);
+  const lose = ok ? m.n : Math.ceil(m.n / 2); for (let i = 0; i < lose; i++) h.inv.splice(h.inv.indexOf(m.id), 1);
+  if (ok && m.gem) h.inv.splice(h.inv.indexOf(m.gem), 1);
+  let text;
+  if (ok) { const n = C.magicId(Object.assign({}, o, {bonus: nb})); C.reId(h, id, n); text = `${h.name}: работа удалась — ${R.item(n).name} (${tot} против ${dc}).`; }
+  else text = `${h.name}: не вышло (${tot} против ${dc}) — половина материала ушла в брак, вещь цела.`;
+  C.note(g, text); return {ok, text};
+};
+
+/* ---------- посох из своей заготовки ---------- */
+C.staffOpts = h => STAFFS().filter(e => e._zag).map(e => ({id: e.id, name: e.name.replace(/^Посох:\s*/, ''), effect: e.effect, comp: e._zag, have: h.inv.includes(e._zag), L: e._lvl, fee: 0}));
+C.staffMake = function (g, h, sid) {
+  const o = C.staffOpts(h).find(x => x.id === sid); if (!o) return {err: 'нет такого дерева'}; if (!o.have) return {err: 'нужна своя заготовка'};
+  if (T(h, 'rezba') < Math.min(4, o.L)) return {err: `нужна «Резьба» не ниже ${['', 'обученного', 'профессионала', 'мастера', 'эксперта'][Math.min(4, o.L)]}`};
+  const base = h.inv.find(x => R.baseId(x) === 'posoh' && !(asMagic(x).special)); if (!base) return {err: 'нужен простой посох'};
+  h.inv.splice(h.inv.indexOf(o.comp), 1);
+  const m = asMagic(base), n = C.magicId(Object.assign({}, m, {special: sid})); C.reId(h, base, n); C.pass(g, 4);
+  const text = `${h.name} вырезает в мастерской: ${R.item(n).name}.`; C.note(g, text); return {ok: true, text};
+};
+
+/* ---------- запас мастера: дорого и что есть ---------- */
+const POOL = {
+  forge: () => ['stal_1_ed', 'stal_1_ed', 'haralug_1_ed', 'haralug_1_ed', 'bulat_1_ed', 'zvezdnoe_zhelezo_1_ed', 'granat', 'lunnyy_kamen', 'agat', 'yantar'],
+  weave: () => ['tkan_prostaya_1_ed', 'tr_shkura_zverya', 'tr_volchya_shkura', 'tkan_bogataya_1_ed', 'tr_medvezhya_shkura', 'tr_zmeinaya_kozha', 'tkan_divnaya_pavoloka_1_ed', 'tr_cheshuya_zmeya'],
+  charm: () => ['derevo_1_ed', 'tr_kabanyi_klyki', 'tr_kogti_zverya', 'tr_perya', 'tr_volot_zub', 'tr_glaz_liha'].concat(STAFFS().filter(e => e._zag && e._lvl <= 3).map(e => e._zag)),
+  jewel: () => ['med', 'serebro', 'zoloto', 'bulat_1_ed', 'zvezdnoe_zhelezo_1_ed'].concat(RARE.map(r => r[0])).concat(['agat', 'yantar', 'granat', 'opal', 'nefrit', 'smaragd', 'rubin_yahont_chervlenyy']),
+};
+C.MASTER_MARKUP = 3;
+C.folkStock = function (g, role, at) {
+  if (!POOL[role]) return null; at = at || atKey(g); const per = Math.floor(g.day / 4), key = role + '@' + at;
+  g.folkStock = g.folkStock || {}; let s = g.folkStock[key];
+  if (!s || s.per !== per) { const pool = POOL[role]().filter(id => R.item(id)), seed = hash(g.camp + key + per), n = 3 + seed % 3, left = {};
+    for (let i = 0; i < n && pool.length; i++) { const pick = pool[hash(seed + ':' + i) % pool.length]; left[pick] = (left[pick] || 0) + 1 + hash(pick + per) % 3; }
+    s = g.folkStock[key] = {per, left}; }
+  return s;
+};
+C.stockPrice = id => Math.max(10, Math.round(((R.item(id) || {}).price || 10) * C.MASTER_MARKUP / 10) * 10);
+
+/* ---------- мастерская ---------- */
+const SC = {};
+SC.folk_craft = g => {
+  const role = g.folkRole, F = C.FOLK[role]; if (!F || !F.craft) return {title: 'Пусто', lines: [['n', 'Никого.']], choices: [{t: 'Дальше', go: 'map'}]};
+  const mat = F.craft, M = MAT[mat], p = C.folkPerson(g, role, atKey(g));
+  const hs = C.alive(g), st = g.craft || {}, h = hs.find(x => x.id === st.hero) || (hs.length === 1 ? hs[0] : null), it = h && st.item && h.inv.includes(st.item) ? st.item : null;
+  const lines = [['n', `${p.n} отходит от верстака: «Инструмент — мой, руки и материал — ваши. Работайте»`]]; if (g.folkLast) lines.push(['n', g.folkLast]);
+  const ch = [], back = {t: 'Назад', free: 1, do: g2 => { g2.craft = null; g2.folkLast = null; return 'folk'; }};
+  if (!h) { hs.forEach(x => ch.push({t: `${x.name}: его вещи`, own: x.id, do: g2 => { g2.craft = {hero: x.id}; return 'folk_craft'; }})); ch.push(back); return {title: M.title, bg: F.bg, art: F.art, lines, choices: ch}; }
+  const t = T(h, M.self);
+  if (!t) lines.push(['n', `${h.name} не учил${h.sex === 'f' ? 'ась' : 'ся'} этому ремеслу. Улучшать вещи здесь может лишь тот, кто знает ${M.learn}, — учиться можно у самого мастера.`]);
+  if (!it) {
+    const items = [...new Set(h.inv)].filter(id => { const x = R.item(id); return x && (x._t === 'w' || x._t === 'a') && C.matOf(id) === mat; });
+    if (t) { lines.push(['n', items.length ? `${h.name}: какую вещь взять в работу?` : `У ${h.name} нет вещей для этой мастерской.`]); items.forEach(id => ch.push({t: R.item(id).name, do: g2 => { g2.craft = {hero: h.id, item: id}; return 'folk_craft'; }})); }
+    if (mat === 'wood') { const plain = h.inv.find(x => R.baseId(x) === 'posoh' && !asMagic(x).special), opts = C.staffOpts(h).filter(o => o.have);
+      if (opts.length && plain) opts.forEach(o => ch.push({t: `Посох из дерева «${o.name}»: ${o.effect}`, if: () => T(h, 'rezba') >= Math.min(4, o.L), off: `нужна «Резьба» не ниже ${['', 'обученного', 'профессионала', 'мастера', 'эксперта'][Math.min(4, o.L)]}`,
+        do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const r = C.staffMake(g2, hh, o.id); g2.folkLast = r.err || r.text; return 'folk_craft'; }}));
+      else if (t) lines.push(['n', 'Посох с силой дерева режут из своей заготовки и простого посоха.']); }
+    if (hs.length > 1) ch.push({t: 'Другой герой', free: 1, do: g2 => { g2.craft = null; return 'folk_craft'; }}); ch.push(back);
+    return {title: M.title, bg: F.bg, art: F.art, lines, choices: ch, focus: hs.length > 1 ? h.id : null};
+  }
+  const o = asMagic(it), x = R.item(it);
+  lines.push(['n', `${x.name}. ${x.notes || ''}`]);
+  if (o.unknown) lines.push(['n', `${p.n} вертит вещь: «Тут что-то наложено. Сперва распознайте — потом работать»`]);
+  if (!o.unknown && o.bonus < 3 && t) { const nb = o.bonus + 1, need = C.matNeed(it, mat, nb), have = C.matHave(h, need), cap = Math.min(3, t);
+    ch.push({t: `Сделать: ${M.names[nb]} (+${nb}) — ${C.matText(need)}, удача ${C.craftChance(h, mat, nb)}%, сутки работы`, if: () => !!have && nb <= cap, off: nb > cap ? `${['', 'обученному', 'профессионалу', 'мастеру'][cap]} — не выше +${cap}` : `нужно: ${C.matText(need)}`,
+      do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const r = C.craftSelf(g2, hh, it, nb, mat); g2.folkLast = r.err || r.text; if (r.ok) g2.craft.item = null; return 'folk_craft'; }}); }
+  const tp = T(h, M.props);
+  if (!o.unknown && tp && C.propsFor && C.forgeProp) C.propsFor(it).forEach(pid => {
+    const e = (DATA.enchant || []).find(z => z.id === pid); if (!e) return;
+    (pid === 'dop_uron' ? (C.DOP_ELEMS || []) : [null]).forEach(el => {
+      const full = el ? 'dop_uron_' + el : pid, cur = o.props.find(q => q.id === full), lvl = cur ? cur.lvl + 1 : 1, dc = (e.dc_by_level || [e.dc])[lvl - 1];
+      if (!dc || dc > 30 || lvl > tp + 1 || (!cur && o.props.length >= 2)) return;
+      const c = C.propComp(pid, el); if (!c.id || !R.item(c.id)) return; const n = c.n * lvl, have = h.inv.filter(y => y === c.id).length, rec = (g.recipes || []).includes(pid), gmin = lvl >= 3 ? 5000 : lvl >= 2 ? 2000 : 0;
+      ch.push({t: `Наложить «${C.propName({id: full, lvl})}»: ${R.item(c.id).name.toLowerCase()} ×${n} (есть ${have})${gmin ? ` и самоцвет от ${R.priceText(gmin)}` : ''}${rec ? '' : ', рецепт 100 зм'}`, if: g2 => have >= n && (!gmin || !!gemOf(h, gmin)) && (rec || g2.purse >= 10000), off: have < n ? `нужно: ${R.item(c.id).name.toLowerCase()} ×${n}` : gmin && !gemOf(h, gmin) ? `нужен самоцвет от ${R.priceText(gmin)}` : 'рецепт стоит 100 зм',
+        do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const kz = hh.prof && hh.prof.kuzn_volsh; hh.prof = hh.prof || {}; hh.prof.kuzn_volsh = Math.max(kz || 0, tp); const r = C.forgeProp(g2, hh, it, pid, el); hh.prof.kuzn_volsh = kz || 0; if (!kz) delete hh.prof.kuzn_volsh; g2.folkLast = r.err || r.text; if (r.ok) g2.craft.item = null; return 'folk_craft'; }}); }); });
+  ch.push({t: 'Другая вещь', do: g2 => { g2.craft = {hero: h.id}; return 'folk_craft'; }}, back);
+  return {title: M.title, bg: F.bg, art: F.art, lines, choices: ch, focus: hs.length > 1 ? h.id : null};
+};
+/* купить у мастера */
+SC.folk_mats = g => {
+  const role = g.folkRole, F = C.FOLK[role], s = F ? C.folkStock(g, role) : null; if (!s) return {title: 'Пусто', lines: [['n', 'Никого.']], choices: [{t: 'Назад', go: 'folk'}]};
+  const p = C.folkPerson(g, role, atKey(g)), hs = C.alive(g), ids = Object.keys(s.left).filter(id => s.left[id] > 0 && R.item(id));
+  const lines = [['n', `${p.n} отворяет ларь: «Это — для своих работ берегу. Отдам, но не по лавочной цене. Что есть — то есть, завтра может не быть»`]]; if (g.folkLast) lines.push(['n', g.folkLast]);
+  const ch = ids.map(id => { const pr = C.stockPrice(id); return {t: `${R.item(id).name} — ${R.priceText(pr)} (есть ${s.left[id]})`, if: g2 => g2.purse >= pr, off: 'не хватает серебра',
+    do: g2 => { const ss = C.folkStock(g2, role); if (!ss.left[id] || g2.purse < pr) return 'folk_mats'; ss.left[id]--; g2.purse -= pr; const to = C.recipient ? C.recipient(g2, id) : C.alive(g2)[0]; (to || C.alive(g2)[0]).inv.push(id); g2.folkLast = `Куплено: ${R.item(id).name.toLowerCase()}.`; return 'folk_mats'; }}; });
+  if (!ids.length) lines.push(['n', 'Ларь пуст. Загляните через несколько дней.']);
+  ch.push({t: 'Назад', free: 1, do: g2 => { g2.folkLast = null; return 'folk'; }});
+  return {title: `${p.n}: материал`, bg: F.bg, art: F.art, lines, choices: ch};
+};
+const putScenes = camp => Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; });
+Object.values(C.CAMPS).forEach(putScenes);
+const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); putScenes(camp); return r; };
+/* в разговоре с мастером: «Купить материал»; мастерская — только улучшать самому */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  if (id !== 'folk' || !sc || !g.folkRole || !POOL[g.folkRole]) return sc;
+  const i = sc.choices.findIndex(c => /^(Назад|Уйти)/.test(c.label || c.t || '')), nextI = sc.choices.length ? Math.max(...sc.choices.map(c => c.i)) + 1 : 0;
+  const buy = {i: nextI, t: 'Купить материал — дорого, что есть', label: 'Купить материал — дорого, что есть', do: g2 => { g2.folkLast = null; return 'folk_mats'; }};
+  sc.choices.splice(i >= 0 ? i : sc.choices.length, 0, buy);
+  sc.choices.forEach(c => { if (/^(Перековать|Улучшить стёганку|Посох, лук, щит)/.test(c.label || '')) c.label = c.t = 'Мастерская: улучшить вещь самому'; });
+  return sc; };
+
+/* ---------- дела мастеров-ремесленников: плата и материалом ---------- */
+const CRAFT_ROLES = ['forge', 'weave', 'charm', 'jewel'];
+const matFor = (g, role) => { const tier = Q.tier ? Q.tier(g) : 1, nb = Math.min(3, tier), pool = role === 'forge' ? [C.MAT_ITEM[nb]] : role === 'weave' ? C.CRAFT_MAT.cloth[nb] : role === 'charm' ? C.CRAFT_MAT.wood[nb] : RARE.map(r => r[0]);
+  const id = pool[hash(g.day + role) % pool.length]; return R.item(id) ? {id, n: role === 'jewel' ? 2 : [0, 4, 3, 2][nb]} : null; };
+const mj0 = C.folkMakeJob;
+C.folkMakeJob = function (g, role) { const j = mj0.apply(this, arguments); if (!j || !CRAFT_ROLES.includes(role) || j.matReward) return j;
+  const m = matFor(g, role); if (m) { j.matReward = m; j.pay = Math.round((j.pay || 0) * 0.6 / 10) * 10; } return j; };
+const ol0 = Q.offerLines;
+Q.offerLines = function (g, j) { const L = ol0.apply(this, arguments); if (j && j.matReward && R.item(j.matReward.id)) L.push([j.v.giver.n, `«И сверху — из моего запаса: ${R.item(j.matReward.id).name.replace(/,\s*1 ед\.$/, '').toLowerCase()} ×${j.matReward.n}»`]); return L; };
+const gift0 = Q.gift;
+Q.gift = function (g, j, GV, ex) { gift0.apply(this, arguments); if (!j || !j.matReward || j.matGiven) return; j.matGiven = 1;
+  const h = C.recipient ? C.recipient(g, j.matReward.id) : C.alive(g)[0]; if (!h) return; for (let i = 0; i < j.matReward.n; i++) h.inv.push(j.matReward.id);
+  C.note(g, `${j.v.giver.n} отдаёт из запаса: ${R.item(j.matReward.id).name.replace(/,\s*1 ед\.$/, '').toLowerCase()} ×${j.matReward.n}.`); };
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* songs.js */
 /* Колдовство — слова песен гусляра. Пока звучит напев, над гусляром всплывают строки — по порядку, куплет за куплетом.
    Всё своё, сложено для игры. Строки не длиннее 34 знаков, иначе облачко обрежет. Без DOM. */
