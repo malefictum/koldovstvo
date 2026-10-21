@@ -1605,8 +1605,10 @@ B.morale = function (S, dead) {
 B.endTurn = function (S) { if (!B.checkEnd(S)) B.next(S); };
 B.checkEnd = function (S) {
   if (S.over) return true;
-  const foes = S.units.filter(u => u.side === 'foe' && B.active(u) && !u.conds.charm);
-  const party = S.units.filter(u => u.side === 'party' && B.active(u));
+  // захваченный разумом считается за свою исходную сторону, пока захват не кончится (иначе одно заклинание выигрывает бой)
+  const sideOf = u => u.enthralled && !u.enthralled.own ? u.enthralled.side0 : u.side;
+  const foes = S.units.filter(u => sideOf(u) === 'foe' && B.active(u) && !u.conds.charm);
+  const party = S.units.filter(u => sideOf(u) === 'party' && B.active(u));
   if (!foes.length) { S.over = 'win'; B.log(S, 'Победа.', 'win'); return true; }
   if (!party.length) { S.over = 'loss'; B.log(S, 'Отряд пал.', 'loss'); return true; }
   if (S.round > 40) { S.over = 'loss'; B.log(S, 'Бой затянулся, враги отходят, отряд отступает.', 'loss'); return true; }
@@ -1944,7 +1946,12 @@ B.ai = function (S, u) {
         if (t && S.round <= 3) { const v = 4 + s.circle * 3; if (v > bestV) { bestV = v; best = [s, t]; } }
       }
     }
-    if (best && (bestV >= 3 || u.kind === 'monster')) { S_.cast(S, u, best[0], best[1]); return; }
+    if (best && (bestV >= 3 || u.kind === 'monster')) {
+      // колдун в отряде, к которому подошли вплотную: иногда сперва отходит на шаг-другой и бьёт чарами издали
+      if (u.kind !== 'monster' && S.moved === 0 && en.some(e => B.dist(u, e) === 1) && R.rand() < 0.5 && S_.targetMode(best[0]) === 'enemy') {
+        const away = B.stepAway(S, u, en); if (away && B.dist(away, best[1]) <= Math.max(1, S_.range(best[0]))) B.move(S, u, away.c, away.r);
+        if (!B.active(u)) return; }
+      S_.cast(S, u, best[0], best[1]); return; }
   }
   if (u.rage > 0 && !u.conds.raging && en.some(e => B.dist(u, e) <= u.steps)) B.rageOn(S, u);
   // 3. стрельба
@@ -1977,6 +1984,8 @@ B.ai = function (S, u) {
       const near = en.sort((a, b) => B.dist(u, a) - B.dist(u, b))[0];
       B.goNear(S, u, near);
       t = en.find(e => B.dist(u, e) === 1);
+      // не дотянуться — рывок: действие уходит на бег, зато враг рядом к следующему ходу
+      if (!t && !S.acted && B.active(u) && !u.conds.held && !u.conds.slow && !holding) { B.dash(S, u); B.goNear(S, u, near); return; }
     }
   }
   if (t && B.active(u) && B.dist(u, t) === 1) { B.attack(S, u, t, false); S.acted = true; }
@@ -3232,6 +3241,15 @@ Q.decl = function (name, sex) {
   else if (/[бвгдзклмнпрстфхжшчщц]$/.test(name)) set(name, 'а', 'у', 'а', HUSH.test(name) ? 'ем' : 'ом', 'е');
   return f;
 };
+/* имя из нескольких слов — склоняем каждое: прозвище-прилагательное по-своему (Ратибор Смелый → Ратибора Смелого) */
+{ const one = Q.decl, adj = (w, sex) => { const f = {n: w, g: w, d: w, a: w, i: w, p: w}, st = w.slice(0, -2), set = (g, d, a, i, p) => Object.assign(f, {g: st + g, d: st + d, a: st + a, i: st + i, p: st + p});
+    if (sex === 'f' && /ая$/.test(w)) set('ой', 'ой', 'ую', 'ой', 'ой'); else if (sex === 'f' && /яя$/.test(w)) set('ей', 'ей', 'юю', 'ей', 'ей');
+    else if (sex !== 'f' && /[ыо]й$/.test(w)) set(/[гкхжшчщ]/.test(st.slice(-1)) ? 'ого' : 'ого', 'ому', 'ого', /[гкх]/.test(st.slice(-1)) ? 'им' : 'ым', 'ом');
+    else if (sex !== 'f' && /ий$/.test(w) && /[гкхжшчщн]$/.test(st)) { const soft = /н$/.test(st); set(soft ? 'его' : (/[жшчщ]$/.test(st) ? 'его' : 'ого'), soft || /[жшчщ]$/.test(st) ? 'ему' : 'ому', soft || /[жшчщ]$/.test(st) ? 'его' : 'ого', 'им', soft || /[жшчщ]$/.test(st) ? 'ем' : 'ом'); }
+    else return null; return f; };
+  Q.decl = function (name, sex) { const ws = String(name || '').split(' '); if (ws.length < 2) return one(name, sex);
+    const parts = ws.map((w, i) => (i > 0 && adj(w, sex)) || (/^[А-ЯЁ]/.test(w) && !/^(из|с|у|от)$/i.test(w) ? one(w, sex) : {n: w, g: w, d: w, a: w, i: w, p: w}));
+    const f = {}; ['n', 'g', 'd', 'a', 'i', 'p'].forEach(k => { f[k] = parts.map(x => x[k]).join(' '); }); return f; }; }
 const NAMES = {
   nolgrim: {m: ['Ратибор', 'Добрыня', 'Всеслав', 'Твердята', 'Милонег', 'Горазд', 'Будимир', 'Ждан', 'Остромир', 'Любомир', 'Неждан', 'Вышата', 'Путята', 'Креслав', 'Светозар', 'Хотен', 'Радим', 'Житомир', 'Борислав', 'Чурила'],
     f: ['Милава', 'Забава', 'Велимира', 'Любава', 'Ждана', 'Голуба', 'Радмила', 'Добромила', 'Влада', 'Малуша', 'Предслава', 'Желана', 'Купава', 'Звенислава', 'Богдана']},
@@ -23161,7 +23179,7 @@ if (C.escortRegister) C.escortRegister(camp);
 
 /* raise.js */
 /* Колдовство — возвращение павших из Нави (общий стол). Без DOM.
-   Два пути. Храм Ока или волхвы на капище: срок 7 дней (отпетого), встаёт с 10 хитами, 10 зм за уровень.
+   Два пути. Храм Ока или волхвы на капище: срок 7 дней (отпетого), встаёт с 10 хитами, 50 зм.
    Некромант: где-то в глуши, искать по слухам в корчме; срок 3 дня, сутки обряда, встаёт с полными хитами,
    но Око это запоминает, а край шепчется, что отряд водится с навью. Телосложение −1 навсегда в обоих случаях. */
 (function (G) {
@@ -23170,7 +23188,7 @@ const R = G.R, C = G.C, W = G.W;
 
 C.RAISE_KINDS = ['город', 'храм', 'капище'];
 C.RAISE_DAYS = 7; C.NECRO_DAYS = 3;
-C.raisePrice = b => 1000 * Math.max(1, b.hero.level);
+C.raisePrice = b => 5000; // храм или капище: 50 зм за любого
 C.necroPrice = b => 1000 * Math.max(1, b.hero.level);
 C.necroOk = (g, b) => g.day - b.day <= C.NECRO_DAYS;
 /* вернуть героя в мир: интерфейс стола решает, сесть ли ему за стол или уйти в список героев владельца */
@@ -23567,7 +23585,7 @@ C.hireRoad = function (g, m) {
   if (g.purse < m.price || g.mercs.length >= 2) return false;
   g.purse -= m.price;
   const h = R.newHero(Object.assign({id: 'merc_' + m.id, name: m.name, portrait: m.portrait, level: m.level}, m.hero));
-  h.kind = 'merc'; h.mercId = m.id; h.road = true; g.mercs.push(h);
+  h.kind = 'merc'; h.mercId = m.id; h.road = true; h.wageDay = g.day; g.mercs.push(h);
   const b = g.hireBoard && g.hireBoard[g.loc]; if (b) b.offers = b.offers.filter(x => x.id !== m.id);
   C.note(g, `${m.name} (${R.CLASSES[m.hero.cls].name.toLowerCase()}, ${m.level}-й ур.) нанят${m.sex === 'f' ? 'а' : ''} в корчме и идёт с отрядом.`);
   return true;
@@ -23953,7 +23971,7 @@ const R = G.R, C = G.C, B = G.B, W = G.W;
 const P = {}; C.PROF_LIST.forEach(p => { P[p.id] = p; }); C.PROF = P;
 C.TIER_NAME = ['', 'обучен', 'профессионал', 'мастер', 'эксперт'];
 C.TIER_COST = [0, 1, 2, 4, 8]; C.TIER_STAT = [0, 10, 12, 14, 16];
-C.TIER_FEE = [0, 300, 1200, 2700, 4800]; C.TIER_DAYS = [0, 0.5, 1, 3, 6];
+C.TIER_FEE = [0, 300, 3000, 10000, 25000]; C.TIER_DAYS = [0, 0.5, 1, 3, 6];
 C.STAT_RU = {str: 'Сила', dex: 'Ловкость', con: 'Телосложение', wis: 'Мудрость', int: 'Интеллект', cha: 'Очарование'};
 const T = (h, id) => (h && h.prof && h.prof[id]) || 0;
 C.profTier = T;
@@ -24333,8 +24351,10 @@ SC.perform = g => {
     const hh = C.alive(g2).find(x => x.id === h.id); g2.perfDay = g2.day + ':' + g2.loc;
     const r = R.d(20), tot = r + R.mod(hh.stats.cha) + PERF(hh), ok = r !== 1 && tot >= 12;
     const L = hh.level || 1, bard = hh.cls === 'guslyar' ? 1 : 0.5, fame = 1 + Math.min(0.5, (g2.fame || 0) * 0.05);
-    const pay = ok ? Math.round((300 + 150 * L) * w * crowd * bard * fame * (C.toolHas && C.toolHas(hh, 'pir') ? 1.5 : 1) * (1 + (tot - 12) / 10) / 10) * 10 : 0; if (ok && C.toolHas && C.toolHas(hh, 'pir')) g2.fame = (g2.fame || 0) + 0.2; g2.purse += pay; C.pass(g2, 1);
-    let txt = ok ? `${hh.name} играет до хрипоты — гости бросают монеты: ${R.priceText(pay)}.` : `${hh.name} сбивается, гости отворачиваются к кружкам. Не сегодня.`;
+    /* плата — серебром: по к20 за каждый уровень, плюс Очарование, искусство и сами гусли; богатый край и вечерняя толпа кидают щедрее */
+    let dice = 0; for (let k = 0; k < L; k++) dice += R.d(20);
+    const pay = ok ? Math.max(1, Math.round((dice + R.mod(hh.stats.cha) + PERF(hh)) * w * crowd * fame * (C.toolHas && C.toolHas(hh, 'pir') ? 1.5 : 1))) * 10 : 0; if (ok && C.toolHas && C.toolHas(hh, 'pir')) g2.fame = (g2.fame || 0) + 0.2; g2.purse += pay; C.pass(g2, 1);
+    let txt = ok ? `${hh.name} играет до хрипоты — гости бросают серебро: ${R.priceText(pay)}.` : `${hh.name} сбивается, гости отворачиваются к кружкам. Не сегодня.`;
     if (ok && C.spiritAdd) C.spiritAdd(g2, 1, 'песни в корчме');
     if (ok && tot >= 15 && C.folkRumor) { const n = C.folkRumor(g2); if (n) txt += ' ' + n.replace(/^Гусляр/, 'За кружкой гость'); }
     g2.perfLast = txt; C.note(g2, txt); return 'perform'; }});
@@ -25086,7 +25106,7 @@ C.jewelMake = function (g, h, mat, form) {
   g.purse -= fee; for (let i = 0; i < o.n; i++) h.inv.splice(h.inv.indexOf(o.mat), 1);
   const base = form === 'neck' ? 'tr_obereg' : (mat === 'yuvelir_zoloto' ? 'koltso_zolotoe' : 'tr_serebryanoe_koltso');
   const id = C.magicId({base, bonus: 0, props: [], special: mat, curse: ''}); h.inv.push(id); C.pass(g, 2);
-  const text = `Ювелир отдаёт ${h.name}: ${R.item(id).name}.`; C.note(g, text); return {ok: true, text, fee};
+  const text = `Ювелир отдаёт ${C.Q.decl(h.name, h.sex).d}: ${R.item(id).name}.`; C.note(g, text); return {ok: true, text, fee};
 };
 /* ---------- лавка: мастерская работа, зелья, травы и материалы ---------- */
 C.shopExtra = function (g, city) {
@@ -25541,7 +25561,7 @@ C.staffMake = function (g, h, sid) {
   if (g.purse < o.fee) return {err: 'не хватает серебра'};
   g.purse -= o.fee; if (o.have) h.inv.splice(h.inv.indexOf(o.comp), 1);
   const m = asMagic(base), n = C.magicId(Object.assign({}, m, {special: sid})); C.reId(h, base, n); C.pass(g, 4);
-  const text = `Зачарователь отдаёт ${h.name}: ${R.item(n).name}.`; C.note(g, text); return {ok: true, text};
+  const text = `Зачарователь отдаёт ${C.Q.decl(h.name, h.sex).d}: ${R.item(n).name}.`; C.note(g, text); return {ok: true, text};
 };
 
 /* ---------- сцены ---------- */
@@ -25616,7 +25636,7 @@ SC.folk_craft = g => {
   if (!h) { hs.forEach(x => ch.push({t: `${x.name}: его вещи`, own: x.id, do: g2 => { g2.craft = {hero: x.id}; return 'folk_craft'; }})); ch.push(back); return {title: M.title, bg: F.bg, art: F.art, lines, choices: ch}; }
   if (!it) {
     const items = craftItems(h, mat);
-    lines.push(['n', items.length ? `${h.name}: что отдать мастеру?` : `У ${h.name} нет вещей для этой мастерской.`]);
+    lines.push(['n', items.length ? `${h.name}: что отдать мастеру?` : `У ${C.Q.decl(h.name, h.sex).g} нет вещей для этой мастерской.`]);
     items.forEach(id => ch.push({t: R.item(id).name, do: g2 => { g2.craft = {hero: h.id, item: id}; return 'folk_craft'; }}));
     if (mat === 'wood') { const plain = h.inv.find(x => R.baseId(x) === 'posoh' && !asMagic(x).special);
       if (plain) C.staffOpts(h).forEach(o => ch.push({t: `Посох из дерева «${o.name}»: ${o.effect} — ${R.priceText(o.fee)}${o.have ? ', заготовка своя' : ''}`, if: g2 => g2.purse >= o.fee, off: 'не хватает серебра',
@@ -25851,8 +25871,9 @@ S_.cast = function (S, u, s, target) {
 };
 /* лечебные «снять чары» — только своих */
 const cureIds = ['holy_snyat_proklyatie', 'holy_ochischenie', 'druid_snyatie_yada', 'druid_izlechenie'];
-cureIds.forEach(id => { FX[id] = (S, u, s, t) => { const c = t || u; const xs = id === 'holy_snyat_proklyatie' ? allies(S, u, c, 3) : [c].filter(x => x.side === u.side);
-  let k = 0; xs.forEach(x => { k += cure(x); if (x.down && !x.dead) x.stable = true; }); say(S, k ? `Чары и яд сняты (${k}): ${xs.map(x => x.name).join(', ')}.` : 'Снимать нечего — на своих нет ни чар, ни яда.', 'heal'); }; });
+cureIds.forEach(id => { FX[id] = (S, u, s, t) => { const c = t || u; const mine = x => x.enthralled && x.enthralled.side0 === u.side && !x.enthralled.own; /* свой, подчинённый чужой волей, — тоже свой */
+  const xs = (id === 'holy_snyat_proklyatie' ? allies(S, u, c, 3).concat(S.units.filter(x => mine(x) && !x.dead && B.dist(x, c) <= 3)) : [c].filter(x => x.side === u.side || mine(x))).filter((x, i, a) => a.indexOf(x) === i);
+  let k = 0; xs.forEach(x => { if (mine(x) && B.unthrall) { B.unthrall(S, x, 'стряхивает чужую волю'); k++; } k += cure(x); if (x.down && !x.dead) x.stable = true; }); say(S, k ? `Чары и яд сняты (${k}): ${xs.map(x => x.name).join(', ')}.` : 'Снимать нечего — на своих нет ни чар, ни яда.', 'heal'); }; });
 
 /* ---------- атака, спасброски, урон ---------- */
 const am0 = B.atkMod;
@@ -27185,18 +27206,18 @@ if (C.register) { const reg0 = C.register; C.register = function (camp) { const 
 const sx0 = C.shopExtra;
 C.shopExtra = (g, city) => [...new Set((sx0 ? sx0(g, city) : []).concat(Object.keys(C.RAW)).concat(['solonina_funt']).concat(city ? Object.keys(C.RECIPES).filter(k => !C.RECIPES[k].base).map(k => 'rcp_' + k) : []))];
 })(typeof window !== 'undefined' ? window : globalThis);
-/* ---------- порча: свежее мясо, рыба, грибы, стряпня — за несколько дней; харч, сыр, солёная рыба, зерно, мука, репа, орехи — не портятся.
+/* ---------- порча: свежее мясо, рыба, грибы, стряпня — за несколько дней; харч, солёная рыба, зерно, мука, репа, орехи — не портятся.
    Срок у каждой штуки свой: куплено/добыто сегодня — испортится через N дней. Учёт ленивый: раз в сутки сверяем суму. */
 (function (G) {
 'use strict';
 const C = G.C;
 /* сырьё для готовки: овощи, грибы, масло, зерно, мука — не портятся; сырое мясо и свежая рыба — дольше, чтобы был смысл покупать впрок */
 C.SPOIL = {myaso_1_funt: 12, myaso_na_odnogo: 12, ryba_svezhaya_1_funt: 8,
-  hleb_karavay: 10, eda_na_den_skudnaya: 6, eda_na_den_obychnaya: 6, eda_na_den_horoshaya: 6, prostoe_blyudo: 5, pohlebka: 5, sytnoe_blyudo: 5, otmennoe_blyudo: 5, lesnoy_pripas: 6};
+  hleb_karavay: 10, syr_golovka: 30, eda_na_den_skudnaya: 6, eda_na_den_obychnaya: 6, eda_na_den_horoshaya: 6, prostoe_blyudo: 5, pohlebka: 5, sytnoe_blyudo: 5, otmennoe_blyudo: 5, lesnoy_pripas: 6};
 Object.keys(C.RECIPES || {}).forEach(k => { const r = C.RECIPES[k]; if (/^dish_/.test(r.item) && !r.keep) C.SPOIL[r.item] = 5; if (r.keep) C.SPOIL[r.item] = 12; });
 Object.keys(C.RAW).forEach(id => { const x = DATA.items[id]; if (!x || C.SPOIL[id]) return; x.notes = (x.notes || '').replace(/\s*Портится[^.]*\./, ''); if (!/не портится/i.test(x.notes)) x.notes = (x.notes + ' Не портится.').trim(); x.notes = x.notes.replace(/(не портится\.)\s*Не портится\./, '$1'); });
 Object.entries(C.SPOIL).forEach(([id, d]) => { const x = DATA.items[id]; if (x) x.notes = (x.notes || '').replace(/\s*Портится[^.]*\./, '') + ` Портится за ${d} ${d === 1 ? 'день' : d < 5 ? 'дня' : 'дней'}.`; });
-['harch_v_dorogu_na_den_suhari_vyalenoe_myaso', 'solonina_funt', 'ryba_solenaya_funt', 'sol_1_funt', 'syr_golovka', 'ryba_solenaya_10_kg', 'zerno_1_funt', 'muka_1_funt', 'repa_1_funt', 'orehi_1_funt'].forEach(id => { const x = DATA.items[id]; if (x && !/не портится/i.test(x.notes || '')) x.notes = (x.notes || '') + ' Не портится.'; });
+['harch_v_dorogu_na_den_suhari_vyalenoe_myaso', 'solonina_funt', 'ryba_solenaya_funt', 'sol_1_funt', 'ryba_solenaya_10_kg', 'zerno_1_funt', 'muka_1_funt', 'repa_1_funt', 'orehi_1_funt'].forEach(id => { const x = DATA.items[id]; if (x && !/не портится/i.test(x.notes || '')) x.notes = (x.notes || '') + ' Не портится.'; });
 C.spoilSync = function (g, h, day) {
   h.spoil = h.spoil || {};
   Object.keys(C.SPOIL).forEach(id => {
@@ -27558,7 +27579,7 @@ B.enthrall = function (S, u, t, n) {
 };
 B.unthrall = function (S, t, why) {
   if (!t.enthralled) return; t.side = t.enthralled.side0; t.ai = t.enthralled.ai0; delete t.enthralled;
-  if (!t.dead && !t.gone) B.log(S, `${t.name} ${why || 'сбрасывает чужую волю'} — снова враг.`, 'bad');
+  if (!t.dead && !t.gone) B.log(S, `${t.name} ${why || 'сбрасывает чужую волю'} — ${t.side === 'party' ? 'снова с отрядом' : 'снова враг'}.`, t.side === 'party' ? 'good' : 'bad');
 };
 const st0 = B.startTurn;
 B.startTurn = function (S, u) {
@@ -28751,14 +28772,14 @@ const SC = {};
 SC.rogue_pick = g => {
   const h = thief(g), n = nodeOf(g), lines = [['n', 'Торг и корчма: толкотня, локти, кошели на поясах.']]; if (g.rogueLast) lines.push(['n', g.rogueLast]);
   const ch = [];
-  if (h && g.pickDay !== g.day + ':' + g.loc + ':' + g.time) ch.push({t: `${h.name}: пошарить по карманам (Ловкость рук)`, do: g2 => {
-    const hh = C.alive(g2).find(x => x.id === h.id); g2.pickDay = g2.day + ':' + g2.loc + ':' + g2.time;
+  if (h && g.pickDay !== g.day + ':' + g.loc) ch.push({t: `${h.name}: пошарить по карманам (Ловкость рук)`, do: g2 => {
+    const hh = C.alive(g2).find(x => x.id === h.id); g2.pickDay = g2.day + ':' + g2.loc;
     const w = WEALTH[n.kind] || 1, cr = CROWD[g2.time || 0] || 1, L = hh.level || 1, dc = 12 + (n.kind === 'город' ? 2 : 0) + Math.floor(L / 3), r = R.d(20), tot = r + sk(hh) + (cr >= 1 ? 1 : -2);
-    if (r === 20 || (r !== 1 && tot >= dc)) { const m = Math.round((80 + 50 * L) * w * cr * (1 + (tot - dc) / 10) / 10) * 10; g2.purse += m; g2.rogueLast = `${hh.name} возвращается, насвистывая: ${R.priceText(m)} чужого серебра.`; }
+    if (r === 20 || (r !== 1 && tot >= dc)) { let dd = 0; for (let k = 0; k < L; k++) dd += R.d(12); const m = Math.max(1, Math.round((dd + sk(hh)) * w * cr)) * 10; /* серебром: по к12 за уровень */ g2.purse += m; g2.rogueLast = `${hh.name} возвращается, насвистывая: ${R.priceText(m)} чужого серебра.`; }
     else if (tot >= dc - 4) g2.rogueLast = `${hh.name} тянется к кошелю — хозяин оборачивается. Обошлось, но пусто.`;
     else g2.rogueLast = caught(g2, hh, 1, `«Держи вора!» — ${hh.name} пойман за руку.`);
     C.pass(g2, 1); C.note(g2, g2.rogueLast); return 'rogue_pick'; }});
-  else if (h) lines.push(['n', 'Здесь сейчас уже шарили — люди держатся за кошели.']);
+  else if (h) lines.push(['n', 'Здесь сегодня уже шарили — люди держатся за кошели.']);
   ch.push({t: 'Уйти', do: g2 => { g2.rogueLast = null; return nodeScene(g2); }});
   return {title: 'На торгу', bg: 'tavern', art: 'tavern', lines, choices: ch};
 };
@@ -30210,11 +30231,12 @@ const EV = {
   deed: {all: 0.25, chestny: 0.5},
   quarrel: {all: -0.25},
   refuse: {all: -1}, late: {all: -2},
+  unpaid: {all: -0.5, zhadny: -1, chestny: -0.25, lihoy: -0.5},
 };
 const WHY = {win: 'победа', bigwin: 'славная победа', down: 'изранен[|а] в бою по вашей милости', loss: 'бой проигран', fled: 'бегство с поля',
   hunger: 'живот подвело', feast: 'сытный ужин, тёплый угол', heal: 'раны [его|её] перевязали', gift: 'щедрая плата', theft: 'кража на торгу',
   caught: 'вора поймали за руку', contract: 'заказ тихих людей', oko: 'дело для Ока', kap: 'дело для капища', deed: 'дело сделано',
-  quarrel: 'ссора у костра', refuse: 'отказали в [его|её] просьбе', late: 'обещали помочь — и не помогли'};
+  quarrel: 'ссора у костра', refuse: 'отказали в [его|её] просьбе', late: 'обещали помочь — и не помогли', unpaid: 'плату за неделю так и не отдали'};
 
 /* ---------- привязанность ---------- */
 C.compAdd = function (g, h, d, why) {
@@ -30402,6 +30424,7 @@ C.bondText = function (h) {
   let t = `Нрав: ${h.sex === 'f' ? N.f : N.n} — ${N.d}. К вам: ${h.loyal ? sx(h, 'вер[ен|на] отряду — служит не за серебро, а за дружбу') : sx(h, C.BOND_RU[h.bond])}.`;
   if (h.ask && !h.ask.job && !h.askDone) t += sx(h, ' Есть у [него|неё] к вам своя просьба.');
   else if (h.ask && h.ask.job && !h.loyal) t += sx(h, ' Ждёт, что вы поможете [ему|ей] с [его|её] делом.');
+  if (!h.loyal) t += ` Жалованье — ${R.priceText(C.wageOf(h))} в неделю.`;
   return t;
 };
 
@@ -30428,7 +30451,17 @@ C.battleEnd = function (g, S, spec) {
 };
 /* сутки: голод */
 if (C.dailyMeal) { const dm0 = C.dailyMeal; C.dailyMeal = function (g) { const r = dm0.apply(this, arguments);
-  if (g && g.heroes && !C.FOOD_OFF) { const hungry = ensure(g).filter(h => (h.hunger || 0) > 0); if (hungry.length) C.compEvent(g, 'hunger', hungry); } return r; }; }
+  if (g && g.heroes && !C.FOOD_OFF) { const hungry = ensure(g).filter(h => (h.hunger || 0) > 0); if (hungry.length) C.compEvent(g, 'hunger', hungry); }
+  if (g && g.heroes) C.wageTick(g); return r; }; }
+/* жалованье: раз в неделю наёмник просит плату; не заплатили — ворчит, а там и уйдёт. Верному — не нужно */
+C.wageOf = h => Math.round((100 + 60 * (h.level || 1)) / 10) * 10;
+C.wageDue = (g, h) => !h.loyal && h.wageDay != null && g.day - h.wageDay >= 7;
+C.wageTick = function (g) { ensure(g).forEach(h => { if (h.loyal) return; if (h.wageDay == null) { h.wageDay = g.day; return; }
+  const late = g.day - h.wageDay - 7; if (late < 0) return;
+  if (late === 0) C.note(g, `${h.name}: «${C.compSay(g, h, h.nrav === 'zhadny' ? 'Неделя прошла, {a}. Серебро — вперёд, разговоры — потом.' : 'Неделя минула, {a}. Уговор помните — плата за службу.')}» Жалованье: ${R.priceText(C.wageOf(h))}.`);
+  else if (late >= 2) C.compEvent(g, 'unpaid', [h]); }); };
+C.payWage = function (g, h) { const cost = C.wageOf(h); if (!C.wageDue(g, h) || g.purse < cost) return false; g.purse -= cost; h.wageDay = g.day;
+  C.note(g, `${h.name} пересчитывает серебро и кивает: «${C.compSay(g, h, 'Уговор есть уговор.')}» Ещё неделя службы.`); return true; };
 /* ночлег под крышей: ужин и разговоры за столом */
 if (C.lodge) { const lodge0 = C.lodge; C.lodge = function (g, perHead) { const cost = perHead * (C.alive(g).length + mercs(g).length), paid = g.purse >= cost;
   const r = lodge0.apply(this, arguments); if (mercs(g).length) { if (paid) C.compEvent(g, 'feast'); C.compFire(g, 'lodge'); } return r; }; }
@@ -30446,10 +30479,12 @@ if (C.abil) {
   C.abilOpts = function (g, h) { const out = ao0 ? ao0.apply(this, arguments) : [];
     if (h && h.kind === 'merc' && mercs(g).includes(h)) { C.compInit(h);
       const cost = Math.max(100, 100 * (h.level || 1));
+      if (C.wageDue(g, h)) out.push({t: `Заплатить жалованье за неделю: ${R.priceText(C.wageOf(h))}`, arg: 'comp_wage', why: g.purse < C.wageOf(h) ? 'в кошеле не хватает серебра' : ''});
       out.push({t: `Дать наградных: ${R.priceText(cost)}`, arg: 'comp_gift', why: g.purse < cost ? 'в кошеле не хватает серебра' : h.giftDay != null && g.day - h.giftDay < 3 ? 'недавно уже давали' : ''});
       if (h.ask && !h.ask.job && !h.askDone) { out.push({t: 'Выслушать просьбу и обещать помощь', arg: 'comp_yes', why: Q && Q.active(g).length >= 4 ? 'и так взялись за четыре дела' : ''}); out.push({t: 'Отказать в просьбе', arg: 'comp_no', why: ''}); } }
     return out; };
   C.abil = function (g, h, arg) {
+    if (arg === 'comp_wage') { if (!C.payWage(g, h)) return {err: 'нельзя'}; return {ok: true, text: `${h.name} получает жалованье.`}; }
     if (arg === 'comp_gift') { const cost = Math.max(100, 100 * (h.level || 1));
       if (g.purse < cost || (h.giftDay != null && g.day - h.giftDay < 3)) return {err: 'нельзя'};
       g.purse -= cost; h.giftDay = g.day; C.compEvent(g, 'gift', [h]);
@@ -30873,7 +30908,7 @@ SC.est_forge = g => {
     ch.push({t: `${R.item(id).name}: перековать на ${['', 'сталь', 'харалуг', 'булат'][nb]} (+${nb}) — ${R.priceText(pr)} за уголь и работу, сырьё: ${C.forgeNeedText(nd)}`, own: h.id, if: g2 => g2.purse >= pr && C.forgeHas(h, nd), off: g2 => g2.purse < pr ? `не хватает серебра: нужно ${R.priceText(pr)}` : `нужно сырьё: ${C.forgeNeedText(nd)}`,
       do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); if (!hh.inv.includes(id) || !C.forgeHas(hh, nd)) return 'est_forge'; C.forgeTake(hh, nd); g2.purse -= pr; C.pass(g2, 4); const n = C.magicId(Object.assign({}, o, {bonus: nb})); C.reId(hh, id, n); g2.estForgeLast = `Свой кузнец отдаёт работу: ${R.item(n).name}. Взял за уголь и железо, за руки — ничего.`; C.note(g2, g2.estForgeLast); return 'est_forge'; }});
   });
-  if (!ch.length) lines.push(['n', `У ${h.name} нечего перековывать.`]);
+  if (!ch.length) lines.push(['n', `У ${C.Q.decl(h.name, h.sex).g} нечего перековывать.`]);
   ch.push({t: 'Другой герой', free: 1, do: g2 => { g2.estForge = null; return 'est_forge'; }}); ch.push(back);
   return {title: 'Своя кузня', bg: 'town', art: 'town', lines, choices: ch};
 };
@@ -31125,7 +31160,7 @@ C.battleEnd = function (g, S, spec) {
   const f = d.fight; d.fight = null;
   if (res.won) { if (f.room != null) { const r = d.rooms[f.room]; r.foes = []; r.cleared = 1; if (f.boss) { d.bossDown = 1; C.note(g, `${d.name}: хозяин повержен.`); } }
     if (f.pend) d.pending = null; d.alarm = Math.max(0, d.alarm - 1); }
-  else { g.dungeonLast = {name: d.name, fled: !!res.fled}; g.dungeon = null; }
+  else { g.dungeonLast = {name: d.name, fled: !!res.fled}; if (d.poi) { g.dgSaved = g.dgSaved || {}; const keep = JSON.parse(JSON.stringify(d)); keep.at = (keep.rooms.find(r => r.type === 'vhod') || keep.rooms[0] || {}).id; keep.loot = {m: 0, items: []}; g.dgSaved[d.poi] = keep; g.flags['dg_' + d.poi] = 'left'; } g.dungeon = null; }
   return res;
 };
 
@@ -31381,6 +31416,8 @@ function leave(g, d) {
   const back = d.back || 'map', job = d.job, boss = d.bossDown, n = d.name, lt = d.loot;
   C.note(g, `${n} позади${lt.m || lt.items.length ? `: вынесли ${R.priceText(lt.m)}${lt.items.length ? ` и ${lt.items.length} ${lt.items.length === 1 ? 'вещь' : lt.items.length < 5 ? 'вещи' : 'вещей'}` : ''}` : ''}.`);
   if (d.poi) g.flags['dg_' + d.poi] = boss ? 'done' : 'left';
+  // ушли, не добив хозяина: подземелье помнит, что вычищено и вскрыто (иначе повторный вход — всё заново)
+  if (d.poi) { g.dgSaved = g.dgSaved || {}; if (boss) delete g.dgSaved[d.poi]; else { const keep = JSON.parse(JSON.stringify(d)); keep.at = (keep.rooms.find(r => r.type === 'vhod') || keep.rooms[0] || {}).id; keep.loot = {m: 0, items: []}; g.dgSaved[d.poi] = keep; } }
   g.dungeonLast = {name: n}; g.dungeon = null;
   if (job && boss && Q) { const j = Q.byId(g, job); if (j && j.status === 'open') { j.dgDone = 1; g.curJob = j.id; j.fightFor = 'final'; return 'q_win'; } }
   if (job && Q) { const j = Q.byId(g, job); if (j) j.dgDone = 1; }
@@ -31390,7 +31427,8 @@ const OUT = g => { const l = g.dungeonLast || {}; return {title: l.name || 'Сн
 
 /* вход: g.dungeon и первая комната */
 C.dungeonEnter = function (g, kind, o) {
-  o = o || {}; const d = C.dungeonMake(g, kind, o.lvl || lvlOf(g), o.seed != null ? o.seed : g.camp + ':' + g.day + ':' + R.d(1000));
+  o = o || {}; if (o.poi && g.dgSaved && g.dgSaved[o.poi]) { const d0 = g.dgSaved[o.poi]; delete g.dgSaved[o.poi]; d0.back = o.back || 'map'; g.dungeon = d0; C.note(g, `Отряд снова спускается: ${d0.name.toLowerCase()} — всё, как оставили.`); return 'dungeon'; }
+  const d = C.dungeonMake(g, kind, o.lvl || lvlOf(g), o.seed != null ? o.seed : g.camp + ':' + g.day + ':' + R.d(1000));
   if (o.name) d.name = o.name; d.back = o.back || 'map'; if (o.poi) d.poi = o.poi; if (o.job) d.job = o.job;
   if (o.foes) { // свои враги (задание): стража из угрозы задания
     d.rooms.forEach(r => { if (r.type === 'strazh') r.foes = o.foes(0.6); if (r.type === 'boss') r.foes = o.foes(1.1, true); }); }
@@ -34095,6 +34133,7 @@ const skillOf = (h, kind) => 1 + 0.25 * T(h, E[kind].main) + 0.12 * E[kind].sub.
 
 /* ---------- конец главы: владения остаются за героями ---------- */
 C.estateCloseout = function (g) {
+  try { C.alive(g).forEach(h => { if (h.holdings && h.holdings.length) h.holdDue = true; }); } catch (e) {}
   const list = C.estates(g).slice(), ch = g.chron, kept = [], legacy = [];
   const camp = (C.CAMPS[g.camp] || {}).name || '';
   list.forEach(e => {
@@ -34106,7 +34145,7 @@ C.estateCloseout = function (g) {
       place: e.node ? (nodes(g)[e.node] || {}).name || e.bought : e.bought, camp, since: camp};
     // накопленное — хозяину
     const acc = r10(Math.floor(e.acc || 0)); if (acc > 0) C.estateCredit(g, e, acc);
-    if (o) { (o.holdings = o.holdings || []).push(hd); kept.push(`${E[e.kind].short} — за ${o.name}`); }
+    if (o) { (o.holdings = o.holdings || []).push(hd); o.holdDue = true; kept.push(`${E[e.kind].short} — за ${o.name}`); }
     else legacy.push({from: dead ? dead.name : '', pid: dead && g.net && g.net.own ? g.net.own[e.owner] : null, holding: hd});
   });
   if (list.length) C.note(g, `Хозяйство остаётся за хозяевами и будет приносить доход и дальше: ${kept.join(', ') || 'ждёт наследника'}.`);
@@ -34128,6 +34167,8 @@ C.holdingsJoin = function (g) {
   C.alive(g).forEach(h => {
     if (h.kind === 'merc' || g.holdPaid[h.id] || !(h.holdings && h.holdings.length)) return;
     g.holdPaid[h.id] = 1;
+    // доход за межглавье — один раз после закрытия главы, а не при каждом новом старте (иначе перезапуск печатает деньги)
+    if (h.holdDue === false) return; h.holdDue = false;
     let gold = 0; const got = [], news = [];
     h.holdings.slice().forEach(x => {
       const K = E[x.kind]; if (!K) return;
@@ -34660,7 +34701,8 @@ C.freeStart = function (g) {
   const town = Object.entries(camp.map.nodes).find(([, n]) => n.reg === z.id && ['город', 'село', 'подворье', 'стан', 'лагерь'].includes(n.kind));
   if (town) { g.loc = town[0]; g.pos = null; }
 };
-const ah0 = C.addHero; C.addHero = function (g) { const r = ah0.apply(this, arguments); if (g && g.camp === 'free' && !g.flags.placed) { g.flags.placed = 1; C.freeStart(g); } return r; };
+/* новичок — в край по силам: при первом герое и после гибели всего отряда (иначе новичок 1-го уровня оказывается среди врагов 14-го) */
+const ah0 = C.addHero; C.addHero = function (g) { const empty = g && g.heroes && !C.alive(g).length; const r = ah0.apply(this, arguments); if (g && g.camp === 'free' && (!g.flags.placed || empty)) { g.flags.placed = 1; C.freeStart(g); } return r; };
 C.isFree = g => !!(g && g.camp === 'free');
 /* метки на карте (развалины, курганы, стоянки) — по уровню края, как и встречи в пути */
 { const FC = C.CAMPS.free; const zdo = d0 => { if (typeof d0 !== 'function' || d0._zoned) return d0; const f = function (g2) { const a = arguments; return withZone(g2, () => d0.apply(this, a)); }; f._zoned = 1; return f; };
@@ -34877,10 +34919,14 @@ if (!C || !C.sellPrice) return;
 const potCost = id => { const cs = C.recipeComps ? C.recipeComps(id) : []; if (!cs.length) return 0; return cs.reduce((s, c) => s + ((R.item(c.id) || {}).price || 0) * c.n, 0); };
 const POT = {}; Object.values(C.EN || {}).filter(x => x.kind === 'зелье').forEach(x => { const c = potCost(x.id); if (c) POT[x.id] = c; });
 C.potCost = id => POT[id] || 0;
+/* своя стряпня: не дороже полутора цен того, из чего сварено (на порцию) — иначе котёл печатает серебро */
+const DISH = {}; try { const cheap = grp => Math.min(...Object.keys(C.RAW || {}).filter(id => grp.split('|').includes(C.RAW[id])).map(id => (R.item(id) || {}).price || 0).filter(v => v > 0));
+  Object.values(C.RECIPES || {}).forEach(r => { if (!r.item) return; const c = r.need.reduce((s, [grp, n]) => s + (isFinite(cheap(grp)) ? cheap(grp) : 0) * n, 0) / Math.max(1, r.out); if (c > 0) DISH[r.item] = Math.min(DISH[r.item] || Infinity, c); }); } catch (e) {}
 const sp0 = C.sellPrice;
 C.sellPrice = (g, h, x) => {
   let p = sp0(g, h, x); if (!p || !x) return p;
   if (POT[x.id]) p = Math.min(p, Math.max(1, Math.floor(POT[x.id] * 1.5)));
+  if (DISH[x.id]) p = Math.min(p, Math.max(1, Math.floor(DISH[x.id] * 1.5)));
   // волшебная вещь: лавочник платит за основу как обычно, а за чары — лишь двадцать пятую часть (с чарами связываться боязно, Око косится)
   if (C.isMagic && C.isMagic(x.id) && R.baseId) { const b = R.item(R.baseId(x.id)); const bp = (b && b.price) || 0; if (x.price > bp) p = Math.min(p, Math.max(1, Math.floor(bp / 2 + (x.price - bp) / 25))); }
   const buy = C.buyPrice ? C.buyPrice(g, h, x) : x.price;
@@ -35013,7 +35059,10 @@ const party = g => C.alive(g).concat(g.mercs || []);
 /* ночлег: старая цена «perHead» больше не решает — решает разряд (выбранный в сцене, иначе горница) */
 const lodge0 = C.lodge;
 C.lodge = function (g, perHead, place) {
-  const t = C._innTier || C.INN_BY.peasant, n = party(g).length, cost = t.price * n, paid = g.purse >= cost;
+  const t0 = C._innTier || C.INN_BY.peasant, t = t0.id === 'peasant' && C._innPrice ? Object.assign({}, t0, {price: C._innPrice}) : t0, n = party(g).length;
+  /* за общим столом каждый платит за себя из своего кошеля; за наёмников — тот, кто снял ночлег */
+  if (g.net && g.net.own) { const payer = g._actorPid; C.alive(g).forEach(h => { if (g.net.own[h.id] && g.net.own[h.id] !== payer && (h.gold || 0) >= t.price) { h.gold -= t.price; g.purse += t.price; } }); }
+  const cost = t.price * n, paid = g.purse >= cost;
   const before = new Map(party(g).map(h => [h.id, {hp: h.hp, pw: h.power}]));
   const tier = paid ? t : C.INN_BY.poor;
   const r = lodge0.call(this, g, tier.price, place);
@@ -35057,10 +35106,12 @@ C.sceneOf = function (g, id) {
     if (!(typeof c.do === 'function' && /C\.lodge\(/.test(String(c.do)) && /ночев|ночлег/i.test(c.label || ''))) { out.push(c); return; }
     changed = true; const n = party(g).length;
     const here = C.innTiers(g, sc.title).map(t => t.id);
-    C.INN.forEach((t, k) => { const cost = t.price * n, food = t.foodRu, has = here.includes(t.id);
+    const sp = /\((\d+)\s*см/.exec(c.label || ''), scenePrice = sp ? +sp[1] * 10 : 0; /* цена горницы — та, что названа в сцене */
+    const broke = pr => g.net && g.net.own ? C.alive(g).filter(h => g.net.own[h.id] && (h.gold || 0) < pr) : [];
+    C.INN.map(t => t.id === 'peasant' && scenePrice ? Object.assign({}, t, {price: scenePrice}) : t).forEach((t, k) => { const cost = t.price * n, food = t.foodRu, has = here.includes(t.id), poor = broke(t.price);
       out.push(Object.assign({}, c, {i: 1000 + c.i * 10 + k, inn: {id: t.id, k, cost}, label: `Заночевать: ${t.name.toLowerCase()} — ${R.priceText(t.price)} с каждого, на ужин ${food}`,
-        dis: c.dis || (!has ? (t.id === 'noble' ? 'палаты есть только в столицах' : 'светлицы есть только в городах') : t.id !== 'poor' && g.purse < cost ? 'не хватает денег' : undefined),
-        do: (g2, ctx) => { C._innTier = t; try { return c.do(g2, ctx); } finally { C._innTier = null; } }})); });
+        dis: c.dis || (!has ? (t.id === 'noble' ? 'палаты есть только в столицах' : 'светлицы есть только в городах') : poor.length ? `${poor.map(h => h.name).join(', ')}: в кошеле пусто — пусть товарищи передадут серебро через обмен` : !g.net && t.id !== 'poor' && g.purse < cost ? 'не хватает денег' : undefined),
+        do: (g2, ctx) => { C._innTier = C.INN_BY[t.id]; C._innPrice = t.id === 'peasant' ? t.price : 0; try { return c.do(g2, ctx); } finally { C._innTier = null; C._innPrice = 0; } }})); });
   });
   if (changed) sc.choices = out;
   return sc;
@@ -35097,18 +35148,19 @@ C.drinkOut = function (g, h, id) {
   const d = D[id]; if (!d) return out0.apply(this, arguments);
   const i = h.inv.indexOf(id); if (i < 0) return {err: 'питья нет'};
   if (d.hm && C.isDrunk && C.isDrunk(h)) return {err: `${h.name} и так пьян — хватит`};
+  if (d.hp && !d.hm && h.vzvarDay === g.day) return {err: `${h.name} уже пил${h.sex === 'f' ? 'а' : ''} взвар сегодня — больше не поможет`};
   const nm = (R.item(id).name || '').replace(/\s*\(.*\)/, '').toLowerCase(), who = d.round ? C.alive(g) : [h];
   h.inv.splice(i, 1);
   const bits = [];
   who.forEach(x => { if (d.hm) x.drunk = (x.drunk || 0) + d.hm; });
   if (d.clear) h.drunk = Math.max(0, (h.drunk || 0) - d.clear) || undefined;
-  if (d.hp) { const v = R.dice(d.hp), was = h.hp; h.hp = Math.min(h.hpMax, h.hp + v); if (h.hp > was) bits.push('+' + (B && B.plural ? B.plural(h.hp - was, 'хит', 'хита', 'хитов') : (h.hp - was) + ' хит.')); }
+  if (d.hp) { if (!d.hm) h.vzvarDay = g.day; const v = R.dice(d.hp), was = h.hp; h.hp = Math.min(h.hpMax, h.hp + v); if (h.hp > was) bits.push('+' + (B && B.plural ? B.plural(h.hp - was, 'хит', 'хита', 'хитов') : (h.hp - was) + ' хит.')); }
   if (d.warm) { h.warmDrink = 1; bits.push('греет: в ближайшем бою холод не берёт'); }
   if (d.kurazh) { h.kurazh = 1; bits.push('кураж: в ближайшем бою страх не берёт'); }
   if (d.sp && C.spiritAdd) { if (g.drinkDay === g.day) bits.push('дух уже поднимали сегодня'); else { g.drinkDay = g.day; C.spiritAdd(g, d.sp, 'Выпили по кругу — повеселели.'); bits.push(`дух отряда +${d.sp}`); } }
   const tipsy = who.filter(x => C.drunkWord && C.drunkWord(x) !== 'трезв').map(x => `${x.name} — ${C.drunkWord(x)}`);
   const text = (d.round ? `${h.name} пускает по кругу: ${nm}.` : `${h.name} пьёт: ${nm}.`) + (bits.length ? ' ' + bits.join('; ').replace(/^./, c => c.toUpperCase()) + '.' : '') + (tipsy.length ? ' ' + tipsy.join(', ') + '.' : '');
-  if (C.passH) C.passH(g, 0.1);
+  if (C.passH) C.passH(g, d.hp && !d.hm ? 0.5 : 0.1);
   C.note(g, text); return {ok: true, text};
 };
 /* бой: кураж и тепло берут с собой в ближайшую схватку */
@@ -35184,11 +35236,13 @@ C.relTier = r => r.bond ? 4 : r.rep >= 80 ? 3 : r.rep >= 50 ? 2 : r.rep >= 20 ? 
 const romanceOk = (g, role, at) => role !== 'temple' || isKap(g, at);
 const heroById = (g, id) => C.alive(g).find(h => h.id === id);
 const bonded = (g, h, kind) => Object.values(g.folkRel || {}).some(r => r.bond === kind && r.who === h.id);
+/* сердце героя занято: ответил кому-то другому — прочие не заигрывают */
+const taken = (g, h, self) => Object.values(g.folkRel || {}).some(r => r !== self && r.who === h.id && r.bond !== 'brat' && (r.answered || r.love || r.bond === 'wed'));
 /* к кому из отряда тянется: иного пола, ещё без семьи; при той же любви — тот, кого выбрали */
 const suitor = (g, role, at, p) => {
   const r = C.relOf(g, role, at); if (r.who) { const h = heroById(g, r.who); if (h && h.sex !== p.sex && !(h.spouse && !r.bond)) return h; }
   if (!romanceOk(g, role, at)) return null;
-  const hs = C.alive(g).filter(h => h.kind !== 'merc' && h.sex !== p.sex && !bonded(g, h, 'wed') && !h.spouse);
+  const hs = C.alive(g).filter(h => h.kind !== 'merc' && h.sex !== p.sex && !bonded(g, h, 'wed') && !h.spouse && !taken(g, h, r));
   return hs.sort((a, b) => (b.stats.cha || 0) - (a.stats.cha || 0))[0] || null;
 };
 const kin = (g, role, at, p) => { const r = C.relOf(g, role, at); if (r.who) return heroById(g, r.who);
@@ -35354,12 +35408,12 @@ function folkTalk(g, sc, role, at, p, r, k, fam) {
   if (!r.bond) ch.push({t: 'Сделать подарок', if: g2 => C.relOf(g2, role, at).giftDay !== g2.day, off: 'сегодня уже дарили', do: g2 => { g2.relGift = k; return 'folk_gift'; }});
   // любовь: ответить, сердечное дело, предложение
   if (t >= 3 && !r.bond) {
-    if (s && !r.who && ro) ch.push({t: `${s.name}: ответить на ${p.sex === 'f' ? 'её' : 'его'} взгляды`, do: g2 => { const rr = C.relOf(g2, role, at); rr.who = s.id; g2.folkLast = fill(p.sex === 'f' ? '{N} вспыхивает и улыбается: «Я знала. Я так и знала»' : '{N} смеётся, будто гора с плеч: «Ну наконец-то. Я уж думал — показалось»', p, s); C.relAdd(g2, role, at, 2); return 'folk'; }});
+    if (s && !r.who && ro) ch.push({own: s.id, t: `${s.name}: ответить на ${p.sex === 'f' ? 'её' : 'его'} взгляды`, do: g2 => { const rr = C.relOf(g2, role, at); rr.who = s.id; rr.answered = 1; g2.folkLast = fill(p.sex === 'f' ? '{N} вспыхивает и улыбается: «Я знала. Я так и знала»' : '{N} смеётся, будто гора с плеч: «Ну наконец-то. Я уж думал — показалось»', p, s); C.relAdd(g2, role, at, 2); return 'folk'; }});
     if (!s && kn && !r.who) ch.push({t: `${kn.name}: протянуть руку как сво${p.sex === 'f' ? 'ей' : 'ему'}`, do: g2 => { C.relOf(g2, role, at).who = kn.id; g2.folkLast = fill('{N} крепко жмёт руку: «Вот это по-нашему»', p, kn); return 'folk'; }});
     const who = r.who && heroById(g, r.who) && heroById(g, r.who).sex !== p.sex ? heroById(g, r.who) : null;
     if (who && !r.love && r.rep >= 80) {
       const hj = (g.jobs || []).find(j => j.heartKey === k && ['open', 'done'].includes(j.status));
-      if (!hj) ch.push({t: `${p.n} просит о личном`, do: g2 => { const j = C.folkMakeJob(g2, role); if (!j) { g2.folkLast = `${p.n}: «Нет… Потом. Не сейчас»`; return 'folk'; }
+      if (!hj) ch.push({own: who.id, t: `${p.n} просит о личном`, do: g2 => { const j = C.folkMakeJob(g2, role); if (!j) { g2.folkLast = `${p.n}: «Нет… Потом. Не сейчас»`; return 'folk'; }
         j.heartKey = k; j.heart = 1; j.pay = Math.round((j.pay || 0) * 0.5 / 10) * 10; j.heartLine = fill(who.sex === p.sex ? HEART.same : HEART[p.sex], p, who);
         g2.folkJobs = g2.folkJobs || {}; const bk = at + '#' + role; g2.folkJobs[bk] = g2.folkJobs[bk] || {day: g2.day, offers: []}; g2.folkJobs[bk].offers.push(j);
         g2.jobOffer = j.id; g2.jobFrom = g2.folkAt ? 'road' : 'town'; g2.folkLast = null; return 'q_offer'; }});
@@ -35367,7 +35421,7 @@ function folkTalk(g, sc, role, at, p, r, k, fam) {
     if (who && r.love && r.rep >= 100) {
       const wed = who.sex !== p.sex;
       if (wed && p.sex === 'm') lines.push(['n', fill('{N} вдруг опускается на одно колено. В руке — кольцо: «{h}. Я не умею красиво. Выходи за меня»', p, who)]);
-      ch.push({t: wed ? (p.sex === 'm' ? `${who.name}: ответить «да»` : `${who.name}: сделать предложение`) : `${who.name}: побрататься${p.sex === 'f' ? ' — стать посестрами' : ''}`,
+      ch.push({own: who.id, t: wed ? (p.sex === 'm' ? `${who.name}: ответить «да»` : `${who.name}: сделать предложение`) : `${who.name}: побрататься${p.sex === 'f' ? ' — стать посестрами' : ''}`,
         if: g2 => !(wed ? bonded(g2, who, 'wed') || who.spouse : bonded(g2, who, 'brat')), off: wed ? 'у героя уже есть семья' : 'у героя уже есть побратим',
         do: g2 => { const rr = C.relOf(g2, role, at), h2 = heroById(g2, rr.who); if (!h2) return 'folk'; rr.bond = wed ? 'wed' : 'brat'; rr.bondDay = g2.day; rr.giftAt = g2.day;
           if (wed) h2.spouse = {n: p.n, role, at, camp: g2.camp, sex: p.sex}; if (wed) C.relSettle(g2);
@@ -35397,9 +35451,9 @@ SC.folk_gift = g => {
   const items = C.alive(g).flatMap(h => [...new Set(h.inv)].filter(id => { const x = R.item(id); return x && x.price >= 100 && !Object.values(h.eq || {}).includes(id) && !(C.FOOD && C.FOOD[id] && x.price < 100); }).map(id => ({h, id, x: R.item(id)})))
     .sort((a, b) => b.x.price - a.x.price).slice(0, 10);
   const gain = () => 1 + Math.floor(R.rand() * 4); /* подарок: +1…+4 */
-  const ch = items.map(o => ({t: `${o.h.name}: ${o.x.name}`, do: g2 => { const h2 = C.alive(g2).find(y => y.id === o.h.id); const i = h2 ? h2.inv.indexOf(o.id) : -1; if (i < 0) return 'folk';
+  const ch = items.map(o => ({own: o.h.id, t: `${o.h.name}: ${o.x.name}`, do: g2 => { const h2 = C.alive(g2).find(y => y.id === o.h.id); const i = h2 ? h2.inv.indexOf(o.id) : -1; if (i < 0) return 'folk';
     h2.inv.splice(i, 1); const rr = C.relOf(g2, role, at); rr.giftDay = g2.day; const add = C.relAdd(g2, role, at, gain());
-    g2.folkLast = `${p.n} принимает подарок — ${o.x.name.toLowerCase()}: «${C.relTier(rr) >= 3 ? 'Ты… ты не должен был{hs:|а}. Но спасибо' : C.relTier(rr) >= 2 ? 'Вот это подарок! Спасибо, друг' : 'Хм. Благодарю'}».${add > 0 ? '' : ' Ближе подарками не стать — нужно что-то большее.'}`.replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h2.sex === 'f' ? f : m);
+    g2.folkLast = `${p.n} принимает подарок — ${o.x.name.toLowerCase()}: «${C.relTier(rr) >= 3 ? 'Ты… ты не {hs:должен был|должна была}. Но спасибо' : C.relTier(rr) >= 2 ? 'Вот это подарок! Спасибо, друг' : 'Хм. Благодарю'}».${add > 0 ? '' : ' Ближе подарками не стать — нужно что-то большее.'}`.replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h2.sex === 'f' ? f : m);
     C.note(g2, g2.folkLast); g2.relGift = null; return 'folk'; }}));
   ch.push({t: 'Назад', do: g2 => { g2.relGift = null; return 'folk'; }});
   return {title: `Подарок: ${p.n}`, bg: C.FOLK[role].bg, art: C.FOLK[role].art, lines: [['n', items.length ? 'Что подарить?' : 'В сумах нечего дарить.']], choices: ch};
@@ -35450,7 +35504,7 @@ const letters = g => {
     if (gift === 'coin') { const sum = (3 + hash(k + g.day) % 8) * 100; g.purse += sum; giftText = R.priceText(sum); }
     else { h.inv.push(gift); giftText = (R.item(gift).name || '').toLowerCase(); }
     g.mail = (g.mail || []).concat({from: p.n, t: p.t, face: p.face, sex: p.sex, kind, to: h.name, text, gift: giftText, day: g.day}).slice(-6);
-    C.note(g, `Гонец догоняет отряд: грамотка от ${p.n} — ${h.name}. ${text} В свёртке — ${giftText}.`); });
+    C.note(g, `Гонец догоняет отряд: грамотка от ${C.Q.decl(p.n, p.sex).g} — ${C.Q.decl(h.name, h.sex).d}. ${text} В свёртке — ${giftText}.`); });
 };
 const dayTick = g => { C.folkMixUp(g); if (!g || !g.folkRel) return; try { letters(g); } catch (e) {}
   Object.entries(g.folkRel).forEach(([k, r]) => { if (!r.bond || r.camp !== g.camp) return; const role = k.split('@')[0]; if (!['trade', 'herb'].includes(role)) return;
@@ -35706,7 +35760,7 @@ SC.folk_craft = g => {
   if (!t) lines.push(['n', `${h.name} не учил${h.sex === 'f' ? 'ась' : 'ся'} этому ремеслу. Улучшать вещи здесь может лишь тот, кто знает ${M.learn}, — учиться можно у самого мастера.`]);
   if (!it) {
     const items = [...new Set(h.inv)].filter(id => { const x = R.item(id); return x && (x._t === 'w' || x._t === 'a') && C.matOf(id) === mat; });
-    if (t) { lines.push(['n', items.length ? `${h.name}: какую вещь взять в работу?` : `У ${h.name} нет вещей для этой мастерской.`]); items.forEach(id => ch.push({t: R.item(id).name, do: g2 => { g2.craft = {hero: h.id, item: id}; return 'folk_craft'; }})); }
+    if (t) { lines.push(['n', items.length ? `${h.name}: какую вещь взять в работу?` : `У ${Q.decl(h.name, h.sex).g} нет вещей для этой мастерской.`]); items.forEach(id => ch.push({t: R.item(id).name, do: g2 => { g2.craft = {hero: h.id, item: id}; return 'folk_craft'; }})); }
     if (mat === 'wood') { const plain = h.inv.find(x => R.baseId(x) === 'posoh' && !asMagic(x).special), opts = C.staffOpts(h).filter(o => o.have);
       if (opts.length && plain) opts.forEach(o => ch.push({t: `Посох из дерева «${o.name}»: ${o.effect}`, if: () => T(h, 'rezba') >= Math.min(4, o.L), off: `нужна «Резьба» не ниже ${['', 'обученного', 'профессионала', 'мастера', 'эксперта'][Math.min(4, o.L)]}`,
         do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const r = C.staffMake(g2, hh, o.id); g2.folkLast = r.err || r.text; return 'folk_craft'; }}));
@@ -35769,7 +35823,7 @@ C.jewelMake = function (g, h, mat, form) {
   for (let i = 0; i < nd.gold; i++) h.inv.splice(h.inv.indexOf('zoloto'), 1); if (nd.mat) for (let i = 0; i < nd.n; i++) h.inv.splice(h.inv.indexOf(nd.mat), 1); h.inv.splice(h.inv.indexOf(gemOf(h, nd.gem)), 1);
   const base = form === 'neck' ? 'tr_obereg' : 'koltso_zolotoe';
   const id = C.magicId({base, bonus: 0, props: [], special: mat, curse: ''}); h.inv.push(id); C.pass(g, 2);
-  const text = `Ювелир отдаёт ${h.name}: ${R.item(id).name}.`; C.note(g, text); return {ok: true, text, fee: 0};
+  const text = `Ювелир отдаёт ${Q.decl(h.name, h.sex).d}: ${R.item(id).name}.`; C.note(g, text); return {ok: true, text, fee: 0};
 };
 SC.jeweler = g => {
   const hs = C.alive(g), h = hs.find(x => x.id === (g.jewel || {}).hero) || (hs.length === 1 ? hs[0] : null);
@@ -39757,7 +39811,10 @@ function addNetHero(h, pid) {
     const L = h.level | 0, xp = h.xp || 0, cl = R.CLASSES[h.cls];
     if (L < 1 || L > 20 || (!h._trial && R.xpFor && (xp < R.xpFor(L) || (L < 20 && xp >= R.xpFor(L + 1) * 4)))) return 'герой не сходится с опытом';
     if (Object.values(h.stats).some(v => typeof v !== 'number' || v < 3 || v > 22)) return 'у героя невозможные характеристики';
-    if ((h.hpMax || 0) > L * ((cl.hd || 10) + 6) + 60) return 'у героя невозможные хиты'; }
+    if ((h.hpMax || 0) > L * ((cl.hd || 10) + 6) + 60) return 'у героя невозможные хиты'; 
+    if (typeof h.gold === 'number' && (h.gold < 0 || h.gold > 60000 * L + 20000)) return 'у героя невозможный кошель';
+    if (!Array.isArray(h.inv) || h.inv.length > 160 || h.inv.some(id => !R.item(id))) return 'у героя невозможная поклажа';
+    const pv = Object.values(h.prof || {}); if (pv.some(t => typeof t !== 'number' || t < 0 || t > 4) || pv.reduce((a, b) => a + b, 0) > 4 + 2 * L) return 'у героя невозможные ремёсла'; }
   if (h.dead || g.fallen.some(f => f.id === h.id)) return 'этот герой пал';
   if (g.heroes.some(x => x.id === h.id)) return 'этот герой уже в отряде';
   if (C.alive(g).length >= 4) return 'В отряде уже четверо. Кто-то должен отпустить своего героя (окно «Стол»).';
