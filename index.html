@@ -35646,14 +35646,16 @@ const gemOf = (h, min) => { const g = gemsOf(h, min, 1); return g && g.length ? 
 C.matHave = (h, need) => { const c = {}; need.ids.forEach(i => { c[i] = h.inv.filter(x => x === i).length; }); const best = need.ids.find(i => c[i] >= need.n);
   if (!best) return null; const gems = need.gemN ? gemsOf(h, need.gem, need.gemN) : []; if (!gems) return null; return {id: best, n: need.n, gems}; };
 C.matText = need => `${need.ids.map(i => R.item(i) ? R.item(i).name.replace(/,\s*1 ед\.$/, '').toLowerCase() : i).join(' или ')} ×${need.n}${need.gemN ? ` и самоцвет${need.gemN > 1 ? 'ы' : ''} от ${R.priceText(need.gem)}${need.gemN > 1 ? ' ×' + need.gemN : ''}` : ''}`;
-C.craftChance = (h, mat, nb) => { const M = MAT[mat], t = T(h, M.self), dc = [0, 14, 18, 22][nb]; return Math.round(Math.max(1, Math.min(19, 21 - (dc - R.mod(h.stats[M.stat]) - 2 * t))) * 5); };
+/* прибавка мастерства: 2 за ступень, у эксперта — ещё +4 (потолок у него тот же +3, зато руки вернее) */
+C.craftSkill = t => 2 * t + (t >= 4 ? 4 : 0);
+C.craftChance = (h, mat, nb) => { const M = MAT[mat], t = T(h, M.self), dc = [0, 14, 18, 22][nb]; return Math.round(Math.max(1, Math.min(19, 21 - (dc - R.mod(h.stats[M.stat]) - C.craftSkill(t)))) * 5); };
 C.craftSelf = function (g, h, id, nb, mat) {
   const M = MAT[mat], o = asMagic(id); if (o.unknown) return {err: 'сначала распознать'}; if (nb !== o.bonus + 1 || nb > 3) return {err: 'по одной ступени, не выше третьей'};
   const t = T(h, M.self); if (!t) return {err: `Улучшать самому может тот, кто учился ${M.learn}.`};
   if (nb > Math.min(3, t)) return {err: `${['', 'обученному', 'профессионалу', 'мастеру'][Math.min(3, t)]} — не выше +${Math.min(3, t)}`};
   const need = C.matNeed(id, mat, nb), m = C.matHave(h, need); if (!m) return {err: `нужно: ${C.matText(need)}`};
   C.pass(g, 4);
-  const r = R.d(20), tot = r + R.mod(h.stats[M.stat]) + 2 * t, dc = [0, 14, 18, 22][nb], ok = r === 20 || (r !== 1 && tot >= dc);
+  const r = R.d(20), tot = r + R.mod(h.stats[M.stat]) + C.craftSkill(t), dc = [0, 14, 18, 22][nb], ok = r === 20 || (r !== 1 && tot >= dc);
   const lose = ok ? m.n : Math.ceil(m.n / 2); for (let i = 0; i < lose; i++) h.inv.splice(h.inv.indexOf(m.id), 1);
   if (ok && m.gems) m.gems.forEach(gm => h.inv.splice(h.inv.indexOf(gm), 1));
   let text;
