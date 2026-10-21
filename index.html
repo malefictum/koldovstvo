@@ -35643,9 +35643,7 @@ STAFFS().forEach(e => { const id = 'zag_' + e.id.replace(/^posoh_/, ''), L = sta
     notes: `Резчик сделает из неё посох: ${e.effect} Нужна «Резьба» не ниже ${['', 'обученного', 'профессионала', 'мастера', 'эксперта'][L]}.`}; e._zag = id; e._lvl = L; });
 const RARE = [['podzemnoe_serebro', 'Подземное серебро, 1 ед.', 3000, 'yuvelir_podzemnoe_serebro'], ['alatyr', 'Алатырь-камень', 8000, 'yuvelir_alatyr'], ['navya_ruda', 'Навья руда, 1 ед.', 5000, 'yuvelir_navya_ruda'], ['gromovaya_strela', 'Громовая стрела (камень Перуна)', 6000, 'yuvelir_gromovaya_strela']];
 RARE.forEach(([id, name, price]) => { if (!DATA.items[id]) DATA.items[id] = {id, _t: 'g', category: 'материалы', name, price, weight_kg: 0.3, notes: 'Редкость: из неё ювелир сделает кольцо или оберег.'}; });
-if (C.jewelOpts) { const jo0 = C.jewelOpts; C.jewelOpts = h => { const base = jo0(h);
-  RARE.forEach(([id, , , en]) => { const need = id === 'alatyr' || id === 'gromovaya_strela' ? 1 : 4; if (C.EN && C.EN[en] && h.inv.filter(x => x === id).length >= need && !base.some(o => o.id === en)) base.push({id: en, mat: id, n: need, extra: 0}); });
-  return base; }; }
+
 
 /* ---------- что нужно на ступень ---------- */
 const MAT = {
@@ -35772,6 +35770,36 @@ C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
   sc.choices.forEach(c => { if (/^(Перековать|Улучшить стёганку|Посох, лук, щит)/.test(c.label || '')) c.label = c.t = 'Мастерская: улучшить вещь самому'; });
   return sc; };
 
+/* ---------- ювелир: без платы, но из своего золота, самоцвета и металла силы ---------- */
+const JM = [['yuvelir_med', 'med', 4], ['yuvelir_bronza', null, 0], ['yuvelir_olovo', null, 0], ['yuvelir_serebro', 'serebro', 4], ['yuvelir_zoloto', 'zoloto', 4], ['yuvelir_elektr', null, 0],
+  ['yuvelir_zvezdnoe_zhelezo', 'zvezdnoe_zhelezo_1_ed', 4], ['yuvelir_bulat', 'bulat_1_ed', 4], ['yuvelir_podzemnoe_serebro', 'podzemnoe_serebro', 4], ['yuvelir_alatyr', 'alatyr', 1], ['yuvelir_navya_ruda', 'navya_ruda', 4], ['yuvelir_gromovaya_strela', 'gromovaya_strela', 1]];
+const FORM = {ring: {gold: 2, gem: 2000, name: 'Кольцо'}, neck: {gold: 3, gem: 5000, name: 'Оберег'}};
+C.jewelNeed = (mat, form) => { const j = JM.find(x => x[0] === mat), F = FORM[form]; return {gold: F.gold + (j && j[1] === 'zoloto' ? j[2] : 0), gem: F.gem, mat: j && j[1] !== 'zoloto' ? j[1] : null, n: j && j[1] !== 'zoloto' ? j[2] : 0}; };
+C.jewelHave = (h, nd) => h.inv.filter(x => x === 'zoloto').length >= nd.gold && !!gemOf(h, nd.gem) && (!nd.mat || h.inv.filter(x => x === nd.mat).length >= nd.n);
+C.jewelNeedText = nd => `золото ×${nd.gold}, самоцвет от ${R.priceText(nd.gem)}${nd.mat ? `, ${R.item(nd.mat).name.replace(/,\s*1 ед\.$/, '').toLowerCase()} ×${nd.n}` : ''}`;
+C.jewelOpts = h => JM.filter(([id]) => C.EN && C.EN[id]).map(([id, mat, n]) => ({id, mat, n, extra: 0}));
+C.jewelMake = function (g, h, mat, form) {
+  const nd = C.jewelNeed(mat, form); if (!C.EN || !C.EN[mat]) return {err: 'нет такого металла'}; if (!C.jewelHave(h, nd)) return {err: 'нужно: ' + C.jewelNeedText(nd)};
+  for (let i = 0; i < nd.gold; i++) h.inv.splice(h.inv.indexOf('zoloto'), 1); if (nd.mat) for (let i = 0; i < nd.n; i++) h.inv.splice(h.inv.indexOf(nd.mat), 1); h.inv.splice(h.inv.indexOf(gemOf(h, nd.gem)), 1);
+  const base = form === 'neck' ? 'tr_obereg' : 'koltso_zolotoe';
+  const id = C.magicId({base, bonus: 0, props: [], special: mat, curse: ''}); h.inv.push(id); C.pass(g, 2);
+  const text = `Ювелир отдаёт ${h.name}: ${R.item(id).name}.`; C.note(g, text); return {ok: true, text, fee: 0};
+};
+SC.jeweler = g => {
+  const hs = C.alive(g), h = hs.find(x => x.id === (g.jewel || {}).hero) || (hs.length === 1 ? hs[0] : null);
+  const lines = [['n', 'Ювелир щурится над лупой: «Работу не продаю — продаю руки. Золото, камень и металл силы — ваши. Медь, бронзу, олово и электр, так уж и быть, дам свои»']];
+  if (g.jewelLast) lines.push(['n', g.jewelLast]);
+  const ch = [], back = {t: 'Назад', free: 1, do: g2 => { g2.jewel = null; g2.jewelLast = null; return g2.folkRole ? 'folk' : nodeScene(g2); }};
+  const unkAll = hs.reduce((n, x) => n + x.inv.filter(y => /^m\?:/.test(y)).length, 0), identCh = {t: `Распознать находки (${unkAll}) — по ${R.priceText(C.identPrice ? C.identPrice() : 5000)} за вещь`, free: 1, do: g2 => { g2.shopIdent = 1; return {shop: true, back: 'jeweler'}; }};
+  if (!h) { hs.forEach(x => ch.push({t: `${x.name}: заказать кольцо или оберег`, own: x.id, do: g2 => { g2.jewel = {hero: x.id}; return 'jeweler'; }})); if (unkAll) ch.push(identCh); ch.push(back); return {title: 'Ювелир', bg: 'market', art: 'market', lines, choices: ch}; }
+  C.jewelOpts(h).forEach(o => ['ring', 'neck'].forEach(form => { const nd = C.jewelNeed(o.id, form);
+    ch.push({t: `${FORM[form].name}: ${C.EN[o.id].name.toLowerCase()} — ${C.EN[o.id].effect} Нужно: ${C.jewelNeedText(nd)}`, if: () => C.jewelHave(h, nd), off: 'нужно: ' + C.jewelNeedText(nd),
+      do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const r = C.jewelMake(g2, hh, o.id, form); g2.jewelLast = r.err || r.text; return 'jeweler'; }}); }));
+  if (unkAll) ch.push(identCh);
+  if (hs.length > 1) ch.push({t: 'Другой герой', free: 1, do: g2 => { g2.jewel = null; return 'jeweler'; }}); ch.push(back);
+  return {title: 'Ювелир', bg: 'market', art: 'market', lines, choices: ch, focus: hs.length > 1 ? h.id : null};
+};
+Object.values(C.CAMPS).forEach(c => { c.scenes.jeweler = SC.jeweler; });
 /* ---------- дела мастеров-ремесленников: плата и материалом ---------- */
 const CRAFT_ROLES = ['forge', 'weave', 'charm', 'jewel'];
 const matFor = (g, role) => { const tier = Q.tier ? Q.tier(g) : 1, nb = Math.min(3, tier), pool = role === 'forge' ? [C.MAT_ITEM[nb]] : role === 'weave' ? C.CRAFT_MAT.cloth[nb] : role === 'charm' ? C.CRAFT_MAT.wood[nb] : RARE.map(r => r[0]);
