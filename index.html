@@ -24595,12 +24595,17 @@ R.item = function (id) {
   if (lv('zakalka')) it.def = (it.def || 0) + lv('zakalka');
   if (lv('balans')) it.atkBonus = (it.atkBonus || 0) + lv('balans');
   if (lv('legkost') && b._t === 'a') { if (b.dex_cap != null) it.dex_cap = b.dex_cap + lv('legkost'); if (lv('legkost') >= 2 && b.steps_penalty) it.steps_penalty = Math.min(0, b.steps_penalty + 1); }
-  it.price = Math.round((b.price || 100) * (1 + 2 * o.bonus * o.bonus) + 10000 * o.props.reduce((s, p) => s + p.lvl, 0) + (sp && sp.kind === 'посох' ? 5000 : 0) + (sp && sp.kind === 'ювелирный материал' ? 3000 : 0) + (sp && sp.kind === 'charge' ? 2000 * sp.n * Math.max(1, (DATA.spellById[sp.spell] || {}).circle || 1) : 0));
+  it.price = Math.round((b.price || 100) + C.magicPremium(b, o.bonus) + 10000 * o.props.reduce((s, p) => s + p.lvl, 0) + (sp && sp.kind === 'посох' ? 5000 : 0) + (sp && sp.kind === 'ювелирный материал' ? 3000 : 0) + (sp && sp.kind === 'charge' ? 2000 * sp.n * Math.max(1, (DATA.spellById[sp.spell] || {}).circle || 1) : 0));
   if (o.curse) it.price = Math.round(it.price * 0.3);
   if (o.unknown) it.price = Math.round((b.price || 100) * 2);
   if (sp && sp.kind === 'ювелирный материал' && !it.slot && C.WEAR) { /* слот — как у основы (кольцо/оберег) */ }
   DATA.items[id] = it; return it;
 };
+/* наценка за чары — как в D&D: оружие, щит и прочее +1/+2/+3 — 500 / 5 000 / 25 000 зм; доспех на тело — 4 000 / 30 000 / 100 000 зм;
+   стрелы и болты — вдвое дешевле. Вещи +2 и +3 в лавках не продают: только дела, редкая добыча или дорогое ремесло. */
+C.MAGIC_PREM = {w: [0, 500, 5000, 25000, 60000, 120000], body: [0, 4000, 30000, 100000, 200000, 400000]};
+C.magicPremium = (b, n) => { if (!n || !b) return 0; const body = b._t === 'a' && b.slot === 'тело', t = (body ? C.MAGIC_PREM.body : C.MAGIC_PREM.w)[Math.min(5, n)] * 100;
+  return /strel|bolt|drotik/.test(b.id) && !body ? t / 2 : t; };
 /* ---------- что на герое ---------- */
 const ALL_SLOTS = ['weapon', 'ranged', 'body', 'shield', 'head', 'hands', 'legs', 'feet', 'cloak', 'neck', 'ring1', 'ring2'];
 const wornMagic = h => ALL_SLOTS.map(k => h && h.eq && h.eq[k]).filter(id => C.isMagic(id)).map(id => ({id, o: C.magicParse(id), slot: ALL_SLOTS.find(k => h.eq[k] === id)}));
@@ -24837,7 +24842,7 @@ C.masterStock = function (g, city) {
   let x = seed || 1; const rnd = () => { x = Math.imul(x ^ (x >>> 15), 2246822519) >>> 0; return x / 4294967296; };
   const pool = BASES().filter(b => b.price <= 6000), out = [];
   const n = city ? 6 : 3;
-  for (let i = 0; i < n; i++) { const b = pool[Math.floor(rnd() * pool.length)]; const bonus = city && rnd() < 0.2 ? 2 : 1; out.push(C.magicId({base: b.id, bonus, props: [], special: '', curse: ''})); }
+  for (let i = 0; i < n; i++) { const b = pool[Math.floor(rnd() * pool.length)]; const bonus = 1; /* +2 и +3 в лавках не бывает: только дела, редкая добыча или дорогое ремесло */ rnd(); out.push(C.magicId({base: b.id, bonus, props: [], special: '', curse: ''})); }
   if (city && rnd() < 0.5) { const st = Object.values(EN).filter(e => e.kind === 'посох'); out.push(C.magicId({base: 'posoh', bonus: 0, props: [], special: st[Math.floor(rnd() * st.length)].id, curse: ''})); }
   return [...new Set(out)];
 };
@@ -34876,8 +34881,8 @@ const sp0 = C.sellPrice;
 C.sellPrice = (g, h, x) => {
   let p = sp0(g, h, x); if (!p || !x) return p;
   if (POT[x.id]) p = Math.min(p, Math.max(1, Math.floor(POT[x.id] * 1.5)));
-  // волшебная вещь: лавочник платит за основу как обычно, а за чары — лишь четверть (с чарами связываться боязно, Око косится)
-  if (C.isMagic && C.isMagic(x.id) && R.baseId) { const b = R.item(R.baseId(x.id)); const bp = (b && b.price) || 0; if (x.price > bp) p = Math.min(p, Math.max(1, Math.floor(bp / 2 + (x.price - bp) / 4))); }
+  // волшебная вещь: лавочник платит за основу как обычно, а за чары — лишь двадцать пятую часть (с чарами связываться боязно, Око косится)
+  if (C.isMagic && C.isMagic(x.id) && R.baseId) { const b = R.item(R.baseId(x.id)); const bp = (b && b.price) || 0; if (x.price > bp) p = Math.min(p, Math.max(1, Math.floor(bp / 2 + (x.price - bp) / 25))); }
   const buy = C.buyPrice ? C.buyPrice(g, h, x) : x.price;
   if (buy) p = Math.min(p, Math.floor(buy * 0.9)); // лавочник не отдаст больше, чем сам выручит
   return Math.max(0, p);
@@ -35628,17 +35633,13 @@ const matNeed0 = (id, mat, nb) => { const x = R.item(R.baseId ? R.baseId(id) : i
   if (mat === 'metal') return {ids: [C.MAT_ITEM[nb]], n: Math.round(2 * k * [0, 2, 3, 4][nb]), gem: GEM[nb], gemN: GEM[nb] ? 1 : 0};
   if (mat === 'cloth') return {ids: (C.CRAFT_MAT.cloth || {})[nb] || [], n: Math.round(k * [0, 2, 3, 4][nb]), gem: 0, gemN: 0};
   return {ids: (C.CRAFT_MAT.wood || {})[nb] || [], n: Math.round(k * [0, 4, 3, 3][nb]), gem: 0, gemN: 0}; };
-/* материал должен стоить не меньше, чем ступень прибавляет к цене вещи у лавочника (+10%): иначе улучшать и сдавать — выгоднее всего.
-   Сверх обычного материала — самоцветы: сколько и каких, решает цена основы. Цены вещей не меняются. */
-const GEM_TIERS = [2000, 5000, 10000, 30000];
-const priceAt = (base, n) => n ? ((R.item(C.magicId({base, bonus: n, props: [], special: '', curse: ''})) || {}).price || 0) : ((R.item(base) || {}).price || 0);
-C.matNeed = (id, mat, nb) => { const nd = matNeed0(id, mat, nb), base = R.baseId ? R.baseId(id) : id; if (!R.item(base) || !nd.ids.length) return nd;
-  const gain = (priceAt(base, nb) - priceAt(base, nb - 1)) / 4, want = Math.ceil(gain * 1.1);
-  const mp = Math.min(...nd.ids.map(i => (R.item(i) || {}).price || 0)), have = nd.n * mp + nd.gemN * nd.gem;
-  if (have >= want) return nd;
-  let ti = Math.max(0, GEM_TIERS.indexOf(nd.gem || [0, 2000, 5000, 10000][nb])), k = Math.ceil((want - nd.n * mp) / GEM_TIERS[ti]);
-  while (k > 6 && ti < GEM_TIERS.length - 1) { ti++; k = Math.ceil((want - nd.n * mp) / GEM_TIERS[ti]); }
-  return Object.assign(nd, {gem: GEM_TIERS[ti], gemN: Math.max(nd.gemN, k)}); };
+/* самоцветы на ступень — по виду вещи (не от её цены): оружие, щиты и прочее — +1: 1 от 20 зм, +2: 2 от 50, +3: 3 от 100;
+   доспех на тело — +1: 2 от 50, +2: 4 от 100, +3: 4 от 300. Тяжёлый доспех (чешуя, дощатая) — металла втрое против прочего. */
+C.CRAFT_GEMS = {w: [[0, 0], [1, 2000], [2, 5000], [3, 10000]], body: [[0, 0], [2, 5000], [4, 10000], [4, 30000]]};
+C.matNeed = (id, mat, nb) => { const nd = matNeed0(id, mat, nb), x = R.item(R.baseId ? R.baseId(id) : id); if (!x) return nd;
+  const body = x._t === 'a' && x.slot === 'тело', G2 = (body ? C.CRAFT_GEMS.body : C.CRAFT_GEMS.w)[nb] || [0, 0];
+  if (body && (x.price || 0) >= 60000) nd.n = Math.round(nd.n * 1.5);
+  return Object.assign(nd, {gemN: G2[0], gem: G2[1]}); };
 const gemsOf = (h, min, n) => { if (!min || !n) return []; const gs = h.inv.filter(x => { const it = R.item(x); return it && it.category === 'самоцветы' && (it.price || 0) >= min && !/koltso|grivna|obruch/.test(x); })
   .sort((a, b) => R.item(a).price - R.item(b).price); return gs.length >= n ? gs.slice(0, n) : null; };
 const gemOf = (h, min) => { const g = gemsOf(h, min, 1); return g && g.length ? g[0] : null; };
