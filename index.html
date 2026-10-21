@@ -328,6 +328,12 @@ button{font:inherit;cursor:pointer}
 .klh small{font:700 11px var(--t-label);letter-spacing:.14em;text-transform:uppercase;color:#8b6a3a}.klh h3{margin:2px 0;font:400 26px/1.25 var(--t-display)}
 .kltext{margin:0;padding:14px 18px;font:italic 18px/1.55 var(--t-text);color:#3a2a18;background:linear-gradient(#e9dcc0,#dccaa3);border:1px solid #b39a6e;border-radius:3px 10px 4px 12px;box-shadow:inset 0 0 18px rgba(120,90,50,.25)}
 .klgift{margin:0;color:var(--ink-2)}
+.title .khall{display:flex;align-items:center;justify-content:space-between;gap:14px;width:100%;padding:16px 22px;min-height:84px;text-align:left;border:1px solid var(--brass);border-radius:10px;background:linear-gradient(90deg,rgba(18,13,8,.92),rgba(18,13,8,.55)),url(img/bg_s_tavern.webp) center 40%/cover;box-shadow:0 6px 24px rgba(0,0,0,.45)}
+.title .khall::before{display:none!important}.title .khall:hover{border-color:var(--brass-2);box-shadow:0 0 0 2px rgba(231,201,131,.25),0 6px 24px rgba(0,0,0,.45)}
+.khall .khl{display:grid;gap:4px}.khall .khl b{font:400 clamp(24px,3vw,32px)/1 var(--t-display);color:var(--brass-2);text-transform:none;letter-spacing:0}.khall .khl small{font:14px var(--t-text);color:#d9c79f;text-transform:none;letter-spacing:0}
+.khall .khr{display:flex;align-items:center;gap:8px;font:700 13px var(--t-label);letter-spacing:.12em;text-transform:uppercase;color:#e9d8b0;white-space:nowrap}
+.khall .khr b{font:700 30px/1 var(--t-label);color:#fff3d2;letter-spacing:0;font-variant-numeric:tabular-nums}.khall .kdot{width:12px;height:12px;box-shadow:0 0 8px #6d9b4a}
+@media (max-width:520px){.title .khall{padding:12px 14px;min-height:0}.khall .khr b{font-size:24px}}
 /* корчма: зал-чат */
 .korchma .khead{position:relative;overflow:hidden;min-height:132px;align-items:flex-end;padding:18px 20px;background:linear-gradient(90deg,rgba(18,13,8,.94) 0%,rgba(18,13,8,.72) 46%,rgba(18,13,8,.35) 100%),url(img/bg_s_tavern.webp) center 40%/cover;box-shadow:0 6px 24px rgba(0,0,0,.45)}
 .korchma .khead::after{content:"";position:absolute;inset:auto 0 0 0;height:3px;background:linear-gradient(90deg,transparent,var(--brass),transparent);opacity:.7}
@@ -37025,13 +37031,14 @@ function showTitle() {
    <p class="epi">${allCh.length ? esc(`Позади — ${[...new Set(allCh.flatMap(c => c.done))].map(id => '«' + (C.CAMPS[id] || {name: id}).name + '»').join(', ')}. Край помнит имена живых и мёртвых.`) : esc(R.pick(TITLE_EPI))}</p>
    ${used.length ? `<h4 class="jh">Саги <span class="note">${used.length} из ${SAGA_N}</span></h4><div class="sagas">${cards.join('')}</div>` : ''}
    ${backBtn}
+   ${window.Net ? `<button class="btn khall" id="t-net"><span class="khl"><b>Корчма</b><small>столы, торг и разговоры у очага</small></span><span class="khr"><i class="kdot k"></i>Онлайн <b id="t-online">${esc(onlineNum())}</b></span></button>` : ''}
    ${C.CAMPS.free ? (() => { const fm = sagaMeta()[FREE_I], has = sagaHas(FREE_I); return `<div class="tgrid"><button class="btn ttile ${has ? 'primary' : ''}" id="t-free" data-scont-free="1"><b>Вечный мир</b><span>${has && fm ? esc(`${fm.who.join(', ')} · день ${fm.day}`) + ' — продолжить' : 'один большой мир без глав: края по уровням, поручения без конца, война Ока с навью'}</span></button></div>`; })() : ''}
    ${free ? `<div class="tgrid">
     <button class="btn ttile ${used.length ? '' : 'primary'}" id="t-new"><b>Новая сага</b><span>«${esc(first.name)}» с начала — новым героем или своим, 1–10-й уровень</span></button>
     <button class="btn ttile" id="t-chap"><b>Сага с любой главы</b><span>шесть глав первой саги — своими героями</span></button>
     ${lateN ? `<button class="btn ttile" id="t-late"><b>Поздние саги</b><span>годы после Веры: «Сумерки» с 5-го уровня, «Последние чары» с 10-го</span></button>` : ''}
    </div>` : `<p class="note" style="text-align:center">Все пять саг в пути. Чтобы начать новую, оставьте одну из них — герои останутся с вами.</p>`}
-   <nav class="tlinks">${FS_OK() ? `<button id="t-fs" data-act="fs">${FS_ON() ? 'Обычный экран' : 'Во весь экран'}</button>` : ''}<button id="t-pool">Мои герои</button>${window.Cloud ? `<button id="t-cloud" title="Вход и сохранения в облаке">${esc(cloudLabel())}</button>` : ''}<button id="t-xfer" title="Играть с другого браузера или устройства: перенести героев и саги">Перенос</button>${window.Net ? `<button id="t-net">Корчма <small id="t-online">${esc(Net.Hall.on() ? onlineText() : '')}</small></button>` : ''}</nav>
+   <nav class="tlinks">${FS_OK() ? `<button id="t-fs" data-act="fs">${FS_ON() ? 'Обычный экран' : 'Во весь экран'}</button>` : ''}<button id="t-pool">Мои герои</button>${window.Cloud ? `<button id="t-cloud" title="Вход и сохранения в облаке">${esc(cloudLabel())}</button>` : ''}<button id="t-xfer" title="Играть с другого браузера или устройства: перенести героев и саги">Перенос</button></nav>
   </div></div>`;
   const root = $('#main');
   $('#t-pool').onclick = () => showPool();
@@ -37057,7 +37064,28 @@ function showTitle() {
   if ($('#t-new')) $('#t-new').onclick = () => { if (sagaNew()) startChapter(C.SAGA[0], true); };
   if ($('#t-chap')) $('#t-chap').onclick = () => showChapters(false, true);
   if ($('#t-late')) $('#t-late').onclick = () => showLate(false, true);
+  setTimeout(firstRun, 400);
 }
+/* первый запуск: вход или регистрация — и сразу новый герой; без героя в корчму не пускают «путников» */
+const FIRST_KEY = 'kldv-first-done';
+const isFirst = () => { try { if (localStorage.getItem(FIRST_KEY)) return false; } catch (e) { return false; } return !poolLoad().length && !sagaUsed().length && !sagaHas(FREE_I); };
+function firstDone() { try { localStorage.setItem(FIRST_KEY, '1'); } catch (e) {} }
+function firstCreate() {
+  if (!isFirst()) return;
+  showCreate(true, {level: 1, done: h => { poolPut(h); KR.hero = h.id; firstDone(); KR.role = ''; korchmaEnsure('title'); showTitle(); toast(`${h.name} готов${h.sex === 'f' ? 'а' : ''} в путь. Корчма ждёт, саги — тоже.`); }, cancel: () => showTitle()});
+}
+function firstRun() {
+  if (g || NET() || !isFirst() || !$('#main .screen.title') || !$('#modal').hidden) return;
+  if (!window.Cloud || (Cloud.user)) return firstCreate();
+  openModal(`<div class="kfirst"><h3 class="ttl">Добро пожаловать в Порубежье</h3>
+    <p class="note">Сперва — вход. Так герои и саги будут жить не только в этом браузере, а в корчме вас узнают по имени. Потом — создадим вашего первого героя.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" id="fr-in">Войти или зарегистрироваться</button><button class="btn ghost small" id="fr-skip">Играть без входа</button></div></div>`, 'sm');
+  $('#fr-in').onclick = () => { closeModal(); KR.firstWait = 1; showCloud(); };
+  $('#fr-skip').onclick = () => { closeModal(); firstCreate(); };
+}
+if (window.Cloud) Cloud.listeners.push(c => { if (!KR.firstWait || !c.user) return; KR.firstWait = 0;
+  // облако могло принести героев с другого устройства — тогда создавать не надо
+  setTimeout(() => { if (!isFirst()) { firstDone(); return; } try { closeModal(); } catch (e) {} firstCreate(); }, 1600); });
 /* начать главу своим героем: из «Моих героев» или новым */
 const pickRange = id => { const cp = C.CAMPS[id] || {}; if (cp.pick) return cp.pick; const [lo, hi] = C.levelsOf(id); return id === C.SAGA[0] ? [1, 10] : [lo, Math.max(hi, Math.min(20, lo + 9))]; };
 const lateCamps = tier => Object.values(C.CAMPS).filter(c => c.late && (!tier || c.tier === tier));
@@ -39884,7 +39912,7 @@ async function raiseTable(name, text) {
 const LOTS_KEY = 'kldv-lots-v1';
 function lotsLoad() { try { return JSON.parse(localStorage.getItem(LOTS_KEY) || '[]') || []; } catch (e) { return []; } }
 function lotsSave(L) { try { localStorage.setItem(LOTS_KEY, JSON.stringify(L)); } catch (e) {} lotsPublish(); }
-const myName = () => Net.LS('name') || ((poolLoad().find(h => !h.dead) || {}).name) || 'Путник';
+const myName = () => Net.LS('name') || ((poolLoad().find(h => !h.dead) || {}).name) || (window.Cloud && Cloud.user && Cloud.user.name ? Cloud.user.name.split(' ')[0] : '') || 'Путник';
 function lotsPublish() { if (!window.Net || !Net.Hall.on()) return; Net.Hall.setLots(lotsLoad().map(l => ({id: l.id, seller: myName(), hero: l.heroName, item: l.item, price: l.price, at: l.at}))); }
 /* герой там, где он сейчас живёт: в идущей партии, в сохранении одной из саг или только в «Моих героях» */
 function heroWhere(id) {
@@ -39920,7 +39948,7 @@ function onBuyReq(m, reply) {
 /* фоновое присутствие: в корчме виден каждый, кто в игре; лоты продаются, зов доходит */
 var KR = {room: 'common', tab: 'buy', hero: null, role: '', msg: '', draw: null};
 function korchmaHooks() { Net.Hall.setHooks({
-  state: () => { const n = $('#t-online'); if (n) n.textContent = onlineText(); if ($('.screen.korchma') && KR.draw) KR.draw(true); },
+  state: () => { const n = $('#t-online'); if (n) n.textContent = onlineNum(); if ($('.screen.korchma') && KR.draw) KR.draw(true); },
   msg: m => { if (!$('.screen.korchma')) return; if (m.room !== KR.room) { KR.unread = KR.unread || {}; KR.unread[m.room] = (KR.unread[m.room] || 0) + 1; const t = document.querySelector(`[data-room="${m.room}"] .badge`); if (t) t.textContent = KR.unread[m.room]; return; }
     const lg = $('#k-log'); if (!lg) return; if (lg.querySelector('.cm.sys.empty')) lg.innerHTML = ''; const last = lg.lastElementChild, prev = last && last.dataset.uid ? {uid: last.dataset.uid, ts: +last.dataset.ts} : null; lg.insertAdjacentHTML('beforeend', kLine(m, prev)); bindInv(lg); paintFaces(lg); bindWho(lg); lg.scrollTop = lg.scrollHeight; },
   invite: i => inviteOffer(i),
@@ -39945,6 +39973,7 @@ const kSafeLook = L => { if (!L || typeof L !== 'object') return null; const o =
 const kMember = uid => ((Net.Hall.state().members || []).find(x => x.uid === uid));
 const kTime = ts => { try { return ts ? new Date(ts).toLocaleTimeString('ru-RU', {hour: '2-digit', minute: '2-digit'}) : ''; } catch (e) { return ''; } };
 const ROLE_DOT = {hall: 'k', title: 'k', wait: 'k', game: 'g', table: 't', host: 't'};
+const onlineNum = () => { try { return window.Net && Net.Hall.on() ? String(Math.max(1, (Net.Hall.state().members || []).length)) : '…'; } catch (e) { return '…'; } };
 const ROLE_RU = {hall: 'в корчме', title: 'в корчме', wait: 'в корчме', game: 'в походе', table: 'за столом', host: 'держит стол'};
 function onlineText() { const M = Net.Hall.state().members || [], n = M.length; if (!n) return '';
   const k = M.filter(m => ['hall', 'title', 'wait'].includes(m.role)).length, gm = M.filter(m => m.role === 'game').length, t = M.filter(m => ['table', 'host'].includes(m.role)).length;
