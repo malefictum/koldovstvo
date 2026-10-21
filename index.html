@@ -35243,14 +35243,20 @@ const suitor = (g, role, at, p) => {
   const r = C.relOf(g, role, at); if (r.who) { const h = heroById(g, r.who); if (h && h.sex !== p.sex && !(h.spouse && !r.bond)) return h; }
   if (!romanceOk(g, role, at)) return null;
   const hs = C.alive(g).filter(h => h.kind !== 'merc' && h.sex !== p.sex && !bonded(g, h, 'wed') && !h.spouse && !taken(g, h, r));
-  return hs.sort((a, b) => (b.stats.cha || 0) - (a.stats.cha || 0))[0] || null;
+  /* кто приглянулся — дело случая: выбирает один раз и держится выбора; чаще — того, кто помогал (подарки, дела) и кто обаятельнее */
+  if (!hs.length) return null; const keep = hs.find(h => h.id === r.eye); if (keep) return keep;
+  const fav = r.fav || {}, w = h => 1 + 2 * (fav[h.id] || 0) + Math.max(0, R.mod(h.stats.cha || 10));
+  let x = R.rand() * hs.reduce((t, h) => t + w(h), 0), pick = hs[0]; for (const h of hs) { x -= w(h); if (x <= 0) { pick = h; break; } }
+  r.eye = pick.id; return pick;
 };
 const kin = (g, role, at, p) => { const r = C.relOf(g, role, at); if (r.who) return heroById(g, r.who);
   return C.alive(g).filter(h => h.kind !== 'merc' && h.sex === p.sex && !bonded(g, h, 'brat')).sort((a, b) => (b.stats.cha || 0) - (a.stats.cha || 0))[0] || null; };
 /* потолок без сердечного дела */
 /* потолок: семья и любовь — 100; есть кому ответить на чувства (герой иного пола) — 85 до сердечного дела; иначе — дружба, 79 */
 /* кто в семье — для прочих навсегда только друг: сердце остывает до дружбы, больше не заигрывают */
-const settle = (g, role, at, r) => { if (r.bond || r.rep < 80) return; const p = C.folkPerson(g, role, at); if (romanceOk(g, role, at) && suitor(g, role, at, p)) return; r.rep = 79; r.love = 0; r.who = null; };
+const settle = (g, role, at, r) => { if (r.bond || r.rep < 80) return;
+  /* избранник женился на другом — сердце свободно, смотрит на следующего, кто помогает */
+  if (r.who) { const h0 = heroById(g, r.who); if (!h0 || h0.spouse || bonded(g, h0, 'wed')) { r.who = null; r.love = 0; r.answered = 0; r.rep = Math.min(r.rep, 85); } } const p = C.folkPerson(g, role, at); if (romanceOk(g, role, at) && suitor(g, role, at, p)) return; r.rep = 79; r.love = 0; r.who = null; };
 C.relSettle = g => Object.entries(g.folkRel || {}).forEach(([k, r]) => { const [role, at] = k.split('@'); if (C.FOLK[role]) settle(g, role, at, r); });
 const capOf = (g, r, role, at) => { if (r.bond || r.love) return 100; const p = C.folkPerson(g, role, at); return romanceOk(g, role, at) && suitor(g, role, at, p) ? 85 : 79; };
 C.relAdd = function (g, role, at, d, why) {
@@ -35452,7 +35458,7 @@ SC.folk_gift = g => {
     .sort((a, b) => b.x.price - a.x.price).slice(0, 10);
   const gain = () => 1 + Math.floor(R.rand() * 4); /* подарок: +1…+4 */
   const ch = items.map(o => ({own: o.h.id, t: `${o.h.name}: ${o.x.name}`, do: g2 => { const h2 = C.alive(g2).find(y => y.id === o.h.id); const i = h2 ? h2.inv.indexOf(o.id) : -1; if (i < 0) return 'folk';
-    h2.inv.splice(i, 1); const rr = C.relOf(g2, role, at); rr.giftDay = g2.day; const add = C.relAdd(g2, role, at, gain());
+    h2.inv.splice(i, 1); const rr = C.relOf(g2, role, at); rr.giftDay = g2.day; rr.fav = rr.fav || {}; rr.fav[h2.id] = (rr.fav[h2.id] || 0) + 1; const add = C.relAdd(g2, role, at, gain());
     g2.folkLast = `${p.n} принимает подарок — ${o.x.name.toLowerCase()}: «${C.relTier(rr) >= 3 ? 'Ты… ты не {hs:должен был|должна была}. Но спасибо' : C.relTier(rr) >= 2 ? 'Вот это подарок! Спасибо, друг' : 'Хм. Благодарю'}».${add > 0 ? '' : ' Ближе подарками не стать — нужно что-то большее.'}`.replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, m, f) => h2.sex === 'f' ? f : m);
     C.note(g2, g2.folkLast); g2.relGift = null; return 'folk'; }}));
   ch.push({t: 'Назад', do: g2 => { g2.relGift = null; return 'folk'; }});
@@ -35467,12 +35473,15 @@ const relForJob = (g, j) => j.folk && j.folkAt ? C.relOf(g, j.folk, j.folkAt) : 
 const onPaid = (g, j) => {
   if (!j || !j.folk || j.relDone || j.status !== 'paid') return; j.relDone = 1;
   const r = relForJob(g, j); if (!r) return;
+  { const hs = g.net && g.net.own && j.takers ? j.takers : C.alive(g).map(h => h.id); r.fav = r.fav || {}; hs.forEach(id => { r.fav[id] = (r.fav[id] || 0) + 2; }); }
   if (j.heart) { r.love = 1; const p = C.folkPerson(g, j.folk, j.folkAt); C.relAdd(g, j.folk, j.folkAt, Math.max(0, 90 - r.rep) + 2);
     const h = heroById(g, r.who); C.note(g, h ? fill(h.sex !== p.sex ? '{N} говорит наконец то, что давно хотел{ns:|а}: «Я люблю тебя, {h}»' : '{N}: «Теперь ты мне — родн{hs:ой|ая}. Без всяких слов»', p, h) : `${p.n} благодарит от сердца.`); return; }
   // обычное дело: 4–12 по трудности; серьёзное (от друга или по слуху): 8–16
   const lo = ({easy: 0, mid: 1, hard: 2})[j.diff] || 0, base = (j.friendLine || j.rumor ? 8 : 4) + lo * 3 + Math.floor(R.rand() * 3);
   C.relAdd(g, j.folk, j.folkAt, Math.max(1, Math.round(base * Math.max(0.5, Math.min(1, j.mul == null ? 1 : j.mul)))), 'дело сделано');
 };
+/* за общим столом помнят, чьи герои взялись за дело */
+const acc0 = Q.accept; if (acc0) Q.accept = function (g, j) { const r = acc0.apply(this, arguments); try { if (g && j && g.net && g.net.own && g._actorPid) j.takers = C.alive(g).filter(h => g.net.own[h.id] === g._actorPid).map(h => h.id); } catch (e) {} return r; };
 const fin0 = Q.finish; Q.finish = function (g, j) { const r = fin0.apply(this, arguments); onPaid(g, j); return r; };
 const rep0 = Q.report; Q.report = function (g, j) { const r = rep0.apply(this, arguments); onPaid(g, j); return r; };
 const tick0 = Q.tick; Q.tick = function (g) { const before = new Set((g.jobs || []).filter(j => j.status === 'open').map(j => j.id)); const r = tick0.apply(this, arguments);
