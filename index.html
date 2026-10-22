@@ -36281,11 +36281,138 @@ const E = {
     ch: [{t: 'Бежать вдоль скал', st: 'dex', sk: 'Атлетика', dc: 12, ok: {t: 'Успели. Волна лизнула пятки.', xp: 15}, no: {t: 'Волна сбила с ног.', hurt: [1, 6, 'all']}},
       {t: 'Влезть на скалу', st: 'str', sk: 'Атлетика', dc: 13, aid: 'rope', ok: {t: 'Переждали прилив на скале. Сверху видно бухту.', reveal: 1, time: 2, xp: 15}, no: {t: 'Скользкий камень — {h} сорвался.', hurt: [2, 6], time: 2}}]},
 };
+/* ---------- ещё испытания: чтобы шли в дело ремёсла и умения ---------- */
+Object.assign(E, {
+  /* ЛЕС */
+  l_kapkan: {at: ['forest'], title: 'Зверь в капкане', v: ['В чужом капкане бьётся молодая волчица. Лапа в крови, глаза — человечьи от боли.', 'Под ёлкой скулит лис, лапа зажата железом.'],
+    ch: [{t: 'Успокоить и освободить', st: 'wis', sk: 'Выживание', dc: 13, pf: ['yaz_zver', 'zhivotn'], ok: {t: '{h} говорит со зверем на его лад и разжимает капкан. Зверь уходит, оглянувшись. Наутро у костра — заячья тушка.', food: 2, xp: 25, side: {kap: 0.25}}, no: {t: 'Зверь рвёт руку и уходит в чащу.', hurt: [1, 6]}},
+      {t: 'Добить и взять шкуру', st: 'dex', sk: 'Выживание', dc: 11, pf: ['ohotnik'], ok: {t: '{h} снимает шкуру как положено.', it: ['tr_shkura_zverya'], food: 2, xp: 10}, no: {t: 'Шкуру попортили — годится лишь на мясо.', food: 1}},
+      {t: 'Снять капкан и оставить себе', st: 'dex', sk: 'Ловкость рук', dc: 12, pf: ['lovushki'], ok: {t: 'Капкан хороший, кованый — на продажу.', gold: 1, xp: 10}, no: {t: 'Пружина бьёт по пальцам.', hurt: [1, 4]}}]},
+  l_lesnik: {at: ['forest'], title: 'Изба лесника', v: ['На поляне изба, у порога — лесник с больной собакой на руках.', 'Лесник выходит навстречу: «Пёс мой третий день не ест. Знахари есть?»'],
+    ch: [{t: 'Вылечить пса', st: 'int', sk: 'Медицина', dc: 12, pf: ['medicina', 'zhivotn'], aid: 'med', ok: {t: '{h} находит занозу в горле пса. Лесник показывает потайные тропы.', reveal: 1, xp: 25}, no: {t: 'Пёс так и не встал. Лесник хмуро кивает.', xp: 5}},
+      {t: 'Выменять припасы', st: 'cha', sk: 'Торговля', dc: 11, pf: ['torgovlya'], ok: {t: 'Лесник отдаёт копчёное мясо и мёд за серебро — вдвое дешевле торга.', it: ['kopchenoe_myaso', 'kopchenoe_myaso', 'med'], gold: -1, xp: 10}, no: {t: 'Лесник не торгуется с чужими.'}},
+      {t: 'Спросить про лес', st: 'cha', sk: 'Дипломатия', dc: 10, pf: ['diplomat', 'rech'], ok: {t: 'Лесник рассказывает, где волчьи логова, а где старое капище.', reveal: 1, xp: 10}, no: {t: 'Лесник молчит, как пень.'}}]},
+  l_rezy: {at: ['forest'], title: 'Резы на дубе', v: ['На старом дубе вырезаны знаки — кто-то оставил весть для своих.', 'Кора срезана, под ней — резы и стрелка.'],
+    ch: [{t: 'Прочесть знаки', st: 'int', sk: 'Грамота', dc: 13, pf: ['istoriya', 'yazyki'], ok: {t: '{h} читает: «Схрон в трёх сотнях шагов к восходу». Схрон на месте.', gold: 3, it: ['strely_legkie_12'], xp: 25}, no: {t: 'Знаки чужие, смысла не уловить.'}},
+      {t: 'Вырезать свою весть поверх', st: 'dex', sk: '', dc: 12, pf: ['rezba'], ok: {t: '{h} режет знак Порубежья — пусть знают, что дорога занята.', fame: 1, xp: 15}, no: {t: 'Нож соскользнул по коре.', hurt: [1, 4]}}]},
+  /* ПОЛЕ, ЛУГ */
+  p_melnitsa: {at: ['field', 'meadow', 'vineyard'], title: 'Сломанная мельница', v: ['Ветряк стоит, крыло висит на обломке вала. Мельник ругается на всё село.', 'Мельница не крутится: вал треснул, мука не мелется.'],
+    ch: [{t: 'Починить вал', st: 'dex', sk: '', dc: 13, pf: ['rezba', 'kuzn'], ok: {t: '{h} вытёсывает новый клин и стягивает вал. Крылья пошли! Мельник отсыпает муки и платит.', it: ['muka_1_funt', 'muka_1_funt', 'muka_1_funt'], gold: 2, xp: 25, fame: 1}, no: {t: 'Клин раскололся. Мельник машет рукой.', time: 2}},
+      {t: 'Поднять крыло силой', st: 'str', sk: 'Атлетика', dc: 15, ok: {t: 'Крыло вернули на место. Мельник угощает.', it: ['hleb_karavay'], xp: 15}, no: {t: 'Крыло сорвалось и чуть не прибило.', hurt: [2, 6]}}]},
+  p_oboz: {at: ['field', 'meadow', 'steppe'], title: 'Опрокинутый воз', v: ['Воз с горшками лёг на бок, кони бьются в постромках.', 'Купеческий воз в канаве, коняга запуталась в упряжи.'],
+    ch: [{t: 'Успокоить коней', st: 'wis', sk: 'Выживание', dc: 12, pf: ['ezda', 'zhivotn'], ok: {t: 'Кони стихли, воз подняли. Купец отдаёт плату.', gold: 2, xp: 20}, no: {t: 'Конь лягнул.', hurt: [1, 6]}},
+      {t: 'Поднять воз', st: 'str', sk: 'Атлетика', dc: 14, ok: {t: 'Воз на колёсах. Горшки целы — купец щедр.', gold: 3, xp: 15}, no: {t: 'Воз рухнул обратно, горшки — вдребезги. Купец плачет.', time: 1}},
+      {t: 'Скупить уцелевшее задёшево', st: 'cha', sk: 'Торговля', dc: 12, pf: ['torgovlya', 'lozh'], ok: {t: 'Купец рад сбыть хоть что-то. Взяли горшки и соль за бесценок — в городе продадите дороже.', it: ['sol_1_funt', 'sol_1_funt'], gold: 1, xp: 10}, no: {t: 'Купец обиделся на цену.'}}]},
+  p_pahar: {at: ['field'], title: 'Пахарь', v: ['Пахарь один на поле, лошадь хромает, а сеять пора.', 'Мужик тянет соху сам: «Лошадь пала. Без сева — голод».'],
+    ch: [{t: 'Помочь вспахать', st: 'str', sk: 'Атлетика', dc: 12, pf: ['zemled'], ok: {t: 'Борозда за бороздой — к вечеру поле готово. Мужик кланяется в пояс.', it: ['zerno_1_funt', 'zerno_1_funt', 'repa_1_funt'], fame: 1, xp: 20, time: 3}, no: {t: 'Соха вывернулась из рук.', hurt: [1, 4], time: 2}},
+      {t: 'Подлечить лошадь', st: 'wis', sk: 'Медицина', dc: 13, pf: ['zhivotn', 'medicina'], ok: {t: 'Камешек в копыте. Лошадь снова в борозде, мужик рад.', gold: 1, fame: 1, xp: 20}, no: {t: 'Лошадь всё хромает.'}}]},
+  /* ХОЛМЫ */
+  h_rodnik: {at: ['hills', 'mountains'], title: 'Горький родник', v: ['Из камня сочится вода с запахом тухлого яйца. Вокруг — жёлтые наплывы.', 'Над ручьём белый налёт, камни в рыжей корке.'],
+    ch: [{t: 'Набрать серы и соли', st: 'int', sk: 'Знахарство', dc: 12, pf: ['komponenty', 'zelya'], ok: {t: '{h} соскребает серу и горькую соль — добро для зелий.', it: ['sera', 'gorkaya_sol'], xp: 20}, no: {t: 'Не то набрали — грязь да камни.', time: 1}},
+      {t: 'Испить для здоровья', st: 'con', sk: '', dc: 12, pf: ['soprot', 'stoykost'], ok: {t: 'Горькая вода прочищает кровь. Раны ноют меньше.', heal: 0.3, xp: 10}, no: {t: 'Всех мутит до вечера.', hurt: [1, 4, 'all']}}]},
+  h_dolmen: {at: ['hills', 'steppe'], title: 'Каменный стол', v: ['Три валуна держат плиту — старый жертвенник. На плите бурые пятна.', 'На холме — каменный стол, вокруг кострища.'],
+    ch: [{t: 'Понять, кому он служил', st: 'wis', sk: 'Вера', dc: 13, pf: ['religiya', 'istoriya'], ok: {t: '{h} узнаёт стол Велеса — чистый, без крови людей. Оставили дар — дух отряда окреп.', spirit: 1, side: {kap: 0.5}, xp: 20}, no: {t: 'Не разобрать. От камня тянет холодом.'}},
+      {t: 'Поискать под плитой', st: 'wis', sk: 'Поиск', dc: 13, pf: ['obnaruzh', 'lovushki_poisk'], ok: {t: 'Под плитой — горшок с древними монетами.', gold: 4, side: {kap: -0.25}, xp: 15}, no: {t: 'Плита съехала на руку.', hurt: [1, 6]}}]},
+  h_lager: {at: ['hills', 'forest'], title: 'Стан на ночь', v: ['Вечереет. До жилья далеко, место для стана надо выбрать с умом.', 'Ночь на подходе, а кругом холмы и ветер.'],
+    ch: [{t: 'Выбрать укрытое место', st: 'wis', sk: 'Выживание', dc: 12, pf: ['vyzhiv', 'mestnost'], ok: {t: '{h} находит лощину под скалой — тихо, сухо, огонь не видно издали. Выспались.', heal: 0.25, spirit: 1, xp: 15}, no: {t: 'Ветер всю ночь задувал костёр.', time: 1}},
+      {t: 'Наварить сытного', st: 'wis', sk: '', dc: 11, pf: ['povar'], ok: {t: 'Похлёбка из того, что нашлось, — пальчики оближешь.', heal: 0.2, spirit: 1, xp: 10}, no: {t: 'Пригорело.'}}]},
+  /* ГОРЫ */
+  m_shtolnya: {at: ['mountains', 'hills', 'cave'], title: 'Заброшенная штольня', v: ['В скале — вход в штольню, крепи сгнили. Внутри брошены кайла.', 'Старый рудник: рельсы из жердей уходят во тьму.'],
+    ch: [{t: 'Пройти, высматривая ловушки и трещины', st: 'wis', sk: 'Поиск', dc: 13, pf: ['lovushki_poisk', 'obnaruzh'], aid: 'torch', ok: {t: 'Обошли обвалы. В забое — брошенная руда и самоцвет.', gem: 1, gold: 1, xp: 25}, no: {t: 'Крепь рухнула за спиной.', hurt: [2, 6, 'all'], time: 1}},
+      {t: 'Вскрыть окованный сундук у входа', st: 'dex', sk: 'Ловкость рук', dc: 14, pf: ['zamki', 'vzlom'], ok: {t: 'Замок щёлкнул. В сундуке — жалованье рудокопов, так и не выданное.', gold: 5, xp: 20}, no: {t: 'Отмычка сломалась.'}}]},
+  m_gortsy: {at: ['mountains'], title: 'Пошлина', v: ['На перевале горцы с секирами: «Хочешь пройти — плати».', 'Тропу перегородили камнем, у камня трое горцев.'],
+    ch: [{t: 'Договориться', st: 'cha', sk: 'Дипломатия', dc: 13, pf: ['diplomat', 'yazyki'], ok: {t: '{h} говорит на их наречии — горцы смеются и пропускают даром.', xp: 25}, no: {t: 'Пришлось заплатить.', gold: -1}},
+      {t: 'Напугать', st: 'cha', sk: 'Запугивание', dc: 14, pf: ['zapug'], ok: {t: 'Горцы отступают от камня.', xp: 20}, no: {t: 'Горцы берутся за секиры.', fight: {foes: ['gorets_voin', 'gorskiy_prolaza', 'gorskiy_otrok'], terr: 'forest'}, gold: 2}},
+      {t: 'Наврать, что вы — люди князя', st: 'cha', sk: 'Обман', dc: 13, pf: ['lozh'], ok: {t: 'Горцы кланяются и отходят.', xp: 20}, no: {t: 'Не поверили и взяли вдвое.', gold: -2}}]},
+  m_tuman: {at: ['mountains', 'hills'], title: 'Туман на перевале', v: ['Облако легло на перевал — не видно и вытянутой руки.', 'Туман густой, как молоко, тропа пропала.'],
+    ch: [{t: 'Вести по памяти о тропе', st: 'wis', sk: 'Выживание', dc: 13, pf: ['poisk_puti', 'mestnost'], ok: {t: '{h} ведёт по камням, как по своему двору.', xp: 20}, no: {t: 'Заблудились, вышли к пропасти — повернули.', time: 3}},
+      {t: 'Подниматься связкой', st: 'dex', sk: 'Атлетика', dc: 12, pf: ['alpinist'], aid: 'rope', ok: {t: 'Шли связкой, никто не сорвался.', xp: 15, time: 1}, no: {t: 'Кто-то сорвался на камни.', hurt: [2, 6], time: 1}}]},
+  /* БОЛОТО */
+  b_kikimora: {at: ['marsh'], title: 'Кикимора', v: ['Ночью в лагере пропали ложки и путаются верёвки. Кто-то хихикает в камышах.', 'Сапоги связаны шнурками, в котле — лягушки.'],
+    ch: [{t: 'Прочесть оберег', st: 'wis', sk: 'Вера', dc: 12, pf: ['vera', 'obereg'], ok: {t: 'Кикимора с визгом убегает и бросает награбленное — и чужое тоже.', gold: 2, xp: 20}, no: {t: 'Кикимора озлилась — к утру все в синяках.', hurt: [1, 4, 'all']}},
+      {t: 'Задобрить хлебом и бусами', st: 'cha', sk: 'Дипломатия', dc: 11, ok: {t: 'Кикимора берёт подарок и показывает сухую тропу.', reveal: 1, xp: 15}, no: {t: 'Взяла подарок и не отстала.', time: 1}}]},
+  b_oboz: {at: ['marsh'], title: 'Утонувший воз', v: ['Из трясины торчат оглобли и угол сундука.', 'Чёрная вода, под ней — воз, затянутый тиной.'],
+    ch: [{t: 'Нырнуть за сундуком', st: 'con', sk: 'Атлетика', dc: 14, pf: ['plavanie'], aid: 'rope', ok: {t: '{h} выныривает с сундучком — внутри серебро.', gold: 5, xp: 25}, no: {t: 'Тина тянет вниз, еле вытащили.', hurt: [2, 6]}},
+      {t: 'Выудить кошкой', st: 'dex', sk: 'Ловкость рук', dc: 14, ok: {t: 'Кошка цепляет ремень — сундучок на берегу.', gold: 4, xp: 15}, no: {t: 'Сундук ушёл глубже.'}}]},
+  b_klukva: {at: ['marsh'], title: 'Клюквенные кочки', v: ['Кочки красные от клюквы, а меж ними — болотные травы.', 'Ягода, мох, редкие травы — богатое место.'],
+    ch: [{t: 'Набрать трав', st: 'wis', sk: 'Знахарство', dc: 11, pf: ['travy'], ok: {t: '{h} знает, где искать: лукошко трав для зелий.', herb: 5, xp: 15}, no: {t: 'Одна клюква.', it: ['smorodina']}},
+      {t: 'Набрать ягоды на всех', o: {t: 'Клюквы набрали вдоволь — кисло, но бодрит.', spirit: 1, time: 1}}]},
+  /* СТЕПЬ */
+  s_kony: {at: ['steppe'], title: 'Конские скачки', v: ['У юрт кочевники гоняют коней и зовут гостей помериться.', 'Степняки смеются: «У кого конь быстрее — тому кумыс и серебро!»'],
+    ch: [{t: 'Выйти на скачку', st: 'con', sk: '', dc: 14, pf: ['ezda'], aid: 'horse', ok: {t: '{h} приходит первым. Степняки хлопают и платят.', gold: 4, fame: 1, xp: 25}, no: {t: 'Конь сбросил на полном скаку.', hurt: [2, 6]}},
+      {t: 'Поторговать с ними', st: 'cha', sk: 'Торговля', dc: 12, pf: ['torgovlya', 'yazyki'], ok: {t: 'Сменяли соль на войлок и вяленое мясо с хорошим барышом.', gold: 2, food: 2, xp: 15}, no: {t: 'Обвесили.', gold: -1}}]},
+  s_buran: {at: ['steppe', 'wasteland'], title: 'Буран', v: ['Небо почернело, ветер поднял пыль стеной.', 'Степь заволокло, солнце пропало.'],
+    ch: [{t: 'Найти укрытие', st: 'wis', sk: 'Выживание', dc: 13, pf: ['mestnost', 'vyzhiv'], ok: {t: '{h} выводит к балке. Переждали без потерь.', xp: 20, time: 2}, no: {t: 'Буран застал в открытом поле.', hurt: [1, 6, 'all'], time: 3}},
+      {t: 'Держать путь вслепую', st: 'wis', sk: 'Выживание', dc: 14, pf: ['poisk_puti'], ok: {t: 'Шли по ветру и памяти — и не сбились.', xp: 20}, no: {t: 'Сбились с пути.', time: 4}}]},
+  s_kamen: {at: ['steppe', 'hills', 'wasteland'], title: 'Камень с письменами', v: ['Серый камень, на нём — чужие знаки, похожие на птичьи следы.', 'У дороги — плита, исписанная по кругу.'],
+    ch: [{t: 'Прочесть', st: 'cha', sk: 'Знание языков', dc: 13, pf: ['yazyki', 'istoriya'], ok: {t: '{h} разбирает: здесь хан зарыл казну перед битвой. Под камнем — бронза и серебро.', gold: 4, xp: 30}, no: {t: 'Знаки не даются.'}},
+      {t: 'Срисовать для книжников', st: 'int', sk: 'Грамота', dc: 11, pf: ['rech', 'svitki'], aid: '', ok: {t: 'Срисовали на лист — книжники в городе заплатят.', it: ['pergament_list'], gold: 1, xp: 15}, no: {t: 'Рисунок вышел кривой.'}}]},
+  /* ПУСТОШЬ */
+  w_gonets: {at: ['wasteland', 'steppe'], title: 'Вороньё', v: ['Над пустошью кружат вороны. Внизу — убитый гонец, сумка цела.', 'Вороны сидят на мертвом коне, рядом — всадник.'],
+    ch: [{t: 'Осмотреть следы', st: 'wis', sk: 'Поиск', dc: 12, pf: ['obnaruzh', 'ohotnik'], ok: {t: '{h} читает следы: убийцы ушли на север. В сумке — грамота и серебро.', gold: 3, reveal: 1, xp: 25}, no: {t: 'Следы затоптаны.', gold: 1}},
+      {t: 'Похоронить по обряду', st: 'wis', sk: 'Вера', dc: 11, pf: ['religiya'], ok: {t: 'Гонца отпели. На душе спокойнее.', spirit: 1, side: {oko: 0.25}, xp: 15}, no: {t: 'Обряд не сложился.'}}]},
+  w_kapkany: {at: ['wasteland', 'forest'], title: 'Поле ловушек', v: ['Среди кочек — ржавые капканы и ямы с кольями. Кто-то стерёг подход.', 'На тропе — натянутая жила и колышки.'],
+    ch: [{t: 'Найти и обойти все', st: 'wis', sk: 'Поиск', dc: 13, pf: ['lovushki_poisk', 'obnaruzh'], ok: {t: 'Обошли все до одной. За полем — схрон охотников.', gold: 3, it: ['luk_ohot'], xp: 25}, no: {t: '{h} наступил в капкан.', hurt: [2, 6]}},
+      {t: 'Обезвредить и забрать', st: 'dex', sk: 'Ловкость рук', dc: 14, pf: ['lovushki', 'vzlom'], ok: {t: 'Снято с десяток капканов — железо на продажу.', gold: 3, xp: 20}, no: {t: 'Пружина ударила.', hurt: [1, 6]}}]},
+  w_pyl: {at: ['wasteland'], title: 'Сухой ветер', v: ['Горячий ветер сушит губы, пыль забивает глаза.', 'Пустошь дышит жаром, как печь.'],
+    ch: [{t: 'Идти, не сбавляя шага', st: 'con', sk: '', dc: 13, pf: ['stoykost', 'vyzhiv'], ok: {t: 'Дошли, стиснув зубы.', xp: 15}, no: {t: 'Кто-то свалился от зноя.', hurt: [1, 6, 'all'], time: 1}},
+      {t: 'Переждать в тени и идти ночью', o: {t: 'Пережидали до сумерек.', time: 5}}]},
+  /* РЕКА */
+  r_parom: {at: ['river'], title: 'Перевозчик', v: ['У реки — паром и хмурый перевозчик: «Пять серебряков с головы».', 'Перевозчик заломил цену, а брода нет.'],
+    ch: [{t: 'Сторговаться', st: 'cha', sk: 'Торговля', dc: 12, pf: ['torgovlya'], ok: {t: 'Сошлись на половине.', gold: -1, xp: 10}, no: {t: 'Заплатили сполна.', gold: -2}},
+      {t: 'Переплыть самим', st: 'con', sk: 'Атлетика', dc: 14, pf: ['plavanie'], aid: 'rope', ok: {t: 'Переплыли, натянув верёвку.', xp: 20}, no: {t: 'Течение снесло — вымокли, кто-то нахлебался.', hurt: [1, 6, 'all'], time: 1}},
+      {t: 'Наплести, что вы от Ока', st: 'cha', sk: 'Обман', dc: 13, pf: ['lozh'], ok: {t: 'Перевозчик крестится звездой и везёт даром.', xp: 15}, no: {t: 'Перевозчик смеётся и берёт вдвое.', gold: -3}}]},
+  r_nerest: {at: ['river'], title: 'Нерест', v: ['Река кипит — рыба идёт вверх, бьётся о камни.', 'На перекате рыба выпрыгивает из воды.'],
+    ch: [{t: 'Наловить', st: 'wis', sk: 'Выживание', dc: 11, pf: ['rybalka'], ok: {t: 'Рыбы — сколько унесёте.', it: ['ryba_svezhaya_1_funt', 'ryba_svezhaya_1_funt', 'ryba_svezhaya_1_funt', 'ryba_svezhaya_1_funt'], xp: 10}, no: {t: 'Скользкая — ушла.', it: ['ryba_svezhaya_1_funt']}},
+      {t: 'Закоптить впрок', st: 'wis', sk: '', dc: 12, pf: ['povar'], ok: {t: 'Рыбу закоптили — не испортится.', it: ['kopchenaya_ryba', 'kopchenaya_ryba'], time: 2, xp: 15}, no: {t: 'Сгорело.', time: 2}}]},
+  r_melnik: {at: ['river'], title: 'Водяная мельница', v: ['Мельник жалуется: колесо ночью крутится назад, а мука в мешках мокрая.', '«Водяной балует, — говорит мельник. — Хоть уезжай»'],
+    ch: [{t: 'Задобрить водяного', st: 'wis', sk: 'Знахарство', dc: 12, pf: ['religiya', 'obereg'], ok: {t: 'Чёрного петуха — в омут, мёд — на колесо. Колесо стихло. Мельник платит.', gold: 2, side: {kap: 0.5}, xp: 20}, no: {t: 'Ночью колесо снова пошло назад.'}},
+      {t: 'Подстеречь «водяного»', st: 'dex', sk: 'Скрытность', dc: 13, pf: ['ten'], ok: {t: 'Водяным оказался сосед-мельник с багром. Мельник платит вдвойне.', gold: 4, fame: 1, xp: 25}, no: {t: 'Ночь в засаде — впустую.', time: 4}}]},
+  /* БЕРЕГ */
+  c_kontrabanda: {at: ['shore'], title: 'Ночная лодка', v: ['К берегу без огней пристаёт лодка. Тюки носят быстро и молча.', 'В бухте — чужая ладья, на песке — бочонки.'],
+    ch: [{t: 'Подкрасться и подслушать', st: 'dex', sk: 'Скрытность', dc: 13, pf: ['ten'], ok: {t: 'Контрабандисты говорят о тайнике в скалах. Наутро тайник ваш.', gold: 4, it: ['vino_kuvshin'], xp: 25}, no: {t: 'Заметили — за ножи.', fight: {foes: ['tat', 'razboynik', 'naemnik'], ambush: 'foe', terr: 'plains'}, gold: 3}},
+      {t: 'Потребовать долю', st: 'cha', sk: 'Запугивание', dc: 14, pf: ['zapug'], ok: {t: 'Контрабандисты платят, лишь бы молчали.', gold: 3, side: {oko: -0.25}, xp: 15}, no: {t: 'Ответили железом.', fight: {foes: ['razboynik', 'tat', 'naemnik', 'razboynik'], terr: 'plains'}, gold: 3}},
+      {t: 'Не видеть ничего', o: {t: 'Отряд ушёл в темноту.'}}]},
+  c_mayak: {at: ['shore'], title: 'Погасший маяк', v: ['Маяк на мысу тёмен. Внизу на рифах — обломки.', 'Смотритель маяка пропал, огонь не горит.'],
+    ch: [{t: 'Взобраться и зажечь', st: 'str', sk: 'Атлетика', dc: 13, pf: ['alpinist'], aid: 'rope', ok: {t: 'Огонь горит. Наутро корабельщики оставили у маяка плату.', gold: 3, fame: 1, xp: 25}, no: {t: 'Лестница обломилась.', hurt: [2, 6]}},
+      {t: 'Искать смотрителя', st: 'wis', sk: 'Поиск', dc: 12, pf: ['obnaruzh'], ok: {t: 'Смотритель под обрывом, со сломанной ногой. Спасли — отдал запас.', it: ['zele_lecheniya'], gold: 1, xp: 20}, no: {t: 'Никого.', time: 1}}]},
+  c_zhemchug: {at: ['shore', 'river'], title: 'Жемчужницы', v: ['На отмели — раковины-жемчужницы, приоткрытые на солнце.', 'В прозрачной воде лежат ракушки, крупные, с ладонь.'],
+    ch: [{t: 'Нырять за раковинами', st: 'con', sk: 'Атлетика', dc: 13, pf: ['plavanie'], ok: {t: 'В одной — жемчуг!', it: ['zhemchug_rechnoy'], xp: 20}, no: {t: 'Только порезы о камни.', hurt: [1, 4]}},
+      {t: 'Отличить жемчужную', st: 'int', sk: 'Поиск', dc: 13, pf: ['yuvelir', 'ident'], ok: {t: '{h} знает, какую брать: вскрыли одну — и с жемчугом.', it: ['zhemchug_rechnoy'], xp: 25}, no: {t: 'Вскрыли зря десяток.'}}]},
+  /* ПЕЩЕРЫ И ПОДЗЕМЬЕ */
+  k_myshi: {at: ['cave', 'mountains'], title: 'Нетопыри', v: ['Своды шевелятся — тысячи нетопырей висят над головой.', 'Под ногами помёт, сверху писк.'],
+    ch: [{t: 'Пройти тихо', st: 'dex', sk: 'Скрытность', dc: 12, pf: ['ten'], ok: {t: 'Прошли, не потревожив. Дальше — сухой грот с чужим костром и забытым мешком.', gold: 2, xp: 15}, no: {t: 'Туча нетопырей — все в царапинах.', hurt: [1, 4, 'all']}},
+      {t: 'Набрать помёта для зелий', st: 'int', sk: 'Знахарство', dc: 11, pf: ['komponenty'], ok: {t: 'Селитра для гремучих смесей.', it: ['sera', 'ugolek'], xp: 10}, no: {t: 'Вонь — и только.'}}]},
+  k_ozero: {at: ['cave'], title: 'Подземное озеро', v: ['Пещера кончается чёрным озером. На том берегу что-то белеет.', 'Вода холодная, как лёд, и тянется под скалу.'],
+    ch: [{t: 'Переплыть', st: 'con', sk: 'Атлетика', dc: 14, pf: ['plavanie'], aid: 'torch', ok: {t: 'На том берегу — кости и кошель давнего искателя.', gold: 5, xp: 25}, no: {t: 'Судорога свела ноги.', hurt: [2, 6]}},
+      {t: 'Обойти по уступу', st: 'dex', sk: 'Атлетика', dc: 13, pf: ['alpinist', 'akrob'], aid: 'rope', ok: {t: 'Прошли по стене.', gold: 4, xp: 20}, no: {t: 'Сорвались в воду.', hurt: [1, 6], time: 1}}]},
+  k_obval: {at: ['cave', 'mountains'], title: 'Обвал', v: ['С потолка сыплется песок, крепь стонет.', 'Земля гудит, камень трескается.'],
+    ch: [{t: 'Выскочить, пока не завалило', st: 'dex', sk: 'Атлетика', dc: 13, pf: ['akrob', 'lovk_voina'], ok: {t: 'Успели.', xp: 15}, no: {t: 'Камни накрыли хвост отряда.', hurt: [2, 6, 'all']}},
+      {t: 'Подпереть свод', st: 'str', sk: 'Атлетика', dc: 15, pf: ['stoykost', 'bol'], ok: {t: '{h} держит бревно, пока все не вышли.', xp: 25, fame: 1}, no: {t: '{h} придавило.', hurt: [3, 6]}}]},
+  /* ГДЕ УГОДНО */
+  u_hvory: {at: ['*'], title: 'Больной путник', v: ['У дороги лежит странник в жару, бредит.', 'Путник трясётся в лихорадке, рядом пустая фляга.'],
+    ch: [{t: 'Выходить', st: 'int', sk: 'Медицина', dc: 13, pf: ['medicina', 'travy'], aid: 'med', ok: {t: 'Жар спал. Странник — купец, платит щедро.', gold: 4, fame: 1, xp: 25, time: 2}, no: {t: 'Помочь не смогли. Отнесли к ближнему жилью.', time: 3}},
+      {t: 'Дать зелье и уйти', o: {t: 'Оставили воды и хлеба. Пусть боги помогут.', spirit: 0, xp: 5}}]},
+  u_gadalka: {at: ['*'], title: 'Гадалка', v: ['Старуха с бубном предлагает погадать — за серебро.', 'У костра цыганка тасует косточки: «Всё скажу, что было и будет»'],
+    ch: [{t: 'Раскусить обман', st: 'wis', sk: 'Обман', dc: 12, pf: ['lozh'], ok: {t: '{h} видит, где у неё краплёные кости. Старуха смеётся и гадает по-настоящему — указывает место.', reveal: 1, xp: 20}, no: {t: 'Гадание обошлось в серебро и ничего не дало.', gold: -1}},
+      {t: 'Заплатить и слушать', o: {t: 'Старуха шепчет тёмное. Отряду не по себе.', gold: -1, xp: 5}}]},
+  u_skomorohi: {at: ['*'], title: 'Скоморохи', v: ['По дороге идут скоморохи с медведем, зовут поиграть вместе.', 'Ватага скоморохов отдыхает у ручья, гусли и дудки по траве.'],
+    ch: [{t: 'Сыграть с ними', st: 'cha', sk: '', dc: 12, pf: ['muzyka', 'iskusstvo', 'tanec'], ok: {t: 'Играли до темноты. Скоморохи разнесут молву о вас по сёлам.', fame: 2, spirit: 1, xp: 20}, no: {t: 'Скоморохи передразнивают — смеху много, молвы нет.'}},
+      {t: 'Выучить у них приём', st: 'dex', sk: 'Ловкость рук', dc: 13, pf: ['obokrast', 'akrob'], ok: {t: 'Скоморох показывает, как вынуть монету из уха — и из чужого кошеля.', xp: 30}, no: {t: 'Не далось.'}}]},
+});
+/* старым испытаниям — ремёсла в помощь */
+const PF_OLD = {l_burelom: [['akrob', 'alpinist'], [], []], l_med: [['zhivotn', 'vyzhiv'], ['obokrast'], []], l_sled: [['ohotnik', 'poisk_puti'], ['ten']], l_yama: [[], ['medicina']], l_tropa: [['travy', 'religiya'], ['poisk_puti', 'mestnost']],
+  l_pauk: [['obokrast'], ['vyzhiv']], p_kosari: [['zemled'], ['muzyka', 'iskusstvo']], p_byk: [[], ['zhivotn', 'yaz_zver']], p_kolodets: [['alpinist'], ['obokrast']], p_konokrad: [['zapug'], ['ten']], p_pozhar: [['vyzhiv', 'mestnost'], ['ezda', 'stoykost']],
+  h_osyp: [['akrob', 'alpinist'], []], h_kurgan: [['istoriya'], [], []], h_pastuh: [['zhivotn', 'yaz_zver'], ['ohotnik']], h_peshchera: [['obnaruzh'], ['diplomat']], m_karniz: [['alpinist'], ['stoykost']], m_lavina: [['ten'], ['mestnost']],
+  m_ruda: [['ident', 'yuvelir', 'kuzn'], []], m_orel: [['alpinist'], ['strelba', 'w_luk']], b_tryasina: [['mestnost', 'poisk_puti'], []], b_ogni: [['vera', 'obereg'], ['travy']], b_travy: [['travy', 'zelya'], ['stoykost']], b_mostki: [['akrob'], ['rezba']],
+  s_orda: [['ten'], ['diplomat', 'yazyki']], s_voda: [['vyzhiv', 'mestnost'], ['stoykost']], s_kurgan: [['ezda', 'zhivotn'], ['ohotnik']], w_kosti: [['obnaruzh'], ['religiya', 'vera']], w_pepel: [['diplomat', 'rech'], ['obnaruzh']],
+  r_brod: [['plavanie'], ['rezba']], r_rybaki: [['plavanie', 'rybalka'], ['diplomat']], r_vodyanoy: [['obokrast'], []], c_vybros: [['obnaruzh'], ['plavanie']], c_priliv: [['akrob'], ['alpinist']]};
+Object.entries(PF_OLD).forEach(([k, arr]) => { const e = E[k]; if (!e) return; arr.forEach((pf, i) => { if (e.ch[i] && pf.length && !e.ch[i].pf) e.ch[i].pf = pf; }); });
 C.TRAILS = E;
 const kindOf = (g, c) => { if (!c) return 'meadow'; if (c.ford) return 'river';
   try { const w = W.world(g); if (W.neigh(c.c, c.r).some(n => { const x = w.cells[W.key(n.c, n.r)]; return x && (x.t === 'water' || x.ford); }) && R.rand() < 0.5) return 'river'; } catch (e) {}
   return ['sand', 'sea'].includes(c.t) ? 'shore' : c.t; };
-C.trailPool = (g, c) => { const k = kindOf(g, c); const all = Object.keys(E).filter(id => E[id].at.includes(k)); return all.length ? all : Object.keys(E).filter(id => E[id].at.includes('meadow')); };
+C.trailPool = (g, c) => { const k = kindOf(g, c); const all = Object.keys(E).filter(id => E[id].at.includes(k) || (E[id].at.includes('*') && k !== 'cave')); return all.length ? all : Object.keys(E).filter(id => E[id].at.includes('meadow')); };
 C.pickTrail = function (g, c) {
   const all = C.trailPool(g, c); g.trailSeen = (g.trailSeen || []).filter(k => E[k]);
   let pool = all.filter(k => !g.trailSeen.includes(k));
@@ -36302,6 +36429,7 @@ const apply = (g, o, hero) => {
   if (o.herb) got.push(...herbsGive(g, o.herb));
   if (o.food) { const h = hero || C.alive(g)[0]; for (let i = 0; i < o.food; i++) h.inv.push('myaso_1_funt'); got.push(`мясо ×${o.food}`); }
   if (o.gem) { const gems = Object.values(DATA.items).filter(x => x.category === 'самоцветы' && x.price && x.price <= 1000 * L); if (gems.length) { const x = R.pick(gems), h = hero || C.alive(g)[0]; h.inv.push(x.id); got.push(x.name.toLowerCase()); } }
+  if (o.heal) C.alive(g).forEach(h => { h.hp = Math.min(h.hpMax, h.hp + Math.ceil(h.hpMax * o.heal)); });
   if (o.hurt) { const [n, d, all] = o.hurt; (all ? C.alive(g) : [hero || C.alive(g)[0]]).forEach(h => { h.hp = Math.max(1, h.hp - R.roll(n, d)); }); }
   if (o.time && C.passH) C.passH(g, o.time);
   if (o.xp && C.giveXP) C.giveXP(g, o.xp * L, 'испытание пути');
@@ -36311,15 +36439,23 @@ const apply = (g, o, hero) => {
   if (o.reveal) { try { const w = W.world(g), here = g.pos; const c = Object.values(w.cells).filter(x => x.poi && !g.flags['poi_' + x.poiId]).sort((a, b) => W.dist(a, here) - W.dist(b, here))[0]; if (c) { W.reveal(g, c, 1); t += ' Место отмечено на карте.'; } } catch (e) {} }
   return t + (got.length ? ' Взято: ' + got.join(', ') + '.' : '');
 };
+/* кто берётся: «беру на себя» — тот; иначе лучший по характеристике, навыку и ремеслу */
+const tierOf = (h, id) => (C.profTier ? C.profTier(h, id) : (h.prof && h.prof[id]) || 0);
+const profB = (h, c) => c.pf ? 2 * Math.max(0, ...c.pf.map(id => tierOf(h, id))) : 0;
+const profName = (h, c) => { const id = (c.pf || []).slice().sort((a, b) => tierOf(h, b) - tierOf(h, a))[0]; return ((C.PROF && C.PROF[id]) || {}).name || id; };
+const who = (g, c) => { const hs = C.alive(g); const cl = g.claimHero && hs.find(x => x.id === g.claimHero); if (cl) return cl;
+  return hs.slice().sort((a, b) => (R.mod(b.stats[c.st]) + R.skill(b, c.sk || '') + profB(b, c)) - (R.mod(a.stats[c.st]) + R.skill(a, c.sk || '') + profB(a, c)))[0]; };
 const SC = {};
 SC.trail = g => {
   const tr = g.trail, e = tr && E[tr.k]; if (!e) return {title: 'Дорога', lines: [['n', 'Тихо.']], choices: [{t: 'Дальше', go: 'map'}]};
   const L = lvl(g);
   const ch = e.ch.map(c => {
     if (c.o) return {t: c.t, do: g2 => { const text = apply(g2, c.o, null); C.note(g2, text); g2.findOut = {title: e.title, text}; g2.trail = null; return 'find_out'; }};
-    const dc = dcOf(g, c), aid = c.aid && AID[c.aid] ? AID[c.aid](g) : 0;
-    return {t: `${c.t} (${ST[c.st]}${c.sk ? ', ' + c.sk : ''}, сложность ${dc}${aid ? `; ${AID_RU[c.aid]} +${aid}` : ''})`, do: g2 => {
-      const aid2 = c.aid && AID[c.aid] ? AID[c.aid](g2) : 0, r = C.bestCheck(g2, c.st, c.sk || '', dc - aid2); r.dc = dc; r.total += aid2; g2.lastCheck = r;
+    const dc = dcOf(g, c), aid = c.aid && AID[c.aid] ? AID[c.aid](g) : 0, w = who(g, c), pb = w ? profB(w, c) : 0;
+    const pfTxt = pb && w ? `; ${w.name}: ${profName(w, c)} +${pb}` : (c.pf && c.pf.length ? `; помогут: ${c.pf.map(id => (C.PROF && C.PROF[id] || {}).name || id).join(', ').toLowerCase()}` : '');
+    return {t: `${c.t} (${ST[c.st]}${c.sk ? ', ' + c.sk : ''}, сложность ${dc}${aid ? `; ${AID_RU[c.aid]} +${aid}` : ''}${pfTxt})`, do: g2 => {
+      const aid2 = c.aid && AID[c.aid] ? AID[c.aid](g2) : 0, h = who(g2, c), pb2 = h ? profB(h, c) : 0, cl0 = g2.claimHero; if (h) g2.claimHero = h.id;
+      let r; try { r = C.bestCheck(g2, c.st, c.sk || '', dc - aid2 - pb2); } finally { g2.claimHero = cl0; } r.dc = dc; r.total += aid2 + pb2; g2.lastCheck = r;
       const o = r.ok ? c.ok : c.no, text = apply(g2, o, r.hero); g2.trail = null;
       if (o.fight) { const f = o.fight;
         g2.findWin = {title: e.title, text: 'Схватка позади.', gold: o.gold && o.gold > 0 ? 0 : 0, items: [], fame: 0}; g2.findOut = {title: e.title, text};
