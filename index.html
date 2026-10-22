@@ -170,6 +170,7 @@ button{font:inherit;cursor:pointer}
 #ipop .ipc{display:grid;grid-template-columns:112px 1fr;gap:12px;align-items:center;padding-right:70px}
 #ipop .ipico{width:112px;height:112px;border:1px solid rgba(107,85,55,.45);border-radius:8px;background:rgba(43,33,23,.08)}
 #ipop h3{margin:0 0 4px;font-size:21px}#ipop .ipk{font:700 12px var(--t-label);letter-spacing:.06em;text-transform:uppercase;color:#6b4a26}
+.belt{margin:10px 0 4px}.belt .jh small{font-weight:400;opacity:.7}.bslots{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:6px}.bslot{display:flex;align-items:center;gap:6px;border:1px dashed rgba(107,85,55,.45);border-radius:6px;padding:4px 6px;min-width:0}.bslot.on{border-style:solid;background:rgba(201,169,110,.12)}.bslot.miss{opacity:.6}.bslot span{font-weight:700;color:#8a6a3a;flex:none}.bslot select{min-width:0;width:100%;font-size:.85rem}@media (max-width:620px){.bslots{grid-template-columns:repeat(2,minmax(0,1fr))}}
 #ipop .ipkv{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:4px 14px;margin-top:12px}#ipop .ipkv>div{display:flex;justify-content:space-between;gap:8px;border-bottom:1px dotted rgba(107,85,55,.35);padding:2px 0}#ipop .ipkv span{color:#5b4a38}#ipop .ipkv span{flex:none}#ipop .ipkv b{text-align:right;min-width:0;overflow-wrap:anywhere}#ipop .ipkv>div.w{grid-column:1/-1}#ipop .ipkv small{font-weight:400;color:#6b5a44}
 #ipop h4.jh{font:700 13px var(--t-label);letter-spacing:.08em;text-transform:uppercase;color:#6b4a26;margin:14px 0 4px}
 #ipop .ipfx{margin:0;padding-left:18px;line-height:1.4}#ipop .ipw{color:#8a3b2b;margin:8px 0 0}#ipop .iplore{font-style:italic;color:#5b4a38;margin:12px 0 0;line-height:1.4}
@@ -1608,7 +1609,7 @@ B.checkEnd = function (S) {
   // захваченный разумом считается за свою исходную сторону, пока захват не кончится (иначе одно заклинание выигрывает бой)
   const sideOf = u => u.enthralled && !u.enthralled.own ? u.enthralled.side0 : u.side;
   const foes = S.units.filter(u => sideOf(u) === 'foe' && B.active(u) && !u.conds.charm);
-  const party = S.units.filter(u => sideOf(u) === 'party' && B.active(u));
+  const party = S.units.filter(u => sideOf(u) === 'party' && B.active(u) && !u.pet);
   if (!foes.length) { S.over = 'win'; B.log(S, 'Победа.', 'win'); return true; }
   if (!party.length) { S.over = 'loss'; B.log(S, 'Отряд пал.', 'loss'); return true; }
   if (S.round > 40) { S.over = 'loss'; B.log(S, 'Бой затянулся, враги отходят, отряд отступает.', 'loss'); return true; }
@@ -27034,7 +27035,7 @@ W.forage = function (g) {
   if (!list || here.road) return f0.apply(this, arguments); // старое поведение: голая земля, дорога
   C.passH(g, C.HOURS.hunt);
   const hs = C.alive(g); if (!hs.length) return null;
-  const hb = h => R.mod(h.stats.wis) + R.skill(h, 'Выживание') + 2 * T(h, 'ohotnik');
+  const hb = h => R.mod(h.stats.wis) + R.skill(h, 'Выживание') + 2 * T(h, 'ohotnik') + (C.huntDog ? C.huntDog(g) : 0);
   const hunter = hs.slice().sort((a, b) => hb(b) - hb(a))[0];
   const dc = 12 + (here.t === 'marsh' ? 1 : 0) + (T(hunter, 'ohotnik') ? 0 : 3);
   const r = R.d(20), tot = r + hb(hunter), ok = r === 20 || (r !== 1 && tot >= dc);
@@ -27144,8 +27145,8 @@ W.nightCamp = function (g) {
   let enc = null, text = '';
   if (R.rand() < risk.p) {
     const wr = R.d(20), wt = wr + R.mod(watch.stats.wis) + R.skill(watch, 'Поиск') + (watch.cls === 'lovchiy' ? 2 : 0) - (alone ? 4 : 0);
-    const spotted = !alone && (wr === 20 || wt >= 13);
-    if (alone && risk.who === 'люди' && R.rand() < 0.5) {
+    const dog = C.campDog && C.campDog(g), spotted = dog || (!alone && (wr === 20 || wt >= 13));
+    if (alone && !dog && risk.who === 'люди' && R.rand() < 0.5) {
       const take = Math.floor(g.purse / 4); g.purse -= take; text = `Ночью кто-то подкрался к спящему: ${take ? 'кошель стал легче на ' + R.priceText(take) : 'порылись в суме, да взять было нечего'}. Одному в поле спать — себе дороже.`;
     } else {
       const e = C.encounter(g, WHO_ENC[risk.who] || risk.Tt.enc);
@@ -29126,13 +29127,13 @@ B.start = function (o) {
     S.wx = {kind: C.WEATHER[kind] ? kind : 'clear', night};
     const X = S.wx, w = C.WEATHER[X.kind];
     S.units.forEach(u => {
-      if (X.night && u.side === 'party' && has(u, /^fakel/) && C.freeHand(u.ref)) { u.torch = true; if (u.look) u.look = Object.assign({}, u.look, {torch: true}); }
+      if (X.night && u.side === 'party' && has(u, /^fakel/) && (!C.beltOf || (u.belt || []).some(id => /^fakel/.test(id))) && C.freeHand(u.ref)) { u.torch = true; if (u.look) u.look = Object.assign({}, u.look, {torch: true}); }
       if (w.cold && !['lovchiy', 'yaryi'].includes(u.cls) && !/духи/.test(u.group || '')) u.steps = Math.max(2, u.steps - 1);
       if (w.cold && u.kind !== 'monster' && !has(u, WARM)) u.chilled = true;
       if (X.kind === 'heat' && u.kind !== 'monster' && heavyArmor(u)) u.heavyHot = true;
     });
     const parts = [];
-    if (X.night) { const tl = S.units.filter(u => u.torch).map(u => u.name), busy = S.units.filter(u => u.side === 'party' && !u.torch && has(u, /^fakel/)).map(u => u.name);
+    if (X.night) { const tl = S.units.filter(u => u.torch).map(u => u.name), busy = S.units.filter(u => u.side === 'party' && !u.torch && has(u, /^fakel/) && (u.belt || []).some(id => /^fakel/.test(id))).map(u => u.name);
       parts.push(tl.length ? `Ночь. ${tl.join(', ')} ${tl.length > 1 ? 'берут' : 'берёт'} факел в свободную руку — свет на пару саженей дальше.` : 'Ночь, темень — дальше четырёх шагов не разглядеть.');
       if (busy.length) parts.push(`${busy.join(', ')}: обе руки заняты — факел остаётся в суме.`); }
     if (X.kind !== 'clear' && X.kind !== 'cloudy') parts.push(R.pick(w.line));
@@ -31259,7 +31260,7 @@ function SCN(g) {
         if (c.total < c.dc - 4) { say(dd, `Рука дрогнула.`); spring(g2, dd, rr, h); return null; }
         say(dd, `${h.name} отступает: не далась. Можно попробовать ещё.`); return null; })});
       ch.push({t: 'Обойти по краю (Ловкость, Атлетика)', do: act((g2, dd, rr) => { const h = pickH(g2, x => -st(x, 'dex'));
-        const c = chk(g2, h, 'dex', 'Атлетика', 11 + Math.floor(dd.lvl / 3), T(h, 'akrob'));
+        const c = chk(g2, h, 'dex', 'Атлетика', 11 + Math.floor(dd.lvl / 3), T(h, 'akrob') + (C.ropeBonus ? C.ropeBonus(g2) : 0));
         if (c.ok) { rr.trap.passed = 1; rr.trap.off = 1; say(dd, 'Прошли по краю, по одному, след в след. Даже последний не оступился.'); return null; }
         spring(g2, dd, rr, h); return null; })});
     }
@@ -31293,7 +31294,7 @@ function SCN(g) {
     if (r.type === 'laz' && !r.crawled) {
       const nm = pickH(g, x => st(x, 'dex') + (x.cls === 'tat' ? 3 : 0), nimble);
       if (nm) ch.push({t: `${nm.name}: пролезть в лаз (Ловкость, Атлетика)`, do: act((g2, dd, rr) => { rr.crawled = 1; const h = C.alive(g2).find(x => x.id === nm.id) || nm;
-        const c = chk(g2, h, 'dex', 'Атлетика', 12 + Math.floor(dd.lvl / 3), (h.cls === 'tat' ? 3 : 0) + T(h, 'akrob'));
+        const c = chk(g2, h, 'dex', 'Атлетика', 12 + Math.floor(dd.lvl / 3), (h.cls === 'tat' ? 3 : 0) + T(h, 'akrob') + (C.ropeBonus ? C.ropeBonus(g2) : 0));
         if (c.ok) { const it = R.rand() < 0.25 && C.rollMagic ? [C.rollMagic(dd.lvl, {unknown: true})] : dropFor(g2, dd, dd.lvl).slice(0, 1); take(g2, (40 + 40 * dd.lvl) * R.d(3), it, `${h.name} протискивается в щель и возвращается, весь в пыли:`); }
         else { const n = R.d(6); hurt(h, n); say(dd, `${h.name} застревает, обдирается о камень (−${n} хитов) и выползает назад ни с чем.`); }
         return null; })});
@@ -35976,6 +35977,377 @@ if (B.perform) { const pf0 = B.perform; B.perform = function (S, u, id) { const 
 if (B.keep) { const kp0 = B.keep; B.keep = function (S, u) { const w = kp0.apply(this, arguments); if (!w && u.performing) C.songLine(S, u); return w; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* belt.js */
+/* Колдовство — пояс с мелочами и вещи, что раньше лежали без дела. Без DOM.
+   • Пояс: четыре быстрых места. Кладут зелья, свитки, факел и боевую мелочь (зеркальце, святыню, благовония, тул со свитками).
+     В бою с пояса — быстро: выпить зелье — малое действие, швырнуть или прочесть свиток — действие.
+     Из сумы — дольше: на всё уходит ещё и следующее действие (выпить — действие, швырнуть/прочесть — действие и малое).
+     Место на поясе — под вид вещи: выпил зелье, а в суме есть такое же — после боя место снова полно.
+   • Мелочь работает только с пояса: факел (и свободная рука ночью), зеркальце (+1 к Воле), святыня (+1 к изгнанию нечисти),
+     благовония (+1 к Дипломатии и Торговле), тул для грамот (держит три свитка в одном месте).
+   • Долгая работа — из сумы: удочка (рыбалка), склянка и корчажка (варка), книга чар (письмо свитков), шарики к праще (+1 к урону),
+     верёвка и кошка (лазанье в подземельях), псы (в бою рядом с хозяином; сторожевой будит лагерь, охотничий — на охоте).
+   • Набор путника раскладывается на настоящие вещи. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, W = G.W;
+if (!C || !R) return;
+const N = C.BELT_N = 4;
+const base = id => (R.baseId ? R.baseId(id) : id);
+const isPot = id => id === 'zele_lecheniya' || id === 'protivoyadie' || !!(C.potKind && C.potKind(id));
+const isScroll = id => !!(C.isScroll && C.isScroll(id));
+const isTorch = id => /^fakel/.test(base(id));
+/* боевая мелочь: работает, только если на поясе */
+C.TRINKET = {
+  zerkaltse_mednoe: {fx: 'дурной глаз отводит: +1 к Воле', will: 1},
+  svyatynya_idol_reznoy_znak: {fx: '+1 к изгнанию нечисти', turn: 1},
+  blagovoniya_puzyrek: {fx: '+1 к Дипломатии и Торговле', sk: {Дипломатия: 1, Торговля: 1}},
+  tul_dlya_gramot: {fx: 'держит три свитка в одном месте пояса', tul: 3},
+};
+C.beltable = id => !!id && (isPot(id) || isScroll(id) || isTorch(id) || !!C.TRINKET[base(id)]);
+C.beltKind = id => isPot(id) ? 'зелье' : isScroll(id) ? 'свиток' : isTorch(id) ? 'факел' : 'мелочь';
+const cnt = (h, id) => (h.inv || []).filter(x => x === id).length;
+/* при первом взгляде — пояс набивается сам: лечебные зелья, прочие зелья, свитки, факел, мелочь */
+C.beltAuto = function (h) {
+  const inv = [...new Set(h.inv || [])].filter(C.beltable), out = [];
+  const pr = id => id === 'zele_lecheniya' ? 0 : isPot(id) ? 1 : C.TRINKET[base(id)] ? 2 : isScroll(id) ? 3 : 4;
+  inv.sort((a, b) => pr(a) - pr(b)).forEach(id => { const k = id === 'zele_lecheniya' ? Math.min(2, cnt(h, id)) : 1; for (let i = 0; i < k && out.length < N; i++) out.push(id); });
+  while (out.length < N) out.push(null); return out;
+};
+C.beltOf = function (h) {
+  if (!h) return []; if ((h.inv || []).includes('nabor_putnika')) C.unpackKit(h); if (!Array.isArray(h.belt)) h.belt = C.beltAuto(h);
+  while (h.belt.length < N) h.belt.push(null); if (h.belt.length > N) h.belt.length = N; return h.belt;
+};
+/* что на поясе есть на самом деле: каждое место — одна вещь из сумы; тул — до трёх свитков */
+C.beltReady = function (h) {
+  const used = {}, out = [];
+  C.beltOf(h).forEach(id => { if (!id) return; if (C.TRINKET[base(id)] && C.TRINKET[base(id)].tul) return; if ((used[id] || 0) < cnt(h, id)) { used[id] = (used[id] || 0) + 1; out.push(id); } });
+  if (C.beltOf(h).some(id => id && base(id) === 'tul_dlya_gramot') && (h.inv || []).includes('tul_dlya_gramot')) {
+    let n = 0; [...new Set(h.inv)].filter(isScroll).forEach(id => { while (n < 3 && (used[id] || 0) < cnt(h, id)) { used[id] = (used[id] || 0) + 1; out.push(id); n++; } }); }
+  return out;
+};
+C.beltHas = (h, id) => C.beltReady(h).includes(id);
+C.trinketOn = (h, key) => C.beltOf(h).some(id => id && C.TRINKET[base(id)] && C.TRINKET[base(id)][key] && (h.inv || []).includes(id));
+C.beltSet = function (h, i, id) {
+  const b = C.beltOf(h); if (i < 0 || i >= N) return 'нет такого места';
+  if (id && (!C.beltable(id) || !(h.inv || []).includes(id))) return 'это на пояс не повесить';
+  if (id && b.filter((x, k) => x === id && k !== i).length >= cnt(h, id)) return 'больше таких в суме нет';
+  b[i] = id || null; return '';
+};
+C.beltText = function (h) {
+  const r = C.beltReady(h); if (!r.length) return 'пусто';
+  const n = {}; r.forEach(id => { const nm = ((R.item(id) || {}).name || id).replace(/\s*\(.*\)/, ''); n[nm] = (n[nm] || 0) + 1; });
+  return Object.entries(n).map(([k, v]) => v > 1 ? `${k} ×${v}` : k).join(', ');
+};
+/* подписи к вещам */
+Object.entries(C.TRINKET).forEach(([id, t]) => { const x = DATA.items[id]; if (x) x.notes = `На поясе: ${t.fx}. В суме — без пользы.`; });
+const NOTE = {udochka_s_kryuchkami: 'Своя снасть: рыбалка удачнее (+15%).', sklyanka_steklyannaya: 'Стекло чище глины: +2 к варке зелий.', korchazhka_glinyanaya_pod_zele: 'Своя посуда под отвар: +1 к варке зелий.',
+  kniga_char_pustaya_pergament: 'Чистые листы под руку: +2 к письму свитков.', svintsovye_shariki_k_prashche_10: 'Свинец тяжелее гальки: праща бьёт на 1 сильнее.',
+  verevka_penkovaya_15_m: 'В подземелье: +2 пройти по краю и пролезть в лаз.', verevka_shelkovaya_15_m: 'В подземелье: +2 пройти по краю и пролезть в лаз.', koshka_kryuk: 'С верёвкой — ещё +2 к лазанью в подземелье.',
+  pes_boevoy: 'Идёт в бой рядом с хозяином и рвёт врага. Погибнет — не вернёшь.', pes_storozhevoy: 'Ночью в лагере не даст застать врасплох и не подпустит вора. В бою — рядом с хозяином.', pes_ohotnichiy: 'На охоте +2 к добыче. В бою — рядом с хозяином.',
+  bodryashchiy_sbor_20_zavarok: 'Крепкая заварка на весь отряд: усталость отступает на ступень (на 3 часа без сна). Хватает на 5 раз.'};
+Object.entries(NOTE).forEach(([id, t]) => { const x = DATA.items[id]; if (x) x.notes = t; });
+const anyInv = (g, re) => C.alive(g).concat(g.mercs || []).some(h => (h.inv || []).some(id => re.test(base(id))));
+
+/* ---------- набор путника — на вещи ---------- */
+const PUTNIK = [['fakel', 5], ['verevka_penkovaya_15_m', 1], ['ognivo_s_kremnem', 1], ['harch_v_dorogu_na_den_suhari_vyalenoe_myaso', 3]];
+C.unpackKit = function (h) { if (!h || !h.inv) return; let i; while ((i = h.inv.indexOf('nabor_putnika')) >= 0) { h.inv.splice(i, 1); PUTNIK.forEach(([id, n]) => { if (DATA.items[id]) for (let k = 0; k < n; k++) h.inv.push(id); }); } };
+if (DATA.items.nabor_putnika) DATA.items.nabor_putnika.notes = 'Готовая котомка: 5 факелов, пеньковая верёвка, огниво, харч на 3 дня. В суме раскладывается на вещи.';
+const gk0 = R.giveKit; if (gk0) R.giveKit = function (h) { const r = gk0.apply(this, arguments); C.unpackKit(h); h.belt = C.beltAuto(h); return r; };
+const ah0 = C.addHero; if (ah0) C.addHero = function (g, h) { if (h) C.unpackKit(h); return ah0.apply(this, arguments); };
+
+/* ---------- мелочь: Воля, Дипломатия ---------- */
+const dv0 = R.derive; R.derive = function (h) { const D = dv0.apply(this, arguments); try { if (h && h.inv && D && D.saves && C.trinketOn(h, 'will')) D.saves = Object.assign({}, D.saves, {will: D.saves.will + 1}); } catch (e) {} return D; };
+const sk0 = R.skill; R.skill = function (h, skill) { let v = sk0.apply(this, arguments); try { if (h && h.inv && Array.isArray(h.belt)) h.belt.forEach(id => { const t = id && C.TRINKET[base(id)]; if (t && t.sk && t.sk[skill] && h.inv.includes(id)) v += t.sk[skill]; }); } catch (e) {} return v; };
+
+/* ---------- варка и письмо: склянка, корчажка, книга ---------- */
+const withStat = (h, st, add, fn) => { if (!h || !h.stats || !add) return fn(); h.stats[st] += add; try { return fn(); } finally { h.stats[st] -= add; } };
+const brewAdd = h => (h.inv || []).includes('sklyanka_steklyannaya') ? 4 : (h.inv || []).includes('korchazhka_glinyanaya_pod_zele') ? 2 : 0; /* +2 / +1 к броску */
+['brew', 'brewRecipe'].forEach(k => { const f0 = C[k]; if (f0) C[k] = function (g, h) { return withStat(h, 'wis', brewAdd(h), () => f0.apply(this, arguments)); }; });
+const scr0 = C.scribe; if (scr0) C.scribe = function (g, h) { return withStat(h, 'int', (h && (h.inv || []).includes('kniga_char_pustaya_pergament')) ? 4 : 0, () => scr0.apply(this, arguments)); };
+
+/* ---------- рыбалка и охота ---------- */
+if (W && W.fish) { const f0 = W.fish; W.fish = function (g) { const rod = anyInv(g, /^udochka/); if (!rod) return f0.apply(this, arguments); const r0 = R.rand; R.rand = () => Math.max(0, r0() - 0.15); try { return f0.apply(this, arguments); } finally { R.rand = r0; } }; }
+C.huntDog = g => anyInv(g, /^pes_ohotnichiy/) ? 2 : 0;
+C.campDog = g => anyInv(g, /^pes_storozhevoy/);
+C.ropeBonus = g => anyInv(g, /^verevka/) ? (anyInv(g, /^koshka/) ? 4 : 2) : 0;
+
+/* ---------- бой: пояс ---------- */
+if (B) {
+  const fh0 = B.fromHero; B.fromHero = function (h) { const u = fh0.apply(this, arguments); try { if (u && h) { if (h.kind === 'merc') h.belt = C.beltAuto(h); u.belt = C.beltReady(h);
+        if (u.ranged && h.inv.includes('svintsovye_shariki_k_prashche_10') && h.eq && /^prashch/.test(base(h.eq.ranged || ''))) u.ranged = Object.assign({}, u.ranged, {dmg: u.ranged.dmg + '+1'}); } } catch (e) {} return u; };
+  /* с пояса — снять одну; из сумы — лишнее действие */
+  const takeBelt = (u, id) => { const i = (u.belt || []).indexOf(id); if (i < 0) return false; u.belt.splice(i, 1); return true; };
+  B.onBelt = (u, id) => (u.belt || []).includes(id);
+  /* хватит ли действий: bonus — то, что стоит малое с пояса */
+  B.beltWhy = (S, u, id, bonus) => { const on = B.onBelt(u, id) || !u.ref || !u.ref.cls;
+    if (on) return bonus ? (S.bonus ? 'Малое действие уже потрачено.' : '') : (S.acted ? 'Действие уже потрачено в этот ход.' : '');
+    return bonus ? (S.acted ? 'Не на поясе: из сумы — это действие, а оно уже потрачено.' : '') : (S.acted || S.bonus ? 'Не на поясе: из сумы нужны и действие, и малое.' : ''); };
+  const pay = (S, u, id, bonus, fn) => { const on = !u.ref || !u.ref.cls || takeBelt(u, id);
+    if (on) return fn(bonus);
+    const w = B.beltWhy(S, u, id, bonus); if (w) return w;
+    const b0 = S.bonus; if (bonus) S.bonus = false; const r = fn(bonus);
+    if (r) { S.bonus = b0; return r; } if (bonus) { S.bonus = b0; S.acted = true; } else { S.acted = true; S.bonus = true; }
+    B.log(S, `${u.name} роется в суме — пока достал, ушло время.`, '', 'не с пояса: из сумы дольше');
+    return r; };
+  const pot0 = B.potion; B.potion = function (S, u, t, bonus) { if (u && u.ref && u.ref.cls && !(u.ref.inv || []).includes('zele_lecheniya')) return 'зелья нет';
+    return pay(S, u, 'zele_lecheniya', !!bonus, bb => { pot0.call(this, S, u, t, bb); return ''; }); };
+  const up0 = B.usePotion; B.usePotion = function (S, u, id, tgt) { const self = !tgt || tgt === u, bonus = C.potKind && C.potKind(id) === 'drink' && self;
+    if (!u.ref || !(u.ref.inv || []).includes(id)) return up0.apply(this, arguments);
+    const args = arguments; return pay(S, u, id, bonus, () => up0.apply(this, args)); };
+  const sc0 = B.scrollCast; B.scrollCast = function (S, u, id, target) { if (!u.ref || !(u.ref.inv || []).includes(id)) return sc0.apply(this, arguments);
+    const args = arguments; return pay(S, u, id, false, () => sc0.apply(this, args)); };
+  /* святыня */
+  const tdc0 = B.turnDC; if (tdc0) B.turnDC = u => tdc0(u) + (u.ref && u.ref.inv && C.trinketOn(u.ref, 'turn') ? 1 : 0);
+
+  /* ---------- псы: рядом с хозяином ---------- */
+  const DOG = {pes_boevoy: {n: 'Боевой пёс', hp: L => 10 + 4 * L, atk: L => 2 + Math.floor(L / 2), dmg: '1d6', def: 13},
+    pes_storozhevoy: {n: 'Сторожевой пёс', hp: L => 8 + 3 * L, atk: L => 1 + Math.floor(L / 2), dmg: '1d6', def: 12},
+    pes_ohotnichiy: {n: 'Охотничий пёс', hp: L => 6 + 3 * L, atk: L => 1 + Math.floor(L / 2), dmg: '1d4', def: 13}};
+  C.DOG = DOG;
+  const bs0 = B.start; B.start = function (o) {
+    try { if (o && o.party && !o.noPets) { const add = [];
+      o.party.forEach(u => { const h = u.ref; if (!h || !h.inv || u.side !== 'party') return; const id = Object.keys(DOG).find(k => h.inv.includes(k)); if (!id) return;
+        const d = DOG[id], L = Math.max(1, h.level || 1), m = {id: 'dog_' + id, name: d.n, group: 'звери', level: Math.max(1, Math.ceil(L / 2)), hp: d.hp(L), atk: d.atk(L), def: d.def, attacks: [{name: 'укус', dmg: d.dmg}], speed: 5, morale: false};
+        const x = B.fromMonster(m, 'party', {id: 'dog_' + h.id, name: `${d.n} (${h.name})`}); x.pet = h.id; x.petItem = id; x.ai = true; x.xp = 0; if (!x.beast && !x.sprite) { x.beast = 'volk'; } add.push(x); });
+      if (add.length) o = Object.assign({}, o, {party: o.party.concat(add)}); } } catch (e) {}
+    return bs0.call(this, o);
+  };
+}
+/* пёс пал в бою — его больше нет */
+const be0 = C.battleEnd; if (be0) C.battleEnd = function (g, S) { try { (S && S.units || []).filter(u => u.pet && u.dead).forEach(u => { const h = C.alive(g).concat(g.mercs || []).find(x => x.id === u.pet); if (!h) return; const i = h.inv.indexOf(u.petItem); if (i >= 0) { h.inv.splice(i, 1); C.note(g, `${h.name} хоронит пса: ${(DATA.items[u.petItem] || {}).name.toLowerCase()} пал в бою.`); } }); } catch (e) {} return be0.apply(this, arguments); };
+
+/* ---------- бодрящий сбор: 5 заварок на отряд ---------- */
+const out0 = C.drinkOut; if (out0) C.drinkOut = function (g, h, id) {
+  if (id !== 'bodryashchiy_sbor_20_zavarok') return out0.apply(this, arguments);
+  const i = h.inv.indexOf(id); if (i < 0) return {err: 'сбора нет'};
+  if (!(g.awake > 0)) return {err: 'отряд и так бодр'};
+  h.chg = h.chg || {}; const left = (h.chg[id] == null ? 5 : h.chg[id]) - 1; if (left <= 0) { h.inv.splice(i, 1); delete h.chg[id]; } else h.chg[id] = left;
+  g.awake = Math.max(0, g.awake - 3); if (C.passH) C.passH(g, 0.25);
+  const text = `${h.name} заваривает бодрящий сбор на всех — глаза ясней, руки твёрже.${left > 0 ? ` Заварок осталось: ${left}.` : ' Сбор кончился.'}`; C.note(g, text); return {ok: true, text}; };
+const dk0 = C.drinkableOut; if (dk0) C.drinkableOut = id => id === 'bodryashchiy_sbor_20_zavarok' || dk0(id);
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* trails.js */
+/* Колдовство — «испытания пути»: случайные события по местности. Без DOM.
+   В лесу, в поле, в холмах и горах, на болоте, в степи, на пустошах, у реки и у моря — свои происшествия.
+   У каждого — два-три способа справиться, и в каждом своя проверка (Сила, Ловкость, Мудрость, Ум, Очарование, Телосложение
+   с разными навыками). Верёвка и кошка помогают лазать, псы — выслеживать, факел — в темноте, знахарь — с травами.
+   Где ещё не бывали — то и выпадает: одно и то же событие не повторяется, пока в этой местности не пройдены все.
+   Срабатывает: изредка на шаге по бездорожью (не чаще раза в сутки) и вместо части старых меток «?» на карте. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W;
+if (!W || !W.step || !C) return;
+const lvl = g => Math.max(1, C.partyLevel(g));
+const ST = {str: 'Сила', dex: 'Ловкость', con: 'Телосложение', wis: 'Мудрость', int: 'Ум', cha: 'Очарование'};
+const anyInv = (g, re) => C.alive(g).concat(g.mercs || []).some(h => (h.inv || []).some(id => re.test(R.baseId ? R.baseId(id) : id)));
+const HERBS = ['podorozhnik', 'zveroboy', 'myata', 'polyn', 'shipovnik', 'malina', 'smorodina', 'lipovyy_tsvet', 'oduvanchik', 'lesnoy_oreh', 'koren_paporotnika', 'kaplya_rosy'];
+/* помощь снастей: верёвка, кошка, пёс, факел, лекарский набор */
+const AID = {
+  rope: g => C.ropeBonus ? C.ropeBonus(g) : (anyInv(g, /^verevka/) ? 2 : 0),
+  dog: g => anyInv(g, /^pes_/) ? 2 : 0,
+  torch: g => anyInv(g, /^fakel/) ? 2 : 0,
+  med: g => anyInv(g, /^nabor_lekarya/) ? 2 : 0,
+  horse: g => anyInv(g, /^kon_/) ? 2 : 0,
+};
+const AID_RU = {rope: 'верёвка', dog: 'пёс', torch: 'факел', med: 'лекарский набор', horse: 'конь'};
+/* ---------- события: местность → список ---------- */
+/* o: t — текст ({h} — кто бросал), gold — ×(15·уровень), xp — ×уровень, hurt — [n, d] тому, кто бросал (all — всем),
+   it — вещи, herb — сколько трав, food — фунтов мяса, time — часов, reveal — открыть ближнюю метку, fight — бой */
+const E = {
+  /* ЛЕС */
+  l_burelom: {at: ['forest'], title: 'Бурелом', v: ['Тропу перегородил бурелом: ели повалены крест-накрест, будто их ломал великан.', 'Ураган прошёл здесь недавно — стволы лежат в три наката, корни торчат выше головы.'],
+    ch: [{t: 'Перелезть поверху', st: 'dex', sk: 'Атлетика', dc: 12, aid: 'rope', ok: {t: '{h} первым перебирается по стволам и подаёт руку остальным. Прошли, не потеряв и часа.', xp: 15}, no: {t: '{h} срывается со скользкого ствола и катится вниз.', hurt: [2, 6], time: 1}},
+      {t: 'Растащить проход', st: 'str', sk: 'Атлетика', dc: 14, ok: {t: 'Стволы оттащили, проход открыт. За буреломом — брошенный кем-то топор.', it: ['topor'], xp: 15}, no: {t: 'Ели не поддаются. Полдня ушло — пришлось обойти.', time: 4}},
+      {t: 'Обойти по чаще', o: {t: 'Обход по чаще съел полдня.', time: 3}}]},
+  l_med: {at: ['forest'], title: 'Борть', v: ['В дупле старой липы гудит рой — дикая борть. По коре стекает мёд.', 'Над дуплом вьются пчёлы, а внизу мох липкий от мёда.'],
+    ch: [{t: 'Выкурить пчёл и взять мёд', st: 'wis', sk: 'Выживание', dc: 12, ok: {t: '{h} разводит дымокур — пчёлы сонно отползают. Соты полны.', it: ['med'], food: 0, xp: 15, gold: 1}, no: {t: 'Рой поднимается тучей — {h} весь в укусах.', hurt: [1, 6]}},
+      {t: 'Залезть быстро, пока не опомнились', st: 'dex', sk: 'Ловкость рук', dc: 14, ok: {t: '{h} выхватывает соты и спрыгивает, пока рой не понял.', it: ['med'], xp: 10}, no: {t: 'Пчёлы опомнились раньше. Бежали до ручья.', hurt: [2, 4], time: 1}},
+      {t: 'Не трогать — это чья-то борть', o: {t: 'На липе — знак бортника. Чужое не берут.', xp: 5}}]},
+  l_sled: {at: ['forest'], title: 'Чужой след', v: ['На влажной земле — свежие следы: трое, в сапогах, тащили что-то тяжёлое.', 'Ветки поломаны на уровне груди, на кусте — клок окровавленной ткани.'],
+    ch: [{t: 'Пойти по следу', st: 'wis', sk: 'Выживание', dc: 13, aid: 'dog', ok: {t: '{h} ведёт по следу к поляне: трое разбойников делят чужой сундук.', fight: {foes: ['razboynik', 'razboynik', 'tat'], ambush: 'party', terr: 'forest'}, gold: 3, xp: 30}, no: {t: 'След теряется у ручья. Час потерян.', time: 1}},
+      {t: 'Прислушаться, затаившись', st: 'dex', sk: 'Скрытность', dc: 12, ok: {t: '{h} подкрадывается: в овраге связанный купец. Разбойники ушли за водой — его успели развязать.', gold: 4, fame: 1, xp: 25}, no: {t: 'Хрустнула ветка — из оврага уже бегут с топорами.', fight: {foes: ['razboynik', 'tat', 'razboynik'], ambush: 'foe', terr: 'forest'}, gold: 2}},
+      {t: 'Не вмешиваться', o: {t: 'Отряд идёт своей дорогой.'}}]},
+  l_yama: {at: ['forest'], title: 'Ловчая яма', v: ['Под ногой проседает дёрн — ловчая яма, прикрытая ветками. Из ямы кто-то стонет.', 'У тропы — яма с кольями. На дне шевелится человек.'],
+    ch: [{t: 'Вытащить человека', st: 'str', sk: 'Атлетика', dc: 12, aid: 'rope', ok: {t: 'Вытащили охотника — нога в крови, но жив. Отдаёт за спасение что было: шкуру и пару монет.', it: ['tr_shkura_zverya'], gold: 1, fame: 1, xp: 20}, no: {t: 'Край обвалился — {h} сам съезжает к кольям, но человека всё же вытащили.', hurt: [2, 6], fame: 1, xp: 10}},
+      {t: 'Перевязать прямо в яме', st: 'wis', sk: 'Медицина', dc: 13, aid: 'med', ok: {t: '{h} спускается и перевязывает раны. Охотник благодарит и показывает тайную тропу.', reveal: 1, xp: 25}, no: {t: 'Кровь не унять — охотник слаб. Довели до опушки, дальше сам.', xp: 10}}]},
+  l_tropa: {at: ['forest'], title: 'Кружащая тропа', v: ['Третий раз выходите к той же сломанной берёзе. Лес водит.', 'Солнце будто стоит на месте, а тропа петляет и возвращается.'],
+    ch: [{t: 'Вывернуть одежду наизнанку', st: 'wis', sk: 'Знахарство', dc: 11, ok: {t: '{h} помнит старый обычай. Одежду надели наизнанку — и тропа сразу выпрямилась.', xp: 20}, no: {t: 'Обычай не помог. До вечера кружили по чаще.', time: 4}},
+      {t: 'Идти по мху и солнцу', st: 'int', sk: 'Выживание', dc: 13, ok: {t: '{h} ведёт по мху на стволах. Вышли к ручью и дальше — на свою дорогу.', xp: 20}, no: {t: 'Мох растёт со всех сторон. Полдня кругами.', time: 3}},
+      {t: 'Оставить лешему хлеба', o: {t: 'Краюху положили на пень. Тропа отпустила, но хлеба стало меньше.', time: 1, xp: 10}}]},
+  l_pauk: {at: ['forest'], title: 'Паутина', v: ['Меж стволов натянута паутина толщиной в палец. В ней висит что-то, завёрнутое в кокон.', 'Лес затянут серыми нитями, в тишине слышно щёлканье.'],
+    ch: [{t: 'Разрезать кокон', st: 'dex', sk: 'Ловкость рук', dc: 12, ok: {t: 'В коконе — давний путник и его кошель. Пауки не проснулись.', gold: 3, xp: 20}, no: {t: 'Нить дрогнула — сверху спускаются хозяева.', fight: {foes: ['pauk_lesnoy', 'pauk_lesnoy', 'pauk_bolshoy'], ambush: 'foe', terr: 'forest'}, gold: 2}},
+      {t: 'Выжечь паутину', st: 'int', sk: 'Выживание', dc: 11, aid: 'torch', ok: {t: 'Огонь бежит по нитям. Из чащи с визгом удирает что-то многоногое.', xp: 15}, no: {t: 'Сырые нити не горят, а из темноты лезут пауки.', fight: {foes: ['pauk_lesnoy', 'pauk_bolshoy'], terr: 'forest'}}},
+      {t: 'Обойти', o: {t: 'Обходили широко. Час потерян.', time: 1}}]},
+  /* ПОЛЕ, ЛУГ */
+  p_kosari: {at: ['meadow', 'field', 'vineyard'], title: 'Сенокос', v: ['На лугу косари: просят подсобить — гроза идёт, сено мокнет.', 'Мужики спешно мечут стог, туча уже над рекой.'],
+    ch: [{t: 'Помочь с сеном', st: 'con', sk: 'Атлетика', dc: 11, ok: {t: 'Стог успели до ливня. Накормили, напоили, дали в дорогу хлеба.', it: ['hleb_karavay', 'hleb_karavay'], xp: 15, spirit: 1}, no: {t: 'Ливень всё же накрыл. Промокли, но мужики благодарят.', time: 2, xp: 5}},
+      {t: 'Развеселить песней', st: 'cha', sk: '', dc: 12, ok: {t: '{h} заводит песню — косы ходят в лад, работа спорится. Угостили и молвой отплатили.', fame: 1, xp: 15}, no: {t: 'Песня не пошла. Мужики хмуро косят дальше.'}},
+      {t: 'Пройти мимо', o: {t: 'Отряд идёт дальше.'}}]},
+  p_byk: {at: ['meadow', 'field'], title: 'Бык сорвался', v: ['Через поле несётся бык с обрывком цепи. За ним — пастушонок с хворостиной.', 'Бычина сорвался с привязи и прёт прямо на отряд.'],
+    ch: [{t: 'Схватить за рога', st: 'str', sk: 'Атлетика', dc: 15, ok: {t: '{h} хватает быка за рога и пригибает к земле. Хозяин подбегает с благодарностью и серебром.', gold: 2, fame: 1, xp: 20}, no: {t: 'Бык мотнул головой — {h} летит в траву.', hurt: [2, 6]}},
+      {t: 'Успокоить словом', st: 'wis', sk: 'Выживание', dc: 12, ok: {t: '{h} встаёт на пути, говорит тихо — бык фыркает и останавливается.', gold: 1, xp: 20}, no: {t: 'Бык не слушает. Отряд прыгает в канаву.', hurt: [1, 4]}},
+      {t: 'Отойти с дороги', o: {t: 'Бык пронёсся мимо.'}}]},
+  p_kolodets: {at: ['meadow', 'field', 'steppe'], title: 'Старый колодец', v: ['Посреди поля — колодец без ворота. Из глубины тянет холодом, на дне что-то блестит.', 'Сруб колодца сгнил, ведро на цепи висит над тьмой.'],
+    ch: [{t: 'Спуститься на верёвке', st: 'dex', sk: 'Атлетика', dc: 13, aid: 'rope', ok: {t: '{h} спускается в холод. На дне — утопленный кем-то кошель.', gold: 4, xp: 20}, no: {t: 'Сруб трещит — {h} падает в ледяную воду.', hurt: [2, 6]}},
+      {t: 'Достать кошкой', st: 'dex', sk: 'Ловкость рук', dc: 14, ok: {t: 'С третьего заброса кошка цепляет ремень. Кошель!', gold: 3, xp: 15}, no: {t: 'Кошка срывается, кошель уходит глубже.', time: 1}},
+      {t: 'Не лезть', o: {t: 'Что упало в колодец — то пропало.'}}]},
+  p_konokrad: {at: ['meadow', 'field', 'steppe'], title: 'Конокрады', v: ['У реки табун, а с опушки к нему крадутся двое с уздечками.', 'Ночное пастбище: пастух спит, двое уводят коней.'],
+    ch: [{t: 'Поднять шум', st: 'cha', sk: 'Запугивание', dc: 12, ok: {t: 'Конокрады бросают уздечки и бегут. Пастух в благодарность отдаёт серебро.', gold: 2, fame: 1, xp: 20}, no: {t: 'Конокрады оборачиваются — их больше, чем казалось.', fight: {foes: ['tat', 'razboynik', 'tat'], terr: 'plains'}, gold: 2}},
+      {t: 'Перехватить тихо', st: 'dex', sk: 'Скрытность', dc: 13, ok: {t: 'Обоих взяли без крика. Пастух отдаёт за них плату от села.', gold: 3, xp: 25}, no: {t: 'Заметили — и сразу за ножи.', fight: {foes: ['tat', 'tat', 'razboynik'], ambush: 'foe', terr: 'plains'}}},
+      {t: 'Не вмешиваться', o: {t: 'Чужие кони — чужая беда.'}}]},
+  p_pozhar: {at: ['field', 'meadow', 'steppe'], title: 'Пал', v: ['Ветер несёт дым: горит сухая трава, огонь идёт на отряд стеной.', 'Над полем дрожит марево, трещит сухостой — пал.'],
+    ch: [{t: 'Пустить встречный огонь', st: 'wis', sk: 'Выживание', dc: 13, ok: {t: '{h} выжигает полосу перед отрядом. Пал проходит стороной.', xp: 25}, no: {t: 'Встречный огонь не удался — бежали сквозь дым.', hurt: [1, 6, 'all']}},
+      {t: 'Бежать к реке', st: 'con', sk: '', dc: 12, aid: 'horse', ok: {t: 'Успели к воде. Огонь прошёл мимо.', time: 1, xp: 10}, no: {t: 'Дым настиг на бегу.', hurt: [1, 4, 'all'], time: 1}}]},
+  /* ХОЛМЫ */
+  h_osyp: {at: ['hills'], title: 'Осыпь', v: ['Склон ползёт: камни с шорохом съезжают из-под ног.', 'Тропа по склону обвалилась, внизу — овраг.'],
+    ch: [{t: 'Пройти по осыпи', st: 'dex', sk: 'Атлетика', dc: 12, aid: 'rope', ok: {t: '{h} ведёт по камням, ступая след в след. Прошли.', xp: 15}, no: {t: 'Осыпь поехала — {h} съехал в овраг вместе с камнями.', hurt: [2, 6], time: 1}},
+      {t: 'Укрепить тропу', st: 'str', sk: 'Атлетика', dc: 13, ok: {t: 'Камни сложили ступенями. Прошли, и следующим будет легче.', xp: 15, fame: 0}, no: {t: 'Камни уходят из-под рук. Обход — до вечера.', time: 3}},
+      {t: 'Обойти долиной', o: {t: 'Долиной дольше. Три часа пути.', time: 3}}]},
+  h_kurgan: {at: ['hills', 'steppe'], title: 'Курганная баба', v: ['На вершине холма — каменная баба, лицо стёрто ветром. У подножия — свежие подношения.', 'Каменный идол смотрит в степь. Под ним кто-то копал.'],
+    ch: [{t: 'Разобрать полустёртые знаки', st: 'int', sk: 'Грамота', dc: 13, ok: {t: '{h} читает знаки: здесь лежит воевода, а клад — в трёх шагах к закату. Нашли бронзу и серебро.', gold: 4, xp: 30}, no: {t: 'Знаки молчат.', xp: 5}},
+      {t: 'Поклониться и оставить дар', o: {t: 'Монету положили к подножию. Ветер стих — будто баба кивнула.', gold: -1, side: {kap: 0.5}, spirit: 1}},
+      {t: 'Копать там, где копали', st: 'con', sk: 'Атлетика', dc: 12, ok: {t: 'Под дёрном — истлевший пояс с бляхами.', gold: 3, side: {kap: -0.5}, xp: 15}, no: {t: 'Из подкопа поднимаются мертвецы-сторожа.', fight: {foes: ['kostyak', 'kostyak', 'nav'], terr: 'kurgan'}, gold: 3}}]},
+  h_pastuh: {at: ['hills', 'meadow'], title: 'Отбившаяся отара', v: ['По склону разбрелись овцы, внизу плачет пастушка: волки близко, а отару не собрать.', 'Овечье блеянье по всему холму. Пастуха не видно.'],
+    ch: [{t: 'Собрать отару', st: 'wis', sk: 'Выживание', dc: 12, aid: 'dog', ok: {t: 'Отару собрали к загону. Пастушка отдаёт сыр и молву о дороге.', it: ['syr_golovka'], reveal: 1, xp: 20}, no: {t: 'Пол-отары разбежалось. Пастушка всё равно благодарит.', time: 2, xp: 5}},
+      {t: 'Встретить волков', st: 'wis', sk: 'Выживание', dc: 12, ok: {t: 'Волков выследили у овражка.', fight: {foes: ['volk', 'volk', 'volk'], ambush: 'party', terr: 'forest'}, fame: 1, xp: 25}, no: {t: 'Волки вышли сами.', fight: {foes: ['volk', 'volk', 'volk'], ambush: 'foe', terr: 'forest'}}}]},
+  h_peshchera: {at: ['hills', 'mountains'], title: 'Пещерка', v: ['В склоне — низкий лаз, оттуда тянет сыростью и дымом. Кто-то там жжёт костёр.', 'За кустом шиповника — узкий вход в пещеру. На камне — копоть.'],
+    ch: [{t: 'Заглянуть с факелом', st: 'wis', sk: 'Поиск', dc: 12, aid: 'torch', ok: {t: 'В пещере — заброшенная стоянка беглецов: котелок, кремень и спрятанные монеты.', gold: 3, it: ['ognivo_s_kremnem'], xp: 20}, no: {t: 'В темноте {h} разбивает лоб о свод.', hurt: [1, 6]}},
+      {t: 'Окликнуть', st: 'cha', sk: 'Дипломатия', dc: 11, ok: {t: 'Из пещеры выходит старый отшельник-травник. Делится травами.', herb: 3, xp: 15}, no: {t: 'Из темноты летит камень, следом — горцы-разбойники.', fight: {foes: ['gorskiy_prolaza', 'gorskiy_otrok', 'gorskiy_prolaza'], terr: 'forest'}, gold: 2}}]},
+  /* ГОРЫ */
+  m_karniz: {at: ['mountains'], title: 'Карниз', v: ['Тропа сужается до карниза над пропастью. Ветер рвёт плащи.', 'Над бездной — полоска камня в ладонь шириной.'],
+    ch: [{t: 'Пройти связкой', st: 'dex', sk: 'Атлетика', dc: 13, aid: 'rope', ok: {t: 'Связались верёвкой и прошли по одному. Внизу кружат орлы.', xp: 25}, no: {t: 'Камень обломился — {h} повис над пропастью, вытянули с трудом.', hurt: [2, 8]}},
+      {t: 'Переждать ветер', st: 'con', sk: '', dc: 12, ok: {t: 'Ветер стих к полудню. Прошли спокойно.', time: 2, xp: 10}, no: {t: 'Ночь на камнях, в холоде.', time: 5, hurt: [1, 4, 'all']}},
+      {t: 'Искать обход', o: {t: 'Обход по ущелью — полдня.', time: 4}}]},
+  m_lavina: {at: ['mountains'], title: 'Снежный навес', v: ['Над тропой навис снежный козырёк, трещит на солнце.', 'Склон над головой гудит, по снегу бегут трещины.'],
+    ch: [{t: 'Проскочить тихо', st: 'dex', sk: 'Скрытность', dc: 13, ok: {t: 'Прошли, не проронив слова. За спиной ухнуло — но уже позади.', xp: 25}, no: {t: 'Лавина задела хвост отряда.', hurt: [2, 6, 'all'], time: 2}},
+      {t: 'Обрушить нарочно', st: 'int', sk: 'Выживание', dc: 14, ok: {t: 'Камень в козырёк — и снег сходит заранее. Тропа чиста.', xp: 25}, no: {t: 'Снег сошёл не туда — тропу засыпало.', time: 4}}]},
+  m_ruda: {at: ['mountains', 'hills'], title: 'Жила', v: ['В расселине блестит рыжая жила — медь, а может и что подороже.', 'Сколотый камень искрит на солнце: руда.'],
+    ch: [{t: 'Распознать камень', st: 'int', sk: 'Поиск', dc: 13, ok: {t: '{h} узнаёт самоцветную жилу. Выбили пару камней.', gem: 1, xp: 25}, no: {t: 'Обычный колчедан. Час впустую.', time: 1}},
+      {t: 'Бить кайлом наудачу', st: 'str', sk: 'Атлетика', dc: 14, ok: {t: 'Под пустой породой — кусок меди. На продажу сгодится.', gold: 2, xp: 10}, no: {t: 'Пустая порода, сбитые руки.', hurt: [1, 4], time: 2}}]},
+  m_orel: {at: ['mountains'], title: 'Орлиное гнездо', v: ['На уступе — гнездо, в нём блестит что-то: орлы тащат всё яркое.', 'Над тропой кричит орлица — гнездо прямо над головой.'],
+    ch: [{t: 'Влезть к гнезду', st: 'str', sk: 'Атлетика', dc: 14, aid: 'rope', ok: {t: 'В гнезде — перстень, кольца и обрывок цепочки. Чей-то давний убыток.', gold: 4, xp: 25}, no: {t: 'Орлица бьёт крыльями — {h} летит со скалы.', hurt: [2, 6]}},
+      {t: 'Подстрелить, пока не напала', st: 'dex', sk: '', dc: 13, ok: {t: 'Птица ушла в небо, гнездо пустое — лишь перья да пара медяков.', gold: 1, xp: 10}, no: {t: 'Промах. Орлица кидается на отряд.', hurt: [1, 6]}}]},
+  /* БОЛОТО */
+  b_tryasina: {at: ['marsh'], title: 'Трясина', v: ['Под ногами чавкает, кочка уходит вниз — трясина.', 'Зелёная ряска ровная, как луг. Слишком ровная.'],
+    ch: [{t: 'Нащупать путь шестом', st: 'wis', sk: 'Выживание', dc: 13, ok: {t: '{h} прощупывает каждую кочку. Перешли.', xp: 20}, no: {t: '{h} проваливается по грудь, вытащили, но сумы намокли.', hurt: [1, 6], time: 1}},
+      {t: 'Вытянуть того, кто уже тонет', st: 'str', sk: 'Атлетика', dc: 12, aid: 'rope', ok: {t: 'Из трясины вытащили утопающего клюквенника. Отдаёт лукошко и монеты.', gold: 1, it: ['smorodina'], fame: 1, xp: 20}, no: {t: 'Трясина держит крепко. Еле вытащили обоих.', hurt: [1, 6], time: 1}},
+      {t: 'Обойти по гати', o: {t: 'Старая гать — крюк в полдня.', time: 3}}]},
+  b_ogni: {at: ['marsh'], title: 'Огоньки', v: ['Над топью пляшут синие огоньки и зовут за собой.', 'В тумане горит огонёк — будто окно в избе.'],
+    ch: [{t: 'Не смотреть на огни', st: 'wis', sk: '', dc: 13, ok: {t: 'Отвели глаза — огни погасли сами.', xp: 15}, no: {t: '{h} идёт на огонь как во сне — вытащили из воды.', hurt: [1, 6], time: 1}},
+      {t: 'Пойти за огнём', st: 'int', sk: 'Знахарство', dc: 14, ok: {t: 'Огонь привёл к затопленному кладу — там, где он гаснет, лежит серебро.', gold: 5, xp: 30}, no: {t: 'Огоньки собрались в стаю.', fight: {foes: ['bluzhdayuschiy_ogon', 'bluzhdayuschiy_ogon', 'bolotnik'], ambush: 'foe', terr: 'swamp'}}}]},
+  b_travy: {at: ['marsh', 'forest'], title: 'Сонная поляна', v: ['На поляне цветёт белена и болиголов, воздух сладкий и тяжёлый.', 'Пряный дурман над травой, у края кто-то лежит и не двигается.'],
+    ch: [{t: 'Собрать травы', st: 'wis', sk: 'Знахарство', dc: 12, ok: {t: '{h} режет травы, обмотав лицо. Добрые травы для зелий.', herb: 4, it: ['belena'], xp: 20}, no: {t: 'Дурман ударил в голову — {h} проспал час.', time: 1, hurt: [1, 4]}},
+      {t: 'Вынести лежащего', st: 'con', sk: '', dc: 13, ok: {t: 'Вынесли спящего травника. Очнулся — делится своим лукошком.', herb: 3, xp: 20}, no: {t: 'Сон валит с ног. Еле выбрались.', hurt: [1, 4, 'all'], time: 1}},
+      {t: 'Обойти', o: {t: 'Сладкий запах тянулся следом ещё версту.'}}]},
+  b_mostki: {at: ['marsh'], title: 'Гнилые мостки', v: ['Через протоку — мостки, доски черны от гнили.', 'Над чёрной водой — жердяной переход, половины жердей нет.'],
+    ch: [{t: 'Перейти по одному', st: 'dex', sk: 'Атлетика', dc: 12, ok: {t: 'Перешли, доска за доской.', xp: 15}, no: {t: 'Жердь треснула — {h} в ледяной воде.', hurt: [1, 6]}},
+      {t: 'Подновить мостки', st: 'int', sk: '', dc: 12, ok: {t: 'Нарубили жердей, связали — переход крепок.', time: 1, xp: 15}, no: {t: 'Мостки развалились окончательно. Крюк.', time: 3}}]},
+  /* СТЕПЬ */
+  s_orda: {at: ['steppe'], title: 'Пыль на горизонте', v: ['На горизонте пыль — конный разъезд.', 'Степь гудит от копыт: десяток всадников.'],
+    ch: [{t: 'Укрыться в балке', st: 'dex', sk: 'Скрытность', dc: 13, ok: {t: 'Разъезд прошёл мимо. В пыли нашли оброненный нож.', it: ['nozh'], xp: 20}, no: {t: 'Заметили. Разъезд разворачивается.', fight: {foes: ['stepnyak_novik', 'stepnoy_rubaka', 'stepnyak_metatel'], terr: 'plains'}, gold: 3}},
+      {t: 'Выйти с поднятой рукой', st: 'cha', sk: 'Дипломатия', dc: 13, ok: {t: 'Старший разъезда пьёт с вами кумыс и рассказывает о дороге.', reveal: 1, xp: 25}, no: {t: 'Слова не помогли — пришлось откупиться.', gold: -2}}]},
+  s_voda: {at: ['steppe', 'wasteland'], title: 'Жажда', v: ['Третий день без воды. Бурдюки пусты.', 'Солнце печёт, родники пересохли.'],
+    ch: [{t: 'Искать воду по траве', st: 'wis', sk: 'Выживание', dc: 13, ok: {t: '{h} находит низину с сочной травой — под ней родник.', xp: 20}, no: {t: 'Воды нет. Отряд измотан.', hurt: [1, 4, 'all']}},
+      {t: 'Терпеть до колодца', st: 'con', sk: '', dc: 12, ok: {t: 'Дотянули до колодца.', time: 2, xp: 10}, no: {t: 'Кто-то падает от зноя.', hurt: [2, 4, 'all'], time: 2}}]},
+  s_kurgan: {at: ['steppe'], title: 'Сурчина', v: ['Степь изрыта сурками. Конь оступается на каждом шагу.', 'Норы повсюду, земля проваливается.'],
+    ch: [{t: 'Вести осторожно', st: 'wis', sk: 'Выживание', dc: 11, aid: 'horse', ok: {t: 'Провели без беды. В одной норе нашли старую бляху.', gold: 1, xp: 10}, no: {t: '{h} подвернул ногу в норе.', hurt: [1, 6], time: 1}},
+      {t: 'Наловить сурков на мясо', st: 'dex', sk: 'Выживание', dc: 12, aid: 'dog', ok: {t: 'Сурки на ужин — жирные, вкусные.', food: 3, xp: 10}, no: {t: 'Сурки быстрее.', time: 1}}]},
+  /* ПУСТОШЬ */
+  w_kosti: {at: ['wasteland'], title: 'Поле костей', v: ['Вся земля белая от костей — старая сеча. Ржавое железо торчит из пепла.', 'Ветер гоняет по пустоши ржавые шлемы.'],
+    ch: [{t: 'Поискать годное железо', st: 'int', sk: 'Поиск', dc: 12, ok: {t: 'Среди ржавчины — целый клинок старой ковки.', it: ['mech'], xp: 15}, no: {t: 'Только ржавчина да кости.', time: 1}},
+      {t: 'Отпеть павших', st: 'wis', sk: 'Вера', dc: 12, ok: {t: 'Над костями прочли молитву. Земля будто вздохнула.', spirit: 1, side: {oko: 0.25}, xp: 20}, no: {t: 'Кости зашевелились от слов.', fight: {foes: ['kostyak', 'kostyak', 'kostyak'], terr: 'graveyard'}}},
+      {t: 'Пройти быстро', o: {t: 'Шли не оглядываясь.'}}]},
+  w_pepel: {at: ['wasteland'], title: 'Пепелище', v: ['Сгоревшая деревня. Печи стоят без изб. В одной трубе — дым.', 'На месте хутора — угли. Кто-то роется в золе.'],
+    ch: [{t: 'Расспросить того, кто в золе', st: 'cha', sk: 'Дипломатия', dc: 11, ok: {t: 'Старуха-погорелица говорит, кто жёг и куда ушли. Отряд накормил её — она отдаёт спрятанный оберег.', it: ['obereg_znak_boga'], xp: 20}, no: {t: 'Старуха шарахается и убегает.'}},
+      {t: 'Поискать уцелевшее', st: 'wis', sk: 'Поиск', dc: 13, ok: {t: 'В подполе — крынка с серебром.', gold: 3, xp: 15}, no: {t: 'Обгорелые бревна обрушились.', hurt: [1, 6]}}]},
+  /* РЕКА И БРОД */
+  r_brod: {at: ['river'], title: 'Паводок', v: ['Брод залило: вода мутная, несёт ветки.', 'Река вздулась, брод скрыт под бурлящей водой.'],
+    ch: [{t: 'Перейти, держась за верёвку', st: 'str', sk: 'Атлетика', dc: 13, aid: 'rope', ok: {t: 'Натянули верёвку и перешли гуськом.', xp: 20}, no: {t: '{h} смыло — вытащили ниже по течению.', hurt: [2, 6], time: 1}},
+      {t: 'Связать плот', st: 'int', sk: '', dc: 12, ok: {t: 'Плот выдержал. Переправились сухими.', time: 2, xp: 15}, no: {t: 'Плот развалился посреди реки.', hurt: [1, 6, 'all'], time: 2}},
+      {t: 'Ждать, пока спадёт', o: {t: 'Ждали до вечера.', time: 5}}]},
+  r_rybaki: {at: ['river'], title: 'Рыбаки', v: ['На берегу рыбаки тянут сеть, просят подсобить — сеть зацепилась.', 'У воды старик с внуком мучаются с застрявшей мордой.'],
+    ch: [{t: 'Нырнуть отцепить', st: 'con', sk: 'Атлетика', dc: 12, ok: {t: 'Сеть свободна — и полна рыбы. Отдали долю.', it: ['ryba_svezhaya_1_funt', 'ryba_svezhaya_1_funt', 'ryba_svezhaya_1_funt'], xp: 15}, no: {t: 'Вода ледяная, {h} еле выплыл.', hurt: [1, 6]}},
+      {t: 'Расспросить о реке', st: 'cha', sk: 'Дипломатия', dc: 10, ok: {t: 'Рыбаки рассказывают о скрытом месте выше по течению.', reveal: 1, xp: 10}, no: {t: 'Рыбаки неразговорчивы.'}}]},
+  r_vodyanoy: {at: ['river', 'marsh'], title: 'Омут', v: ['Тихий омут, вода чёрная. На коряге — гребень, мокрый, будто только что положили.', 'Над омутом кто-то поёт женским голосом.'],
+    ch: [{t: 'Взять гребень', st: 'dex', sk: 'Ловкость рук', dc: 13, ok: {t: 'Гребень серебряный, с жемчугом. Пение смолкло.', gold: 4, xp: 20}, no: {t: 'Из воды тянутся бледные руки.', fight: {foes: ['mavka', 'letavitsa', 'mavka'], ambush: 'foe', terr: 'ford'}, gold: 3}},
+      {t: 'Оставить и поклониться воде', o: {t: 'Ушли тихо. За спиной плеснуло — будто кто-то благодарен.', side: {kap: 0.25}, spirit: 1}}]},
+  /* МОРЕ, БЕРЕГ */
+  c_vybros: {at: ['shore'], title: 'Выброс', v: ['После бури берег усыпан обломками — разбился чей-то струг.', 'Волны выбросили на песок бочонки и доски.'],
+    ch: [{t: 'Разобрать обломки', st: 'wis', sk: 'Поиск', dc: 12, ok: {t: 'В бочонке — сухое вино, в ларце — монеты.', gold: 4, it: ['vino_kuvshin'], xp: 15}, no: {t: 'Только мокрые доски.', time: 1}},
+      {t: 'Искать выживших', st: 'con', sk: '', dc: 12, ok: {t: 'Вытащили из воды кормчего. Отдаёт всё, что уцелело.', gold: 3, fame: 1, xp: 25}, no: {t: 'Никого. Ледяная вода и пустой берег.', hurt: [1, 4], time: 1}}]},
+  c_priliv: {at: ['shore'], title: 'Прилив', v: ['Вода прибывает быстро: тропа вдоль скал скоро скроется.', 'Песок под ногами уже мокрый, а до сухого — далеко.'],
+    ch: [{t: 'Бежать вдоль скал', st: 'dex', sk: 'Атлетика', dc: 12, ok: {t: 'Успели. Волна лизнула пятки.', xp: 15}, no: {t: 'Волна сбила с ног.', hurt: [1, 6, 'all']}},
+      {t: 'Влезть на скалу', st: 'str', sk: 'Атлетика', dc: 13, aid: 'rope', ok: {t: 'Переждали прилив на скале. Сверху видно бухту.', reveal: 1, time: 2, xp: 15}, no: {t: 'Скользкий камень — {h} сорвался.', hurt: [2, 6], time: 2}}]},
+};
+C.TRAILS = E;
+const kindOf = (g, c) => { if (!c) return 'meadow'; if (c.ford) return 'river';
+  try { const w = W.world(g); if (W.neigh(c.c, c.r).some(n => { const x = w.cells[W.key(n.c, n.r)]; return x && (x.t === 'water' || x.ford); }) && R.rand() < 0.5) return 'river'; } catch (e) {}
+  return ['sand', 'sea'].includes(c.t) ? 'shore' : c.t; };
+C.trailPool = (g, c) => { const k = kindOf(g, c); const all = Object.keys(E).filter(id => E[id].at.includes(k)); return all.length ? all : Object.keys(E).filter(id => E[id].at.includes('meadow')); };
+C.pickTrail = function (g, c) {
+  const all = C.trailPool(g, c); g.trailSeen = (g.trailSeen || []).filter(k => E[k]);
+  let pool = all.filter(k => !g.trailSeen.includes(k));
+  if (!pool.length) { const last = g.trailSeen[g.trailSeen.length - 1]; g.trailSeen = g.trailSeen.filter(k => !all.includes(k)); pool = all.filter(k => k !== last); }
+  const k = R.pick(pool); g.trailSeen.push(k); g.trail = {k, v: Math.floor(R.rand() * 4), day: g.day}; return 'trail';
+};
+/* ---------- исход ---------- */
+const dcOf = (g, ch) => ch.dc + Math.floor(lvl(g) / 3);
+const herbsGive = (g, n) => { const got = []; for (let i = 0; i < n; i++) { const id = R.pick(HERBS.filter(x => DATA.items[x])); const h = C.recipient ? C.recipient(g, id) : C.alive(g)[0]; if (id && h) { h.inv.push(id); got.push(DATA.items[id].name.toLowerCase()); } } return got; };
+const apply = (g, o, hero) => {
+  const L = lvl(g), got = []; let t = (o.t || '').replace(/\{h\}/g, hero ? hero.name : 'Отряд');
+  if (o.gold) { const n = Math.round(Math.abs(o.gold) * 15 * L); if (o.gold > 0) { g.purse += n; got.push(R.priceText(n)); } else { const v = Math.min(g.purse, n); g.purse -= v; if (v) t += ` Ушло: ${R.priceText(v)}.`; } }
+  (o.it || []).forEach(id => { if (!DATA.items[id]) return; const h = (C.recipient && C.recipient(g, id)) || hero || C.alive(g)[0]; if (h) { h.inv.push(id); got.push(DATA.items[id].name.toLowerCase()); } });
+  if (o.herb) got.push(...herbsGive(g, o.herb));
+  if (o.food) { const h = hero || C.alive(g)[0]; for (let i = 0; i < o.food; i++) h.inv.push('myaso_1_funt'); got.push(`мясо ×${o.food}`); }
+  if (o.gem) { const gems = Object.values(DATA.items).filter(x => x.category === 'самоцветы' && x.price && x.price <= 1000 * L); if (gems.length) { const x = R.pick(gems), h = hero || C.alive(g)[0]; h.inv.push(x.id); got.push(x.name.toLowerCase()); } }
+  if (o.hurt) { const [n, d, all] = o.hurt; (all ? C.alive(g) : [hero || C.alive(g)[0]]).forEach(h => { h.hp = Math.max(1, h.hp - R.roll(n, d)); }); }
+  if (o.time && C.passH) C.passH(g, o.time);
+  if (o.xp && C.giveXP) C.giveXP(g, o.xp * L, 'испытание пути');
+  if (o.fame) g.fame = (g.fame || 0) + o.fame;
+  if (o.side && C.sideAdd) Object.entries(o.side).forEach(([s, d]) => C.sideAdd(g, s, d));
+  if (o.spirit && C.spiritAdd) C.spiritAdd(g, o.spirit, 'дорога');
+  if (o.reveal) { try { const w = W.world(g), here = g.pos; const c = Object.values(w.cells).filter(x => x.poi && !g.flags['poi_' + x.poiId]).sort((a, b) => W.dist(a, here) - W.dist(b, here))[0]; if (c) { W.reveal(g, c, 1); t += ' Место отмечено на карте.'; } } catch (e) {} }
+  return t + (got.length ? ' Взято: ' + got.join(', ') + '.' : '');
+};
+const SC = {};
+SC.trail = g => {
+  const tr = g.trail, e = tr && E[tr.k]; if (!e) return {title: 'Дорога', lines: [['n', 'Тихо.']], choices: [{t: 'Дальше', go: 'map'}]};
+  const L = lvl(g);
+  const ch = e.ch.map(c => {
+    if (c.o) return {t: c.t, do: g2 => { const text = apply(g2, c.o, null); C.note(g2, text); g2.findOut = {title: e.title, text}; g2.trail = null; return 'find_out'; }};
+    const dc = dcOf(g, c), aid = c.aid && AID[c.aid] ? AID[c.aid](g) : 0;
+    return {t: `${c.t} (${ST[c.st]}${c.sk ? ', ' + c.sk : ''}, сложность ${dc}${aid ? `; ${AID_RU[c.aid]} +${aid}` : ''})`, do: g2 => {
+      const aid2 = c.aid && AID[c.aid] ? AID[c.aid](g2) : 0, r = C.bestCheck(g2, c.st, c.sk || '', dc - aid2); r.dc = dc; r.total += aid2; g2.lastCheck = r;
+      const o = r.ok ? c.ok : c.no, text = apply(g2, o, r.hero); g2.trail = null;
+      if (o.fight) { const f = o.fight;
+        g2.findWin = {title: e.title, text: 'Схватка позади.', gold: o.gold && o.gold > 0 ? 0 : 0, items: [], fame: 0}; g2.findOut = {title: e.title, text};
+        C.note(g2, text);
+        return {battle: {title: e.title, foes: C.fit(g2, f.foes, 0.85, 1), field: C.fieldFor(f.terr || 'forest', C.isNight ? C.isNight(g2) : false), ambush: f.ambush, xpBonus: 40 * L, win: 'find_win', lose: 'map', place: e.title}}; }
+      C.note(g2, text); g2.findOut = {title: e.title, text}; return 'find_out'; }};
+  });
+  return {title: e.title, bg: 'road', art: 'road', lines: [['n', e.v[(tr.v || 0) % e.v.length]]], choices: ch};
+};
+const reg = camp => { if (camp && camp.map && camp.map.hex) Object.assign(camp.scenes, SC); };
+Object.values(C.CAMPS).forEach(reg);
+if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); reg(C.CAMPS[camp.id] || camp); return r; }; }
+/* ---------- когда выпадает ---------- */
+C.TRAIL_STEP = 0.07;   // на шаге по бездорожью (не чаще раза в сутки)
+C.TRAIL_MARK = 0.45;   // доля меток «?» и старых мест, что оборачиваются испытанием пути
+const st0 = W.step;
+W.step = function (g, cell) {
+  const r = st0.apply(this, arguments);
+  try {
+    if (!g || !g.heroes || !C.CAMPS[g.camp] || !C.CAMPS[g.camp].scenes.trail || !C.alive(g).length || g.dungeon) return r;
+    const c = cell || (W.pos ? W.pos(g) : null);
+    if (r && r.poi && /^(poi_|find_)/.test(r.poi) && R.rand() < C.TRAIL_MARK) { const fk = r.poi.slice(5); if (/^find_/.test(r.poi) && g.findsSeen && g.findsSeen[g.findsSeen.length - 1] === fk) g.findsSeen.pop(); return {poi: C.pickTrail(g, c)}; }
+    if (!r && c && !c.node && !c.road && !c.poi && g.trailDay !== g.day && R.rand() < C.TRAIL_STEP) { g.trailDay = g.day; return {poi: C.pickTrail(g, c)}; }
+  } catch (e) {}
+  return r;
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -36905,6 +37277,15 @@ function paintIcons(root) { (root || document).querySelectorAll('canvas[data-ico
   if (!a || !src) return; const k = Math.min(c.width / a[2], c.height / a[3]) * 0.9, w = a[2] * k, h = a[3] * k; x.drawImage(src, a[0], a[1], a[2], a[3], (c.width - w) / 2, (c.height - h) / 2, w, h); }); }
 const INVF = {};
 const canGive = h => !!(g && h && mineH(h) && h.kind !== 'merc' && C.alive(g).concat((g.mercs || []).filter(m => !m.dead)).length > 1 && (!NET() || C.alive(g).some(x => x !== h) || amLeader()));
+/* пояс с мелочами: четыре быстрых места, на кукле не рисуются */
+function beltBlock(h) {
+  if (h.kind === 'merc') return `<div class="belt"><h4 class="jh">Пояс</h4><p class="note">${esc(C.beltText(h))}. Наёмник сам решает, что держать под рукой.</p></div>`;
+  const b = C.beltOf(h), can = mineH(h), opts = [...new Set(h.inv)].filter(C.beltable).map(R.item).filter(Boolean);
+  const ready = C.beltReady(h);
+  return `<div class="belt"><h4 class="jh">Пояс <small>· под рукой в бою</small></h4><div class="bslots">${b.map((id, i) => { const x = id && R.item(id), miss = id && !(h.inv || []).includes(id);
+    return `<label class="bslot ${id ? 'on' : ''} ${miss ? 'miss' : ''}"><span>${i + 1}</span><select data-belt="${i}" data-h="${h.id}" ${can ? '' : 'disabled'}><option value="">— пусто —</option>${opts.map(o => `<option value="${o.id}" ${id === o.id ? 'selected' : ''}>${esc(o.name.replace(/\s*\(.*\)/, ''))} · ${esc(C.beltKind(o.id))}</option>`).join('')}${miss ? `<option value="${id}" selected>${esc(x ? x.name : id)} — кончилось</option>` : ''}</select></label>`; }).join('')}</div>
+    <p class="note">С пояса в бою быстро: выпить — малое действие, швырнуть зелье или прочесть свиток — действие. Из сумы уходит ещё и следующее. Мелочь — факел, зеркальце, святыня, благовония, тул — работает только с пояса. Выпитое место после боя пополнится из сумы, если там есть такое же.${ready.length ? ' Сейчас под рукой: ' + esc(C.beltText(h)) + '.' : ''}</p></div>`;
+}
 function heroSheet(h) {
   const D = R.derive(h), cls = R.CLASSES[h.cls];
   const slot = (k, label, filter) => {
@@ -36921,6 +37302,7 @@ function heroSheet(h) {
     <div class="doll"><div class="dcol">${slot('head', 'Шлем', x => R.isArmor(x) && x.slot === 'голова')}${slot('body', 'Доспех', x => R.isArmor(x) && x.slot === 'тело')}${slot('shield', 'Щит / вторая рука', x => (R.isArmor(x) && x.slot === 'щит') || (R.offhandOk(x) && (x.id !== h.eq.weapon || h.inv.filter(y => y === x.id).length > 1)))}</div>
       <canvas class="dfig" data-doll="${h.id}" width="400" height="520"></canvas>
       <div class="dcol">${slot('weapon', 'Оружие', x => R.isWeapon(x) && !['лук', 'самострел', 'праща'].includes(x.group))}${slot('ranged', 'Стрелковое', x => R.isWeapon(x) && ['лук', 'самострел', 'праща', 'метательное'].includes(x.group))}</div>    ${C.WEAR_SLOTS ? `<div class="dwear">${C.WEAR_SLOTS.map(([k, lab]) => slot(k, lab, x => { const w = C.wearSlotOf(x); return k.startsWith('ring') ? w === 'ring' && (x.id !== h.eq[k === 'ring1' ? 'ring2' : 'ring1'] || h.inv.filter(y => y === x.id).length > 1) : w === k; })).join('')}${C.horseOf ? slot('mount', 'Конь', x => /^kon_/.test(x.id)) : ''}</div>` : ''}</div>
+    ${C.beltOf ? beltBlock(h) : ''}
     ${h.kind === 'merc' ? '<p class="note">Наёмник ходит в своём. Дать ему вещь можно — через «Обмен», он сам наденет лучшее; забрать нельзя, и надетое он не снимает.</p>' : ''}
     ${C.horseOf && h.inv.some(x => /^kon_/.test(x)) ? `<p class="note">Конь: ${h.eq.mount && h.inv.includes(h.eq.mount) ? esc((R.item(h.eq.mount) || {}).name) + ' — ' + esc(C.horseFacts(h.eq.mount)) : 'не выбран — в бой и в дорогу сядет на самого резвого'}. В бой верхом — только на ездовом или боевом коне, не в подземелье и не на улицах.</p>` : ''}
     ${C.ammoText && C.ammoText(h) ? `<p class="note"><b>Стрелы и болты:</b> ${esc(C.ammoText(h))}${(() => { const k = C.ammoKind(h.eq && R.item(h.eq.ranged)); return k && !C.ammoCount(h, k) ? ' — стрелять нечем, купите в лавке или соберите с убитых лучников' : ''; })()}.</p>` : ''}
@@ -37076,6 +37458,11 @@ function showParty(id, keep) {
   $('#modal').querySelectorAll('[data-study]').forEach(b => b.onclick = () => { if (NET()) { act({a: 'study', hero: b.dataset.h, item: b.dataset.study}); closeModal(); return; } const r = C.studyScroll(g, all.find(x => x.id === b.dataset.h), b.dataset.study); if (r.err) return toast(r.err); save(); renderTop(); showParty(b.dataset.h); toast(r.text); });
   $('#modal').querySelectorAll('[data-ocast]').forEach(b => b.onclick = () => { const hh = all.find(x => x.id === b.dataset.h), id = b.dataset.ocast, raw = b.dataset.oarg, arg = C.OUTCAST[id] === 'ritual' ? +raw : raw; if (NET()) { act({a: 'ocast', hero: hh.id, id, arg}); closeModal(); return; } const r = C.outCast(g, hh, id, arg); if (r.err) return toast(r.err); save(); toast(r.text); if (r.scene) { closeModal(); renderTop(); showScene(r.scene); } else showParty(hh.id, true); });
   $('#modal').querySelectorAll('[data-scribe]').forEach(b => b.onclick = () => { if (NET()) { act({a: 'scribe', hero: b.dataset.h, spell: b.dataset.scribe}); closeModal(); return; } const r = C.scribe(g, all.find(x => x.id === b.dataset.h), b.dataset.scribe); if (r.err) return toast(r.err); save(); renderTop(); showParty(b.dataset.h); toast(r.text); });
+  $('#modal').querySelectorAll('select[data-belt]').forEach(s => s.onchange = () => {
+    const hh = all.find(x => x.id === s.dataset.h); if (!hh) return;
+    if (NET()) return act({a: 'belt', hero: hh.id, i: +s.dataset.belt, val: s.value || ''});
+    const e = C.beltSet(hh, +s.dataset.belt, s.value || null); if (e) toast(e); save(); showParty(hh.id);
+  });
   $('#modal').querySelectorAll('select[data-eq]').forEach(s => s.onchange = () => {
     const hh = all.find(x => x.id === s.dataset.h); const k = s.dataset.eq;
     if (C.stuck && C.stuck(hh, k)) { toast('Проклятую вещь не снять — нужен обряд или отворотное зелье.'); showParty(hh.id); return; }
@@ -39175,6 +39562,7 @@ function drawPanel() {
     const nbrs = B.alliesOf(S, u).filter(x => x !== u && !x.dead && !x.gone && !x.down && B.dist(u, x) === 1);
     const nbrsAll = B.alliesOf(S, u).filter(x => x !== u && !x.dead && !x.gone && B.dist(u, x) === 1), healN = (u.ref && u.ref.inv || []).filter(x => x === 'zele_lecheniya').length;
     const A = S.acted, Bn = S.bonus, adjE = B.enemiesOf(S, u).filter(e => B.dist(e, u) === 1);
+    const bw = (id, bonus) => B.beltWhy ? B.beltWhy(S, u, id, bonus) : (bonus ? (Bn ? 'Малое действие уже потрачено.' : '') : (A ? 'Действие уже потрачено в этот ход.' : '')), bl = id => !B.onBelt || B.onBelt(u, id) ? ' · с пояса' : ' · из сумы';
     const left = Math.max(0, u.steps - S.moved - (u.conds.slow ? Math.ceil(u.steps / 2) : 0));
     const btn = (id, label, dis, title, cls) => `<button class="btn small ${cls || ''}" id="${id}" ${dis ? 'disabled' : ''} title="${esc(title || '')}">${label}</button>`;
     const tgtHint = {mark: 'Выбери врага для метки.', cut: 'Выбери врага рядом, чтобы подрезать.', trick_steal: 'Выбери врага рядом: стащить.', trick_disarm: 'Выбери врага рядом: выбить оружие.', trick_dust: 'Выбери врага рядом: пыль в глаза.', trick_trip: 'Выбери врага рядом: подножка.', hands: 'Выбери раненого: себя (свою клетку) или соседа.', help: 'Выбери врага рядом: следующий удар своих по нему +4.', offhand: 'Выбери врага рядом для удара второй рукой.', shove: 'Выбери врага рядом, чтобы толкнуть щитом.'};
@@ -39223,7 +39611,7 @@ function drawPanel() {
       ${rare.length ? `<details class="bmore" id="b-more" ${rareOpen ? 'open' : ''}><summary>Ещё приёмы${rareOn ? ` <i>${rareOn}</i>` : ''}</summary><div class="bmore-g">${rare.join('')}</div></details>` : ''}
       <div class="grp">Малое действие</div>
       ${u.cls === 'dushegub' && B.markWhy ? btn('b-mark', 'Метка', !!B.markWhy(S, u), tip(B.markWhy(S, u), 'Малое действие: по выбранному врагу +2 к попаданию и крит с 19. Пала цель — перенести даром'), mode === 'mark' ? 'on' : '')  : ''}
-      ${B.hasPotion(u) && !pots.length ? btn('b-pot', 'Выпить зелье', Bn || u.hp >= u.hpMax, tip(u.hp >= u.hpMax ? 'Ты не ранен.' : usedB, '2d4+2 хитов, малое действие')) : ''}
+      ${B.hasPotion(u) && !pots.length ? btn('b-pot', 'Выпить зелье' + bl('zele_lecheniya'), !!bw('zele_lecheniya', true) || u.hp >= u.hpMax, tip(u.hp >= u.hpMax ? 'Ты не ранен.' : bw('zele_lecheniya', true), B.onBelt && !B.onBelt(u, 'zele_lecheniya') ? '2d4+2 хитов; не на поясе — из сумы уйдёт целое действие' : '2d4+2 хитов, малое действие')) : ''}
       ${windWhy !== null ? btn('b-wind', 'Второе дыхание', !!windWhy, tip(windWhy, `Раз за бой: вернуть 1d10 + ${u.level} (уровень) хитов`)) : ''}
       ${tat || (B.shadowHide && B.shadowHide(u)) ? btn('b-thide', tat ? 'Хитрость: затаиться' : 'В тень', Bn || !!hideWhy, tip(hideWhy || usedB, 'Затаиться малым действием')) : ''}
       ${u.cls === 'dushegub' || u.offhand ? btn('b-off', 'Вторая рука' + (u.offhand ? ': ' + esc(u.offhand.name) : ''), Bn || !!afterHitWhy, tip(afterHitWhy || usedB, `После удара основным оружием — ещё удар левой рукой (${u.offhand ? u.offhand.dmg : '1d4'})`), mode === 'offhand' ? 'on' : '') : ''}
@@ -39235,9 +39623,9 @@ function drawPanel() {
       ${B.canGuard(u) && B.alliesOf(S, u).some(x => x !== u && B.active(x) && B.dist(x, u) === 1) ? '<div class="grp">Свободно</div>' : ''}
       ${B.canGuard(u) ? B.alliesOf(S, u).filter(x => x !== u && B.active(x) && B.dist(x, u) === 1).map(x => `<button class="btn small guardb ${u.guarding === x.id && B.guardOf(S, x) === u ? 'on' : ''}" data-guard="${x.id}" title="Удары в ближнем бою по ${esc(x.name)} принимает ${esc(u.name)}, пока стоит рядом. Не тратит ход.">${u.guarding === x.id && B.guardOf(S, x) === u ? 'Прикрываешь' : 'Прикрыть'}: ${esc(x.name)}</button>`).join('') : ''}
       `}
-      ${mode === 'pots' ? `<div class="spells">${healN ? `<button class="btn" data-hpot="self" ${Bn || u.hp >= u.hpMax ? 'disabled' : ''} title="2d4+2 хитов, малое действие">Выпить: Лечебный настой${healN > 1 ? ' ×' + healN : ''}</button>${nbrsAll.length ? nbrsAll.map(x => `<button class="btn" data-hpot="${x.id}" ${A || (!x.down && x.hp >= x.hpMax) ? 'disabled' : ''} title="Целое действие: 2d4+2 хитов${x.down ? ', поднимет упавшего' : ''}">Дать ${esc(C.Q && C.Q.decl && x.ref ? C.Q.decl(x.name, x.ref.sex).d || x.name : x.name)}: Лечебный настой</button>`).join('') : `<button class="btn" disabled title="Дать можно тому, кто стоит вплотную, в соседней клетке.">Дать соседу — рядом никого</button>`}` : ''}${pots.map(id => { const it = R.item(id), tg = B.potTarget(id), n = u.ref.inv.filter(x => x === id).length; return `<button class="btn" data-pot="${id}" title="${esc(it.notes || '')}">${tg.mode === 'area' ? 'Бросить' : tg.mode === 'self' ? 'На клинок' : tg.mode === 'ally' ? 'Влить павшему' : 'Выпить'}: ${esc(it.name)}${n > 1 ? ' ×' + n : ''}</button>${tg.mode === 'selfOrAlly' ? (nbrs.length ? nbrs.map(x => `<button class="btn" data-pot="${id}" data-potto="${x.id}" ${A ? 'disabled' : ''} title="Целое действие: склянку передают и вливают в рот.">Дать ${esc(C.Q && C.Q.decl && x.ref ? C.Q.decl(x.name, x.ref.sex).d || x.name : x.name)}: ${esc(it.name)}</button>`).join('') : `<button class="btn" disabled title="Дать можно тому, кто стоит вплотную, в соседней клетке.">Дать соседу — рядом никого</button>`) : ''}`; }).join('')}</div>` : ''}
+      ${mode === 'pots' ? `<div class="spells">${healN ? `<button class="btn" data-hpot="self" ${bw('zele_lecheniya', true) || u.hp >= u.hpMax ? 'disabled' : ''} title="${esc(bw('zele_lecheniya', true) || (B.onBelt && !B.onBelt(u, 'zele_lecheniya') ? '2d4+2 хитов. Не на поясе: достать из сумы — целое действие' : '2d4+2 хитов, малое действие'))}">Выпить: Лечебный настой${healN > 1 ? ' ×' + healN : ''}${bl('zele_lecheniya')}</button>${nbrsAll.length ? nbrsAll.map(x => `<button class="btn" data-hpot="${x.id}" ${bw('zele_lecheniya', false) || (!x.down && x.hp >= x.hpMax) ? 'disabled' : ''} title="Целое действие: 2d4+2 хитов${x.down ? ', поднимет упавшего' : ''}">Дать ${esc(C.Q && C.Q.decl && x.ref ? C.Q.decl(x.name, x.ref.sex).d || x.name : x.name)}: Лечебный настой</button>`).join('') : `<button class="btn" disabled title="Дать можно тому, кто стоит вплотную, в соседней клетке.">Дать соседу — рядом никого</button>`}` : ''}${pots.map(id => { const it = R.item(id), tg = B.potTarget(id), n = u.ref.inv.filter(x => x === id).length; const sw = bw(id, tg.mode === 'selfOrAlly'); return `<button class="btn" data-pot="${id}" ${sw ? 'disabled' : ''} title="${esc(sw || it.notes || '')}">${tg.mode === 'area' ? 'Бросить' : tg.mode === 'self' ? 'На клинок' : tg.mode === 'ally' ? 'Влить павшему' : 'Выпить'}: ${esc(it.name)}${n > 1 ? ' ×' + n : ''}${bl(id)}</button>${tg.mode === 'selfOrAlly' ? (nbrs.length ? nbrs.map(x => `<button class="btn" data-pot="${id}" data-potto="${x.id}" ${bw(id, false) ? 'disabled' : ''} title="Целое действие: склянку передают и вливают в рот.">Дать ${esc(C.Q && C.Q.decl && x.ref ? C.Q.decl(x.name, x.ref.sex).d || x.name : x.name)}: ${esc(it.name)}</button>`).join('') : `<button class="btn" disabled title="Дать можно тому, кто стоит вплотную, в соседней клетке.">Дать соседу — рядом никого</button>`) : ''}`; }).join('')}</div>` : ''}
       ${mode === 'songs' ? `<div class="spells">${C.repertOf(u.ref || u).map(id => { const p = C.REPERT[id]; return `<button class="btn" data-perf="${id}" ${A ? 'disabled' : ''} title="${esc(p.text)}">${esc(p.kind[0].toUpperCase() + p.kind.slice(1))}: ${esc(p.name)}</button>`; }).join('')}</div>` : ''}
-      ${mode === 'scrolls' ? `<div class="spells">${scs.map(id => { const s = C.scrollSpell(id); return `<button class="btn" data-scr="${id}" title="${esc(s.effect)}">Свиток: ${esc(s.name)}${u.ref.inv.filter(x => x === id).length > 1 ? ' ×' + u.ref.inv.filter(x => x === id).length : ''}</button>`; }).join('')}</div>` : ''}
+      ${mode === 'scrolls' ? `<div class="spells">${scs.map(id => { const s = C.scrollSpell(id); const sw = bw(id, false); return `<button class="btn" data-scr="${id}" ${sw ? 'disabled' : ''} title="${esc(sw || s.effect)}">Свиток: ${esc(s.name)}${bl(id)}${u.ref.inv.filter(x => x === id).length > 1 ? ' ×' + u.ref.inv.filter(x => x === id).length : ''}</button>`; }).join('')}</div>` : ''}
       <div class="bfoot">${mode ? `<button class="btn small" id="b-cancel">${bookOpen ? 'Закрыть книгу' : 'Отмена'}</button>` : ''}<button class="btn small primary" id="b-next">Конец хода</button></div>
 `;
     const on = (id, f) => { const b = $(id); if (b) b.onclick = f; };
@@ -39410,17 +39798,17 @@ function bop(op, a) {
     case 'hands': { const w = B.handsWhy(S, u); if (w) return w; const x = T(a.t); if (!x || !B.handsTargets(S, u).includes(x)) return 'Нужен раненый: ты сам или сосед.'; B.layHands(S, u, x); break; }
     case 'turn': { const w = B.turnWhy(S, u); if (w) return w; B.turnUndead(S, u); break; }
     case 'poison': { const w = B.poisonWhy(S, u); if (w) return w; B.poisonBlade(S, u); break; }
-    case 'pot': B.potion(S, u, u, true); break;
-    case 'hpot': { const f = T(a.t); if (!f || f.dead || f.side !== u.side || B.dist(u, f) !== 1) return 'до него не дотянуться'; if (S.acted) return 'Действие уже потрачено в этот ход.'; if (!B.hasPotion(u)) return 'зелья нет'; B.potion(S, u, f); break; }
+    case 'pot': { const e = B.potion(S, u, u, true); if (e) return e; break; }
+    case 'hpot': { const f = T(a.t); if (!f || f.dead || f.side !== u.side || B.dist(u, f) !== 1) return 'до него не дотянуться'; if (!B.hasPotion(u)) return 'зелья нет'; { const e = B.potion(S, u, f); if (e) return e; } break; }
     case 'guard': { const x = T(a.t); if (!x) return 'некого прикрыть'; B.guard(S, u, u.guarding === x.id && B.guardOf(S, x) === u ? null : x); break; }
-    case 'band': { const f = T(a.t); if (!f || !f.down || f.dead || B.dist(u, f) !== 1) return 'до раненого не дотянуться'; if (S.acted) return 'Действие уже потрачено в этот ход.'; if (B.hasPotion(u)) B.potion(S, u, f); else B.bandage(S, u, f); break; }
+    case 'band': { const f = T(a.t); if (!f || !f.down || f.dead || B.dist(u, f) !== 1) return 'до раненого не дотянуться'; if (S.acted) return 'Действие уже потрачено в этот ход.'; if (B.hasPotion(u)) { const e = B.potion(S, u, f); if (e) return e; } else B.bandage(S, u, f); break; }
     case 'spell': { const s = DATA.spellById[a.s]; if (!s || !B.Spells.usableNow(S, u).some(x => x.id === s.id)) return 'это заклинание сейчас не сотворить'; const tm = B.Spells.targetMode(s);
       if (tm === 'self') B.Spells.cast(S, u, s, u); else if (tm === 'place') B.Spells.cast(S, u, s, a.c != null ? {c: a.c, r: a.r} : null);
       else if (tm === 'area') { if (B.dist(u, a) > Math.max(1, B.Spells.range(s)) + 1) return 'слишком далеко'; B.Spells.cast(S, u, s, {c: a.c, r: a.r}); }
       else { const t = T(a.t); if (!t || !spellTargetOk(u, s, t)) return 'не та цель'; B.Spells.cast(S, u, s, t); } break; }
     case 'pot2': { if (!B.potsOf(u).includes(a.i)) return 'такого снадобья нет'; let tg = null; if (a.c != null) tg = {c: a.c, r: a.r}; else if (a.t) { tg = S.units.find(x => x.id === a.t); if (!tg) return 'некому'; }
       const e = B.usePotion(S, u, a.i, tg); if (e) return e; break; }
-    case 'scroll': { const s = C.scrollSpell(a.i); if (!s || !B.scrollsOf(u).includes(a.i)) return 'этот свиток не прочесть'; if (S.acted) return 'Действие уже потрачено в этот ход.'; const tm = B.Spells.targetMode(s); let tg = null;
+    case 'scroll': { const s = C.scrollSpell(a.i); if (!s || !B.scrollsOf(u).includes(a.i)) return 'этот свиток не прочесть'; { const w = B.beltWhy ? B.beltWhy(S, u, a.i, false) : (S.acted ? 'Действие уже потрачено в этот ход.' : ''); if (w) return w; } const tm = B.Spells.targetMode(s); let tg = null;
       if (tm === 'self') tg = u; else if (tm === 'area') { if (B.dist(u, a) > Math.max(1, B.Spells.range(s)) + 1) return 'слишком далеко'; tg = {c: a.c, r: a.r}; }
       else if (tm !== 'place') { tg = T(a.t); if (!tg || !spellTargetOk(u, s, tg)) return 'не та цель'; }
       const e = B.scrollCast(S, u, a.i, tg); if (e) return e; break; }
@@ -39758,6 +40146,7 @@ function doCmd1(c, pid) {
     case 'buy': { const h = C.alive(g).find(x => x.id === c.hero), it = R.item(c.item); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; if (!it || !it.price) return 'такого товара нет'; if (C.PACK_ANIMALS && C.PACK_ANIMALS[it.id] && C.beastRoom && C.beastRoom(g) < 1) return 'скотины не больше, чем людей в отряде'; const bp = buyPrice(it, h); if ((h.gold || 0) < bp) return 'не хватает денег'; h.gold -= bp; h.inv.push(it.id); save(); return; }
     case 'ident': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; if (!h.inv.includes(c.item) || !/^m\?:/.test(c.item)) return 'нечего распознавать'; const ip = C.identPrice(); if ((h.gold || 0) < ip) return 'не хватает денег'; h.gold -= ip; const k = C.identify(h, c.item); C.note(g, `Распознано у ${h.name}: ${(R.item(k) || {name: k}).name}.`); save(); return; }
     case 'sell': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; const e = sellItem(h, c.item); if (e) return e; save(); return; }
+    case 'belt': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; const e = C.beltSet(h, c.i | 0, c.val || null); if (e) return e; save(); rerender(); return; }
     case 'eq': { const h = C.alive(g).concat(g.mercs).find(x => x.id === c.hero); if (!h || (h.kind !== 'merc' && ownerOf(h.id) !== pid)) return 'это не ваш герой'; if (h.kind === 'merc' && pid !== leader()) return 'наёмников снаряжает вожатый'; if (c.val && !h.inv.includes(c.val)) return 'такой вещи нет'; if (h.kind === 'merc' && !c.val && h.eq[c.slot] && c.slot !== 'mount') return 'наёмник своё не снимает'; if (C.stuck && C.stuck(h, c.slot)) return 'проклятую вещь не снять'; if (c.val && C.canEquip && C.canEquip(h, R.item(c.val))) return C.canEquip(h, R.item(c.val)); equip(h, c.slot, c.val || null); save(); return; }
     case 'addHero': return addNetHero(c.hero, pid);
     case 'swapHero': { if (battle && !battle.over) return 'идёт бой'; if (!(C.isFree && C.isFree(g))) return 'сменить героя можно в корчме Вечного мира';
