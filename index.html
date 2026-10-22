@@ -40315,11 +40315,14 @@ function drawUnit(u) {
   // полоска хитов и имя
   const bw = s * 1.1, bx = p.x - bw / 2, by = p.y - s * 1.55;
   ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(bx, by, bw, 5);
-  ctx.fillStyle = u.side === 'party' ? '#7fbf5a' : '#d0573f'; ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.hpMax, 5);
+  // цвет полоски: свои — зелёные, враги — красные, очарованные — жёлтые, взятые под нашу волю — синие, наши под чужой волей — лиловые
+  const won = u.enthralled && u.side === 'party' && u.enthralled.side0 !== 'party', lost = u.enthralled && u.side !== 'party' && u.enthralled.side0 === 'party';
+  ctx.fillStyle = won ? '#5aa0e0' : lost ? '#b07fe0' : u.conds.charm ? '#e0c040' : u.side === 'party' ? '#7fbf5a' : '#d0573f'; ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.hpMax, 5);
+  if (u.side !== 'party' || won) { const tag = won ? 'под нашей волей' : lost ? 'под чужой волей' : u.conds.charm ? 'очарован' : ''; if (tag) { ctx.font = `${Math.max(9, Math.round(s * 0.24))}px "Alegreya", Georgia, serif`; ctx.fillStyle = won ? '#9fd3ff' : lost ? '#d7b8ff' : '#f0dc8a'; ctx.textAlign = 'center'; ctx.fillText(tag, p.x, p.y + s * 0.85); } }
   ctx.fillStyle = '#ece0c4'; ctx.font = `600 ${Math.max(10, Math.round(s * 0.32))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillText((u.down ? '† ' : '') + u.name.split(',')[0], p.x, by - 3);
-  const cs = u.side !== 'party' ? [] : Object.keys(u.conds).filter(k => ['held', 'sleep', 'fear', 'charm', 'blind', 'slow', 'atkUp', 'defUp', 'raging', 'dot'].includes(k));
-  const fxl = u.side !== 'party' ? [] : Object.keys(u.fx || {}).map(k => FX_LABEL[k]).filter(Boolean).concat(u.thp > 0 ? ['+' + u.thp + ' вр. хитов'] : []);
+  const cs = u.side !== 'party' || won ? [] : Object.keys(u.conds).filter(k => ['held', 'sleep', 'fear', 'charm', 'blind', 'slow', 'atkUp', 'defUp', 'raging', 'dot'].includes(k));
+  const fxl = u.side !== 'party' || won ? [] : Object.keys(u.fx || {}).map(k => FX_LABEL[k]).filter(Boolean).concat(u.thp > 0 ? ['+' + u.thp + ' вр. хитов'] : []);
   if (fxl.length) { ctx.font = `${Math.max(9, Math.round(s * 0.24))}px "Alegreya", Georgia, serif`; ctx.fillStyle = '#9fd3ff'; ctx.textAlign = 'center'; ctx.fillText(fxl.slice(0, 3).join(' · '), p.x, p.y + s * (cs.length ? 1.12 : 0.85)); }
   if (cs.length) { ctx.font = `${Math.max(9, Math.round(s * 0.26))}px "Alegreya", Georgia, serif`; ctx.fillStyle = '#c9b0ff'; ctx.fillText(cs.map(k => ({held: 'скован', sleep: 'спит', fear: 'страх', charm: 'чары', blind: 'слеп', slow: 'замедлен', atkUp: '+атака', defUp: '+защита', raging: 'ярость', dot: 'яд'})[k]).join(' · '), p.x, p.y + s * 0.85); }
 }
