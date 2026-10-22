@@ -36753,11 +36753,10 @@ const gx0 = C.giveXP; if (gx0) C.giveXP = function (g, xp, why) { const ups = gx
   try { (ups || []).filter(u => u.prayers && u.prayers.length).forEach(u => C.note(g, `${u.hero}: ${['chernets', 'obetnik'].includes(u.cls) ? 'Око' : 'бог'} даёт новые молитвы — ${u.prayers.map(id => '«' + DATA.spellById[id].name + '»').join(', ')}.`)); } catch (e) {}
   return ups; };
 if (Q && Q.finish) { const fin0 = Q.finish; Q.finish = function (g, j) { const r = fin0.apply(this, arguments);
-  try { if (g && j && j.status !== 'late' && !j.prayDone) { const side = Q.sideOf ? Q.sideOf(j) : null, temple = j.folk === 'temple';
-    const n = C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[j.folkAt], atKap = !!n && n.kind === 'капище';
-    const holy = side === 'oko' || (temple && !atKap), kap = side === 'kap' || (temple && atKap);
-    if (holy || kap) { j.prayDone = 1; C.alive(g).filter(h => (holy && ['chernets', 'obetnik'].includes(h.cls)) || (kap && ['volhv', 'zhrets', 'lovchiy'].includes(h.cls))).forEach(h => {
-      if ((h.prayQ || 0) >= (h.level || 1)) return; const got = C.prayGift(h, 1); if (got.length) h.prayQ = h.level || 1; if (got.length) C.note(g, `${h.name}: за дело веры ${holy ? 'Око' : 'бог'} даёт молитву — «${DATA.spellById[got[0]].name}».`); }); } } } catch (e) {}
+  try { const jf = C.jobFaith ? C.jobFaith(j) : null; if (g && j && j.status !== 'late' && !j.prayDone && jf) { j.prayDone = 1;
+    C.alive(g).filter(h => C.FAITH_CLS.includes(h.cls) && C.faithFits(C.faithOf(h), jf)).forEach(h => {
+      if ((h.prayQ || 0) >= (h.level || 1)) return; const got = C.prayGift(h, 1); if (!got.length) return; h.prayQ = h.level || 1;
+      C.note(g, `${h.name}: за дело веры ${C.faithOf(h) === 'oko' ? 'Око' : 'бог'} даёт молитву — «${DATA.spellById[got[0]].name}».`); }); } } catch (e) {}
   return r; }; }
 
 /* ---------- вне боя: разведка ветром и зверьми, свои имена у общих обрядов, плата за возвращение ---------- */
@@ -37047,6 +37046,105 @@ if (C.SPELL_COMP) { const has = id => !!DATA.items[id];
     chernobog_ekzortsizm: ['krov', 1, {dmg: '1d6'}], chernobog_krivda: ['chelovecheskiy_volos', 1, {dc: 2}],
     druid_perunova_strela: ['med', 1, {dmg: '1d4'}], druid_gromovoy_udar: ['med', 1, {dmg: '1d6'}]};
   Object.entries(ADD).forEach(([sid, [it, n, o]]) => { if (DATA.spellById[sid] && has(it) && !C.SPELL_COMP[sid]) C.SPELL_COMP[sid] = Object.assign({id: it, n}, o); }); }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* shrines.js */
+/* Колдовство — дела веры и тайные капища (22.10.2026). Без DOM.
+   • Дело веры даёт только служитель своей веры: в храме и в городе — Око (чернецу и обетнику), на капище — его бог,
+     жрица Мокоши в городе — Мокошь. Нет в отряде служителя этой веры — дел веры там не предлагают.
+     Капища без явного бога (Святая роща, Красный ключ, Каменная баба…) — старой вере: волхву, ловчему и любому жрецу.
+     Ладин родник и Живин ключ — капища Мокоши. «Человек Ока» — дело не храма, а Палаты: его берут все, молитва за него — служителям Ока.
+   • Тайные капища: в каждой земле — по капищу Перуна, Велеса, Мокоши, Сварога, Стрибога и Чернобога, вдали от дорог.
+     Видит и находит его только отряд со служителем этого бога — тот сам знает, где оно, и капище сразу отмечено на карте.
+     Там служитель бога даёт дела (за них — молитва), учит вере, снимает проклятия; у идола свои молятся — Сила возвращается раз в сутки;
+     можно взять знак бога.
+   • Молитва за дело веры — тому, чья вера совпала: одна сверх нормы на уровень (см. gods.js). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W, Q = C && C.Q;
+if (!R || !C || !Q) return;
+const FAITHS = ['perun', 'veles', 'mokosh', 'svarog', 'stribog', 'chernobog'];
+C.SHRINE = {
+  perun: {name: 'Громовое капище', terr: ['forest', 'hills'], art: 'Обугленный молнией дуб, у корней — каменный круг и секира на пне.'},
+  veles: {name: 'Велесово капище', terr: ['forest', 'marsh'], art: 'В чаще — валун, обложенный турьими рогами; у подножья — медвежий череп.'},
+  mokosh: {name: 'Мокошин родник', terr: ['meadow', 'field', 'forest'], art: 'Родник в берёзовой роще; на ветвях — пряжа и ленты, на камне — пряслица.'},
+  svarog: {name: 'Сварожий горн', terr: ['hills', 'field', 'wasteland'], art: 'На холме — старая кузня без стен: наковальня, вросшая в землю, и вечно тёплый горн.'},
+  stribog: {name: 'Стрибожий курган', terr: ['hills', 'wasteland', 'meadow'], art: 'На голом кургане — шест с перьями; ветер здесь не стихает ни днём, ни ночью.'},
+  chernobog: {name: 'Чёрный камень', terr: ['marsh', 'wasteland', 'forest'], art: 'В низине — чёрный камень, гладкий от рук; вокруг ни травинки, и вороны молчат.'},
+};
+const NAME = {oko: 'Ока', perun: 'Перуна', veles: 'Велеса', mokosh: 'Мокоши', svarog: 'Сварога', stribog: 'Стрибога', chernobog: 'Чернобога', old: 'старых богов'};
+C.FAITH_GEN = NAME;
+/* подходит ли вера героя делу */
+C.faithFits = (f, jf) => !!f && !!jf && (jf === 'old' ? f !== 'oko' : f === jf);
+C.partyFaith = (g, jf) => (C.alive(g) || []).some(h => C.faithFits(C.faithOf ? C.faithOf(h) : null, jf));
+/* какой вере служит место */
+C.nodeFaith = n => { if (!n) return null; const nm = n.name || '';
+  if (n.kind === 'капище') return /Мокош|Лад|Жив/i.test(nm) ? 'mokosh' : /Перун|Гром/i.test(nm) ? 'perun' : /Велес/i.test(nm) ? 'veles' : /Стриб/i.test(nm) ? 'stribog' : /Сварог|Сварож/i.test(nm) ? 'svarog' : /Чернобог/i.test(nm) ? 'chernobog' : 'old';
+  if (n.kind === 'храм' || n.kind === 'город') return 'oko'; return null; };
+const cellAt = (g, key) => { try { return W && W.isHex(g) ? W.world(g).cells[key] : null; } catch (e) { return null; } };
+C.placeFaith = (g, at) => { const c = at && cellAt(g, at); if (c && c.shrine) return c.shrine; const n = C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[at || g.loc]; return C.nodeFaith(n); };
+
+/* ---------- дела: у служителей — только для своих ---------- */
+const mj0 = C.folkMakeJob;
+if (mj0) C.folkMakeJob = function (g, role) { const j = mj0.apply(this, arguments); if (j && role === 'temple') j.faith = C.placeFaith(g, g.folkAt || g.loc) || 'oko'; return j; };
+const fo0 = C.folkOffers;
+if (fo0) C.folkOffers = function (g, role) { const out = fo0.apply(this, arguments); if (role !== 'temple') return out;
+  return out.filter(j => C.partyFaith(g, j.faith || C.placeFaith(g, j.folkAt) || 'oko')); };
+const mk0 = Q.make;
+Q.make = function (g, src, opt) { opt = opt || {};
+  if (!opt.giver && src === 'town' && !C.partyFaith(g, 'mokosh')) { const pool = Object.keys(Q.GIVER).filter(k => Q.GIVER[k].town && k !== 'zhritsa'); if (pool.length) opt = Object.assign({}, opt, {giver: R.pick(pool)}); }
+  const j = mk0.call(this, g, src, opt); if (j && j.giverId === 'zhritsa') j.faith = 'mokosh'; return j; };
+/* кто получает молитву за дело */
+C.jobFaith = j => { if (!j) return null; if (j.faith) return j.faith; const side = Q.sideOf ? Q.sideOf(j) : null; return side === 'oko' ? 'oko' : side === 'kap' ? 'old' : null; };
+
+/* ---------- тайные капища на карте ---------- */
+const hash = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+if (W && W.build) {
+  const build0 = W.build;
+  W.build = function (camp) {
+    const had = !!camp._world, w = build0.apply(this, arguments); if (had || w._shrines) return w; w._shrines = 1;
+    try { if (Object.values(w.cells).some(x => x.shrine)) return w; /* сшитая из земель карта: капища уже у каждой земли */
+      const nodes = Object.values(w.nodeAt || {}), used = [];
+      const free = x => !x.node && !x.poi && !x.folk && !x.road && !x.wall && x.t !== 'water' && x.t !== 'town' && x.t !== 'mountains' && isFinite(W.cost(x)) && nodes.every(n => W.dist(n, x) >= 3);
+      const all = Object.values(w.cells).filter(free).sort((a, b) => hash(camp.id + 'sh' + a.c + ':' + a.r) - hash(camp.id + 'sh' + b.c + ':' + b.r));
+      FAITHS.forEach(f => { const ok = x => used.every(u => W.dist(u, x) >= 4);
+        const c = all.find(x => C.SHRINE[f].terr.includes(x.t) && ok(x)) || all.find(ok); if (c) { c.shrine = f; used.push(c); } });
+    } catch (e) {}
+    return w;
+  };
+}
+C.shrineOn = (g, cell) => !!(cell && cell.shrine && C.partyFaith(g, cell.shrine));
+C.shrineName = cell => cell && cell.shrine ? C.SHRINE[cell.shrine].name : '';
+const fn0 = W && W.folkName; if (W) W.folkName = cell => cell && cell.shrine && !cell.folk ? C.shrineName(cell) : (fn0 ? fn0(cell) : '');
+/* служитель сам знает, где капище его бога */
+C.shrinesKnow = function (g) { if (!W || !W.isHex(g)) return; const w = W.world(g); g.flags = g.flags || {};
+  Object.values(w.cells).filter(c => c.shrine && C.partyFaith(g, c.shrine)).forEach(c => { const k = 'shr_' + g.camp + '_' + c.shrine; W.reveal(g, c, 0);
+    if (!g.flags[k]) { g.flags[k] = 1; const h = C.alive(g).find(x => C.faithFits(C.faithOf(x), c.shrine)); if (h) C.note(g, `${h.name} знает: в этих краях есть ${C.SHRINE[c.shrine].name.toLowerCase()} — место отмечено на карте. Чужим туда дороги нет.`); } }); };
+if (W && W.step) { const st0 = W.step;
+  W.step = function (g, cell, isLast) { const r = st0.apply(this, arguments);
+    try { C.shrinesKnow(g); if (cell && isLast && C.shrineOn(g, cell) && (!r || (r.arrive === undefined && !r.battle && !r.poi))) { g.folkRole = 'temple'; g.folkAt = W.key(cell.c, cell.r); return {poi: 'folk'}; } } catch (e) {}
+    return r; }; }
+const ah0 = C.addHero; if (ah0) C.addHero = function (g) { const r = ah0.apply(this, arguments); try { if (g && g.camp && W && W.isHex(g)) C.shrinesKnow(g); } catch (e) {} return r; };
+
+/* ---------- у капища: молитва у идола, знак бога, слово о чужих делах ---------- */
+const wrap = camp => { const raw = camp.scenes && camp.scenes.folk; if (typeof raw !== 'function' || raw._shr) return;
+  const f = function (g) { const sc = raw.apply(this, arguments); if (!sc || !sc.choices || !g || g.folkRole !== 'temple') return sc;
+    const at = g.folkAt || g.loc, cell = g.folkAt ? cellAt(g, g.folkAt) : null, faith = C.placeFaith(g, at) || 'oko';
+    if (cell && cell.shrine) { const S = C.SHRINE[cell.shrine]; sc.title = S.name + ' — ' + sc.title; sc.lines = [['n', S.art]].concat(sc.lines || []);
+      const mine = C.alive(g).filter(h => C.faithFits(C.faithOf(h), cell.shrine)), key = at + ':' + g.day, add = [];
+      add.push({t: 'Помолиться у идола — своим вернётся Сила', if: g2 => !(g2.shrinePray || {})[key], off: 'сегодня уже молились',
+        do: g2 => { g2.shrinePray = Object.assign({}, g2.shrinePray || {}, {[key]: 1}); const back = C.alive(g2).filter(h => C.faithFits(C.faithOf(h), cell.shrine)); back.forEach(h => { h.power = R.powerMax(h); }); if (C.pass) C.pass(g2, 1);
+          g2.folkLast = `${back.map(h => h.name).join(', ')} ${back.length > 1 ? 'молятся' : 'молится'} у идола ${NAME[cell.shrine]}. Сила возвращается до капли.`; C.note(g2, g2.folkLast); return 'folk'; }});
+      const sign = C.SIGN_FOR && C.SIGN_FOR[cell.shrine];
+      if (sign && DATA.items[sign]) add.push({t: `Взять знак ${NAME[cell.shrine]} — 25 зм`, if: g2 => g2.purse >= 2500, off: 'не хватает серебра',
+        do: g2 => { g2.purse -= 2500; const h = (C.recipient && C.recipient(g2, sign)) || mine[0] || C.alive(g2)[0]; h.inv.push(sign); if (h.eq && !h.eq.neck && C.signFits && C.signFits(h, sign)) h.eq.neck = sign;
+          g2.folkLast = `Служитель вешает ${h.name} на шею ${R.item(sign).name.toLowerCase()}.`; C.note(g2, g2.folkLast); return 'folk'; }});
+      const last = sc.choices.length - 1; sc.choices = sc.choices.slice(0, last).concat(add, sc.choices.slice(last));
+    } else if (!C.partyFaith(g, faith)) sc.lines = (sc.lines || []).concat([['n', faith === 'oko' ? 'О делах храма здесь говорят только со служителями Ока.' : `Дела капища — только для служителей ${NAME[faith]}. Чужим их не доверяют.`]]);
+    return sc; };
+  f._shr = 1; Object.keys(raw).forEach(k => { if (k !== '_shr') f[k] = raw[k]; }); camp.scenes.folk = f; };
+Object.values(C.CAMPS || {}).forEach(wrap);
+if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* net.js */
@@ -39132,7 +39230,7 @@ function showHexMap() {
     <div class="info" id="m-where">День ${g.day}, ${C.timeName(g)}. ${here.road ? 'На дороге.' : esc(T.word[0].toUpperCase() + T.word.slice(1)) + '.'} ${C.isNight(g) ? 'Ночью опаснее.' : ''}</div>
     ${node ? `<button class="btn primary" id="m-enter" ${dis}>Войти: ${esc(camp.map.nodes[node].name)}</button>` : ''}
     ${(() => { if (g.ended) return `<div class="info fin">Сага края пройдена. <button class="btn small" id="m-endch">Закончить главу</button></div>`; const f = finalHint(); return f ? `<div class="info fin">★ Финал: <b>${esc(f.name)}</b> — «${esc(f.label)}»${f.here ? '. Вы на месте — войдите.' : ` <button class="btn small" ${dis} data-goto="${f.id}">Идти туда</button>`}</div>` : ''; })()}
-    ${!node && here.folk && W.folkName && !NETG() ? `<button class="btn primary" id="m-folk" ${dis}>Зайти: ${esc(W.folkName(here))}</button>` : ''}
+    ${!node && (here.folk || (C.shrineOn && C.shrineOn(g, here))) && W.folkName && !NETG() ? `<button class="btn primary" id="m-folk" ${dis}>Зайти: ${esc(W.folkName(here))}</button>` : ''}
     ${(() => { const gb = x => `<button class="btn small goto" ${dis} data-goto="${x.id}" title="Идти: ${esc(x.n.name)}"><span>${esc(x.n.name)}</span><small>${esc(W.costText(x.pc.cost))}</small></button>`;
       if (!known.length) return ''; const near = known.slice(0, 2), rest = known.slice(2); let open = false; try { open = localStorage.getItem('kldv-goto') === '1'; } catch (e) {}
       return `<div class="grp2">Куда идти</div><div class="gotos">${near.map(gb).join('')}</div>${rest.length ? `<details class="gomore" ${open ? 'open' : ''}><summary>Ещё ${rest.length} ${rest.length % 10 === 1 && rest.length % 100 !== 11 ? 'место' : [2, 3, 4].includes(rest.length % 10) && ![12, 13, 14].includes(rest.length % 100) ? 'места' : 'мест'}</summary><div class="gotos">${rest.map(gb).join('')}</div></details>` : ''}`; })()}
@@ -39188,7 +39286,7 @@ function showHexMap() {
   wbox.ontouchend = () => { if (pinch) { pinch = null; setZoom(WM.zoom); } };
   if ($('#m-endch')) $('#m-endch').onclick = () => showEnd();
   if (node) $('#m-enter').onclick = () => NET() ? act({a: 'enter'}) : showScene(camp.map.nodes[node].scene);
-  if ($('#m-folk')) $('#m-folk').onclick = () => { g.folkRole = here.folk; g.folkAt = W.key(here.c, here.r); showScene('folk'); };
+  if ($('#m-folk')) $('#m-folk').onclick = () => { g.folkRole = here.folk || 'temple'; g.folkAt = W.key(here.c, here.r); showScene('folk'); };
   const wact = (f, k) => () => NET() ? act({a: 'wact', k}) : wactRun(f);
   if ($('#m-dropx')) $('#m-dropx').onclick = () => showScene('load_heavy');
   $('#m-camp').onclick = () => restCmd({op: 'open', kind: 'halt'}); $('#m-scout').onclick = wact(W.scout, 'scout'); $('#m-forage').onclick = wact(W.forage, 'forage'); $('#m-search').onclick = wact(W.search, 'search');
@@ -39200,7 +39298,7 @@ function showHexMap() {
   $('#main').querySelectorAll('[data-jgo]').forEach(b => b.onclick = () => { if (NET()) return act({a: 'jgo', job: b.dataset.jgo}); const j = Q.byId(g, b.dataset.jgo); if (!j || !j.site) return; const here = W.pos(g); if (here.c === j.site.c && here.r === j.site.r) { g.curJob = j.id; return showScene('q_site'); } walkTo(W.world(g).cells[W.key(j.site.c, j.site.r)]); });
   const xy = e => { const r = cv.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
   cv.onmousemove = e => { if (WM.walking) return; const c = wpick(...xy(e)); if (c !== WM.hover) { WM.hover = c; const pc = c && g.seen[W.key(c.c, c.r)] ? W.pathCost(g, c) : null; WM.path = pc ? pc.path : null;
-    $('#m-hint').textContent = c ? (g.seen[W.key(c.c, c.r)] ? `${(W.T[c.t] || W.T.meadow).name}${c.road ? ', дорога' : ''}${c.ford ? ', брод' : ''}${W.visibleNode(g, c) ? ' — ' + camp.map.nodes[c.node].name : ''}${c.poi && !g.flags['poi_' + c.poiId] ? ' — ' + W.POI_NAMES[c.poi] : ''}${W.markAt && W.markAt(g, c) ? ' — вдали виднелось: ' + W.markAt(g, c).see : ''}${c.folk && W.folkName ? ' — ' + W.folkName(c) : ''}${(() => { const jb = Q.siteAt(g, c); return jb ? ' — дело: ' + Q.title(jb) : ''; })()}. ${pc ? 'Путь: ' + W.costText(pc.cost) + '.' : c.t === 'water' ? 'Здесь не перейти.' : ''}` : 'Неразведанные земли. Подойди ближе.') : ''; drawWorld(); } };
+    $('#m-hint').textContent = c ? (g.seen[W.key(c.c, c.r)] ? `${(W.T[c.t] || W.T.meadow).name}${c.road ? ', дорога' : ''}${c.ford ? ', брод' : ''}${W.visibleNode(g, c) ? ' — ' + camp.map.nodes[c.node].name : ''}${c.poi && !g.flags['poi_' + c.poiId] ? ' — ' + W.POI_NAMES[c.poi] : ''}${W.markAt && W.markAt(g, c) ? ' — вдали виднелось: ' + W.markAt(g, c).see : ''}${(c.folk || (C.shrineOn && C.shrineOn(g, c))) && W.folkName ? ' — ' + W.folkName(c) : ''}${(() => { const jb = Q.siteAt(g, c); return jb ? ' — дело: ' + Q.title(jb) : ''; })()}. ${pc ? 'Путь: ' + W.costText(pc.cost) + '.' : c.t === 'water' ? 'Здесь не перейти.' : ''}` : 'Неразведанные земли. Подойди ближе.') : ''; drawWorld(); } };
   cv.onclick = e => { if (WM.walking && !WM.dragged) { WM.skip = true; return; } if (WM.walking || WM.dragged) { WM.dragged = false; return; } const c = wpick(...xy(e)); if (!c) return;
     if (NET()) { if (!lead || !g.seen[W.key(c.c, c.r)]) return act({a: 'mark', c: c.c, r: c.r}); if (c.c === here.c && c.r === here.r && node) return act({a: 'enter'}); return act({a: 'walk', c: c.c, r: c.r}); }
     if (c.c === here.c && c.r === here.r && node) return showScene(camp.map.nodes[node].scene); if (g.seen[W.key(c.c, c.r)]) walkTo(c); };
@@ -39491,6 +39589,7 @@ function drawWorld() {
     else if (c.t === 'sand' && k % 9 === 0) wspr2(x2, 'ber_rock', p.x, p.y + s * 0.5, s * 0.7);
     else if (c.t === 'meadow' && c.reg === 'imp' && k % 5 === 0) wspr2(x2, k % 2 ? 'imp_olive' : 'imp_cypress', p.x, p.y + s * 0.5, s * 1.1);
     else if (c.t === 'meadow' && k % 7 === 0) wspr(x2, ['shrub', 'juniper', 'boulder', 'stump'][k % 4] + '_summer', p.x, p.y + s * 0.45, s * 0.7);
+    if (!c.folk && C.shrineOn && C.shrineOn(g, c)) { wprop(x2, 'pg_idol', p.x, p.y + s * 0.5, s * 1.3); x2.font = `600 ${Math.max(10, Math.round(s * 0.36))}px Alegreya, serif`; x2.textAlign = 'center'; x2.lineWidth = 3; x2.strokeStyle = 'rgba(30,20,10,.85)'; const sn = C.shrineName(c); x2.strokeText(sn, p.x, p.y + s * 0.95); x2.fillStyle = '#e7c983'; x2.fillText(sn, p.x, p.y + s * 0.95); }
     if (c.folk && seen(c)) { wspr(x2, 'house4_summer', p.x, p.y + s * 0.55, s * 1.45); x2.font = `600 ${Math.max(10, Math.round(s * 0.36))}px Alegreya, serif`; x2.textAlign = 'center'; x2.lineWidth = 3; x2.strokeStyle = 'rgba(30,20,10,.85)'; const nm = W.folkName(c); x2.strokeText(nm, p.x, p.y + s * 0.95); x2.fillStyle = '#f0dcae'; x2.fillText(nm, p.x, p.y + s * 0.95); }
     if (c.poi && seen(c) && !g.flags['poi_' + c.poiId]) { const pr = POI_PROP[c.poi]; wprop(x2, pr[0], p.x, p.y + s * 0.45, s * 1.2 * pr[1]);
       x2.beginPath(); x2.arc(p.x + s * 0.45, p.y - s * 0.45, s * 0.32, 0, Math.PI * 2); x2.fillStyle = '#e7c983'; x2.fill(); x2.fillStyle = '#3a2410'; x2.font = `700 ${Math.round(s * 0.5)}px Alegreya, serif`; x2.textAlign = 'center'; x2.fillText('?', p.x + s * 0.45, p.y - s * 0.28); }
