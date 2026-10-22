@@ -36593,6 +36593,86 @@ const cast0 = S_.cast; S_.cast = function (S) { const r = cast0.apply(this, argu
 const st0 = B.startTurn; B.startTurn = function (S, u) { try { freeUp(S); const p = fx(u, 'perun'); if (p && live(u) && !u.down) perun(S, u, DATA.spellById[p.sid]); } catch (e) {} return st0.apply(this, arguments); };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* salvage.js */
+/* Колдовство — трофеи в дело. Без DOM.
+   • Кузнец перековывает ржавое и трофейное оружие и доспех в железо (у кого в отряде Кузнечное дело — бывает и сталь).
+   • Ювелир переплавляет курганное золото, серебро и бронзу в металл для своих колец и оберегов.
+   • Знахарка и зачарователь берут нечистые трофеи и отдают взамен компоненты для зелий и чар.
+   • Книжник читает курганную старину: откуда вещь, — и отмечает на карте место, откуда её вынесли. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W;
+if (!C || !C.CAMPS || !C.FOLK) return;
+const has = id => !!DATA.items[id];
+const nm = id => ((R.item(id) || {}).name || id).replace(/,\s*1 ед\.$/, '');
+const cnt = (h, id) => (h.inv || []).filter(x => x === id).length;
+const take = (h, id) => { const i = h.inv.indexOf(id); if (i >= 0) h.inv.splice(i, 1); };
+const worn = (h, id) => Object.values(h.eq || {}).includes(id) && cnt(h, id) <= Object.values(h.eq || {}).filter(v => v === id).length;
+const tier = (g, id) => Math.max(0, ...C.alive(g).map(h => (C.profTier ? C.profTier(h, id) : 0)));
+/* ---------- кузнец: перековка ---------- */
+const METAL = x => (R.isWeapon(x) || R.isArmor(x)) && !/лук|самострел|праща|посох|дубин|палиц|кистень/i.test((x.group || '') + ' ' + x.name) && !/kozhan|steganka|kozh|stegan|tkan/i.test(x.id);
+const scrapOf = id => { const b = R.baseId ? R.baseId(id) : id, x = R.item(b); if (!x) return 0;
+  if (b === 'tr_rzhavyi_mech') return 1; if (C.isMagic && C.isMagic(id)) return 0; if (!METAL(x)) return 0; return Math.max(1, Math.min(4, Math.round((x.weight_kg || x.price / 400 || 1) / 3))); };
+C.scrapList = h => [...new Set(h.inv || [])].filter(id => scrapOf(id) && !worn(h, id));
+/* ---------- ювелир: переплавка ---------- */
+C.MELT = {tr_kurgannaya_grivna: [['zoloto', 2]], tr_visochnoe_koltso: [['serebro', 2]], tr_serebryanoe_koltso: [['serebro', 1]], tr_bronzovaya_fibula: [['med', 2]], tr_obereg: [['med', 1]]};
+/* ---------- знахарка и зачарователь: нечистые трофеи → компоненты ---------- */
+C.TROPHY_COMP = {tr_besovskiy_kogot: [['sera', 2]], tr_navya_pyl: [['sonnaya_pyl', 2]], tr_pepel_ognya: [['ugolek', 2], ['sera', 1]], tr_glaz_liha: [['koren_mandragory_adamova_golova', 1], ['krov', 2]],
+  tr_bolotnaya_sliz: [['poganka', 2], ['belena', 1]], tr_nechistyi_prah: [['gnilushka_svetyashchayasya_fosfor', 2]], tr_paukova_zheleza: [['pautinka', 3]], tr_zmeinaya_kozha: [['krov', 1], ['gorkaya_sol', 1]], tr_cheshuya_zmeya: [['zoloto', 1], ['krov', 3]]};
+/* ---------- книжник: старина ---------- */
+C.OLD_THINGS = ['tr_kurgannaya_grivna', 'tr_visochnoe_koltso', 'tr_bronzovaya_fibula', 'tr_rzhavyi_mech', 'tr_obereg', 'tr_igralnye_kosti'];
+const OLD_SAY = {tr_kurgannaya_grivna: 'гривна княжьей дружины, что легла в курганах до прихода Ока', tr_visochnoe_koltso: 'височное кольцо: такие носили жёны воевод в старых родах', tr_bronzovaya_fibula: 'фибула с плаща заморского купца — их хоронили с товаром',
+  tr_rzhavyi_mech: 'меч старой ковки: клеймо кузни, что стояла у брода, пока её не сожгли', tr_obereg: 'оберег рода, что жил на капище в лесу', tr_igralnye_kosti: 'кости из могильника — такие клали воинам, чтобы и в Нави было чем коротать ночь'};
+const giveTo = (g, id, n) => { const h = (C.recipient && C.recipient(g, id)) || C.alive(g)[0]; for (let i = 0; i < n; i++) h.inv.push(id); };
+/* подписи к трофеям */
+Object.entries(C.MELT).forEach(([id, out]) => { const x = DATA.items[id]; if (x) x.notes = (x.notes ? x.notes + ' ' : '') + `Ювелир переплавит: ${out.map(([m, n]) => nm(m).toLowerCase() + ' ×' + n).join(', ')}.`; });
+Object.entries(C.TROPHY_COMP).forEach(([id, out]) => { const x = DATA.items[id]; if (x) x.notes = (x.notes ? x.notes + ' ' : '') + `Знахарка или зачарователь дадут за него: ${out.filter(([m]) => has(m)).map(([m, n]) => nm(m).toLowerCase() + ' ×' + n).join(', ')}.`; });
+if (DATA.items.tr_rzhavyi_mech) DATA.items.tr_rzhavyi_mech.notes = (DATA.items.tr_rzhavyi_mech.notes || '') + ' Кузнец перекуёт в железо; книжник расскажет, откуда он.';
+C.OLD_THINGS.forEach(id => { const x = DATA.items[id]; if (x && id !== 'tr_rzhavyi_mech' && !/книжник/.test(x.notes || '')) x.notes = (x.notes ? x.notes + ' ' : '') + 'Книжник прочтёт старину и укажет место.'; });
+
+const all = g => C.alive(g);
+const choicesFor = (g, role) => {
+  const out = [];
+  if (role === 'forge' && has('zhelezo_1_ed')) {
+    /* по кнопке на каждую вещь: запасное оружие сами не тронем */
+    const kz = tier(g, 'kuzn'), seen = new Set(); let k = 0;
+    all(g).forEach(h => C.scrapList(h).forEach(id => { if (seen.has(id) || k >= 6) return; seen.add(id); k++; const m = scrapOf(id);
+      out.push({t: `В переплавку: ${nm(id).toLowerCase()} → железо ×${m}${kz >= 2 ? ' (бывает и сталь)' : ''} — 1 см`, if: g2 => g2.purse >= 10, off: 'не хватает серебра',
+        do: g2 => { const hh = all(g2).find(x => C.scrapList(x).includes(id)); if (!hh) return 'folk'; take(hh, id); g2.purse -= 10; const t2 = tier(g2, 'kuzn'); let iron = 0, steel = 0;
+          for (let i = 0; i < m; i++) { if (t2 >= 2 && has('stal_1_ed') && R.rand() < 0.15 * t2) { hh.inv.push('stal_1_ed'); steel++; } else { hh.inv.push('zhelezo_1_ed'); iron++; } }
+          g2.folkLast = `Кузнец перекувывает в горне: ${nm(id).toLowerCase()} → ${iron ? 'железо ×' + iron : ''}${iron && steel ? ', ' : ''}${steel ? 'сталь ×' + steel : ''}.`; C.note(g2, g2.folkLast); return 'folk'; }}); }));
+  }
+  if (role === 'jewel') {
+    const any = all(g).some(h => Object.keys(C.MELT).some(id => cnt(h, id) && !worn(h, id)));
+    out.push({t: 'Переплавить курганное золото, серебро и бронзу в металл для работы — даром', if: () => any, off: 'нести нечего: гривны, кольца, фибулы с курганов',
+      do: g2 => { const got = {}; let n = 0; all(g2).forEach(h => Object.entries(C.MELT).forEach(([id, outp]) => { while (cnt(h, id) && !worn(h, id)) { take(h, id); n++; outp.forEach(([m, k]) => { if (!has(m)) return; for (let i = 0; i < k; i++) h.inv.push(m); got[m] = (got[m] || 0) + k; }); } }));
+        g2.folkLast = `Ювелир плавит старину в тигле: ${n} шт. → ${Object.entries(got).map(([m, k]) => nm(m).toLowerCase() + ' ×' + k).join(', ')}.`; C.note(g2, g2.folkLast); return 'folk'; }});
+  }
+  if (role === 'herb' || role === 'charm') {
+    const any = all(g).some(h => Object.keys(C.TROPHY_COMP).some(id => cnt(h, id)));
+    out.push({t: `${role === 'herb' ? 'Отдать знахарке' : 'Отдать зачарователю'} нечистые трофеи — за компоненты для зелий и чар`, if: () => any, off: 'нечего: когти бесов, навья пыль, пепел огней, слизь, паучьи железы',
+      do: g2 => { const got = {}; let n = 0; all(g2).forEach(h => Object.entries(C.TROPHY_COMP).forEach(([id, outp]) => { while (cnt(h, id)) { take(h, id); n++; outp.forEach(([m, k]) => { if (!has(m)) return; for (let i = 0; i < k; i++) h.inv.push(m); got[m] = (got[m] || 0) + k; }); } }));
+        g2.folkLast = `${role === 'herb' ? 'Знахарка' : 'Зачарователь'} раскладывает добро по горшкам: ${n} шт. → ${Object.entries(got).map(([m, k]) => nm(m).toLowerCase() + ' ×' + k).join(', ')}.`; C.note(g2, g2.folkLast); return 'folk'; }});
+  }
+  if (role === 'book') {
+    const h = all(g).find(x => C.OLD_THINGS.some(id => cnt(x, id))), id = h && C.OLD_THINGS.find(i => cnt(h, i)), at = g.folkAt || g.loc, key = at + ':' + g.day;
+    out.push({t: id ? `Показать старину: ${nm(id).toLowerCase()} — 1 зм` : 'Показать старину', if: g2 => !!id && g2.purse >= 100 && (g2.oldRead || {})[key] == null, off: !id ? 'показать нечего: курганные вещи, старое оружие, обереги' : (g.oldRead || {})[key] != null ? 'на сегодня хватит — приходите завтра' : 'не хватает серебра',
+      do: g2 => { g2.purse -= 100; g2.oldRead = Object.assign({}, g2.oldRead || {}, {[key]: 1}); if (C.pass) C.pass(g2, 1);
+        let place = ''; try { const w = W.world(g2), here = g2.pos || W.pos(g2); const c = Object.values(w.cells).filter(x => x.poi && !g2.flags['poi_' + x.poiId] && !g2.seen[W.key(x.c, x.r)]).sort((a, b) => W.dist(a, here) - W.dist(b, here))[0] || Object.values(w.cells).filter(x => x.poi && !g2.flags['poi_' + x.poiId]).sort((a, b) => W.dist(a, here) - W.dist(b, here))[0];
+          if (c) { W.reveal(g2, c, 1); place = ` Он ведёт пальцем по карте: «Вынесли её вот отсюда — там ещё осталось». Место отмечено.`; } } catch (e) {}
+        if (C.giveXP) C.giveXP(g2, 25 * Math.max(1, C.partyLevel(g2)), 'старина');
+        g2.folkLast = `Книжник вертит вещь у свечи: «Это ${OLD_SAY[id] || 'вещь из старых времён'}».${place || ' Где её взяли — не скажет, слишком давно.'}`; C.note(g2, g2.folkLast); return 'folk'; }});
+  }
+  return out;
+};
+const wrap = camp => { const raw = camp.scenes.folk; if (typeof raw !== 'function' || raw._salv) return;
+  const f = function (g) { const sc = raw.apply(this, arguments); const role = g && g.folkRole; if (!sc || !sc.choices || !role) return sc;
+    const add = choicesFor(g, role); if (add.length) { const last = sc.choices.length - 1; sc.choices = sc.choices.slice(0, last).concat(add, sc.choices.slice(last)); } return sc; };
+  f._salv = 1; Object.keys(raw).forEach(k => { if (k !== '_salv') f[k] = raw[k]; }); camp.scenes.folk = f; };
+Object.values(C.CAMPS).forEach(wrap);
+if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
