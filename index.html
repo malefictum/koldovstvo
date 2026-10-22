@@ -37949,7 +37949,7 @@ document.addEventListener('click', () => closeDD());
 window.addEventListener('resize', () => closeDD());
 document.addEventListener('scroll', e => { if (DDL && !DDL.contains(e.target)) closeDD(); }, true);
 function closeModal() { MODAL_REFRESH = null; closeDD(); $('#modal').hidden = true; $('#modal').innerHTML = ''; }
-$('#modal').addEventListener('click', e => { if (e.target.id === 'modal') closeModal(); });
+$('#modal').addEventListener('click', e => { if (e.target.id === 'modal' && !e.target.querySelector('.cr')) closeModal(); }); // создание героя мимо окна не закрывается
 
 const trialLevel = () => { try { return +localStorage.getItem('kldv-trial') || 0; } catch (e) { return 0; } };
 function showMenu() {
@@ -38738,7 +38738,7 @@ function showCreate(first, opts) {
     </div></div>
       <div class="mfoot">${(() => { const why = !reqOk() ? 'не хватает характеристик для класса — «Расставить под класс» или «Бросить заново»' : !st.name.trim() ? 'нужно имя' : pool.length && st.picks.length !== Math.min(want, pool.length) ? `выбери заклинания 1-го круга: ${Math.min(want, pool.length)}` : ''; return why ? `<p class="note mwhy">Чтобы вступить: ${esc(why)}.</p>` : ''; })()}
       <button class="btn primary" id="c-go" ${reqOk() && st.name.trim() && (!pool.length || st.picks.length === Math.min(want, pool.length)) ? '' : 'disabled'}>Вступить в отряд</button>
-      ${(C.alive(G0).length && !first) || NO ? '<button class="btn" id="c-cancel">Не сейчас</button>' : ''}
+      <button class="btn" id="c-cancel">${(C.alive(G0).length && !first) || NO ? 'Не сейчас' : 'Назад'}</button>
     </div>`);
     const m = $('#modal');
     m.querySelector('.x').hidden = true;
@@ -38753,7 +38753,9 @@ function showCreate(first, opts) {
     m.querySelector('#c-roll').onclick = () => { reroll(); draw(); };
     m.querySelector('#c-auto').onclick = () => { autoAssign(); draw(); };
     m.querySelectorAll('[data-pf]').forEach(cv => cv.onclick = () => { st.portrait = cv.dataset.pf; draw(); });
-    const cc = m.querySelector('#c-cancel'); if (cc) cc.onclick = () => { closeModal(); if (NO) { if (NO.cancel) NO.cancel(); return; } showScene(g.scene || startScene()); };
+    const back = () => { closeModal(); if (NO) { if (NO.cancel) NO.cancel(); return; } if (NET()) return; if (!C.alive(G0).length || first) { showMenu(); return; } showScene(g.scene || startScene()); };
+    const cc = m.querySelector('#c-cancel'); if (cc) cc.onclick = back;
+    const xx = m.querySelector('.x'); if (xx) { xx.removeAttribute('data-act'); xx.title = 'Назад (Esc)'; xx.onclick = back; }
     m.querySelector('#c-go').onclick = () => {
       const hh = preview(); if (!hh) return;
       if (NO) { closeModal(); return NO.done(hh); }
