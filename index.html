@@ -636,6 +636,76 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .tpick{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}.tpick .btn.on,.invbar .btn.on{background:var(--brass);color:#1b140c}
 .invbar{gap:8px;justify-content:space-between;align-items:center;margin:0 0 8px;flex-wrap:wrap}.ipact{margin-top:10px}
 @media (max-width:700px){.trade2,.tdeal{grid-template-columns:1fr}.tbag{max-height:30vh}}
+
+/* меню сцены по группам: колонки прокручиваются сами, «Уйти» прибито книзу */
+.scene .body{grid-template-rows:minmax(0,1fr);overflow:hidden}
+.scene .body>.lines{min-height:0;overflow:auto;padding-right:6px;scrollbar-width:thin}
+.scene .body>.choices{min-height:0;display:flex;flex-direction:column;gap:8px}
+.choices>.btn,.choices>.votebar,.choices>.claim,.choices>.hint{flex:none}
+.choices .mscroll{flex:1 1 auto;min-height:0;overflow:auto;display:flex;flex-direction:column;gap:14px;padding-right:4px;scrollbar-width:thin}
+.choices .mscroll:empty{display:none}
+.mgrp{display:flex;flex-direction:column;gap:7px}
+.mgh{font:600 12.5px var(--t-label);letter-spacing:.12em;text-transform:uppercase;color:var(--brass);display:flex;align-items:center;gap:6px}
+.mgh .mcnt{font-size:11px;color:var(--ink);background:var(--brass);border-radius:9px;padding:0 6px;letter-spacing:0}
+.mfold>summary{cursor:pointer;list-style:none;padding:6px 2px}.mfold>summary::-webkit-details-marker{display:none}
+.mfold>summary::before{content:"▸";color:var(--brass);transition:transform .15s}.mfold[open]>summary::before{transform:rotate(90deg)}
+.mfold .mfi{display:flex;flex-direction:column;gap:7px}
+.mfold.moff>summary{color:var(--paper-2);opacity:.8}.mfold.moff .ui-i{width:16px;height:16px}
+.mtiles{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}
+.btn.ch.mt{align-items:flex-start;padding:10px 10px 10px 8px}
+.btn.ch.mt .ct{display:flex;flex-direction:column;gap:2px}
+.btn.ch.mt .ct b{font-weight:600}.btn.ch.mt .ct small{font:13px/1.25 var(--t-text);letter-spacing:0;text-transform:none;color:var(--paper-2)}
+.mtalk{display:flex;gap:7px;flex-wrap:wrap}.mtalk .btn.ch.mt{flex:1 1 140px;padding:7px 10px 7px 6px}.mtalk .btn.ch.mt .ui-i{width:22px;height:22px}
+.btn.ch.morder{align-items:center;gap:12px;padding:8px 10px}
+.btn.ch.morder .sico{width:48px;height:48px;flex:none;background:rgba(0,0,0,.3);border-radius:6px}
+.btn.ch.morder .ct{display:flex;flex-direction:column;gap:4px}.btn.ch.morder small{font:13px var(--t-text);letter-spacing:0;text-transform:none;color:var(--paper-2)}
+.mbar{display:block;height:6px;background:rgba(0,0,0,.45);border-radius:3px;overflow:hidden}.mbar i{display:block;height:100%;background:linear-gradient(90deg,#a8843f,var(--brass-2))}
+.morder .mpay{font:600 15px var(--t-label);color:var(--brass-2);white-space:nowrap}
+.choices .mleave{flex:none;padding-top:10px;border-top:1px solid rgba(201,163,92,.25);display:grid;gap:7px}
+@media (max-width:760px),(min-width:761px) and (max-width:1180px) and (orientation:portrait){
+  .scene .body{grid-template-rows:auto;overflow:auto;align-content:start}
+  .scene .body>.lines,.choices .mscroll{overflow:visible}
+  .mtiles{grid-template-columns:1fr 1fr}
+}
+@media (max-width:420px){.mtiles{grid-template-columns:1fr}}
+/* иконки профессий */
+.pico{display:inline-block;width:56px;height:56px;flex:none;background:url(img/profs.webp) no-repeat;background-size:1000% 900%;filter:drop-shadow(0 2px 3px rgba(0,0,0,.55))}
+.pico.none{background:radial-gradient(circle at 35% 30%,#4a3a26,#1a140e);border:1px solid var(--rim);border-radius:50%;display:grid;place-items:center;font:22px var(--t-display);color:var(--brass-2);filter:none}
+.pico.big{width:88px;height:88px}
+/* витрина учёбы */
+.scene .body.haslearn{grid-template-columns:minmax(0,1fr) minmax(300px,400px);grid-template-rows:auto minmax(0,1fr) auto;row-gap:12px}
+.scene .body.haslearn>.lines{grid-column:1/-1;max-width:none;overflow:visible}
+.learnbox{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,400px);gap:22px;min-height:0}
+.scene .body.haslearn>.choices.lchoices{grid-column:1/-1;flex-direction:row;flex-wrap:wrap;justify-content:flex-end}
+.lchoices .btn.ch{flex:0 1 auto}
+.lmain{display:flex;flex-direction:column;gap:12px;min-height:0}
+.lheroes{display:flex;gap:8px;flex-wrap:wrap;flex:none}
+.lhero{display:flex;align-items:center;gap:8px;padding:4px 12px 4px 4px;border-radius:8px;border:1px solid var(--rim);background:rgba(0,0,0,.25);color:var(--paper);cursor:pointer;font:inherit;text-align:left}
+.lhero.on{border-color:var(--brass-2);background:var(--oak)}.lhero .face{width:40px;height:40px;border-radius:50%}.lhero span{display:grid;line-height:1.15}.lhero b{font:600 15px var(--t-label);color:var(--brass-2)}.lhero small{font-size:12.5px;color:var(--paper-2)}
+.lgrid{flex:1;min-height:0;overflow:auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:9px;align-content:start;padding-right:4px;scrollbar-width:thin}
+.lcard{display:flex;gap:10px;align-items:flex-start;padding:9px 10px;border-radius:8px;border:1px solid #3a2d1b;background:#1e1711;color:var(--paper);cursor:pointer;font:inherit;text-align:left;min-height:96px}
+.lcard:hover{border-color:var(--rim)}.lcard.on{border-color:var(--brass-2);background:var(--oak);box-shadow:0 0 0 1px rgba(231,201,131,.25)}
+.lcard.off .pico,.lcard.done .pico{opacity:.75}.lcard.no .lpr{color:#a08f73}
+.lci{display:flex;flex-direction:column;gap:3px;min-width:0}
+.lci>small:first-child{font:12px var(--t-label);letter-spacing:.06em;color:#8f8068}
+.lci b{font:600 15.5px/1.15 var(--t-label);color:#f3e3bd}
+.lst{font-size:16px;letter-spacing:2px;line-height:1}.lst b{color:var(--brass-2);font-weight:400}.lst i{color:#6b5537;font-style:normal}.lst u{color:#4a3d2c;text-decoration:none;margin-left:3px}
+.lpr{font:13px/1.25 var(--t-text);color:var(--paper-2)}
+.lside{min-height:0;overflow:auto;border-left:1px solid #3a2d1b;padding-left:20px;display:flex;flex-direction:column;gap:12px;scrollbar-width:thin}
+.ldh{display:flex;gap:12px;align-items:center}.ldh span{display:grid;gap:3px}.ldh b{font:600 20px var(--t-label);color:#f3e3bd}.ldh small{font-size:13.5px;color:var(--paper-2)}
+.lfx{margin:0;font-size:16px;line-height:1.45;color:var(--paper-2)}
+.ltiers{display:flex;flex-direction:column;gap:6px}
+.ltier{display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:6px;background:#16110c;border:1px solid #2a2016}
+.ltier.next{background:var(--oak);border-color:var(--brass)}.ltier.shut{color:#6b5d4a}.ltier.done .lts{color:var(--brass-2)}
+.lts{width:18px;color:var(--brass-2)}.ltn{flex:1;display:grid;gap:1px}.ltn b{font:600 14.5px var(--t-label)}.ltn small{font-size:13px;color:#b4a58b}
+.ltc{display:grid;justify-items:end;font-size:14px;color:var(--paper-2)}.ltc small{font-size:12.5px;color:#b4a58b}
+.llearn{justify-content:center;text-align:center;padding:12px}.lwhy{margin:0}
+@media (max-width:760px),(min-width:761px) and (max-width:1180px) and (orientation:portrait){
+  .scene .body.haslearn{grid-template-columns:1fr;grid-template-rows:auto;align-content:start}
+  .learnbox,.lmain,.lside{min-height:auto}.lgrid{flex:none;min-height:auto}
+  .learnbox{grid-template-columns:1fr}.lgrid{overflow:visible;grid-template-columns:repeat(auto-fill,minmax(200px,1fr))}.lside{overflow:visible;border-left:0;padding-left:0;border-top:1px solid #3a2d1b;padding-top:12px}
+}
+.scene:has(.body.haslearn){grid-template-rows:minmax(130px,25%) 1fr}
 .ui-i{display:inline-block;width:22px;height:22px;flex:none;background:url(img/ui.webp) no-repeat;background-size:800% 600%;vertical-align:middle}
 .i-attack{background-position:0.000% 0.000%}
 .i-defense{background-position:14.286% 0.000%}
@@ -24321,17 +24391,19 @@ const plural = (n, a, b, c) => { const m = Math.abs(n) % 100, k = m % 10; return
 const dayTxt = d => d < 1 ? 'полдня' : d === 1 ? 'день' : plural(d, 'день', 'дня', 'дней');
 const SC = {};
 /* выбор учёбы: все свои герои сразу, без шага «кому учиться». За столом каждый видит только своего героя (own). */
+C.LEARN_SET = {};
 C.learnChoices = function (g, idsFor, back) {
   const hs = C.alive(g), lines = [], ch = [];
+  C.LEARN_SET[back] = {heroes: hs.map(h => ({id: h.id, ids: idsFor(h), busy: h.busy ? C.busyText(g, h) : null}))};
   hs.forEach(h => {
     const nm = hs.length > 1 ? h.name + ': ' : '';
     if (h.busy) { lines.push(['n', C.busyText(g, h) + '.']); return; }
     const avail = idsFor(h).map(id => ({id, n: C.profNext(h, id)}));
     const ok = avail.filter(a => !a.n.err), no = avail.filter(a => a.n.err && T(h, a.id) < 4 && a.n.t);
     lines.push(['n', `${h.name}: очков профессий — ${h.profPts || 0}.${!ok.length ? ' Здесь сейчас нечему научиться: ' + (no.length ? 'не хватает очков или сил.' : 'всё нужное уже выучено или не по классу.') : ''}`]);
-    ok.forEach(a => ch.push({t: `${nm}${P[a.id].name} → ${C.TIER_NAME[a.n.t]}: ${plural(a.n.cost, 'очко', 'очка', 'очков')}, ${R.priceText(a.n.fee)}, ${dayTxt(a.n.days)} — ${P[a.id].fx}`, own: h.id, if: g2 => g2.purse >= a.n.fee, off: g2 => `не хватает серебра: в кошеле ${R.priceText(g2.purse)}`,
+    ok.forEach(a => ch.push({t: `${nm}${P[a.id].name} → ${C.TIER_NAME[a.n.t]}: ${plural(a.n.cost, 'очко', 'очка', 'очков')}, ${R.priceText(a.n.fee)}, ${dayTxt(a.n.days)} — ${P[a.id].fx}`, own: h.id, learn: {h: h.id, id: a.id}, if: g2 => g2.purse >= a.n.fee, off: g2 => `не хватает серебра: в кошеле ${R.priceText(g2.purse)}`,
       do: g2 => { const hh = C.alive(g2).find(x => x.id === h.id); if (!hh) return back; const r = C.learnProf(g2, hh, a.id, {mentor: true}); g2.profLast = r.err ? r.err : r.text; return back; }}));
-    no.slice(0, 6).forEach(a => ch.push({t: `${nm}${P[a.id].name} → ${C.TIER_NAME[a.n.t]}`, own: h.id, if: () => false, off: a.n.err}));
+    no.slice(0, 6).forEach(a => ch.push({t: `${nm}${P[a.id].name} → ${C.TIER_NAME[a.n.t]}`, own: h.id, learn: {h: h.id, id: a.id}, if: () => false, off: a.n.err}));
   });
   const busy = C.busyHeroes(g);
   if (busy.length) { const until = Math.max(...busy.map(h => h.busy.until)); ch.push({t: `Ждать, пока доучатся (до ${C.qText(until)})`, do: g2 => { C.waitBusy(g2); g2.profLast = null; return back; }}); }
@@ -25622,7 +25694,7 @@ SC.folk = g => {
       g2.folkLast = t && !/разводит руками/.test(t) ? t : `${p.n} настраивает гусли и поёт байку: «${C.bayka ? C.bayka(g2) : '…'}»`; C.note(g2, g2.folkLast); return 'folk'; }}); }
   (g.jobs || []).filter(j => j.status === 'done' && j.node === g.loc && j.v && j.v.giver && j.v.giver.n === p.n).forEach(j => ch.unshift({t: `Отчитаться: ${Q.title(j).toLowerCase()}`, do: g2 => { g2.folkLast = null; g2.curJob = j.id; return 'q_report'; }}));
   const offers = C.folkOffers(g, role);
-  offers.forEach(j => ch.push({t: `${j.rumor ? 'Дело по слуху' : 'Дело'}: ${Q.title(j).toLowerCase()}${j.pay ? ' — ' + R.priceText(j.pay) : role === 'temple' ? ' — за благословение' : ''}`, do: g2 => { g2.jobOffer = j.id; g2.jobFrom = home ? 'road' : 'town'; g2.folkLast = null; return 'q_offer'; }}));
+  offers.forEach(j => ch.push({t: `${j.rumor ? 'Дело по слуху' : 'Дело'}: ${Q.title(j).toLowerCase()}${j.pay ? ' — ' + R.priceText(j.pay) : role === 'temple' ? ' — за благословение' : ''}`, job: 1, do: g2 => { g2.jobOffer = j.id; g2.jobFrom = home ? 'road' : 'town'; g2.folkLast = null; return 'q_offer'; }}));
   if (role === 'thief' && !offers.length) lines.push(['n', g.flags.tihie_burned ? `${p.n} смотрит сквозь вас: «Мы с вами незнакомы. И знакомиться не будем»` : C.folkRep(g) ? 'О делах сегодня молчат.' : `${p.n}: «О делах с чужими не говорят. Пусть о вас пойдёт слава — тогда и поговорим»`]);
   ch.push({t: home ? 'Уйти' : 'Назад', do: g2 => { g2.folkLast = null; const b = backOut(g2); g2.folkAt = null; if (b === 'map') g2.folkRole = null; return b; }});
   return {title: `${p.n}, ${p.t}`, bg: F.bg, art: F.art, lines, choices: ch};
@@ -26250,11 +26322,11 @@ Object.values(C.CAMPS).forEach(camp => {
       do: g2 => { const h = C.alive(g2).find(x => cnt(x, m.from) >= m.n); take(h, m.from, m.n); for (let i = 0; i < (m.k || 1); i++) h.inv.push(m.to); g2.purse -= m.fee; C.pass(g2, 1); g2.folkLast = `Кузнец переплавляет — у ${h.name} в суме: ${nm(m.to).toLowerCase()}.`; C.note(g2, g2.folkLast); return 'folk'; }}));
     const b = BUY[role];
     if (b) { const any = C.alive(g).some(h => sellable(h, b).length);
-      add.push({t: b.t, if: () => any, off: 'нечего продать', do: g2 => { let sum = 0, k = 0; C.alive(g2).forEach(h => sellable(h, b).forEach(x => { const c = cnt(h, x), base = C.sellPrice ? C.sellPrice(g2, h, R.item(x)) : Math.floor(R.item(x).price / 2), pr = C.scavCap ? C.scavCap(g2, h, R.item(x), Math.round(base * b.mul)) : Math.round(base * b.mul); take(h, x, c); sum += pr * c; k += c; }));
+      add.push({t: b.t, sell: role, if: () => any, off: 'нечего продать', do: g2 => { let sum = 0, k = 0; C.alive(g2).forEach(h => sellable(h, b).forEach(x => { const c = cnt(h, x), base = C.sellPrice ? C.sellPrice(g2, h, R.item(x)) : Math.floor(R.item(x).price / 2), pr = C.scavCap ? C.scavCap(g2, h, R.item(x), Math.round(base * b.mul)) : Math.round(base * b.mul); take(h, x, c); sum += pr * c; k += c; }));
         g2.purse += sum; g2.folkLast = `Продано ${k} шт. — ${R.priceText(sum)}.`; C.note(g2, g2.folkLast); return 'folk'; }}); }
     const w = C.folkWant(g, role, at);
     if (w && !w.done) { const have = C.alive(g).reduce((a, h) => a + cnt(h, w.id), 0);
-      add.push({t: `Заказ: принести ${nm(w.id).toLowerCase()} ×${w.n} — ${R.priceText(w.pay)} (есть ${have})`, if: () => have >= w.n, off: `нужно ${w.n}, есть ${have}`,
+      add.push({t: `Заказ: принести ${nm(w.id).toLowerCase()} ×${w.n} — ${R.priceText(w.pay)} (есть ${have})`, order: {id: w.id, n: w.n, have, pay: w.pay}, if: () => have >= w.n, off: `нужно ${w.n}, есть ${have}`,
         do: g2 => { let left = w.n; C.alive(g2).forEach(h => { const c = Math.min(left, cnt(h, w.id)); take(h, w.id, c); left -= c; }); g2.purse += w.pay; g2.wantDone = (g2.wantDone || []).concat(w.key).slice(-60); g2.fame = (g2.fame || 0) + (R.rand() < 0.3 ? 1 : 0); g2.folkLast = `Заказ сдан: ${R.priceText(w.pay)}.`; C.note(g2, g2.folkLast); return 'folk'; }}); }
     if (add.length) { const last = sc.choices.length - 1; sc.choices = sc.choices.slice(0, last).concat(add, sc.choices.slice(last)); }
     return sc;
@@ -37910,7 +37982,7 @@ document.addEventListener('keydown', e => {
   const m = $('#modal'); if (e.key === 'Escape' && m && !m.hidden) { const x = m.querySelector('.x'); if (x) x.click(); return; }
   if (m && !m.hidden) return;
   if (TYPING && (/^[1-9]$/.test(e.key) || e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); TYPING.finish(); return; }
-  if (/^[1-9]$/.test(e.key)) { const bs = [...document.querySelectorAll('.choices .btn, .side .btn')].filter(b => !b.disabled); const b = bs[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } }
+  if (/^[1-9]$/.test(e.key)) { const bs = [...document.querySelectorAll('.choices .btn, .side .btn')].filter(b => !b.disabled && b.offsetParent !== null); const b = bs[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } }
 });
 document.addEventListener('click', e => { const c = e.target.closest('[data-hero]'); if (c && !e.target.closest('#modal')) showParty(c.dataset.hero); });
 
@@ -38883,6 +38955,117 @@ function choiceBtn0(id, c) {
   const tag = c.tag ? `<span class="tag">${esc(typeof c.tag === 'function' ? c.tag(g) : c.tag)}</span>` : '';
   return `<button class="btn ch${c.tag ? ' tagged' : ''}" data-ch="${c.i}"${c.dis ? ` disabled title="${esc(c.dis)}"` : ''}><span class="ui-i i-${kindOf(c, pv)}"></span><span class="ct">${tag}${esc(label)}${chk}${c.dis ? `<small class="dis-why"> — ${esc(c.dis)}</small>` : ''}</span>${NET() ? `<span class="vm" data-vm="${c.i}"></span>` : ''}</button>`;
 }
+/* ---------- меню сцены по группам: сюжет сверху, места плитками, заказы карточками, мелочь свёрнута, «Уйти» внизу ---------- */
+const PROF_ICO = {"akrob":0,"alpinist":1,"aura":2,"ballist":3,"bog_ataka":4,"bog_spec":5,"bog_zashch":6,"bol":7,"charodeystvo":8,"diplomat":9,"ezda":10,"fanatizm":11,"feht":12,"ident":13,"iskusstvo":14,"istoriya":15,"komponenty":16,"konc":17,"kuzn":18,"kuzn_volsh":19,"lovk_voina":20,"lovushki":21,"lovushki_poisk":22,"lozh":23,"medicina":24,"meditac":25,"mestnost":26,"muzyka":27,"nastup":28,"obereg":29,"obnaruzh":30,"obokrast":31,"oborona":32,"obuchenie":33,"ohotnik":34,"pamyat":35,"pesnya_boy":36,"plavanie":37,"poisk_puti":38,"pokrov":39,"povar":40,"rech":41,"regen":42,"religiya":43,"rezba":44,"rybalka":45,"school_alchem":46,"school_astro":47,"school_black":48,"school_necro":49,"school_white":50,"slepoy":51,"soprot":52,"stoykost":53,"strelba":54,"svitki":55,"svitki_alt":56,"taktika":57,"tanec":58,"ten":59,"tkach":60,"torgovlya":61,"travy":62,"udar_szadi":63,"vera":64,"volshebstvo":65,"vyzhiv":66,"vzlom":67,"w_arb":68,"w_dva":69,"w_ekz":70,"w_kol":71,"w_luk":72,"w_met":73,"w_rez":74,"w_rub":75,"w_ruk":76,"w_tup":77,"yarost":78,"yaz_zver":79,"yazyki":80,"yuvelir":81,"zamki":82,"zapug":83,"zelya":84,"zemled":85,"zhivotn":86};
+const profIco = (id, cls) => { const i = PROF_ICO[id]; if (i == null) return `<span class="pico none ${cls || ''}">${esc(((C.PROF[id] || {}).name || '?')[0])}</span>`;
+  return `<span class="pico ${cls || ''}" style="background-position:${(i % 10) * 100 / 9}% ${Math.floor(i / 10) * 100 / 8}%"></span>`; };
+const FOLD = {}; // какие свёрнутые группы игрок раскрыл: {scene|group: true}
+const M_LEAVE = /^(Назад|Уйти|На дорогу|Дальше|Отойти|Вернуться|Проститься|Прощай|Выйти|На карту)(?![а-яё])/;
+const M_PLACE = /^(По городу|По селу|Корчма|Потолкаться|Конюшня|Купить землю|Земля и доля|На торг|Торг|Капище|Храм|Пристань|Баня|Ярмарк|Кузня|Книжня|Гостиный двор|Дружинный двор|Выпить у стойки|Объявления у стойки)/;
+const M_MASTER = /^(Учиться|Мастерская|Перековать|Улучшить стёганку|Посох, лук, щит|Кольца и обереги|Распознать вещь|Посмотреть диковинки|Купить материал|Послушать слухи|Сбыть неопознанное)/;
+const M_JOB = /^(Дело|Дело по слуху|Отчитаться|Взять дело|Сдать дело)(?![а-яё])/;
+const M_CRAFT = /→/;
+const M_SELL = /^(В переплавку|Продать|Сбыть)/;
+const M_TALK = /^(Поговорить|Сделать подарок|Подарить|Спросить|Расспросить)/;
+function menuGroup(c) {
+  if (c.order) return 'order';
+  if (c.sell || M_SELL.test(c.label)) return 'sell';
+  if (c.job || M_JOB.test(c.label)) return 'job';
+  if (M_LEAVE.test(c.label)) return 'leave';
+  if (M_MASTER.test(c.label)) return 'master';
+  if (M_TALK.test(c.label)) return 'talk';
+  if (M_CRAFT.test(c.label)) return 'craft';
+  if (M_PLACE.test(c.label) || c.go === 'folk_tavern') return 'place';
+  return 'now';
+}
+const splitLabel = t => { const k = t.indexOf(':'); if (k > 0 && k < 34) return [t.slice(0, k), t.slice(k + 1).trim()]; const d = t.indexOf(' — '); return d > 0 && d < 40 ? [t.slice(0, d), t.slice(d + 3).trim()] : [t, '']; };
+function tileBtn(id, c, kind) {
+  const [h, s] = splitLabel(c.label);
+  return `<button class="btn ch mt" data-ch="${c.i}"${c.dis ? ` disabled title="${esc(c.dis)}"` : ''}><span class="ui-i i-${kind}"></span><span class="ct"><b>${esc(h)}</b>${s ? `<small>${esc(s)}</small>` : ''}${c.dis ? `<small class="dis-why">${esc(c.dis)}</small>` : ''}</span>${NET() ? `<span class="vm" data-vm="${c.i}"></span>` : ''}</button>`;
+}
+function orderCard(c) {
+  const o = c.order, x = R.item(o.id) || {name: o.id}, k = Math.min(1, (o.have || 0) / (o.n || 1));
+  return `<button class="btn ch morder" data-ch="${c.i}"${c.dis ? ` disabled title="${esc(c.dis)}"` : ''}><canvas class="sico" data-ico="${iconOf(o.id) || ''}" width="56" height="56"></canvas>
+    <span class="ct"><b>${esc(x.name)} ×${o.n}</b><small>Есть ${Math.min(o.have || 0, o.n)} из ${o.n}${c.dis ? '' : ' — можно отдать'}</small><span class="mbar"><i style="width:${Math.round(k * 100)}%"></i></span></span>
+    <span class="mpay">${esc(R.priceText(o.pay))}</span>${NET() ? `<span class="vm" data-vm="${c.i}"></span>` : ''}</button>`;
+}
+function menuHTML(id, list) {
+  const many = list.length >= 6 || list.some(c => c.order);
+  if (!many) { const lv = list.filter(c => M_LEAVE.test(c.label)); const arr = lv.length === 1 && list.length >= 3 ? list.filter(c => c !== lv[0]).concat(lv) : list; return arr.map(c => choiceBtn(id, c)).join(''); }
+  const G0 = {now: [], place: [], master: [], job: [], order: [], craft: [], sell: [], talk: [], leave: []};
+  list.forEach(c => { if (c.inn) { G0.now.push(c); return; } G0[menuGroup(c)].push(c); });
+  // «уйти» — одна-две последние; прочие такие же кнопки посреди списка — обычные
+  if (G0.leave.length > 2) G0.now.push(...G0.leave.splice(0, G0.leave.length - 1));
+  // недоступное из сюжета и мест — свёрнуто
+  const off = [];
+  if (list.length >= 7) ['now', 'place'].forEach(k => { G0[k] = G0[k].filter(c => { if (c.dis && !c.inn) { off.push(c); return false; } return true; }); });
+  const sec = (t, inner, cls) => inner ? `<div class="mgrp ${cls || ''}">${t ? `<div class="mgh">${esc(t)}</div>` : ''}${inner}</div>` : '';
+  const fold = (key, t, arr, render) => { if (!arr.length) return ''; const fk = id + '|' + key, open = FOLD[fk] != null ? FOLD[fk] : arr.length <= 2;
+    return `<details class="mgrp mfold" data-fold="${esc(fk)}"${open ? ' open' : ''}><summary class="mgh">${esc(t)} <span class="mcnt">${arr.length}</span></summary><div class="mfi">${arr.map(render).join('')}</div></details>`; };
+  const btns = arr => arr.map(c => choiceBtn(id, c)).join('');
+  const tiles = (arr, kind) => arr.length ? `<div class="mtiles">${arr.map(c => tileBtn(id, c, typeof kind === 'function' ? kind(c) : kind)).join('')}</div>` : '';
+  const placeKind = c => /Корчма|стойк/.test(c.label) ? 'food' : /мастера и люди|По городу|По селу/.test(c.label) ? 'people' : /торг|Торг|лавк/.test(c.label) ? 'market' : /Конюшн/.test(c.label) ? 'keep' : /Земл|долю/.test(c.label) ? 'seal' : /Храм|Капище/.test(c.label) ? 'pray' : 'keep';
+  const masterKind = c => /^Учиться/.test(c.label) ? 'codex' : /диковинки|материал/.test(c.label) ? 'market' : /слухи/.test(c.label) ? 'chat' : /Распознать/.test(c.label) ? 'spyglass' : /Сбыть/.test(c.label) ? 'sell' : 'write';
+  const twoNow = G0.now.length && (G0.place.length || G0.master.length);
+  return `<div class="mscroll">${sec(twoNow ? 'Сейчас' : '', btns(G0.now))}
+    ${sec('У мастера', tiles(G0.master, masterKind))}
+    ${sec(G0.job.length > 1 ? 'Дела' : '', btns(G0.job))}
+    ${sec('Заказы', G0.order.map(orderCard).join(''))}
+    ${sec(G0.now.length || G0.master.length ? 'Места' : '', tiles(G0.place, placeKind))}
+    ${fold('craft', 'Ремесло', G0.craft, c => choiceBtn(id, c))}
+    ${fold('sell', 'Продать и сдать', G0.sell, c => choiceBtn(id, c))}
+    ${G0.talk.length ? `<div class="mgrp"><div class="mtalk">${G0.talk.map(c => tileBtn(id, c, 'chat')).join('')}</div></div>` : ''}
+    ${off.length ? `<details class="mgrp mfold moff" data-fold="${esc(id)}|off"${FOLD[id + '|off'] ? ' open' : ''}><summary class="mgh"><span class="ui-i i-key"></span>Ещё недоступно <span class="mcnt">${off.length}</span></summary><div class="mfi">${btns(off)}</div></details>` : ''}
+    </div>${G0.leave.length ? `<div class="mleave">${btns(G0.leave)}</div>` : ''}`;
+}
+function bindFolds(root) { root.querySelectorAll('details[data-fold]').forEach(d => d.addEventListener('toggle', () => { FOLD[d.dataset.fold] = d.open; })); }
+
+/* ---------- витрина учёбы: герои сверху, карточки наук со ступенями, справа подробности и «Учить» ---------- */
+let LEARN = {scene: null, hero: null, sel: null};
+const TIER_UP = t => t ? t[0].toUpperCase() + t.slice(1) : '';
+const plur = (n, a, b, c) => { const m = Math.abs(n) % 100, k = m % 10; return n + ' ' + (m > 10 && m < 20 ? c : k === 1 ? a : k >= 2 && k <= 4 ? b : c); };
+const dayW = d => d < 1 ? 'полдня' : d === 1 ? '1 день' : plur(d, 'день', 'дня', 'дней');
+function learnHeroes(id) {
+  const LS = C.LEARN_SET && C.LEARN_SET[id]; if (!LS) return [];
+  return LS.heroes.map(x => Object.assign({h: heroById(x.id)}, x)).filter(x => x.h && (!NET() || !g.net || myHeroes().some(m => m.id === x.id)));
+}
+function learnBox(id, sc) {
+  const hs = learnHeroes(id); if (!hs.length) return '';
+  if (LEARN.scene !== id) LEARN = {scene: id, hero: null, sel: null};
+  const cur = hs.find(x => x.id === LEARN.hero) || hs.find(x => !x.busy && x.ids.length) || hs[0]; LEARN.hero = cur.id;
+  // кто учится — карточки видны, учить нельзя
+  if (cur.busy) sc = Object.assign({}, sc, {choices: []});
+  const h = cur.h, ids = cur.ids, P = C.PROF, T = id2 => C.profTier(h, id2);
+  if (!ids.includes(LEARN.sel)) LEARN.sel = ids.find(x => !C.profNext(h, x).err) || ids[0] || null;
+  const choiceFor = pid => sc.choices.find(c => c.learn && c.learn.h === h.id && c.learn.id === pid && !c.dis && /→/.test(c.label) && !c.order);
+  const stars = pid => { const t = T(pid), lim = C.profLimit(h, pid); return `<span class="lst"><b>${'★'.repeat(t)}</b><i>${'☆'.repeat(Math.max(0, lim - t))}</i>${lim < 4 ? `<u>${'·'.repeat(4 - lim)}</u>` : ''}</span>`; };
+  const priceOf = pid => { const n = C.profNext(h, pid), t = T(pid), lim = C.profLimit(h, pid);
+    if (t >= 4) return ['выучено до конца', 'done']; if (t >= lim) return ['классу выше не дают', 'off'];
+    const cost = C.profCost(h, pid, t + 1), fee = C.TIER_FEE[t + 1];
+    return [`${R.priceText(fee)} · ${plur(cost, 'очко', 'очка', 'очков')} · ${dayW(C.TIER_DAYS[t + 1])}`, n.err || g.purse < fee ? 'no' : 'ok']; };
+  const heroTabs = hs.length > 1 ? `<div class="lheroes">${hs.map(x => `<button class="lhero${x.id === h.id ? ' on' : ''}" data-lh="${x.id}">${faceHTML(x.h.portrait)}<span><b>${esc(x.h.name)}</b><small>${x.busy ? 'учится' : 'очков профессий: ' + (x.h.profPts || 0)}</small></span></button>`).join('')}</div>` : '';
+  const cards = ids.map(pid => { const p = P[pid], [pt, st] = priceOf(pid);
+    return `<button class="lcard${pid === LEARN.sel ? ' on' : ''} ${st}" data-lp="${pid}">${profIco(pid)}<span class="lci"><small>${esc(C.STAT_RU[p.stat] || '')}</small><b>${esc(p.name)}</b>${stars(pid)}<small class="lpr">${esc(pt)}</small></span></button>`; }).join('');
+  let det = '';
+  const pid = LEARN.sel, p = pid && P[pid];
+  if (p) { const t = T(pid), lim = C.profLimit(h, pid), n = C.profNext(h, pid), c = choiceFor(pid);
+    const tiers = [1, 2, 3, 4].map(k => { const done = k <= t, open = k <= lim, nx = k === t + 1 && open;
+      return `<div class="ltier${done ? ' done' : ''}${open ? '' : ' shut'}${nx ? ' next' : ''}"><span class="lts">${done ? '★' : open ? '☆' : '·'}</span><span class="ltn"><b>${esc(TIER_UP(C.TIER_NAME[k]))}${done ? ' — выучено' : open ? '' : ' — классу не дают'}</b><small>${esc(C.STAT_RU[p.stat])} ${C.TIER_STAT[k]} · ${dayW(C.TIER_DAYS[k])}</small></span><span class="ltc">${open ? `<span>${esc(R.priceText(C.TIER_FEE[k]))}</span><small>${plur(C.profCost(h, pid, k), 'очко', 'очка', 'очков')}</small>` : '—'}</span></div>`; }).join('');
+    const can = !!c, fee = !n.err ? n.fee : 0;
+    const why = cur.busy ? cur.busy + '.' : n.err ? TIER_UP(n.err) + '.' : g.purse < fee ? `Не хватает серебра: в кошеле ${R.priceText(g.purse)}.` : `Учёба займёт ${dayW(n.days)}. Пока ${h.name} учится, отряд в путь не выйдет.`;
+    det = `<div class="ldh">${profIco(pid, 'big')}<span><b>${esc(p.name)}</b><small>${esc(h.name)} · ${t ? 'сейчас: ' + esc(C.TIER_NAME[t]) : 'ещё не учился'} · классу до ступени «${esc(C.TIER_NAME[lim] || '—')}»</small></span></div>
+      <p class="lfx">${esc(TIER_UP(p.fx))}.</p><div class="ltiers">${tiers}</div>
+      <button class="btn primary llearn" ${can ? `data-ch="${c.i}"` : 'disabled'}>${!n.err ? `Учить: ${esc(C.TIER_NAME[n.t])} — ${esc(R.priceText(n.fee))}, ${plur(n.cost, 'очко', 'очка', 'очков')}` : t >= 4 ? 'Выучено до конца' : t >= lim ? 'Выше класс не учит' : 'Пока нельзя'}</button><p class="note lwhy">${esc(why)}</p>`; }
+  else det = `<p class="note">${esc(cur.busy ? cur.busy + '.' : 'Здесь этому герою учиться нечему.')}</p>`;
+  return `<div class="learnbox"><div class="lmain">${heroTabs}<div class="lgrid">${cards || `<p class="note">${esc(cur.busy ? cur.busy + '.' : 'Здесь этому герою учиться нечему.')}</p>`}</div></div><div class="lside">${det}</div></div>`;
+}
+function bindLearn(id, sc) {
+  const box = $('#main .learnbox'); if (!box) return;
+  const redraw = () => { const t = document.createElement('div'); t.innerHTML = learnBox(id, sc); box.replaceWith(t.firstElementChild); paintFaces($('#main')); bindLearn(id, sc); };
+  box.querySelectorAll('[data-lh]').forEach(b => b.onclick = () => { LEARN.hero = b.dataset.lh; LEARN.sel = null; redraw(); });
+  box.querySelectorAll('[data-lp]').forEach(b => b.onclick = () => { LEARN.sel = b.dataset.lp; redraw(); if (window.innerWidth <= 760) { const sd = $('#main .lside'); if (sd) sd.scrollIntoView({block: 'start', behavior: 'smooth'}); } });
+  box.querySelectorAll('.llearn[data-ch]').forEach(b => b.onclick = () => choose(id, +b.dataset.ch));
+}
 /* ---------- карта подземелья: пройденные каморы, ходы, где отряд, компас ---------- */
 let DMAP = null; // {seed, at, x, y} — откуда метка отряда едет в новую камору
 function drawDMap(anim) {
@@ -39001,12 +39184,14 @@ function showScene(id, talk) {
   if (cards.length) { people += `<div class="people">${cards.map(c => `<button class="person" data-ch="${c.i}" ${c.dis ? `disabled title="${esc(c.dis)}"` : ''}>${faceHTML(c.card.face)}<span><b>${esc(c.card.n)}</b><small>${esc(c.card.sub || '')}</small></span></button>`).join('')}</div>`; choices = choices.filter(c => !c.card); }
   const dmap = id === 'dungeon' && g.dungeon && g.dungeon.rooms;
   const sface = sceneFace(sc, id, who, lines);
+  const lbox = !dmap && C.LEARN_SET && C.LEARN_SET[id] ? learnBox(id, sc) : '';
+  if (lbox) lines = lines.filter(l => !/: очков профессий — |учится \(«/.test(l[1]));
   $('#main').innerHTML = `<div class="screen scene"><div class="bg${dmap ? ' dg' : ''}" style="background-image:${sceneBg(sc, bg)}">${dmap ? '<canvas class="dmap"></canvas>' : ''}<h2>${esc(sc.title)}</h2>${sface ? `<div class="sface">${faceHTML(sface.id, 'bigface').replace('width="96" height="96"', 'width="192" height="192"')}<div class="sfn"><b>${esc(sface.n || '')}</b>${sface.sub ? `<small>${esc(sface.sub)}</small>` : ''}</div></div>` : ''}</div>
-   <div class="body"><div class="lines">${nws.length ? `<div class="news">${nws.map(esc).join(' ')}</div>` : ''}${lines.map(lineHTML).join('')}${people}
+   <div class="body${lbox ? ' haslearn' : ''}"><div class="lines">${nws.length ? `<div class="news">${nws.map(esc).join(' ')}</div>` : ''}${lines.map(lineHTML).join('')}${people}
    ${chk ? `<div class="check ${chk.ok ? '' : 'bad'}">${esc(chk.hero ? chk.hero.name : '')}: бросок ${chk.rolls ? `${chk.rolls.join(' и ')} — ${chk.adv > 0 ? 'с преимуществом' : 'с помехой'}${chk.advWhy ? ' (' + esc(chk.advWhy) + ')' : ''}, берётся ${chk.roll}` : chk.roll}, итог ${chk.total} против ${chk.dc} — ${chk.ok ? 'удача' : 'неудача'}.</div>` : ''}
    ${ups.map(u => `<div class="check">${esc(u.hero)} достигает ${u.level}-го уровня (+${u.hp} хитов${u.profPts ? `, +${u.profPts} очк. профессий` : ''})${u.lesson ? `. Можно выучить новое заклинание — ${esc(C.teacherWhere ? C.teacherWhere(u.cls) : 'у наставника')}` : ''}.</div>`).join('')}
-   ${SAYS.filter(x => x.sid === id).slice(-8).map(x => x.html).join('')}</div><div class="choices">${NET() ? `<div class="votebar" id="votebar"></div>${myHeroes().length ? `<label class="claim note">Проверку бросает: <select id="claimSel"><option value="">лучший в отряде</option>${myHeroes().map(h => `<option value="${h.id}" ${CLAIM === h.id ? 'selected' : ''}>${esc(h.name)} — беру на себя</option>`).join('')}</select></label>` : `<div class="hint">${C.alive(g).length ? 'У вас нет героя за этим столом — можно смотреть и говорить.' : 'Отряд пал. Посадите нового героя.'}</div>`}` : ''}${hub && !who ? sc.people.map(p => `<button class="btn ch" data-talk="${p}"><span class="ui-i i-chat"></span><span class="ct">Подойти: ${esc(shortName(p))}</span></button>`).join('') : ''}${choices.filter(c => c.who).map(c => choiceBtn(id, c)).join('')}${hub && who ? `<button class="btn ch" data-talk=""><span class="ui-i i-steps"></span><span class="ct">Отойти</span></button>` : ''}${choices.filter(c => !c.who).map(c => choiceBtn(id, c)).join('')}</div></div></div>`;
-  paintFaces($('#main'));
+   ${SAYS.filter(x => x.sid === id).slice(-8).map(x => x.html).join('')}</div>${lbox}<div class="choices${lbox ? ' lchoices' : ''}">${NET() ? `<div class="votebar" id="votebar"></div>${myHeroes().length ? `<label class="claim note">Проверку бросает: <select id="claimSel"><option value="">лучший в отряде</option>${myHeroes().map(h => `<option value="${h.id}" ${CLAIM === h.id ? 'selected' : ''}>${esc(h.name)} — беру на себя</option>`).join('')}</select></label>` : `<div class="hint">${C.alive(g).length ? 'У вас нет героя за этим столом — можно смотреть и говорить.' : 'Отряд пал. Посадите нового героя.'}</div>`}` : ''}${hub && !who ? sc.people.map(p => `<button class="btn ch" data-talk="${p}"><span class="ui-i i-chat"></span><span class="ct">Подойти: ${esc(shortName(p))}</span></button>`).join('') : ''}${choices.filter(c => c.who).map(c => choiceBtn(id, c)).join('')}${hub && who ? `<button class="btn ch" data-talk=""><span class="ui-i i-steps"></span><span class="ct">Отойти</span></button>` : ''}${menuHTML(id, choices.filter(c => !c.who && !(lbox && c.learn)))}</div></div></div>`;
+  paintFaces($('#main')); paintIcons($('#main')); bindFolds($('#main')); if (lbox) bindLearn(id, sc);
   if (dmap) drawDMap(true);
   typeLines($('#main .scene'), id + '|' + lines.map(l => l[1]).join('|').length + '|' + (lines[0] ? lines[0][1].slice(0, 40) : '') + '|' + (lines.length ? lines[lines.length - 1][1].slice(-40) : ''));
   if (NET()) { const cs = $('#claimSel'); if (cs) cs.onchange = () => { CLAIM = cs.value; const sc2 = C.sceneOf(g, id); if (sc2) $('#main').querySelectorAll('.choices [data-ch]').forEach(b => { const c2 = sc2.choices.find(x => x.i === +b.dataset.ch); const chk = c2 && b.querySelector('.chk'); if (chk) { const t = document.createElement('div'); t.innerHTML = choiceBtn(id, c2); const n2 = t.querySelector('.chk'); if (n2) chk.replaceWith(n2); } }); }; paintVotes(); }
