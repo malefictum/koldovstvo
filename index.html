@@ -56,6 +56,11 @@ button{font:inherit;cursor:pointer}
 .scene .bg{background-size:cover;background-position:center;position:relative}
 .scene .bg::after{content:"";position:absolute;inset:0;background:linear-gradient(transparent 40%,var(--night))}
 .scene .bg.dg::before{content:"";position:absolute;inset:0;background:radial-gradient(ellipse at 45% 50%,rgba(14,10,6,.72),rgba(8,6,3,.9));z-index:0}.scene .bg .dmap{position:absolute;inset:0;width:100%;height:100%;z-index:1}
+.seller{display:flex;align-items:center;gap:10px;margin:-4px 0 10px}.seller .face{width:64px;height:64px;border-radius:6px;border:1px solid var(--rim);box-shadow:0 2px 8px rgba(0,0,0,.6)}.seller b{display:block}.seller small{opacity:.8}
+.scene .bg .sface{position:absolute;right:22px;top:16px;z-index:3;width:170px;display:flex;flex-direction:column;align-items:center;gap:4px;pointer-events:none}
+.scene .bg canvas.bigface{width:150px!important;height:150px!important;border-radius:8px;border:2px solid var(--brass-2);box-shadow:0 4px 18px rgba(0,0,0,.75),0 0 0 4px rgba(20,14,8,.7);display:block;background:#2a2016}
+.scene .bg .sfn{text-align:center;text-shadow:0 2px 4px #000;line-height:1.15;max-width:200px}.scene .bg .sfn b{display:block;color:var(--brass-2);font:600 16px var(--t-text)}.scene .bg .sfn small{color:#e8dcc0;font-size:12.5px}
+@media (max-width:700px){.scene .bg canvas.bigface{width:84px!important;height:84px!important}.scene .bg .sface{right:10px;top:10px;width:100px}.scene .bg .sfn b{font-size:13px}.scene .bg .sfn small{display:none}}
 .scene .bg h2{position:absolute;left:16px;bottom:8px;z-index:2;margin:0;font:400 clamp(24px,4vw,38px)/1.1 var(--t-display);color:var(--brass-2);text-shadow:0 2px 6px #000}
 .scene .body{display:grid;grid-template-columns:minmax(0,1fr) minmax(280px,380px);gap:22px;padding-inline:22px;padding-block:16px 28px;min-height:0;position:relative;
   background:linear-gradient(rgba(21,17,13,.9),rgba(21,17,13,.97)),url(img/leather.webp) center/320px;border-top:1px solid var(--rim);box-shadow:inset 0 10px 24px rgba(0,0,0,.55)}
@@ -38821,6 +38826,24 @@ const pogreb = sc => sc.bg === 'cellar' && ((sc.id === 'dungeon' && g && g.dunge
 const roadBg = sc => { if (sc.bg !== 'road' || !g) return null; const c = CAMP_OF() || {}, id = g.camp || '';
   if (/swamp|boloto/.test(id)) return 'road_swamp'; if (/terak|podzem/.test(id)) return 'road_mountain'; if (c.late && !/olsha/.test(id) && HAVE.has('road_vera') && (g.day || 0) % 2) return 'road_vera';
   const s = c.season || 'summer'; return s === 'summer' ? null : 'road_' + s; };
+/* с кем говорим: лицо крупно в шапке сцены (мастера, торговцы, заказчики, сюжетные люди) */
+const NPC_FACE = {m: ['p32', 'p33', 'p34', 'p35', 'p41', 'p43', 'p25', 'p27', 'p29'], f: ['p36', 'p37', 'p38', 'p44', 'p45', 'p46', 'p19', 'p22']};
+const hashS = t => { let x = 2166136261; for (const ch of String(t)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+function giverFace(j) { if (!j || !j.v || !j.v.giver) return null; const GV = C.Q.GIVER[j.giverId] || {}; if (GV.omen) return null;
+  if (j.folk && j.folkAt && C.folkPerson) { const p = C.folkPerson(g, j.folk, j.folkAt); return {id: p.face, n: p.n, sub: p.t}; }
+  const gv = j.v.giver, sex = gv.sex === 'f' ? 'f' : 'm', L = NPC_FACE[sex]; return {id: gv.face || L[hashS(gv.n + j.giverId) % L.length], n: gv.n, sub: GV.t || ''}; }
+function sceneFace(sc, id, who, lines) {
+  try {
+    if (sc.face) return {id: sc.face, n: sc.faceName, sub: sc.faceSub};
+    const spk = w => { const S = C.SPEAKERS[w]; if (!S || !S[1]) return null; const parts = S[0].split(','); return {id: S[1], n: parts[0], sub: parts.slice(1).join(',').trim()}; };
+    if (who) { const f = spk(who); if (f) return f; }
+    const sp = (lines || []).find(l => l[0] !== 'n' && C.SPEAKERS[l[0]] && C.SPEAKERS[l[0]][1]); if (sp) return spk(sp[0]);
+    if (/^folk/.test(id) && id !== 'folk_hub' && g.folkRole && C.folkPerson) { const p = C.folkPerson(g, g.folkRole, g.folkAt || g.loc); return {id: p.face, n: p.n, sub: p.t}; }
+    if (id === 'q_offer' && C.Q.offerJob) return giverFace(C.Q.offerJob(g));
+    if (id === 'q_report' && g.curJob) return giverFace((g.jobs || []).find(j => j.id === g.curJob));
+  } catch (e) {}
+  return null;
+}
 function sceneBg(sc, bg) { const k = [pogreb(sc) ? 'pogreb' : smallChurch(sc) ? 'church' : sc.raw && sc.raw.art, placeBg(sc), roadBg(sc), sc.bg].filter(x => x && HAVE.has(x)); return k.map(x => `url(img/bg_s_${x}.webp)`).concat([`url(img/bg_${bg}.webp)`]).join(','); }
 let TALK = null; // {scene, who}: к кому подошли в сцене, где на месте несколько человек
 const lineHTML = ([who, t], i, all) => who === 'n' || !C.SPEAKERS[who] ? `<div class="line n">${esc(t)}</div>` : all && i > 0 && all[i - 1][0] === who ? `<div class="line cont"><span class="fsp"></span><div><div>${esc(t)}</div></div></div>` : `<div class="line">${faceHTML(C.SPEAKERS[who][1])}<div><div class="who">${esc(C.SPEAKERS[who][0])}</div><div>${esc(t)}</div></div></div>`;
@@ -38977,7 +39000,8 @@ function showScene(id, talk) {
   const cards = choices.filter(c => c.card);
   if (cards.length) { people += `<div class="people">${cards.map(c => `<button class="person" data-ch="${c.i}" ${c.dis ? `disabled title="${esc(c.dis)}"` : ''}>${faceHTML(c.card.face)}<span><b>${esc(c.card.n)}</b><small>${esc(c.card.sub || '')}</small></span></button>`).join('')}</div>`; choices = choices.filter(c => !c.card); }
   const dmap = id === 'dungeon' && g.dungeon && g.dungeon.rooms;
-  $('#main').innerHTML = `<div class="screen scene"><div class="bg${dmap ? ' dg' : ''}" style="background-image:${sceneBg(sc, bg)}">${dmap ? '<canvas class="dmap"></canvas>' : ''}<h2>${esc(sc.title)}</h2></div>
+  const sface = sceneFace(sc, id, who, lines);
+  $('#main').innerHTML = `<div class="screen scene"><div class="bg${dmap ? ' dg' : ''}" style="background-image:${sceneBg(sc, bg)}">${dmap ? '<canvas class="dmap"></canvas>' : ''}<h2>${esc(sc.title)}</h2>${sface ? `<div class="sface">${faceHTML(sface.id, 'bigface').replace('width="96" height="96"', 'width="192" height="192"')}<div class="sfn"><b>${esc(sface.n || '')}</b>${sface.sub ? `<small>${esc(sface.sub)}</small>` : ''}</div></div>` : ''}</div>
    <div class="body"><div class="lines">${nws.length ? `<div class="news">${nws.map(esc).join(' ')}</div>` : ''}${lines.map(lineHTML).join('')}${people}
    ${chk ? `<div class="check ${chk.ok ? '' : 'bad'}">${esc(chk.hero ? chk.hero.name : '')}: бросок ${chk.rolls ? `${chk.rolls.join(' и ')} — ${chk.adv > 0 ? 'с преимуществом' : 'с помехой'}${chk.advWhy ? ' (' + esc(chk.advWhy) + ')' : ''}, берётся ${chk.roll}` : chk.roll}, итог ${chk.total} против ${chk.dc} — ${chk.ok ? 'удача' : 'неудача'}.</div>` : ''}
    ${ups.map(u => `<div class="check">${esc(u.hero)} достигает ${u.level}-го уровня (+${u.hp} хитов${u.profPts ? `, +${u.profPts} очк. профессий` : ''})${u.lesson ? `. Можно выучить новое заклинание — ${esc(C.teacherWhere ? C.teacherWhere(u.cls) : 'у наставника')}` : ''}.</div>`).join('')}
@@ -39090,7 +39114,8 @@ function showShop(back, local) {
     const identTab = () => `<p class="note">Что наложено на находку — не ясно, пока её не распознают. Цена одна за любую вещь: ${esc(R.priceText(ip))}. Что выпадет — то и ваше.</p>
       ${unk.length > 1 ? `<p><button class="btn small primary" data-identall="1" ${purse < ip ? 'disabled title="Не хватает денег"' : ''}>Распознать всё — ${unk.length} × ${esc(R.priceText(ip))}${purse < ip * unk.length ? ` (хватит на ${Math.floor(purse / ip)})` : ''}</button></p>` : ''}
       <div class="sgrid">${unk.map((id, i) => { const x = R.item(id) || {name: id}; return `<div class="sc" data-ipop="${esc(id)}" data-ih="${h.id}"><canvas class="sico" data-ico="${iconOf(id) || ''}" width="56" height="56"></canvas><div class="sn"><b>${esc(x.name)}</b><span class="note">${esc(itemNote(x))}</span>${Object.values(h.eq).includes(id) ? '<span class="tag">надето</span>' : ''}</div><div class="sp"><span class="pr">${esc(R.priceText(ip))}</span><button class="btn small" data-ident="${esc(id)}" ${purse < ip ? 'disabled title="Не хватает денег"' : ''}>Распознать</button></div></div>`; }).join('') || '<p class="note">Нераспознанных вещей в суме нет.</p>'}</div>`;
-    openModal(`<h3 class="ttl"><span class="ui-i i-market"></span>${rare ? 'Диковинки' : g.shopIdent ? 'Распознание и торг' : g.shopMode === 'horse' ? 'Конюшня' : 'Лавка'}</h3>
+    const seller = (rare || g.shopMode === 'folk') && g.folkRole && C.folkPerson ? (() => { try { return C.folkPerson(g, g.folkRole, g.folkAt || g.loc); } catch (e) { return null; } })() : null;
+    openModal(`<h3 class="ttl"><span class="ui-i i-market"></span>${rare ? 'Диковинки' : g.shopIdent ? 'Распознание и торг' : g.shopMode === 'horse' ? 'Конюшня' : 'Лавка'}</h3>${seller ? `<div class="seller">${faceHTML(seller.face)}<div><b>${esc(seller.n)}</b><small>${esc(seller.t)}</small></div></div>` : ''}
      <div class="shop${heroes.length > 1 ? '' : ' solo'}">${heroes.length > 1 ? `<div class="swho">${heroes.map(x => `<button class="sh ${x.id === h.id ? 'on' : ''}" data-who="${x.id}">${heroFace(x, 'face')}<span><b>${esc(x.name)}</b><small>${esc(R.priceText(g.net ? x.gold || 0 : g.purse))}</small></span></button>`).join('')}
       <p class="note">${g.net ? 'У каждого свой кошель.' : 'Кошель у отряда общий.'}</p></div>` : ''}
      <div class="smain"><div class="stabs"><button class="btn small ${SHOP.tab === 'buy' ? 'on' : ''}" data-tab="buy">Купить</button><button class="btn small ${SHOP.tab === 'sell' ? 'on' : ''}" data-tab="sell">Продать${bagN ? ' (' + bagN + ')' : ''}</button>${identOk ? `<button class="btn small ${SHOP.tab === 'ident' ? 'on' : ''}" data-tab="ident">Распознать${unk.length ? ' (' + unk.length + ')' : ''}</button>` : ''}${!NET() && city && window.Net ? `<button class="btn small ${SHOP.tab === 'lot' ? 'on' : ''}" data-tab="lot" title="Оставить вещь на продажу другим игрокам — через корчму">В корчму</button>` : ''}
