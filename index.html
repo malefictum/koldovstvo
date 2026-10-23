@@ -665,6 +665,7 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 @media (max-width:760px),(min-width:761px) and (max-width:1180px) and (orientation:portrait){
   .scene .body{grid-template-rows:auto;overflow:auto;align-content:start}
   .scene .body>.lines,.choices .mscroll{overflow:visible}
+  .choices .mscroll{flex:none}.scene .body>.choices{min-height:auto}
   .mtiles{grid-template-columns:1fr 1fr}
 }
 @media (max-width:420px){.mtiles{grid-template-columns:1fr}}
@@ -38979,8 +38980,8 @@ function menuGroup(c) {
   return 'now';
 }
 const splitLabel = t => { const k = t.indexOf(':'); if (k > 0 && k < 34) return [t.slice(0, k), t.slice(k + 1).trim()]; const d = t.indexOf(' — '); return d > 0 && d < 40 ? [t.slice(0, d), t.slice(d + 3).trim()] : [t, '']; };
-function tileBtn(id, c, kind) {
-  const [h, s] = splitLabel(c.label);
+function tileBtn(id, c, kind, hs) {
+  const [h, s] = hs || splitLabel(c.label);
   return `<button class="btn ch mt" data-ch="${c.i}"${c.dis ? ` disabled title="${esc(c.dis)}"` : ''}><span class="ui-i i-${kind}"></span><span class="ct"><b>${esc(h)}</b>${s ? `<small>${esc(s)}</small>` : ''}${c.dis ? `<small class="dis-why">${esc(c.dis)}</small>` : ''}</span>${NET() ? `<span class="vm" data-vm="${c.i}"></span>` : ''}</button>`;
 }
 function orderCard(c) {
@@ -38989,7 +38990,22 @@ function orderCard(c) {
     <span class="ct"><b>${esc(x.name)} ×${o.n}</b><small>Есть ${Math.min(o.have || 0, o.n)} из ${o.n}${c.dis ? '' : ' — можно отдать'}</small><span class="mbar"><i style="width:${Math.round(k * 100)}%"></i></span></span>
     <span class="mpay">${esc(R.priceText(o.pay))}</span>${NET() ? `<span class="vm" data-vm="${c.i}"></span>` : ''}</button>`;
 }
+/* меню-лавки (стойка, доска работы, конюшня, свой двор…) — всё плитками; сюжетные развилки и реплики — обычными кнопками */
+const TILE_SCENE = /^(tavern|folk_tavern|q_board|study_|find_torgovets|stable|est_|jeweler|svc_|r_temple|perform|hire_|merc_|recruit)/;
+const TILE_KIND = id => /drink|tavern|food/.test(id) ? 'food' : /q_board/.test(id) ? 'seal' : /stable/.test(id) ? 'keep' : /study_|jeweler/.test(id) ? 'codex' : /torgovets|est_/.test(id) ? 'market' : /svc_|temple/.test(id) ? 'pray' : /hire|merc|recruit/.test(id) ? 'merc' : 'next';
+const capF = t => t ? t[0].toUpperCase() + t.slice(1) : t;
+function tileSplit(t) { const k = t.indexOf(':'), d = t.lastIndexOf(' — ');
+  if (k > 0 && k < 34 && d > k) return [capF(t.slice(k + 1, d).trim()), t.slice(0, k) + ' · ' + t.slice(d + 3).trim()];
+  return splitLabel(t); }
+function tileMenu(id, list) {
+  const lv = list.filter(c => M_LEAVE.test(c.label)).slice(-1), rest = list.filter(c => !lv.includes(c));
+  const tl = [], bt = [];
+  rest.forEach(c => { let pv = null; try { pv = C.checkPreview(g, id, c.i); } catch (e) {} (pv || c.inn ? bt : tl).push(c); });
+  const k0 = TILE_KIND(id), kind = c => /^Пьёт|передать/.test(c.label) ? 'people' : /^Стол|Харч|еда в дорогу|Выпить|стряп/.test(c.label) ? 'food' : /Объявлен|^Дело/.test(c.label) ? 'seal' : /наёмник|^Нанять|^Позвать/.test(c.label) ? 'merc' : /Выступить|сыграть|песн/i.test(c.label) ? 'chat' : k0;
+  return `<div class="mscroll">${bt.length ? `<div class="mgrp">${bt.map(c => choiceBtn(id, c)).join('')}</div>` : ''}${tl.length ? `<div class="mgrp"><div class="mtiles">${tl.map(c => tileBtn(id, c, c.order ? 'seal' : kind(c), tileSplit(c.label))).join('')}</div></div>` : ''}</div>${lv.length ? `<div class="mleave">${lv.map(c => choiceBtn(id, c)).join('')}</div>` : ''}`;
+}
 function menuHTML(id, list) {
+  if (TILE_SCENE.test(id) && list.length >= 2) return tileMenu(id, list);
   const many = list.length >= 6 || list.some(c => c.order);
   if (!many) { const lv = list.filter(c => M_LEAVE.test(c.label)); const arr = lv.length === 1 && list.length >= 3 ? list.filter(c => c !== lv[0]).concat(lv) : list; return arr.map(c => choiceBtn(id, c)).join(''); }
   const G0 = {now: [], place: [], master: [], job: [], order: [], craft: [], sell: [], talk: [], leave: []};
