@@ -43141,6 +43141,256 @@ C.sceneOf = function (g, id) {
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* w2_family.js */
+/* Колдовство — w2_family: что можно с женой (мужем) героя, на уже существующих механиках. Без DOM.
+   Семья — мастер с узами 'wed' у живого героя или 'kin' (мать, отец героя-наследника), g.folkRel[role@at]. Вдова (вдовец) — нет.
+   Работает и в главах саг, где есть «свой дом» (spouse.js); сплетни про сказания и суд — только где они есть (Вечный мир).
+   • Мастерская дома: если ремесло супруга(и) мастерское (кузня, швейная, резная — crafting.js; у ювелира — кольца и обереги),
+     кнопка в сцене дома зовёт ту же мастерскую, что у мастера, с пометкой «дома»: даром и без ожидания (через семейное «даром»
+     hearts.js), по прежнему правилу — только сам герой, свой материал, своя профессия.
+   • Сундук дома: «Оставить в сундуке…» / «Взять из сундука…» — вещи из сумы в домашний сундук и обратно, одинаковые — одной
+     кнопкой; веса нет, до C.W2FAM.CHEST вещей. При переезде супруга(и) в новую главу (C.spouseMove) сундук едет с ним (с ней).
+     Вдова (вдовец) отдаёт сундук при первом приходе.
+   • Сплетни: раз в седмицу дома — один слух о крае: открытое сказание с его rumor и тем, кто просит помощи; или скрытое заповедное
+     подземелье края (C.fdgReveal(g, id, 'story')); или где видели нечисть (C.SPIRITS). Не повторяются. Строка и запись в журнале.
+   • Заступница перед судом (w2_customs.js): суд в краю, где живёт семья, — «Позвать <имя> поручиться»: вира вдвое меньше,
+     темница вдвое короче, суд Ока за ведовство — выкуп вдвое и без клейма. Раз в сезон на семью; при дурной молве села
+     (C.repOf ≤ −2) поручительство не принимают. После суда за ведовство у жены (мужа) дома — строка тревоги.
+   • Состояние: g.w2home[role@at] = {camp, chest: [id], gDay, gTry, heard: [k], gossip: {day, t}, suretyS, worry, worryDay}.
+   • Наружу: C.W2FAM (числа), C.famHome(g, key), C.famOf(g, role, at), C.famChestPut/C.famChestTake, C.famGossip(g, key),
+     C.famSurety(g, crime) — кто может поручиться. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C || !C.FOLK || !C.CAMPS) return;
+C.W2FAM = Object.assign({CHEST: 60, GOSSIP: 7, SEASON: 90}, C.W2FAM || {});
+const K = () => C.W2FAM;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const arr = v => (v == null ? [] : Array.isArray(v) ? v : [v]);
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n, sex) : {a: n, g: n, d: n, i: n, p: n});
+const nodesOf = g => ((C.CAMPS[g.camp] || {}).map || {}).nodes || {};
+const baseOf = role => String(role || '').replace(/^sp_/, '');
+const alive = (g, id) => (g && g.heroes ? C.alive(g).find(h => h.id === id) : null) || null;
+const regOf = (g, at) => { const n = nodesOf(g)[at] || nodesOf(g)[g.loc]; if (n && n.reg) return n.reg; const z = C.zoneOf ? C.zoneOf(g) : null; return z ? z.id : null; };
+const seasonIdx = g => Math.floor(((g.day || 1) - 1) / K().SEASON);
+const nameOf = id => { const x = R.item(id); return x ? x.name : id; };
+
+/* ---------- семья и дом ---------- */
+const famRel = (g, r) => !!(r && (r.bond === 'wed' || r.bond === 'kin') && alive(g, r.who));
+C.famOf = function (g, role, at) { const r = (g && g.folkRel || {})[role + '@' + at]; return famRel(g, r) ? r : null; };
+C.famHome = function (g, key) {
+  g.w2home = (g.w2home && typeof g.w2home === 'object') ? g.w2home : {};
+  let H = g.w2home[key]; if (!H || typeof H !== 'object') H = g.w2home[key] = {camp: g.camp};
+  if (!Array.isArray(H.chest)) H.chest = []; if (!Array.isArray(H.heard)) H.heard = [];
+  return H;
+};
+const peekHome = (g, key) => (g && g.w2home && g.w2home[key]) || null;
+
+/* ---------- сундук ---------- */
+const eqCount = (h, id) => Object.values(h.eq || {}).filter(x => x === id).length;
+const groups = list => { const m = new Map(); list.forEach(id => m.set(id, (m.get(id) || 0) + 1)); return [...m.entries()]; };
+const freeGroups = h => groups((h.inv || []).filter(id => R.item(id))).map(([id, n]) => [id, n - eqCount(h, id)]).filter(([, n]) => n > 0);
+/* положить: не больше, чем есть свободного (надетое не трогаем), и не сверх места в сундуке */
+C.famChestPut = function (g, key, h, id, n) {
+  const H = C.famHome(g, key), room = Math.max(0, K().CHEST - H.chest.length), free = ((h.inv || []).filter(x => x === id).length) - eqCount(h, id);
+  const k = Math.min(n == null ? free : n, free, room); for (let i = 0; i < k; i++) { h.inv.splice(h.inv.indexOf(id), 1); H.chest.push(id); }
+  return k;
+};
+C.famChestTake = function (g, key, id, n, h0) {
+  const H = C.famHome(g, key); let k = 0;
+  while (H.chest.includes(id) && (n == null || k < n)) { H.chest.splice(H.chest.indexOf(id), 1); const h = h0 || (C.recipient ? C.recipient(g, id) : C.alive(g)[0]) || C.alive(g)[0]; if (!h) { H.chest.push(id); break; } h.inv.push(id); k++; }
+  return k;
+};
+const homeKey = g => g.folkRole ? g.folkRole + '@' + (g.folkAt || g.loc) : null;
+const SC = {};
+const noHome = () => ({title: 'Дом', bg: 'village', lines: [['n', 'Дома никого.']], choices: [{t: 'Назад', free: 1, do: g2 => { g2.w2chest = null; return g2.folkRole ? 'folk' : 'map'; }}]});
+SC.w2_chest = g => {
+  const key = homeKey(g), [role, at] = key ? key.split('@') : []; if (!key || !C.famOf(g, role, at)) return noHome();
+  const p = C.folkPerson(g, role, at), H = C.famHome(g, key), st = g.w2chest || {mode: 'put'}, hs = C.alive(g);
+  const lines = [['n', st.mode === 'take' ? `${p.n} откидывает крышку сундука: «Всё твоё лежит, как положили. Бери, что нужно»` : `${p.n} отпирает сундук в углу: «Клади, что в дорогу не надо. Я пригляжу — моль не тронет, вор не найдёт»`]];
+  if (g.w2chestLast) lines.push(['n', g.w2chestLast]);
+  const left = K().CHEST - H.chest.length;
+  lines.push(['n', !H.chest.length ? 'Сундук пока пуст.' : left <= 0 ? 'Сундук полон до самой крышки: больше не влезет.' : left <= 10 ? 'В сундуке почти не осталось места.' : H.chest.length <= 10 ? 'В сундуке лежит немного добра.' : 'Сундук уже порядком набит.']);
+  const ch = [], back = {t: 'Назад', free: 1, do: g2 => { g2.w2chest = null; g2.w2chestLast = null; return 'folk'; }};
+  if (st.mode === 'take') {
+    groups(H.chest).sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0]))).slice(0, 24).forEach(([id, n]) => ch.push({t: `${nameOf(id)}${n > 1 ? ' ×' + n : ''}`, do: g2 => {
+      const k2 = homeKey(g2), got = C.famChestTake(g2, k2, id); g2.w2chestLast = got ? `Из сундука: ${nameOf(id).toLowerCase()}${got > 1 ? ' ×' + got : ''}.` : null; return 'w2_chest'; }}));
+    ch.push(back); return {title: 'Сундук дома', bg: C.FOLK[role].bg || 'hut', art: C.FOLK[role].art || 'hut', lines, choices: ch};
+  }
+  const h = hs.find(x => x.id === st.hero) || (hs.length === 1 ? hs[0] : null);
+  if (!h) { hs.forEach(x => ch.push({t: `${x.name}: что из ${x.sex === 'f' ? 'её' : 'его'} сумы`, own: x.id, free: 1, do: g2 => { g2.w2chest = {mode: 'put', hero: x.id}; return 'w2_chest'; }})); ch.push(back);
+    return {title: 'Сундук дома', bg: C.FOLK[role].bg || 'hut', art: C.FOLK[role].art || 'hut', lines, choices: ch}; }
+  const gs = freeGroups(h).sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0])));
+  if (!gs.length) lines.push(['n', `У ${decl(h.name, h.sex).g} в суме нет ничего, что можно оставить: всё надето и при деле.`]);
+  gs.slice(0, 24).forEach(([id, n]) => ch.push({t: `${nameOf(id)}${n > 1 ? ' ×' + n : ''}`, own: h.id, dis: left <= 0 ? 'сундук полон' : null, do: g2 => {
+    const hh = C.alive(g2).find(y => y.id === h.id); if (!hh) return 'w2_chest'; const put = C.famChestPut(g2, homeKey(g2), hh, id);
+    g2.w2chestLast = put ? `В сундук: ${nameOf(id).toLowerCase()}${put > 1 ? ' ×' + put : ''}.` : 'Не влезает.'; return 'w2_chest'; }}));
+  if (hs.length > 1) ch.push({t: 'Другой герой', free: 1, do: g2 => { g2.w2chest = {mode: 'put'}; return 'w2_chest'; }});
+  ch.push(back);
+  return {title: 'Сундук дома', bg: C.FOLK[role].bg || 'hut', art: C.FOLK[role].art || 'hut', lines, choices: ch, focus: hs.length > 1 ? h.id : null};
+};
+const putScenes = camp => { if (camp && camp.scenes) Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); };
+Object.values(C.CAMPS).forEach(putScenes);
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); putScenes(camp); return r; }; }
+
+/* переезд в новую главу: сундук едет вместе с хозяйкой (хозяином) */
+if (C.spouseMove) { const sm0 = C.spouseMove; C.spouseMove = function (g) {
+  const before = [];
+  try { (g && g.heroes || []).forEach(h => { const s = h.spouse; if (s && s.camp !== g.camp && !h.dead) before.push([h.id, s.role + '@' + s.at]); }); } catch (e) {}
+  const out = sm0.apply(this, arguments);
+  try { before.forEach(([id, k0]) => { const h = g.heroes.find(x => x.id === id), s = h && h.spouse; if (!s) return; const k1 = s.role + '@' + s.at; if (k1 === k0) return;
+    const H0 = peekHome(g, k0), carried = Array.isArray(s.chest) ? s.chest : []; delete s.chest;
+    const src = H0 && (H0.chest || []).length ? H0.chest : carried; if (!src.length) return; // та же игра — из старого дома; новая глава — то, что увезено с героем
+    const H1 = C.famHome(g, k1); H1.camp = g.camp; H1.chest = H1.chest.concat(src).slice(0, K().CHEST); if (H0) H0.chest = [];
+    C.note(g, `${s.n} не ${s.sex === 'f' ? 'бросила' : 'бросил'} и сундук: всё, что в нём лежало, приехало в новый дом.`); }); } catch (e) {}
+  return out; }; }
+/* конец главы: сундук укладывают в дорогу вместе с хозяйкой — он едет в записи о супруге(е) */
+C.famPack = function (g) {
+  if (!g || !g.heroes) return; try { if (C.spouseSync) C.spouseSync(g); } catch (e) {}
+  C.alive(g).forEach(h => { const s = h.spouse; if (!s || !s.role) return; const H = peekHome(g, s.role + '@' + s.at); if (H && (H.chest || []).length) s.chest = H.chest.slice(0, K().CHEST); });
+};
+if (C.closeCampaign) { const cc0 = C.closeCampaign; C.closeCampaign = function (g) { try { C.famPack(g); } catch (e) {} return cc0.apply(this, arguments); }; }
+
+/* ---------- сплетни ---------- */
+const TERR = {forest: 'в лесу за околицей', river: 'у реки, на броду', marsh: 'на болоте', meadow: 'в лугах', field: 'в поле', vineyard: 'на виноградниках', steppe: 'в степи',
+  mountains: 'в горах', hills: 'на холмах', wasteland: 'на пустоши', cave: 'у пещер'};
+const PLACE = {'село': 'в соседнем селе', 'подворье': 'на подворье', 'город': 'в городе', 'мельница': 'у мельницы', 'погост': 'на погосте', 'курган': 'у старых курганов'};
+const LEAD = {wed: {f: ['Слышала у колодца:', 'Бабы на торгу судачили:', 'Соседка забегала, рассказывала:'], m: ['Слыхал на торгу:', 'Мужики у кузни толковали:', 'Сосед заходил, рассказывал:']},
+  kin: {f: ['Старухи у колодца шепчутся:', 'Соседки мне сказывали:'], m: ['Старики на завалинке толкуют:', 'Слыхал я на торгу:']}};
+const SAYS = {f: ['говорит, подливая щей', 'рассказывает за столом', 'вспоминает, перебирая пряжу'], m: ['говорит, отложив ложку', 'рассказывает за столом', 'вспоминает, строгая лучину']};
+const sentence = t => { t = String(t || '').trim(); return t && !/[.!?…]$/.test(t) ? t + '.' : t; };
+const curSeason = g => (C.seasonOf ? C.seasonOf(g) : null);
+const tryTale = (g, reg, heard) => {
+  if (!C.talesOpen || g.camp !== 'free') return null; const ns = nodesOf(g);
+  const list = C.talesOpen(g).filter(T => T.rumor && !heard.has('t:' + T.id) && arr(T.at).some(a => ns[a] && ns[a].reg === reg)); if (!list.length) return null;
+  const T = list[hsh(g.day + ':t') % list.length], n = ns[arr(T.at).find(a => ns[a] && ns[a].reg === reg)];
+  return {k: 't:' + T.id, body: `${sentence(cap(T.rumor))} Помощи там просит ${T.who && T.who.n ? T.who.n + (T.who.t ? ', ' + T.who.t : '') : 'кто-то из здешних'}${n ? ' — это ' + n.name : ''}.`};
+};
+const tryFdg = (g, reg, heard) => {
+  if (!C.fdgHidden || !C.fdgReveal) return null;
+  const list = C.fdgHidden(g, reg).filter(F => (F.story || F.rumor) && !heard.has('f:' + F.id)); if (!list.length) return null;
+  const F = list[hsh(g.day + ':f') % list.length];
+  const body = F.rumor ? `${sentence(cap(F.rumor))} Старики знают, где это, — я выспросила, запомни.` : `Старики сказывают про ${F.name.toLowerCase()}: место есть, только туда не ходят. Где это — я выспросила, запомни.`;
+  return {k: 'f:' + F.id, body, fdg: F.id};
+};
+const trySpirit = (g, reg, heard) => {
+  if (!C.SPIRITS) return null; const se = curSeason(g);
+  const list = Object.entries(C.SPIRITS).filter(([id, sp]) => sp && sp.g && sp.where && !heard.has('n:' + id) && (!sp.where.lands || !reg || sp.where.lands.includes(reg)) && (!sp.where.season || !se || sp.where.season.includes(se))
+    && (arr(sp.where.terr).some(t => TERR[t]) || arr(sp.where.place).some(t => PLACE[t])));
+  if (!list.length) return null;
+  const [id, sp] = list[hsh(g.day + ':n') % list.length], w = sp.where, tr = arr(w.terr).filter(t => TERR[t]), pl = arr(w.place).filter(t => PLACE[t]);
+  const where = tr.length ? TERR[tr[hsh(id + g.day) % tr.length]] : PLACE[pl[hsh(id + g.day) % pl.length]];
+  return {k: 'n:' + id, body: `${cap(where)} видели ${sp.g}.${sp.taboo ? ` Знающие наказывают не гневить: ${sp.taboo}.` : ' Обходите стороной, а встретите — поклонитесь.'}`};
+};
+/* один слух раз в седмицу: виды по очереди, чтобы не было одного и того же */
+C.famGossip = function (g, key) {
+  const [role, at] = key.split('@'), r = C.famOf(g, role, at); if (!r) return null;
+  const H = C.famHome(g, key), d = g.day || 1;
+  if (H.gDay != null && d - H.gDay < K().GOSSIP) return null; if (H.gTry === d) return null; H.gTry = d;
+  const reg = regOf(g, at), heard = new Set(H.heard), kinds = [tryTale, tryFdg, trySpirit], s0 = Math.floor(d / K().GOSSIP) % kinds.length;
+  let got = null; for (let i = 0; i < kinds.length && !got; i++) { try { got = kinds[(s0 + i) % kinds.length](g, reg, heard); } catch (e) { got = null; } }
+  if (!got) return null;
+  if (got.fdg) { const F = C.fdgReveal(g, got.fdg, 'story'); if (!F) { H.heard.push(got.k); return null; } }
+  const p = C.folkPerson(g, role, at), sx = p.sex === 'f' ? 'f' : 'm', L = LEAD[r.bond === 'kin' ? 'kin' : 'wed'][sx], says = SAYS[sx];
+  const t = `${p.n} ${says[hsh(key + d) % says.length]}: «${L[hsh(key + d + 'l') % L.length]} ${got.body}»`;
+  H.heard.push(got.k); if (H.heard.length > 300) H.heard.shift(); H.gDay = d; H.gossip = {day: d, t};
+  C.note(g, t); return t;
+};
+
+/* ---------- сцена дома ---------- */
+const CRAFT_RE = /^(Мастерская: улучшить|Перековать|Улучшить стёганку|Посох, лук, щит)/;
+const WORRY = {f: ['{n} весь вечер молчит, а потом говорит тихо: «Я за тебя у дознавателя слово дала. Второй раз он не поверит, слышишь? Спрячь ты эти свои… вещи. Хоть ради меня»',
+  '{n} то и дело выглядывает в окно на дорогу: «Всё мне чудится — едут. Дознаватель на меня так глядел, будто запоминал. Береги себя и меня береги»'],
+  m: ['{n} долго молчит, а потом говорит, не глядя: «Я за тебя перед дознавателем поручился. Второй раз не выйдет. Будь ты осторожнее — ради дома»',
+    '{n} запирает ворота засветло, чего прежде не делал: «Дознаватель меня запомнил, я видел. Ничего, переживём. Только больше не попадайся»']};
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  if (id === 'cus_court') return courtScene(g, id, arguments, this);
+  const sc = so0.apply(this, arguments);
+  try {
+    if (!sc || !g || !g.folkRole || !sc.choices) return sc;
+    const role = g.folkRole, at = g.folkAt || g.loc, key = role + '@' + at, r = (g.folkRel || {})[key];
+    if (!r) return sc;
+    if (id === 'folk_craft' && famRel(g, r) && sc.lines && sc.lines.length) { const p = C.folkPerson(g, role, at);
+      sc.lines = sc.lines.slice(); sc.lines[0] = ['n', `${p.n} освобождает верстак: «Инструмент в доме общий. Работай сам${(alive(g, r.who) || {}).sex === 'f' ? 'а' : ''}, со своим добром, а я рядом посижу»`]; return sc; }
+    if (id !== 'folk') return sc;
+    const p = C.folkPerson(g, role, at);
+    // вдова (вдовец): сундук отдаёт при первом приходе
+    if (!famRel(g, r)) { const H0 = peekHome(g, key);
+      if (r.widow && !r.bond && H0 && (H0.chest || []).length && C.alive(g).length) { const n = H0.chest.length; H0.chest.slice().forEach(x => C.famChestTake(g, key, x, 1));
+        const t = `${p.n} выносит из избы всё, что лежало в сундуке: «Это ваше. Пусть служит живым — так ${r.widow.sex === 'f' ? 'она' : 'он'} бы и ${r.widow.sex === 'f' ? 'хотела' : 'хотел'}».`; g.folkLast = t; C.note(g, t);
+        sc.lines = (sc.lines || []).concat([['n', t]]); }
+      return sc; }
+    const H = C.famHome(g, key), lines = (sc.lines || []).slice();
+    if (H.worry && r.bond === 'wed') { if (H.worryDay == null) H.worryDay = g.day; if (H.worryDay === g.day) { const pool = WORRY[p.sex === 'f' ? 'f' : 'm'];
+      lines.push(C.w2Line ? C.w2Line('fam', pool[hsh(key + H.worry) % pool.length].replace('{n}', p.n), 1) : ['n', pool[0].replace('{n}', p.n)]); } else { H.worry = 0; H.worryDay = null; } }
+    try { C.famGossip(g, key); } catch (e) {}
+    if (H.gossip && H.gossip.day === g.day) lines.push(C.w2Line ? C.w2Line('fam', H.gossip.t, 2) : ['n', H.gossip.t]);
+    sc.lines = lines;
+    const ch = sc.choices.slice(), back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null;
+    let i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1; // номера — после всех, вместе с «Назад»
+    ch.forEach((c, k) => { if (CRAFT_RE.test(c.label || '')) ch[k] = Object.assign({}, c, {label: 'Мастерская дома: улучшить вещь самому', t: 'Мастерская дома: улучшить вещь самому'}); });
+    if (baseOf(role) === 'jewel' && !ch.some(c => c.go === 'jeweler')) ch.push({i: i++, label: 'Кольца и обереги — дома, своими руками', go: 'jeweler'});
+    const left = K().CHEST - H.chest.length;
+    ch.push({i: i++, label: 'Оставить в сундуке…', dis: left <= 0 ? 'сундук полон' : null, do: g2 => { g2.w2chest = {mode: 'put'}; g2.w2chestLast = null; return 'w2_chest'; }});
+    ch.push({i: i++, label: H.chest.length ? 'Взять из сундука…' : 'Взять из сундука… (пусто)', dis: H.chest.length ? null : 'сундук пуст', do: g2 => { g2.w2chest = {mode: 'take'}; g2.w2chestLast = null; return 'w2_chest'; }});
+    if (back) ch.push(back);
+    sc.choices = ch;
+  } catch (e) {}
+  return sc;
+};
+
+/* ---------- суд: родня ручается ---------- */
+const cusS = g => g.w2cus || {};
+const courtCrime = g => { const s = cusS(g); return (s.crimes || []).find(c => c.id === s.court && !c.done) || null; };
+/* кто может поручиться: семья в этом краю (жена, муж, мать, отец наследника) */
+C.famSurety = function (g, c) {
+  if (!g || !c) return null; const ns = nodesOf(g);
+  const e = Object.entries(g.folkRel || {}).find(([k, r]) => { const at = k.split('@')[1]; return famRel(g, r) && (!r.camp || r.camp === g.camp) && ns[at] && ns[at].reg === c.reg; });
+  if (!e) return null; const [key, r] = e, [role, at] = key.split('@'); return {key, r, role, at, p: C.folkPerson(g, role, at)};
+};
+const half = (g, c, fn) => { // темница вдвое короче: на время суда — короче срок в законе края
+  const L = C.LAWS && C.LAWS[c.reg]; if (!c.surety || !L) return fn();
+  const had = Object.prototype.hasOwnProperty.call(L, 'jail'), j0 = L.jail, base = j0 ? j0.days : 3, extra = (c.k === 'murder' ? 3 : 0) + (c.lied ? 1 : 0);
+  const tot = Math.max(2, base + extra), want = Math.max(1, Math.ceil(tot / 2));
+  L.jail = Object.assign({name: 'темница', text: ''}, j0 || {}, {days: want - extra});
+  try { return fn(); } finally { if (had) L.jail = j0; else delete L.jail; }
+};
+const vira0 = C.cusVira;
+if (vira0) C.cusVira = function (g, c) { const v = vira0.apply(this, arguments); return c && c.surety ? Math.max(10, Math.round(v / 2 / 10) * 10) : v; };
+function courtScene(g, id, args, self) {
+  const c = g && g.camp === 'free' ? courtCrime(g) : null;
+  const sc = c ? half(g, c, () => so0.apply(self, args)) : so0.apply(self, args);
+  if (!sc || !c || !sc.choices) return sc;
+  try {
+    // все решения суда — с поручительством: срок вдвое, без клейма за ведовство
+    if (c.surety) sc.choices = sc.choices.map(ch => !ch.do ? ch : Object.assign({}, ch, {do: function (g2) { const cc = courtCrime(g2) || c, s = g2.w2cus || {}, a = arguments, t = this;
+      const guard = cc.k === 'ved' && cc.surety && !s.brand, v0 = s.vedDone || 0; if (guard) s.brand = 1;
+      try { return half(g2, cc, () => ch.do.apply(t, a)); } finally { if (guard) { s.brand = 0; if ((s.vedDone || 0) > v0 && cc.done) s.vedDone = v0; } } }}));
+    if (c.surety || c.suretyNo) return sc;
+    const S = C.famSurety(g, c); if (!S) return sc;
+    const H = C.famHome(g, S.key), used = H.suretyS === seasonIdx(g), d = decl(S.p.n, S.p.sex);
+    const i = Math.max(0, ...sc.choices.map(x => (typeof x.i === 'number' ? x.i : 0))) + 1;
+    const btn = {i, label: `Позвать ${d.a} поручиться`, t: `Позвать ${d.a} поручиться`, dis: used ? `в эту пору ${S.p.n} уже ${S.p.sex === 'f' ? 'ручалась' : 'ручался'} за вас` : null, do: g2 => {
+      const cc = courtCrime(g2); if (!cc) return 'cus_court'; const S2 = C.famSurety(g2, cc); if (!S2) return 'cus_court';
+      const she = S2.p.sex === 'f', d2 = decl(S2.p.n, S2.p.sex);
+      if ((C.repOf ? C.repOf(g2, cc.node && nodesOf(g2)[cc.node] ? cc.node : g2.loc) : 0) <= -2) { cc.suretyNo = 1;
+        g2.cusLast = `${S2.p.n} ${she ? 'пришла' : 'пришёл'} и ${she ? 'встала' : 'встал'} рядом, но судьи качают головами: после того, что отряд натворил в здешних сёлах, слову родни тут не верят. «Ступай домой, — говорят ${d2.d}, — за этих не ручайся». Поручительство не принято.`; return 'cus_court'; }
+      const H2 = C.famHome(g2, S2.key); H2.suretyS = seasonIdx(g2); cc.surety = {key: S2.key, day: g2.day};
+      if (cc.k === 'ved' && S2.r.bond === 'wed') { H2.worry = g2.day; H2.worryDay = null; }
+      g2.cusLast = cc.k === 'ved' ? `${S2.p.n} входит, кланяется звезде на стене и говорит дознавателю, что за своих ${she ? 'ручается сама' : 'ручается сам'}. Дознаватель долго смотрит, потом пишет: «по поручительству здешних — выкуп вполовину, клейма не класть». Теперь выбирать легче.`
+        : `${S2.p.n} выходит к судьям и говорит при всех, что за своих ${she ? 'ручается сама' : 'ручается сам'}: дом здешний, люди знают. Судьи переглядываются: за кого ручается свой, с того и спрос вдвое меньше — и вира, и срок.`;
+      C.note(g2, g2.cusLast); return 'cus_court'; }};
+    const k = sc.choices.findIndex(x => /^Бежать/.test(x.label || ''));
+    sc.choices = sc.choices.slice(); sc.choices.splice(k < 0 ? sc.choices.length : k, 0, btn);
+  } catch (e) {}
+  return sc;
+}
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* w2_pace.js */
 /* Колдовство — распорядитель второй волны (Вечный мир). Без DOM.
    Системы второй волны (силы, праздники, корни, молва, письмена, нечисть, люди, закон) писались порознь; вместе они

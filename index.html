@@ -36609,6 +36609,9 @@ const anyInv = (g, re) => C.alive(g).concat(g.mercs || []).some(h => (h.inv || [
 /* ---------- набор путника — на вещи ---------- */
 const PUTNIK = [['fakel', 5], ['verevka_penkovaya_15_m', 1], ['ognivo_s_kremnem', 1], ['harch_v_dorogu_na_den_suhari_vyalenoe_myaso', 3]];
 C.unpackKit = function (h) { if (!h || !h.inv) return; let i; while ((i = h.inv.indexOf('nabor_putnika')) >= 0) { h.inv.splice(i, 1); PUTNIK.forEach(([id, n]) => { if (DATA.items[id]) for (let k = 0; k < n; k++) h.inv.push(id); }); } };
+/* дорожное в каждой лавке: свет, огниво, верёвки, котомка путника */
+C.ROAD_STOCK = ['fakel', 'luchina_puchok_10', 'svecha_voskovaya', 'fonar_slyudyanoy', 'maslo_dlya_svetilnika_flyaga', 'ognivo_s_kremnem', 'verevka_penkovaya_15_m', 'verevka_shelkovaya_15_m', 'koshka_kryuk', 'nabor_putnika', 'odeyalo_zimnee_ovchina', 'burdyuk', 'kotelok_zheleznyy', 'veshchmeshok_kotomka', 'meshok_bolshoy', 'meshok_malyy'];
+{ const sx0 = C.shopExtra; C.shopExtra = function (g, city) { const base = sx0 ? sx0.apply(this, arguments) : []; if (g && ['horse', 'food', 'rare'].includes(g.shopMode)) return base; return base.concat(C.ROAD_STOCK.filter(id => DATA.items[id] && DATA.items[id].price)); }; }
 if (DATA.items.nabor_putnika) DATA.items.nabor_putnika.notes = 'Готовая котомка: 5 факелов, пеньковая верёвка, огниво, харч на 3 дня. В суме раскладывается на вещи.';
 const gk0 = R.giveKit; if (gk0) R.giveKit = function (h) { const r = gk0.apply(this, arguments); C.unpackKit(h); h.belt = C.beltAuto(h); return r; };
 const ah0 = C.addHero; if (ah0) C.addHero = function (g, h) { if (h) C.unpackKit(h); return ah0.apply(this, arguments); };
@@ -37684,7 +37687,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmvyorn"></script><script>
+</script><script src="world.js?v=mvmww4nu"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -39745,7 +39748,7 @@ function runChoose(id, i, pid) {
 
 /* ---------- лавка ---------- */
 const SHOP_CAT = [['weapon', 'Оружие', x => x._t === 'w' && !['лук', 'самострел', 'праща', 'метательное'].includes(x.group)], ['ranged', 'Стрелковое', x => (x._t === 'w' && ['лук', 'самострел', 'праща', 'метательное'].includes(x.group)) || !!(C.AMMO_PACK && C.AMMO_PACK[x.id])],
-  ['body', 'Доспехи', x => x._t === 'a' && x.slot === 'тело'], ['head', 'Щиты и шлемы', x => x._t === 'a' && ['щит', 'голова'].includes(x.slot)], ['pot', 'Снадобья', x => x.category === 'зелья' || ['zele_lecheniya', 'protivoyadie'].includes(x.id)], ['herb', 'Травы и материалы', x => ['компоненты', 'материалы'].includes(x.category)], ['tool', 'Снасти и инструмент', x => !!(C.isTool && C.isTool(x.id))], ['master', 'Мастерская работа', x => !!x.magic && !(C.isTool && C.isTool(x.id))], ['food', 'Еда и продукты', x => !!((C.FOOD && C.FOOD[x.id]) || (C.RAW && C.RAW[x.id]) || /^rcp_/.test(x.id))], ['scroll', 'Свитки', x => x.category === 'свитки'], ['wear', 'Одежда и обувь', x => !!(C.wearSlotOf && C.wearSlotOf(x)) && !/^tr_/.test(x.id)], ['horse', 'Кони и сбруя', x => !!(C.isHorseGood && C.isHorseGood(x.id))]];
+  ['body', 'Доспехи', x => x._t === 'a' && x.slot === 'тело'], ['head', 'Щиты и шлемы', x => x._t === 'a' && ['щит', 'голова'].includes(x.slot)], ['pot', 'Снадобья', x => x.category === 'зелья' || ['zele_lecheniya', 'protivoyadie'].includes(x.id)], ['herb', 'Травы и материалы', x => ['компоненты', 'материалы'].includes(x.category)], ['tool', 'Снасти и инструмент', x => !!(C.isTool && C.isTool(x.id))], ['road', 'Дорожное: свет, верёвки', x => x.category === 'снаряжение' && !(C.isTool && C.isTool(x.id)) && !x.magic && (x.price || 0) <= 2000], ['master', 'Мастерская работа', x => !!x.magic && !(C.isTool && C.isTool(x.id))], ['food', 'Еда и продукты', x => !!((C.FOOD && C.FOOD[x.id]) || (C.RAW && C.RAW[x.id]) || /^rcp_/.test(x.id))], ['scroll', 'Свитки', x => x.category === 'свитки'], ['wear', 'Одежда и обувь', x => !!(C.wearSlotOf && C.wearSlotOf(x)) && !/^tr_/.test(x.id)], ['horse', 'Кони и сбруя', x => !!(C.isHorseGood && C.isHorseGood(x.id))]];
 const sellPrice = (x, h) => x && x.price ? (C.sellPrice ? C.sellPrice(g, h, x) : Math.max(1, Math.floor(x.price / 2))) : 0;
 const buyPrice = (x, h) => x && x.price ? (C.buyPrice ? C.buyPrice(g, h, x) : x.price) : 0;
 /* продать вещь из сумы: за полцены; надетая снимается */
