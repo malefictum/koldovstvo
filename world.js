@@ -42727,12 +42727,13 @@ const C = G.C, R = G.R, B = G.B;
 if (!C || !R || !C.CAMPS || !C.CAMPS.free || !C.FOLK || !C.relOf) return;
 const FC = C.CAMPS.free, NODES = FC.map.nodes, Q = C.Q;
 const isFree = g => !!(g && g.camp === 'free' && C.CAMPS[g.camp]);
+const famOn = g => !!(g && C.CAMPS[g.camp]); // семьи и дети — и в Вечном мире, и в главах саг; наследники — только в Вечном мире
 const hsh = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 const sx = (s, sex) => String(s || '').replace(/\{([^|{}]*)\|([^|{}]*)\}/g, (m, a, b) => (sex === 'f' ? b : a));
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 const decl = (n, sex) => (Q && Q.decl ? Q.decl(n, sex) : {n, g: n, d: n, a: n, i: n, p: n});
 const YEAR = () => C.AGE_YEAR || 360;
-C.KIDS = {SEASON: 90, NIGHTS: 2, P: 0.25, TERM: 270, MAX: 3, NEWS: 20, LATE: 90, HEIR_AGE: 13, NAME_WAIT: 30, ROAD_WAIT: 10, ROAD_LAST: 30};
+C.KIDS = {SEASON: 90, NIGHTS: 2, P: 0.25, TERM: 270, MAX: 3, SPACE: 720, NEWS: 20, LATE: 90, HEIR_AGE: 13, NAME_WAIT: 30, ROAD_WAIT: 10, ROAD_LAST: 30};
 C.kidsRand = () => R.rand();
 const st = g => { g.w2kids = g.w2kids || {}; const S = g.w2kids; S.fam = S.fam || {}; S.play = S.play || {}; S.give = S.give || {}; return S; };
 const alive = (g, id) => (C.alive(g) || []).find(h => h.id === id) || null;
@@ -42848,7 +42849,7 @@ const BIRTH_LETTER = {m: '«{h}, у нас сын! Всё хорошо, оба �
 const famHero = h => ({name: h.name, sex: h.sex, cls: h.cls, people: h.people || 'nolgrim', level: h.level || 1, origin: h.origin || null, portrait: h.portrait,
   strong: Object.keys(h.stats || {}).sort((a, b) => (h.stats[b] || 0) - (h.stats[a] || 0))[0] || null});
 C.kidsEnsure = function (g) {
-  if (!isFree(g)) return [];
+  if (!famOn(g)) return [];
   const S = st(g);
   Object.entries(g.folkRel || {}).forEach(([k, r]) => {
     if (!r || r.bond !== 'wed' || !r.who || (r.camp && r.camp !== g.camp)) return;
@@ -42856,7 +42857,7 @@ C.kidsEnsure = function (g) {
     const [role, at] = k.split('@'); if (!C.FOLK[role]) return;
     let p = null; try { p = C.folkPerson(g, role, at); } catch (e) {} if (!p || !p.sex || p.sex === h.sex) return; // однополым — только дружба, детей нет
     const id = k + '|' + h.id;
-    const F = S.fam[id] = S.fam[id] || {id, key: k, at, role, hero: h.id, wed: r.bondDay || g.day || 1, nights: 0, kids: [], preg: null};
+    const F = S.fam[id] = S.fam[id] || {id, key: k, at, role, hero: h.id, wed: (g.homeSp && g.homeSp[role] && g.homeSp[role].from) ? Math.min(r.bondDay || g.day || 1, (g.day || 1) - C.KIDS.SEASON) : (r.bondDay || g.day || 1), nights: 0, kids: [], preg: null}; // переехавшая следом жена — брак давний
     F.hi = famHero(h); F.sp = {n: p.n, sex: p.sex, ppl: p.ppl || h.people || 'nolgrim'};
   });
   return Object.values(S.fam);
@@ -42888,13 +42889,14 @@ const nameOpts = (g, F, sex) => {
 
 /* зачатие — в ночь дома */
 C.kidsNight = function (g, key) {
-  if (!isFree(g)) return null;
+  if (!famOn(g)) return null;
   C.kidsEnsure(g);
   const r = (g.folkRel || {})[key]; if (!r || r.bond !== 'wed') return null;
   const F = st(g).fam[key + '|' + r.who]; if (!F || F.gone) return null;
   F.nights = (F.nights || 0) + 1;
   const K = C.KIDS;
-  if (!F.preg && (F.kids || []).length < K.MAX && (g.day || 1) - (F.wed || 0) >= K.SEASON && F.nights >= K.NIGHTS && C.kidsRand() < K.P) {
+  const young = (F.kids || []).some(k => (g.day || 1) - k.born < K.SPACE); // пока младшему нет двух лет — не понести
+  if (!F.preg && !young && (F.kids || []).length < K.MAX && (g.day || 1) - (F.wed || 0) >= K.SEASON && F.nights >= K.NIGHTS && C.kidsRand() < K.P) {
     F.preg = {start: g.day || 1, due: (g.day || 1) + K.TERM, mom: F.hi.sex === 'f' ? 'hero' : 'sp', told: 0};
   }
   return F.preg;
@@ -42964,7 +42966,7 @@ C.kidsResolve = function (g) {
 
 /* ---------- ход дней ---------- */
 C.kidsTick = function (g) {
-  if (!isFree(g)) return;
+  if (!famOn(g)) return;
   C.kidsEnsure(g);
   const K = C.KIDS, day = g.day || 1;
   C.kidsResolve(g);
@@ -43002,7 +43004,7 @@ const ps0 = C.pass;
 C.pass = function (g) {
   const d0 = g && g.day, m0 = g && g.mail ? g.mail[g.mail.length - 1] : null;
   const r = ps0.apply(this, arguments);
-  if (g && g.day !== d0 && isFree(g)) { try { C.kidsTick(g); } catch (e) {}
+  if (g && g.day !== d0 && famOn(g)) { try { C.kidsTick(g); } catch (e) {}
     try { const ml = g.mail || []; for (let i = ml.length - 1; i >= 0 && ml[i] !== m0; i--) postScript(g, ml[i]); } catch (e) {} }
   return r;
 };
@@ -43060,10 +43062,12 @@ FC.scenes.kids_name = g => {
 const nextI = chs => Math.max(0, ...chs.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
 const so0 = C.sceneOf;
 C.sceneOf = function (g, id) {
+  if (id === 'kids_name' && g && !isFree(g) && famOn(g)) { try { return FC.scenes.kids_name(g); } catch (e) {} }
   const sc = so0.apply(this, arguments);
   try {
-    if (!sc || !isFree(g)) return sc;
+    if (!sc || !famOn(g)) return sc;
     if (id === 'folk' && g.folkRole) return homeScene(g, sc);
+    if (!isFree(g)) return sc;
     if (id === 'free_place' && NODES[g.loc]) return placeScene(g, sc);
   } catch (e) {}
   return sc;
@@ -43084,7 +43088,16 @@ function homeScene(g, sc) {
       : `${p.n} не сводит глаз с ${decl(h.name, h.sex).g}: «Правда? У нас будет ребёнок?» — и смеётся, и не знает, куда деть руки.`]);
     else add.push(['n', P.mom === 'sp' ? `${p.n} ходит по избе бережно, и всё в доме уже готово к малышу.` : `${p.n} то и дело подкладывает ${decl(h.name, h.sex).d} подушку под спину и ворчит, если она встаёт.`]); });
   kids.slice(0, 3).forEach(k => add.push(['n', kidLine(g, k, salt)]));
-  if (!add.length) return sc;
+  // в главах саг имя ребёнку и роды героини — здесь, дома (в Вечном мире — на месте)
+  const sagaCh = [];
+  if (!isFree(g)) {
+    const nk = S.nameAsk ? C.kidById(g, S.nameAsk) : null;
+    if (nk && !nk.n && fams.some(F => F.id === nk.fam)) sagaCh.push({label: `Дать имя: ${nk.sex === 'f' ? 'дочь' : 'сын'}`, kidsName: nk.id, do: g2 => { st(g2).nameBack = 'folk'; return 'kids_name'; }});
+    fams.forEach(F => { const P = F.preg; if (!P || P.mom !== 'hero' || F.gone || (g.day || 1) < P.due) return; const h = alive(g, F.hero); if (!h) return;
+      sagaCh.push({label: `${h.name}: срок подошёл — остаться дома`, kidsBirth: F.id, do: g2 => { const F2 = st(g2).fam[F.id]; if (!F2 || !F2.preg) return 'folk'; C.pass(g2, 8);
+        const k = F2.preg ? born(g2, F2, {}) : null; if (k && !k.n) { st(g2).nameBack = 'folk'; return 'kids_name'; } return 'folk'; }}); });
+  }
+  if (!add.length && !sagaCh.length) return sc;
   const out = Object.assign({}, sc, {lines: lines.concat(add)});
   if (kids.length) {
     const ch = sc.choices.slice(), back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null;
@@ -43105,6 +43118,8 @@ function homeScene(g, sc) {
     if (back) ch.push(back);
     out.choices = ch;
   }
+  if (sagaCh.length) { const ch = out.choices.slice(), back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null;
+    let i = nextI(out.choices); sagaCh.forEach(c => ch.push(Object.assign({i: i++}, c))); if (back) ch.push(back); out.choices = ch; }
   return out;
 }
 const SKIP_LEAVE = c => /^Уйти на карту/.test(c.label || '');
@@ -43131,7 +43146,7 @@ const so1 = C.sceneOf;
 C.sceneOf = function (g, id) {
   const sc = so1.apply(this, arguments);
   try {
-    if (!sc || !isFree(g) || id !== 'folk' || !g.folkRole) return sc;
+    if (!sc || !famOn(g) || id !== 'folk' || !g.folkRole) return sc;
     const key = g.folkRole + '@' + (g.folkAt || g.loc);
     sc.choices = sc.choices.map(c => (c && c.label === 'Остаться дома на ночь' && c.do && !c.kidsNight) ? Object.assign({}, c, {kidsNight: 1, do: function (g2) { const out = c.do.apply(this, arguments); try { C.kidsNight(g2, key); } catch (e) {} return out; }}) : c);
   } catch (e) {}
@@ -43139,6 +43154,37 @@ C.sceneOf = function (g, id) {
 };
 
 G.C = C;
+/* ---------- семья переезжает с главы на главу: дети, их годы и ожидание ребёнка — с женой (мужем) ---------- */
+C.kidsPack = function (g) {
+  if (!famOn(g)) return;
+  const day = g.day || 1;
+  C.kidsFams(g).forEach(F => { if (F.gone) return; const h = alive(g, F.hero); if (!h || !h.spouse) return;
+    h.spouse.kids = {wedAgo: day - (F.wed || day), nights: F.nights || 0, nameAsk: st(g).nameAsk || null,
+      kids: (F.kids || []).filter(k => !k.went).map(k => Object.assign({}, k, {ago: day - k.born})),
+      preg: F.preg ? Object.assign({}, F.preg, {ago: day - F.preg.start}) : null}; });
+};
+const kidsUnpack = (g, h, gap) => {
+  const pk = h.spouse && h.spouse.kids; if (!pk) return;
+  C.kidsEnsure(g);
+  const S = st(g), day = g.day || 1, shift = Math.max(0, gap || 0) * (C.AGE_YEAR || 360);
+  const F = C.kidsFams(g).find(f => f.hero === h.id && !f.gone && (g.folkRel || {})[f.key] && g.folkRel[f.key].bond === 'wed' && g.folkRel[f.key].who === h.id);
+  if (!F) return;
+  Object.values(S.fam).forEach(f => { if (f !== F && f.hero === h.id && !f.gone) delete S.fam[f.id]; }); // старая запись этого же дома — уже не нужна
+  F.wed = day - (pk.wedAgo || 0) - shift; F.nights = pk.nights || 0;
+  F.kids = (pk.kids || []).map(k => { const o = Object.assign({}, k, {fam: F.id, born: day - (k.ago || 0) - shift}); delete o.ago; if (!o.n) { o.n = (o.opts || [])[0] || (o.sex === 'f' ? 'Милава' : 'Ждан'); o.byMom = 1; } return o; });
+  if (pk.nameAsk && S.nameAsk === pk.nameAsk) S.nameAsk = null;
+  F.preg = null;
+  if (pk.preg) { const P = Object.assign({}, pk.preg); P.start = day - (P.ago || 0) - shift; P.due = P.start + C.KIDS.TERM; delete P.ago; P.told = 1; P.say = 1; F.preg = P;
+    if (day >= P.due) { const k = born(g, F, {}); if (k && !k.n) nameKid(g, k, k.opts[hsh(k.id) % k.opts.length], true); } } // родился, пока шли годы
+  delete h.spouse.kids;
+};
+if (C.closeCampaign) { const cc0 = C.closeCampaign; C.closeCampaign = function (g) { try { C.kidsPack(g); } catch (e) {} return cc0.apply(this, arguments); }; }
+if (C.spouseMove) { const sm0 = C.spouseMove; C.spouseMove = function (g) {
+  const prev = {}; try { (g && g.heroes || []).forEach(h => { if (h.spouse && h.spouse.kids) prev[h.id] = h.spouse.camp; }); } catch (e) {}
+  const r = sm0.apply(this, arguments);
+  try { (g.heroes || []).forEach(h => { if (prev[h.id] != null && h.spouse && h.spouse.camp === g.camp) kidsUnpack(g, h, C.ageGap ? C.ageGap(prev[h.id], g.camp) : 0); }); } catch (e) {}
+  return r; }; }
+
 /* ---------- весь отряд пал: старший сын (дочь) встаёт на место героя сразу ---------- */
 C.kidsWipeHeir = function (g) {
   if (!isFree(g) || g.net || (C.alive(g) || []).length) return null;
