@@ -1638,6 +1638,8 @@ B.reach = function (S, u) {
       if (!res[k] || res[k].cost > cost) { res[k] = {c: n.c, r: n.r, cost, prev: B.key(x.c, x.r), occ: !!occ}; if (!zoc) q.push(res[k]); }
     }
   }
+  // путь сквозь своих: клетки, занятые своими, вставать нельзя, но идти через них можно — путь собираем до удаления
+  Object.keys(res).forEach(k => { if (res[k].occ || !res[k].prev) return; const path = []; for (let x = res[k]; x; x = x.prev ? res[x.prev] : null) path.unshift({c: x.c, r: x.r}); res[k].path = path; });
   Object.keys(res).forEach(k => { if (res[k].occ) delete res[k]; });
   return res;
 };
@@ -35637,7 +35639,7 @@ C.relAdd = function (g, role, at, d, why) {
   return r.rep - was;
 };
 const WORD = (g, r, p, role, at) => { const t = C.relTier(r);
-  if (t === 4) return r.bond === 'wed' ? (p.sex === 'f' ? 'жена' : 'муж') : (p.sex === 'f' ? 'посестра' : 'побратим');
+  if (t === 4) return r.bond === 'wed' ? (p.sex === 'f' ? 'жена' : 'муж') : r.bond === 'kin' ? (p.sex === 'f' ? 'мать' : 'отец') : (p.sex === 'f' ? 'посестра' : 'побратим');
   if (t === 3) { const s = romanceOk(g, role, at) ? suitor(g, role, at, p) : null; return r.love ? (p.sex === 'f' ? 'влюблена' : 'влюблён') : s ? 'сердце тянется' : 'близкие друзья'; }
   return ['чужие', 'по делу', 'друзья'][t]; };
 C.relText = function (g, role, at) { at = at || atKey(g); const r = C.relOf(g, role, at), p = C.folkPerson(g, role, at); return WORD(g, r, p, role, at); };
@@ -35876,7 +35878,7 @@ const letters = g => {
   Object.entries(g.folkRel || {}).forEach(([k, r]) => { if (!(r.love || r.bond) || r.camp !== g.camp) return; const [role, at] = k.split('@'); const h = heroById(g, r.who); if (!h) return;
     if (g.loc === at && !g.folkAt) { r.letterAt = g.day; return; }
     r.letterAt = r.letterAt == null ? g.day : r.letterAt; if (g.day - r.letterAt < 3 + hash(k + r.letterAt) % 3) return; r.letterAt = g.day;
-    const p = C.folkPerson(g, role, at), kind = r.bond === 'wed' ? 'wed' : r.bond ? 'brat' : 'love', pool = LETTER[kind][p.sex] || LETTER[kind].m;
+    const p = C.folkPerson(g, role, at), kind = r.bond === 'wed' ? 'wed' : r.bond === 'kin' && LETTER.kin ? 'kin' : r.bond ? 'brat' : 'love', pool = LETTER[kind][p.sex] || LETTER[kind].m;
     const text = fill(pool[hash(k + g.day) % pool.length], p, h);
     let gift = R.pick(LETTER_GIFT[role.replace(/^sp_/, '')] || ['coin']), giftText;
     if (gift !== 'coin' && !R.item(gift)) gift = 'coin';
@@ -35894,7 +35896,7 @@ C.pass = function (g) { const d0 = g && g.day; const r = pass0.apply(this, argum
 /* хозяйство отряда: в окне героя — кто ему родной */
 C.heroBond = function (g, h) { const out = []; Object.entries(g.folkRel || {}).forEach(([k, r]) => { if (r.who !== h.id || !r.bond) return; const [role, at] = k.split('@');
   const p = C.folkPerson(g, role, at), n = C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[at];
-  out.push(`${r.bond === 'wed' ? (p.sex === 'f' ? 'Жена' : 'Муж') : (p.sex === 'f' ? 'Посестра' : 'Побратим')}: ${p.n}, ${p.t}${n ? ' (' + n.name + ')' : ''}`); }); return out; };
+  out.push(`${r.bond === 'wed' ? (p.sex === 'f' ? 'Жена' : 'Муж') : r.bond === 'kin' ? (p.sex === 'f' ? 'Мать' : 'Отец') : (p.sex === 'f' ? 'Посестра' : 'Побратим')}: ${p.n}, ${p.t}${n ? ' (' + n.name + ')' : ''}`); }); return out; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* hearts_more.js */
@@ -36059,7 +36061,7 @@ C.folkPerson = function (g, role, at) {
 const fh0 = C.folkHere;
 C.folkHere = function (g) {
   const out = fh0.apply(this, arguments);
-  if (g && g.homeSp) Object.entries(g.homeSp).forEach(([role, s]) => { if (s.at === g.loc && !g.folkAt && C.alive(g).some(h => h.id === s.hero) && !out.includes(role)) out.push(role); });
+  if (g && g.homeSp) Object.entries(g.homeSp).forEach(([role, s]) => { if (s.at === g.loc && !g.folkAt && (s.widow || C.alive(g).some(h => h.id === s.hero)) && !out.includes(role)) out.push(role); }); // вдова (вдовец) живёт в доме и без героя
   // жена/муж «своего дома» без записи о доме (старые записи): узы есть — человек дома
   if (g && g.folkRel && !g.folkAt) Object.entries(g.folkRel).forEach(([k, r]) => { const [role, at] = k.split('@'); if (r && r.bond === 'wed' && /^sp_/.test(role) && at === g.loc && (!r.camp || r.camp === g.camp) && C.alive(g).some(h => h.id === r.who) && !out.includes(role)) out.push(role); });
   return out;
@@ -36103,7 +36105,7 @@ if (C.closeCampaign) { const cc0 = C.closeCampaign; C.closeCampaign = function (
 C.homeNodes = function (g) {
   if (!g) return []; const out = new Set();
   Object.values(g.homeSp || {}).forEach(s => { if (s && s.at && C.alive(g).some(h => h.id === s.hero)) out.add(s.at); });
-  Object.entries(g.folkRel || {}).forEach(([k, r]) => { if (r && r.bond === 'wed' && (!r.camp || r.camp === g.camp) && C.alive(g).some(h => h.id === r.who)) out.add(k.split('@')[1]); });
+  Object.entries(g.folkRel || {}).forEach(([k, r]) => { if (r && (r.bond === 'wed' || r.bond === 'kin') && (!r.camp || r.camp === g.camp) && C.alive(g).some(h => h.id === r.who)) out.add(k.split('@')[1]); }); // kin — дом матери (отца) героя-наследника
   return [...out];
 };
 /* в любой главе: если супруг(а) героя ещё «в другом краю» — перебирается в стартовое поселение (и после загрузки старой записи) */
@@ -36131,7 +36133,7 @@ const TALK_F = [
   h => `«Сколько ещё ходить будешь? Я не держу. Только обещай: когда устанешь — вернёшься сюда, а не куда-нибудь»`,
   h => `«На торгу говорили про вас — будто вы с нечистью бились. Я слушала и молчала. А руки дрожали, пока не дослушала»`,
   h => `«Печь я переложила, крыльцо починили. Дом теперь крепкий. Только пустой без тебя»`,
-  h => `«Помнишь, как мы познакомились? Ты тогда так смутил${h.sex === 'f' ? 'ась' : 'ся'}, что ушл${h.sex === 'f' ? 'а' : 'ёл'} без сдачи. Я её до сих пор берегу»`,
+  h => `«Помнишь, как мы познакомились? Ты тогда так смутил${h.sex === 'f' ? 'ась' : 'ся'}, что ${h.sex === 'f' ? 'ушла' : 'ушёл'} без сдачи. Я её до сих пор берегу»`,
   h => `«Зима скоро. Я тебе тёплое приготовила — вон на лавке лежит. Примерь, пока я не передумала шить второе»`,
   h => `«Не рассказывай, если тяжело. Просто посиди. Мне и этого хватит»`,
   h => `«Твои товарищи — хорошие люди? Пусть заходят. Кто тебя бережёт, тому у меня всегда ложка найдётся»`,
@@ -36160,9 +36162,9 @@ C.sceneOf = function (g, id) {
   try {
     if (!sc || !g || id !== 'folk' || !g.folkRole) return sc;
     const role = g.folkRole, at = g.folkAt || g.loc, r = C.relOf(g, role, at);
-    if (!r || r.bond !== 'wed') return sc;
+    if (!r || (r.bond !== 'wed' && r.bond !== 'kin')) return sc;
     const h = C.alive(g).find(x => x.id === r.who); if (!h) return sc;
-    const p = C.folkPerson(g, role, at), pool = p.sex === 'f' ? TALK_F : TALK_M;
+    const p = C.folkPerson(g, role, at), kinT = r.bond === 'kin' && C.KIN_TALK && C.KIN_TALK[p.sex === 'f' ? 'f' : 'm'], pool = kinT || (p.sex === 'f' ? TALK_F : TALK_M); // kin — мать (отец) наследника: свои речи (w2_kids.js)
     // приветствие — новое при каждом приходе, а не одно на весь день
     r.visitN = r.visitN || 0;
     if (g.homeVisitKey !== g.day + ':' + g.time + ':' + at) { g.homeVisitKey = g.day + ':' + g.time + ':' + at; r.visitN++; }
@@ -37682,7 +37684,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmvcvj5"></script><script>
+</script><script src="world.js?v=mvmvyorn"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
