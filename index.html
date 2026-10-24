@@ -2398,7 +2398,7 @@ C.timeName = g => C.TIMES[g.time % 4];
 C.isNight = g => g.time % 4 === 3;
 C.pass = function (g, steps) { g.time += steps; while (g.time >= 4) { g.time -= 4; g.day++; } };
 /* время по получасу: часы копятся внутри четверти (g.walk), каждая полная четверть — C.pass(g, 1) со всеми её делами */
-C.HOURS = {halt: 2, sleep: 6, hunt: 4, fish: 3, search: 2, scout: 2, cook: 1, cookall: 1.5, smoke: 3, brew: 2, brewr: 2, med: 2, abil: 2, ocast: 1, dungeonStep: 1.5};
+C.HOURS = {halt: 2, sleep: 6, hunt: 4, fish: 3, search: 2, scout: 2, cook: 1, cookall: 1.5, smoke: 3, brew: 2, brewr: 2, med: 2, abil: 2, ocast: 1, dungeonStep: 1, dungeonAct: 0.5};
 C.passH = function (g, h) { if (!g || !(h > 0) || g._planRun) return; g.walk = Math.round(((g.walk || 0) + h) * 2) / 2; while (g.walk >= 6) { g.walk -= 6; C.pass(g, 1); } };
 C.hourOf = g => (6 + (g.time || 0) * 6 + (g.walk || 0)) % 24;
 C.hoursText = h => { const w = Math.floor(h), half = h - w >= 0.5; if (!w) return 'полчаса'; const n = w % 10, k = w % 100, word = n === 1 && k !== 11 ? 'час' : n >= 2 && n <= 4 && (k < 10 || k >= 20) ? 'часа' : 'часов'; return w === 1 && !half ? 'час' : half ? `${w},5 часа` : `${w} ${word}`; };
@@ -31325,9 +31325,22 @@ C.battleEnd = function (g, S, spec) {
 };
 
 /* ---------- вход в комнату ---------- */
+/* сколько часов идёт переход: обычно час; лаз, вода, тайный ход и пещерные осыпи — дольше (до 4) */
+const STEP_WHY = {2: ['Ход узкий и низкий, местами идти приходится согнувшись. На переход ушло часа два.', 'Под ногами осыпь, камни ползут; шли медленно, проверяя каждый шаг. Часа два как не бывало.'],
+  3: ['Сквозь завал пришлось протискиваться ползком, передавая сумы по одной. Ушло часа три.'], 4: ['Ползком, вброд и снова ползком: этот переход отнял полдня сил и часа четыре времени.']};
+const stepHours = (d, from, to) => {
+  const r = d.rooms[to] || {}, e = d.edges.find(x => (x.a === from && x.b === to) || (x.b === from && x.a === to)) || {};
+  let h = 1;
+  if (r.type === 'laz') h = 3; else if (r.type === 'rodnik') h = 2;
+  if (e.secret) h = Math.max(h, 2);
+  if (d.kind === 'peshchera') { const k = (from * 7 + to * 13 + String(d.seed).length) % 4; if (k === 0) h += 1; }
+  return Math.min(4, h);
+};
 function enter(g, d, to) {
   const from = d.at; d.at = to; d.from = from; d.seen[to] = 1; d.steps++;
-  C.passH(g, C.HOURS.dungeonStep);
+  const hh = from == null ? 1 : stepHours(d, from, to);
+  C.passH(g, (C.HOURS.dungeonStep || 1) * hh);
+  if (hh > 1) { const ww = STEP_WHY[hh] || STEP_WHY[2]; say(d, d.rooms[to] && d.rooms[to].type === 'rodnik' && hh === 2 ? 'Последний отрезок пути шли по колено в ледяной воде. Часа два ушло на эти несколько саженей.' : ww[(from + to) % ww.length]); }
   stir(g, d);
   const r = room(d), L = d.lvl;
   if (d.pending) return null;
@@ -31363,7 +31376,7 @@ function SCN(g) {
   const d = DG(g);
   if (!d) { const l = g.dungeonLast; return {title: 'Снаружи', bg: 'road', lines: [['n', l ? `${cap(l.name)} остаётся позади. После подземной сырости свежий воздух кажется сладким, как мёд.` : 'Вы снова под открытым небом, и глаза щурятся от дневного света.']], choices: [{t: 'Дальше', go: 'map'}]}; }
   const r = room(d), L = d.lvl, KD = K[d.kind], lines = [], ch = [];
-  const act = fn => g2 => { const dd = DG(g2); if (!dd) return 'dungeon'; dd.msg = []; const out = fn(g2, dd, room(dd)); return out == null ? 'dungeon' : out; };
+  const act = (fn, move) => g2 => { const dd = DG(g2); if (!dd) return 'dungeon'; dd.msg = []; if (!move) C.passH(g2, C.HOURS.dungeonAct || 0.5); const out = fn(g2, dd, room(dd)); return out == null ? 'dungeon' : out; };
   lines.push(['n', lore(d, r)]);
   if (r.cleared && ['strazh', 'boss'].includes(r.type)) lines.push(['n', r.type === 'boss' ? 'Теперь здесь тихо. Хозяин этого места повержен и больше не встанет.' : 'Теперь здесь тихо, только поверженные лежат среди опрокинутой утвари.']);
   else if (r.left) lines.push(['n', 'Здесь пусто, но следы свежие: здешние сторожа совсем недавно ушли на шум.']);
@@ -31493,6 +31506,20 @@ function SCN(g) {
       else if (c.ok) say(dd, 'Стены глухие, кладка цельная: тайных ходов здесь нет.');
       else say(dd, 'Долго стучали по стенам и слушали, но так ничего и не услышали.');
       return null; })});
+    // ночлег в подземелье: полный отдых до утра, но на спящих могут выйти бродячие твари
+    if (!['boss', 'sokr'].includes(r.type) && d.sleptDay !== g.day) {
+      const deadEnd = d.edges.filter(e => e.a === r.id || e.b === r.id).length === 1;
+      ch.push({t: deadEnd ? 'Заночевать в глухом закутке' : 'Заночевать здесь', do: act((g2, dd, rr) => { dd.sleptDay = g2.day;
+        const dead = dd.edges.filter(e => e.a === rr.id || e.b === rr.id).length === 1;
+        const risk = Math.min(0.85, 0.3 + 0.1 * dd.alarm + (rr.type === 'rodnik' ? 0.1 : 0) - (dead ? 0.15 : 0));
+        if (R.rand() < risk) { C.rest(g2, false); const KD2 = K[dd.kind]; const b = Math.max(1, Math.round(C.budget(g2, 0.8)));
+          const ids = KD2.wander.filter(id => C.beast(id) && C.beast(id).level <= dd.lvl + 1);
+          dd.pending = C.compose((ids.length ? ids : [KD2.wander[0]]).slice(), b); if (!dd.pending.length) dd.pending = [KD2.wander[0]];
+          say(dd, 'Сон выходит коротким: в темноте шаркают шаги, и караульный едва успевает растолкать остальных. Бродячие твари нашли спящих.'); return null; }
+        C.rest(g2, true); dd.sleptDay = g2.day;
+        say(dd, dead ? 'Завалили проход чем нашлось, легли спина к спине и проспали до утра. Никто не потревожил.' : 'Караулили по очереди, вслушиваясь в капель и шорохи. Ночь прошла тихо: отряд встаёт отдохнувшим.');
+        return null; })});
+    }
     // выходы
     exitsOf(d, d.at).forEach(e => {
       const to = other(e, d.at), k = dirOf(d, d.at, to);
@@ -31531,7 +31558,7 @@ function SCN(g) {
       }
       const lab = `${DIRS[k][2]}${d.seen[to] ? (to === 0 ? ' — к выходу' : to === d.from ? ' — назад' : '') : ''}`;
       if (!d.seen[to] && (foes.length || blocked)) { ch.push({t: lab, if: () => false, off: foes.length ? 'путь заступают' : 'путь через ловушку'}); return; }
-      ch.push({t: lab, do: act((g2, dd) => enter(g2, dd, to))});
+      ch.push({t: lab, do: act((g2, dd) => enter(g2, dd, to), 1)});
     });
   }
   // выходы видны всегда — строками описания
@@ -55394,7 +55421,7 @@ const harm = (g, d, H) => {
 const nodeChoices = (g, d, r, N) => (N.choices || []).filter(c => !c.hide || okNeed(g, c.need)).map((c, i) => {
   const lbl = c.check ? `${c.t} (${C.STAT_NAME[c.check[0]] || c.check[0]}${c.check[1] ? ', ' + c.check[1] : ''})` : c.t;
   return {t: lbl, if: g2 => okNeed(g2, c.need), off: c.off || 'не хватает того, что нужно', do: g2 => {
-    const dd = g2.dungeon; if (!dd) return 'dungeon'; dd.msg = []; const rr = A.room(dd);
+    const dd = g2.dungeon; if (!dd) return 'dungeon'; dd.msg = []; const rr = A.room(dd); if (C.passH) C.passH(g2, (C.HOURS && C.HOURS.dungeonAct) || 0.5);
     let ok = true;
     if (c.check) { const h = A.pickH(g2, x => A.st(x, c.check[0]) + R.skill(x, c.check[1] || '')); const res = A.chk(g2, h, c.check[0], c.check[1] || null, 12 + Math.floor(dd.lvl / 2) + (c.check[2] || 0), 0); ok = res.ok; }
     if (ok) { if (c.ok) A.say(dd, c.ok); pay(g2, dd, Object.assign({key: N.key + i}, c.reward)); if (c.close !== false) rr.fxDone = 1; if (c.fight) { rr.fxDone = 1; return A.fight(g2, dd, c.fight, {room: rr.id, title: `${dd.name}: ${N.title || 'бой'}`}); } const o2 = harm(g2, dd, c.okHarm); if (o2) return o2; }
