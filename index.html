@@ -36044,7 +36044,7 @@ C.folkHere = function (g) {
 /* переезд: в новой главе — в стартовое поселение */
 C.spouseMove = function (g) {
   if (!g || !g.heroes) return [];
-  const moved = [], nodes = (C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes) || {}, at = g.loc, place = nodes[at] ? nodes[at].name : 'новый край';
+  const camp = C.CAMPS[g.camp] || {}, moved = [], nodes = (camp.map && camp.map.nodes) || {}, at = (g.day > 1 || g.time > 0) && camp.start && nodes[camp.start] ? camp.start : g.loc, place = nodes[at] ? nodes[at].name : 'новый край';
   g.heroes.forEach(h => {
     const s = h.spouse; if (!s || s.camp === g.camp || h.dead) return;
     if (!s.face || !s.t) { const p = who0(g, s); if (p) Object.assign(s, {face: s.face || p.face, t: s.t || p.t, ppl: s.ppl || p.ppl}); }
@@ -36075,6 +36075,15 @@ C.spouseSync = function (g) {
     h.spouse = {n: p.n, role, at, camp: r.camp || g.camp, sex: p.sex, face: p.face, t: p.t, ppl: p.ppl}; });
 };
 if (C.closeCampaign) { const cc0 = C.closeCampaign; C.closeCampaign = function (g) { try { C.spouseSync(g); } catch (e) {} return cc0.apply(this, arguments); }; }
+/* где у отряда родной дом в этой главе (для карты): «свой дом» супругов и брак, заключённый здесь */
+C.homeNodes = function (g) {
+  if (!g) return []; const out = new Set();
+  Object.values(g.homeSp || {}).forEach(s => { if (s && s.at && C.alive(g).some(h => h.id === s.hero)) out.add(s.at); });
+  Object.entries(g.folkRel || {}).forEach(([k, r]) => { if (r && r.bond === 'wed' && (!r.camp || r.camp === g.camp) && C.alive(g).some(h => h.id === r.who)) out.add(k.split('@')[1]); });
+  return [...out];
+};
+/* в любой главе: если супруг(а) героя ещё «в другом краю» — перебирается в стартовое поселение (и после загрузки старой записи) */
+if (C.enter) { const en0 = C.enter; C.enter = function (g) { try { if (g && (g.heroes || []).some(h => h.spouse && h.spouse.camp !== g.camp && !h.dead)) { C.spouseMove(g); } } catch (e) {} return en0.apply(this, arguments); }; }
 /* герой пришёл не переносом главы, а из «Моих героев» или с другого стола — супруг(а) тоже перебирается */
 const ah0 = C.addHero;
 C.addHero = function (g, h) { const r = ah0.apply(this, arguments); try { if (h && h.spouse && h.spouse.camp !== g.camp) C.spouseMove(g); } catch (e) {} return r; };
@@ -37568,7 +37577,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmudrg7"></script><script>
+</script><script src="world.js?v=mvmujnf5"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -40193,6 +40202,10 @@ function drawWorld() {
   { const f = finalHint(); const fc = f && w.nodeAt[f.id]; if (fc) { const p = wxy(fc.c, fc.r), R0 = s * 0.42, cx = p.x + s * 0.55, cy = p.y - s * 0.75;
     x2.beginPath(); for (let i = 0; i < 10; i++) { const a2 = Math.PI / 5 * i - Math.PI / 2, rr = i % 2 ? R0 * 0.45 : R0; x2.lineTo(cx + rr * Math.cos(a2), cy + rr * Math.sin(a2)); } x2.closePath();
     x2.fillStyle = '#e8c45a'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#5a3a10'; x2.stroke(); } }
+  // родной дом — сердечко над местом, где живёт муж или жена
+  (C.homeNodes ? C.homeNodes(g) : []).forEach(id => { const hc = w.nodeAt[id]; if (!hc || !seen(hc)) return; const p = wxy(hc.c, hc.r), r0 = s * 0.2, cx = p.x - s * 0.55, cy = p.y - s * 0.78;
+    x2.beginPath(); x2.moveTo(cx, cy + r0 * 1.6); x2.bezierCurveTo(cx - r0 * 2.4, cy + r0 * 0.2, cx - r0 * 1.2, cy - r0 * 1.6, cx, cy - r0 * 0.4); x2.bezierCurveTo(cx + r0 * 1.2, cy - r0 * 1.6, cx + r0 * 2.4, cy + r0 * 0.2, cx, cy + r0 * 1.6); x2.closePath();
+    x2.fillStyle = '#c2413a'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#f3e3bd'; x2.stroke(); });
   // знаки на горизонте
   (W.marks ? W.marks(g) : []).forEach(m => { const p = wxy(m.c, m.r), rr = s * 0.46;
     x2.beginPath(); x2.arc(p.x, p.y - s * 0.15, rr + 3, 0, Math.PI * 2); x2.fillStyle = 'rgba(30,20,10,.55)'; x2.fill();
