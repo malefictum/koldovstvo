@@ -1966,7 +1966,7 @@ B.ai = function (S, u) {
   if (!en.length) return;
   // страж в отряде под управлением ИИ прикрывает самого хрупкого соседа
   if (B.canGuard(u) && !(u.guarding && B.guardOf(S, B.U(S, u.guarding)) === u)) {
-    const ward = B.alliesOf(S, u).filter(x => x !== u && B.active(x) && B.dist(x, u) === 1 && !B.guardOf(S, x) && !B.canGuard(x)).sort((a, b) => (b.powerMax || 0) - (a.powerMax || 0) || a.def - b.def)[0];
+    const ward = B.alliesOf(S, u).filter(x => x !== u && B.active(x) && B.dist(x, u) === 1 && !B.guardOf(S, x) && !B.canGuard(x) && x.summonLeft == null).sort((a, b) => (b.powerMax || 0) - (a.powerMax || 0) || a.def - b.def)[0];
     if (ward) B.guard(S, u, ward);
   }
   const fear = u.conds.fear;
@@ -2051,7 +2051,7 @@ B.ai = function (S, u) {
   const adj = en.filter(e => B.dist(u, e) === 1);
   let t = null;
   // страж держит место у прикрытого, прикрытый не лезет вперёд: бьют только тех, кто подошёл сам
-  const ward = u.guarding && B.U(S, u.guarding), holding = (ward && B.guardOf(S, ward) === u) || !!B.guardOf(S, u);
+  const ward = u.guarding && B.U(S, u.guarding), holding = u.summonLeft == null && ((ward && B.guardOf(S, ward) === u) || !!B.guardOf(S, u)); // призванный зверь не стоит в обороне — его дело нападать
   if (holding && !adj.length && en.some(e => !e.ranged && !e.down)) { if (u.kind !== 'monster' && S.round > 1) B.defend(S, u); return; }
   if (adj.length) t = adj.sort((a, b) => (a.down - b.down) || (!!B.guardOf(S, a) - !!B.guardOf(S, b)) || (a.hp - b.hp))[0];
   else {
@@ -36048,7 +36048,9 @@ C.spouseMove = function (g) {
   g.heroes.forEach(h => {
     const s = h.spouse; if (!s || s.camp === g.camp || h.dead) return;
     if (!s.face || !s.t) { const p = who0(g, s); if (p) Object.assign(s, {face: s.face || p.face, t: s.t || p.t, ppl: s.ppl || p.ppl}); }
-    let role = SP(baseOf(s.role)); if (!C.FOLK[role]) return;
+    let role = SP(baseOf(s.role));
+    if (!C.FOLK[role] && C.FOLK[baseOf(s.role)]) { const F = C.FOLK[baseOf(s.role)]; C.FOLK[role] = Object.assign({}, F, {kinds: [], jobs: [], place: 'Свой дом', home: 'Свой дом', giver: null, hello: HELLO[F.sex === 'f' ? 'f' : 'm'], spouseOf: baseOf(s.role)}); }
+    if (!C.FOLK[role]) return;
     g.homeSp = g.homeSp || {};
     // двое супругов одного ремесла — второй селится под другим ремеслом дома (швея или охотник), чтобы не путать людей
     if (g.homeSp[role]) role = SP(s.sex === 'f' ? 'weave' : 'hunt');
@@ -36065,6 +36067,17 @@ C.spouseMove = function (g) {
 };
 const ch0 = C.carryHeroes;
 C.carryHeroes = function (g) { const n = ch0.apply(this, arguments); try { C.spouseMove(g); } catch (e) {} return n; };
+/* брак, заключённый до того, как герой стал помнить супруга(у) (старые сохранения), — восстановить из уз перед концом главы */
+C.spouseSync = function (g) {
+  if (!g || !g.folkRel) return;
+  Object.entries(g.folkRel).forEach(([k, r]) => { if (!r || r.bond !== 'wed') return; const h = (g.heroes || []).find(x => x.id === r.who && !x.dead); if (!h || h.spouse) return;
+    const [role, at] = k.split('@'); const p = C.folkPerson(g, role, at); if (!p) return;
+    h.spouse = {n: p.n, role, at, camp: r.camp || g.camp, sex: p.sex, face: p.face, t: p.t, ppl: p.ppl}; });
+};
+if (C.closeCampaign) { const cc0 = C.closeCampaign; C.closeCampaign = function (g) { try { C.spouseSync(g); } catch (e) {} return cc0.apply(this, arguments); }; }
+/* герой пришёл не переносом главы, а из «Моих героев» или с другого стола — супруг(а) тоже перебирается */
+const ah0 = C.addHero;
+C.addHero = function (g, h) { const r = ah0.apply(this, arguments); try { if (h && h.spouse && h.spouse.camp !== g.camp) C.spouseMove(g); } catch (e) {} return r; };
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -37555,7 +37568,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmqicw5"></script><script>
+</script><script src="world.js?v=mvmudrg7"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -39519,6 +39532,7 @@ function showScene(id, talk) {
   if (id === 'map') return showMap();
   const view = NETG(); viewPurse();
   const sc = talk !== undefined || view ? C.sceneOf(g, id) : C.enter(g, id); if (!sc) return showMap();
+  if (!view && sc.id && sc.id !== id && g.scene === sc.id) id = sc.id; // сцена перенаправила (годы, корни): выборы — от показанной сцены
   { const nd = CAMP_OF().map.nodes[g.loc]; if (nd && nd.scene === id && ['село', 'город', 'подворье', 'стан'].includes(nd.kind)) setTimeout(() => tip1('town'), 600); if (/^tavern|^folk|^shop/.test(id)) setTimeout(() => tip1('food'), 600); }
   // личное: учёба, кузня, ювелир — решает игрок своего героя, без голосования
   const myOwn = id => myHeroes().some(h => h.id === id) || (amLeader() && (g.mercs || []).some(m => m.id === id));
