@@ -2014,7 +2014,7 @@ B.ai = function (S, u) {
       } else if (mode === 'enemy') {
         const tg = en.filter(e => B.dist(u, e) <= rg && (!B.seen || B.seen(S, u, e)) && (!S_.vsUnholy(s) || e.nechist) && (!/животн/.test(s.name) || e.group === 'звери'));
         if (!tg.length) continue;
-        const t = tg.sort((a, b) => b.level - a.level || a.hp - b.hp)[0];
+        const t = tg.slice().sort((a, b) => ((s.kind.includes('debuff') && !s.kind.includes('damage')) ? (!!a.conds.atkDown - !!b.conds.atkDown) : 0) || b.level - a.level || a.hp - b.hp)[0];
         const rk = B.aiResK(s, t);
         let v = s.kind.includes('damage') ? S_.expDmg(s, u.level, u.spellMod) * (s.unholy2 && t.nechist ? 2 : 1) * rk.dmg : 0;
         if (s.kind.includes('control') && rk.ctrl) { const ck = S_.controlKind(s); if (!t.conds.held && !t.conds.sleep && !t.conds[ck]) v += t.hpMax * (ck === 'slow' ? 0.2 : 0.35); }
@@ -2027,12 +2027,34 @@ B.ai = function (S, u) {
         if (t && S.round <= 3) { const v = 4 + s.circle * 3; if (v > bestV) { bestV = v; best = [s, t]; } }
       }
     }
-    if (best && (bestV >= 3 || u.kind === 'monster')) {
+    // слабый в рукопашной колдун (книжник с посохом) бьёт даже малыми чарами — это лучше тычка палкой
+    const avgD = d => { const m = String(d || '').match(/(\d+)d(\d+)(?:\s*([+-])\s*(\d+))?/); return m ? +m[1] * (+m[2] + 1) / 2 + (m[3] ? (m[3] === '-' ? -1 : 1) * +m[4] : 0) : 2; };
+    const meleeV = u.attacks && u.attacks[0] ? avgD(u.attacks[0].dmg) * 0.6 : 2;
+    if (best && (bestV >= 3 || u.kind === 'monster' || (bestV > 0 && bestV >= meleeV * 0.8))) {
       // колдун в отряде, к которому подошли вплотную: иногда сперва отходит на шаг-другой и бьёт чарами издали
       if (u.kind !== 'monster' && S.moved === 0 && en.some(e => B.dist(u, e) === 1) && R.rand() < 0.5 && S_.targetMode(best[0]) === 'enemy') {
         const away = B.stepAway(S, u, en); if (away && B.dist(away, best[1]) <= Math.max(1, S_.range(best[0]))) B.move(S, u, away.c, away.r);
         if (!B.active(u)) return; }
       S_.cast(S, u, best[0], best[1]); return; }
+    // колдун, которому не до кого дотянуться чарами: не лезть с посохом в сечу, а подойти на расстояние заклинания
+    if (!best && u.kind !== 'monster' && !u.ranged) {
+      const atk = sp.filter(s => S_.targetMode(s) === 'enemy' && (s.kind.includes('damage') || s.kind.includes('control')) && S_.range(s) >= 2);
+      if (atk.length && !en.some(e => B.dist(u, e) === 1)) {
+        const s = atk.sort((a, b) => S_.range(b) - S_.range(a))[0], rg = S_.range(s);
+        const near = en.filter(e => !e.down).sort((a, b) => B.dist(u, a) - B.dist(u, b))[0];
+        if (near) {
+          const reach = B.reach(S, u); let spot = null;
+          for (const k in reach) { const x = reach[k], d = B.dist(x, near); if (d < 2 || d > rg) continue; if (!spot || d > spot.d || (d === spot.d && x.cost < spot.cost)) spot = {c: x.c, r: x.r, cost: x.cost, d}; }
+          if (spot) { if (spot.c !== u.c || spot.r !== u.r) B.move(S, u, spot.c, spot.r); if (!B.active(u)) return;
+            const tg = en.filter(e => B.dist(u, e) <= rg && (!B.seen || B.seen(S, u, e)) && (!S_.vsUnholy(s) || e.nechist));
+            if (tg.length) { S_.cast(S, u, s, tg.sort((a, b) => a.hp - b.hp)[0]); return; }
+            S.acted = true; return; }
+          // не дотянуться и за ход — подойти ближе, но не вплотную
+          const step = Object.values(reach).filter(x => B.dist(x, near) >= 2).sort((a, b) => B.dist(a, near) - B.dist(b, near) || a.cost - b.cost)[0];
+          if (step) { B.move(S, u, step.c, step.r); return; }
+        }
+      }
+    }
   }
   if (u.rage > 0 && !u.conds.raging && en.some(e => B.dist(u, e) <= u.steps)) B.rageOn(S, u);
   // 3. стрельба
@@ -36038,6 +36060,8 @@ const fh0 = C.folkHere;
 C.folkHere = function (g) {
   const out = fh0.apply(this, arguments);
   if (g && g.homeSp) Object.entries(g.homeSp).forEach(([role, s]) => { if (s.at === g.loc && !g.folkAt && C.alive(g).some(h => h.id === s.hero) && !out.includes(role)) out.push(role); });
+  // жена/муж «своего дома» без записи о доме (старые записи): узы есть — человек дома
+  if (g && g.folkRel && !g.folkAt) Object.entries(g.folkRel).forEach(([k, r]) => { const [role, at] = k.split('@'); if (r && r.bond === 'wed' && /^sp_/.test(role) && at === g.loc && (!r.camp || r.camp === g.camp) && C.alive(g).some(h => h.id === r.who) && !out.includes(role)) out.push(role); });
   return out;
 };
 
@@ -37577,7 +37601,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmujnf5"></script><script>
+</script><script src="world.js?v=mvmuq92k"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
