@@ -37333,7 +37333,13 @@ const PREFIX = 'koldovstvo-porubezhye-';
 const MAX = 4;
 const S = {on: false, host: false, code: '', pid: '', key: '', peer: null, players: [], hostConn: null, lost: false, lastHost: 0, bans: {}};
 let hooks = {};
-const BEAT = 4000, DEAD = 16000;
+/* пульс: свёрнутая вкладка (Chrome душит таймеры до раза в минуту) не должна считаться пропавшей —
+   настоящий обрыв и так видно по закрытию канала, а тишину ждём с запасом */
+const BEAT = 4000, DEAD = 75000;
+if (typeof document !== 'undefined') document.addEventListener('visibilitychange', () => { if (document.hidden || !S.on) return;
+  try { if (S.host) S.players.forEach(p => { if (p.conn) send(p.conn, {t: 'pong'}); }); else if (S.hostConn && S.hostConn.open) send(S.hostConn, {t: 'ping'}); } catch (e) {}
+  // свёрнутая вкладка ждала попытку минуту — вернулись к ней, пробуем сразу
+  if (!S.host && looping && retryNow && backTimer) { clearTimeout(backTimer); backTimer = null; const f = retryNow; setTimeout(f, 50); } });
 const hook = (name, ...a) => { const f = hooks[name]; if (!f) return; try { return f(...a); } catch (e) { if (G.console) console.error(e); } };
 const rnd = n => { let s = ''; for (let i = 0; i < n; i++) s += ALPHA[Math.floor(Math.random() * ALPHA.length)]; return s; };
 const LS = (k, v) => { try { if (v === undefined) return localStorage.getItem('kldv-net-' + k); if (v === null) localStorage.removeItem('kldv-net-' + k); else localStorage.setItem('kldv-net-' + k, v); } catch (e) {} return null; };
@@ -37529,11 +37535,11 @@ setInterval(() => {
   else if (S.hostConn) { if (S.hostConn.open) send(S.hostConn, {t: 'ping'}); if (!S.lost && S.lastHost && now - S.lastHost > DEAD) { try { S.hostConn.close(); } catch (e) {} onLost(); } }
 }, BEAT);
 function reconnect() { S.hostConn = null; try { if (S.peer) S.peer.destroy(); } catch (e) {} return joinRoom(S.code, LS('name') || S.myName || 'Игрок', LS('key-' + S.code) || ''); }
-let looping = null, backTimer = null;
+let looping = null, backTimer = null, retryNow = null;
 function reconnectLoop(onTry, limit) {
   if (looping) return looping; clearTimeout(backTimer); let n = 0; const code = S.code;
-  looping = new Promise((res, rej) => { (function once() { if (S.host || S.code !== code) return; n++; if (onTry) onTry(n);
-    reconnect().then(w => { S.lost = false; looping = null; res(w); }).catch(() => { if (n >= (limit || 45)) { looping = null; return rej(new Error('хозяин не вернулся')); } backTimer = setTimeout(once, Math.min(6000, 1500 + n * 500)); }); })(); });
+  looping = new Promise((res, rej) => { (function once() { retryNow = once; if (S.host || S.code !== code) return; n++; if (onTry) onTry(n);
+    reconnect().then(w => { S.lost = false; looping = null; retryNow = null; res(w); }).catch(() => { if (n >= (limit || 45)) { looping = null; return rej(new Error('хозяин не вернулся')); } backTimer = setTimeout(once, Math.min(6000, 1500 + n * 500)); }); })(); });
   return looping;
 }
 function leave(why) {
@@ -39696,7 +39702,9 @@ function restDo(c, pid) {
 }
 function restCmd(c) { if (NET()) return act(Object.assign({a: 'rest'}, c)); const e = restDo(c, null); if (e) toast(e); }
 let REST_SEEN = 0;
-function restResult() { const L = g.lastRest; if (!L || L.n === REST_SEEN || L.at !== C.qNow(g) || !$('#modal').hidden) return; REST_SEEN = L.n;
+function restResult(tries) { const L = g && g.lastRest; if (!L || L.n === REST_SEEN || L.at !== C.qNow(g)) return;
+  // окно ещё занято (сборы закрываются, чужое окно) — итог покажем чуть позже, а не потеряем
+  if (!$('#modal').hidden) { if ((tries || 0) < 15) setTimeout(() => restResult((tries || 0) + 1), 400); return; } REST_SEEN = L.n;
   openModal(`<h3 class="ttl"><span class="ui-i i-hint"></span>${esc(REST_NAME[L.kind] || 'Привал')}</h3>${L.lines.map(t => `<p>${esc(t)}</p>`).join('')}<div class="row"><button class="btn primary" data-act="close">Дальше</button></div>`, 'sm'); }
 function restShow() {
   const P = g.restPlan; if (!P) { if ($('#rp')) closeModal(); return; }
@@ -41870,7 +41878,7 @@ function showHall(opt) {
     Net.LS('name', name()); KR.msg = 'Садимся за стол…'; draw(); PENDING_HERO = KR.hero;
     Net.joinRoom(code, name(), key).then(() => { korchmaEnsure('table'); $('#main').innerHTML = '<div class="screen title"><div class="box"><p>За столом. Ждём хозяина…</p></div></div>'; })
       .catch(e => { KR.msg = 'Не вышло: ' + e.message; draw(); }); };
-  const goBack = () => { const b = Net.savedBack(); if (b) join(b.code, b.key); };
+  const goBack = () => { const b = Net.savedBack(); if (!b) return; const bh = Net.LS('back-hero'); if (bh && poolLoad().some(h => h.id === bh)) { PENDING_HERO = bh; KR.hero = bh; } join(b.code, b.key); };
   bindInv = root => { root.querySelectorAll('[data-inv]').forEach(b => b.onclick = () => join(b.dataset.inv)); root.querySelectorAll('[data-back]').forEach(b => b.onclick = goBack); };
   const sellCard = (x, price, btn) => `<div class="sc" data-ipop="${esc(x.id)}"><canvas class="sico" data-ico="${iconOf(x.id) || ''}" width="56" height="56"></canvas><div class="sn"><b>${esc(x.name)}</b><span class="note">${esc(itemNote(x))}</span></div><div class="sp">${price}${btn}</div></div>`;
   function center() {
@@ -41989,6 +41997,8 @@ function showNetMenu() {
 }
 function netLeave(why) {
   if (NETG()) { try { poolSync(); } catch (e) {} try { legacySync(); } catch (e) {} } // гость уносит и наследство павших
+  // с кем уходил — с тем и вернётся по «Вернуться за стол»
+  if (NETG() && g) { const mh = myHeroes()[0]; Net.LS('back-hero', mh ? mh.id : null); }
   if (NETH()) { save(); try { Net.Hall.uninvite(Net.S.code); } catch (e) {} }
   try { Net.leave(why); } catch (e) {}
   KR.role = ''; // корчму не покидаем: лоты продаются, зов доходит
@@ -41999,19 +42009,28 @@ function netLeave(why) {
   battle = null; g = null; closeModal(); showTitle();
 }
 function onLost() {
-  openModal(`<h3 class="ttl"><span class="ui-i i-ev_danger"></span>Связь прервалась</h3><p id="lost-t">Хозяин стола пропал из сети. Ждём его: как только стол снова откроется, вы вернётесь на своё место сами.</p><div class="row"><button class="btn" id="lost-x">Выйти на титул</button></div>`);
+  openModal(`<h3 class="ttl"><span class="ui-i i-ev_danger"></span>Связь прервалась</h3><p id="lost-t">Связь со столом оборвалась — у вас или у хозяина. Ждём: как только связь вернётся или хозяин снова откроет стол, вы сядете на своё место сами.</p><div class="row"><button class="btn" id="lost-x">Выйти на титул</button></div>`);
   $('#modal').querySelector('.x').hidden = true; $('#lost-x').onclick = () => netLeave();
-  Net.reconnectLoop(n => { const t = $('#lost-t'); if (t) t.textContent = `Хозяин стола пропал из сети. Ждём его: как только стол снова откроется, вы вернётесь на своё место сами. Попытка ${n}.`; })
+  Net.reconnectLoop(n => { const t = $('#lost-t'); if (t) t.textContent = `Связь со столом оборвалась — у вас или у хозяина. Ждём: как только связь вернётся или хозяин снова откроет стол, вы сядете на своё место сами. Попытка ${n}.`; })
     .then(() => { closeModal(); toast('Снова за столом.'); })
     .catch(() => { const t = $('#lost-t'); if (t) t.textContent = 'Хозяин так и не вернулся. Когда он снова откроет стол, войдите через «Вернуться за стол» на титуле.'; });
 }
-function onBye(why) { netLeave(); openModal(`<h3>Стол</h3><p>${esc(why)}</p>`); }
+function onBye(why) {
+  const mine = g && Net.S.pid && Net.S.pid !== 'p0' ? myHeroes().map(h => h.name) : [], code = Net.S.code, closed = /закрыл/i.test(why || '');
+  netLeave();
+  const back = Net.savedBack();
+  openModal(`<h3 class="ttl"><span class="ui-i i-keep"></span>Стол ${esc(code || '')}</h3><p>${esc(why)}</p>
+    ${mine.length ? `<p>${esc(mine.join(', '))} ${mine.length > 1 ? 'остаются' : 'остаётся'} с вами — со всем опытом, добром и серебром, что было за столом. Героя можно взять в свою игру или за другой стол.</p>` : ''}
+    ${closed && back && back.code === code ? `<p class="note">Когда хозяин снова откроет этот стол, нажмите на титуле «Вернуться за стол ${esc(code)}» — вы сядете на своё место.</p>` : ''}
+    <div class="row"><button class="btn primary" id="bye-ok">Понятно</button></div>`, 'sm');
+  $('#bye-ok').onclick = () => closeModal();
+}
 function onPresence(pid, on, kicked, left) {
   if (!NETH()) return;
   const nm = pname(pid), gone = left && g ? heroesOf(pid).map(h => h.name) : [];
   // ушёл посреди боя — его боец просто сбегает с поля, иначе ход встанет навсегда
   if ((left || kicked) && g && battle && !battle.over) { heroesOf(pid).forEach(h => { const u = battle.units.find(x => x.ref && x.ref.id === h.id && !x.dead && !x.gone); if (!u) return;
-      u.gone = true; u.escaped = true; B.log(battle, `${u.name} бросает бой и уходит с поля — хозяин покинул стол.`, 'flee', 'ушёл с поля'); });
+      u.gone = true; u.escaped = true; B.log(battle, `${u.name} бросает бой и уходит с поля: ${pname(pid)} покидает стол.`, 'flee', 'ушёл с поля'); });
     if (B.checkEnd) B.checkEnd(battle); }
   if (left && g) { heroesOf(pid).forEach(h => { const i = g.heroes.indexOf(h); if (i >= 0) g.heroes.splice(i, 1); delete g.net.own[h.id]; C.note(g, `${h.name} уходит из отряда.`); });
     if (leader() === pid) g.net.leader = 'p0'; save(); rerender(); }
