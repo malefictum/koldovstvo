@@ -29516,7 +29516,7 @@ C.partyLoad = function (g) {
   const cart = C.estateCarry ? Math.round(C.estateCarry(g) * 0.41) : 0; if (cart) why.push('своя повозка везёт часть груза');
   const load = Math.round((worn + pack + coins) * 10) / 10, capAll = cap + pa.cap + cart;
   const ratio = capAll > 0 ? load / capAll : (load > 0 ? Infinity : 0);
-  let tier = 0; while (ratio > C.LOAD_TIERS[tier].max) tier++;
+  let tier = 0; if (ps.length) while (ratio > C.LOAD_TIERS[tier].max) tier++;
   if (pa.list.length) why.push(pa.list.map(b => b.role === 'mount' ? `${b.word} под седлом` : b.role === 'draft' ? `${b.word} в упряжке` : `${b.word}${b.saddle ? '' : ' без вьючного седла'}`).join(', '));
   if (pa.wagons.some(w => w.by)) why.push(pa.wagons.filter(w => w.by).map(w => w.word).join(', ') + ' — по бездорожью тяжело');
   if ((g.packHungry || 0) >= 3) why.push('скотина некормлена — тянет вполсилы');
@@ -29702,6 +29702,9 @@ SC.load_heavy = g => {
   if (L.tier >= 3) {
     ch.push({t: 'Бросить лишнее — дешёвое и тяжёлое', do: g2 => { C.dropExcess(g2, 2); return 'load_heavy'; }});
     ch.push({t: 'Бросить больше — чтобы идти без задержки', do: g2 => { C.dropExcess(g2, 0); return 'load_heavy'; }});
+    const bd = C.bodies ? C.bodies(g) : [];
+    if (bd.length && C.buryOld) ch.unshift({t: bd.length > 1 ? 'Предать павших земле здесь — их уже не вернуть из Нави' : `Предать земле ${bd[0].name} здесь — из Нави уже не вернуть`,
+      do: g2 => { (g2.bodies || []).forEach(b2 => { b2.day = g2.day - C.RAISE_DAYS - 1; }); C.buryOld(g2); return 'load_heavy'; }});
   }
   ch.push({t: L.tier >= 3 ? 'Разобрать сумы самим' : 'В путь', do: () => 'map'});
   return {title: 'Тяжёлая ноша', bg: 'road', art: 'road', lines, choices: ch};
@@ -55292,18 +55295,28 @@ const okNeed = (g, N) => {
   return true;
 };
 C.fdgOk = okNeed;
-const campOk = (g, F) => arr(F.camps || 'free').includes(g.camp);
-C.fdgAt = (g, loc) => C.FDG_LIST.filter(F => F.at && arr(F.at).includes(loc) && campOk(g, F) && okNeed(g, F.need));
+/* в главах кампаний: подземелья своего края, только те, что не завязаны на сказания Вечного мира (их там нет) */
+const REGC = {dw: ['dead_water', 'late_olsha'], as: ['ashes', 'late_dub'], ed: ['edvin', 'late_edvin', 'late2_moshchi'], tk: ['terak', 'late_terak', 'late2_podzem'], sw: ['swamp', 'late_boloto']};
+C.FDG_CAMPS = REGC;
+const isFreeG = g => !!(C.CAMPS[g.camp] || {}).free;
+let TALE_FLAGS = null;
+const taleFlags = () => { if (TALE_FLAGS) return TALE_FLAGS; TALE_FLAGS = new Set(); (C.TALE_LIST || []).forEach(T => { arr(T.sets).forEach(f => TALE_FLAGS.add(f)); Object.values(T.ends || {}).forEach(e => arr(e.sets).forEach(f => TALE_FLAGS.add(f))); ((T.fin || {}).choices || []).forEach(c => arr(c.set).forEach(f => TALE_FLAGS.add(f))); }); return TALE_FLAGS; };
+const campFit = F => { const N = F.need || {}; return !N.after && !N.anyOf && !arr(N.flag).some(f => taleFlags().has(f)) && !(!F.at && !F.story && !F.find && !(F.revealBy && F.revealBy.dg) && !C.FDG_LIST.some(F2 => arr(F2.reward && F2.reward.reveal).includes(F.id) || (F2.nodes || []).some(n => (n.choices || []).some(c => arr(c.reward && c.reward.reveal).includes(F.id))))); };
+const campOk = (g, F) => F.camps ? arr(F.camps).includes(g.camp) : isFreeG(g) || ((REGC[F.land] || []).includes(g.camp) && campFit(F));
+/* якорь подземелья в текущей карте: в Вечном мире — id места, в главе — то же место без приставки края */
+const anchorOf = (g, F) => { const a = F.at || (F.site && F.site.near); if (!a) return null; return isFreeG(g) ? a : a.replace(new RegExp('^' + F.land + '_'), ''); };
+const hidden = (g, F) => !!F.site || (!isFreeG(g) && !!F.at);
+C.fdgAt = (g, loc) => isFreeG(g) ? C.FDG_LIST.filter(F => F.at && arr(F.at).includes(loc) && campOk(g, F) && okNeed(g, F.need)) : [];
 /* ---------- скрытые подземелья: становятся известны по слуху, записке, сказанию или случайно ---------- */
 const W = G.W;
 const known = (g, F) => !!(g.fdgKnown || {})[F.id];
 const siteCell = (g, F) => {
   if (!(W && W.isHex && W.isHex(g))) return null;
-  const w = W.world(g), near = w.nodeAt[F.site.near]; if (!near) return null;
-  const [d0, d1] = F.site.d || [2, 5];
+  const w = W.world(g), near = w.nodeAt[anchorOf(g, F)]; if (!near) return null;
+  const SI = F.site || {d: [1, 3]}; const [d0, d1] = SI.d || [2, 5];
   const used = new Set((g.rumorSites || []).map(x => W.key(x.c, x.r)));
   const cand = Object.values(w.cells).filter(x => !x.node && !x.poi && !x.road && x.t !== 'water' && x.t !== 'sea' && !used.has(W.key(x.c, x.r)) && W.dist(x, near) >= d0 && W.dist(x, near) <= d1
-    && (!F.site.terr || arr(F.site.terr).includes(x.t)));
+    && (!SI.terr || arr(SI.terr).includes(x.t)));
   const pool = cand.length ? cand : Object.values(w.cells).filter(x => !x.node && !x.poi && x.t !== 'water' && W.dist(x, near) >= 1 && W.dist(x, near) <= d1 + 3);
   if (!pool.length) return null;
   let h = 0; for (const ch of F.id + (g.seed || g.camp)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -55312,14 +55325,14 @@ const siteCell = (g, F) => {
 C.fdgReveal = function (g, id, via) {
   const F = C.FDG[id]; if (!F || !campOk(g, F) || known(g, F)) return null;
   g.fdgKnown = Object.assign({}, g.fdgKnown, {[id]: g.day});
-  if (F.site) { const cell = siteCell(g, F); if (cell) { const s = {id: poiOf(F), kind: F.kind === 'kurgan' ? 'barrow' : 'ruins', c: cell.c, r: cell.r, boost: 0, name: F.name, day: g.day, fx: F.id};
+  if (hidden(g, F)) { const cell = siteCell(g, F); if (cell) { const s = {id: poiOf(F), kind: F.kind === 'kurgan' ? 'barrow' : 'ruins', c: cell.c, r: cell.r, boost: 0, name: F.name, day: g.day, fx: F.id};
     g.rumorSites = (g.rumorSites || []).concat(s); W.world(g); W.reveal(g, W.world(g).cells[W.key(s.c, s.r)], 1); } }
-  const near = F.site && C.CAMPS[g.camp].map.nodes[F.site.near];
+  const near = hidden(g, F) && C.CAMPS[g.camp].map.nodes[anchorOf(g, F)];
   C.note(g, `${F.name}: ${via === 'note' && F.note ? F.note : F.rumor || 'теперь известно, где это место'}${near ? ` Место — неподалёку от ${near.name}, отмечено на карте.` : ''}`);
   return F;
 };
 /* скрытые, о которых ещё не знают, — по краю */
-C.fdgHidden = (g, reg) => C.FDG_LIST.filter(F => F.site && !known(g, F) && campOk(g, F) && okNeed(g, F.need) && (!reg || F.land === reg));
+C.fdgHidden = (g, reg) => C.FDG_LIST.filter(F => hidden(g, F) && !known(g, F) && campOk(g, F) && okNeed(g, F.need) && (!reg || !isFreeG(g) || F.land === reg));
 
 /* ---------- раскладка: случайный лабиринт + прописанные узлы ---------- */
 const mk0 = C.dungeonMake;
@@ -55451,10 +55464,33 @@ if (FREE && FREE.scenes.free_place) { const fp0 = FREE.scenes.free_place; FREE.s
       out.push(['n', F.storyBy || 'Под вечер в корчме кто-то из стариков берётся рассказывать, и все за столом примолкают.'], ['n', F.story]);
       C.fdgReveal(g, F.id, 'story'); out.push(['n', `Место, о котором шла речь, теперь отмечено на карте: ${F.name}.`]); }
   }
-  const near = C.fdgHidden(g, n.reg).filter(F => F.find && F.site.near === g.loc);
+  const near = C.fdgHidden(g, n.reg).filter(F => F.find && anchorOf(g, F) === g.loc);
   if (near.length && hsh(key + 'n') % 100 < 30) { const F = near[0]; out.push(['n', F.find]); C.fdgReveal(g, F.id, 'find'); }
   if (out.length) { g.fdgSeenLines = out; sc.lines.push(...out); }
   return sc; }; }
+/* главы кампаний: в корчме рассказывают истории, у самого места можно наткнуться на вход; только строки, без новых выборов */
+const CAMP_IDS = new Set(typeof process !== 'undefined' && process.env && process.env.NOFDGC ? [] : Object.values(REGC).flat());
+const so2 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so2.apply(this, arguments);
+  if (!sc || !g || !CAMP_IDS.has(g.camp) || !C.CAMPS[g.camp]) return sc;
+  const node = (C.CAMPS[g.camp].map.nodes || {})[g.loc] || {};
+  const atTav = id === 'folk_tavern', atNode = node.scene && id === node.scene;
+  if (!atTav && !atNode) return sc;
+  const key = g.day + ':' + g.loc + ':' + (atTav ? 't' : 'n');
+  g.fdgSeenC = g.fdgSeenC || {};
+  if (g.fdgSeenC.key === key) { (g.fdgSeenC.lines || []).forEach(l => sc.lines.push(l)); return sc; }
+  const out = [];
+  if (atTav) { const list = C.fdgHidden(g).filter(F => F.story);
+    if (list.length && hsh(key) % 100 < 40) { const F = list[hsh(key + 'f') % list.length];
+      out.push(['n', F.storyBy || 'Под вечер в корчме кто-то из стариков берётся рассказывать, и все за столом примолкают.'], ['n', F.story]);
+      C.fdgReveal(g, F.id, 'story'); out.push(['n', `Место, о котором шла речь, теперь отмечено на карте: ${F.name}.`]); } }
+  else { const here = C.fdgHidden(g).filter(F => anchorOf(g, F) === g.loc);
+    const F = here.find(F => F.at) || (here.length && hsh(key + 'n') % 100 < 30 ? here.find(F => F.find) : null);
+    if (F) { out.push(['n', F.at ? (F.hint || F.find) : F.find]); C.fdgReveal(g, F.id, 'find'); } }
+  g.fdgSeenC = {key, lines: out}; out.forEach(l => sc.lines.push(l));
+  return sc;
+};
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
