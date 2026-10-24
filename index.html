@@ -36168,7 +36168,7 @@ C.sceneOf = function (g, id) {
     if (g.homeVisitKey !== g.day + ':' + g.time + ':' + at) { g.homeVisitKey = g.day + ':' + g.time + ':' + at; r.visitN++; }
     if (sc.lines && sc.lines.length) sc.lines[0] = ['n', pool[(r.visitN + hs(role + at)) % pool.length](h)];
     const ch = sc.choices.slice(), back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null;
-    let i = ch.length ? Math.max(...ch.map(c => c.i || 0)) + 1 : 0;
+    let i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1; // номера — после всех, вместе с «Назад», иначе кнопки путаются
     ch.push({i: i++, label: 'Поговорить по душам', do: g2 => { const rr = C.relOf(g2, role, at); rr.talkN = (rr.talkN || 0) + 1;
       const line = pool[(rr.talkN * 5 + (rr.visitN || 0) + 3) % pool.length](h); if (C.passH) C.passH(g2, 0.5);
       if (rr.talkDay !== g2.day && C.spiritAdd) { rr.talkDay = g2.day; C.spiritAdd(g2, 1, `${p.n} — и на душе светлее.`); }
@@ -36176,7 +36176,7 @@ C.sceneOf = function (g, id) {
     const slept = r.nightDay === g.day;
     ch.push({i: i++, label: slept ? 'Ночь дома уже была' : 'Остаться дома на ночь', dis: slept ? 'сегодня уже ночевали дома' : null, do: g2 => {
       const rr = C.relOf(g2, role, at); rr.nightDay = g2.day;
-      if (C.rest) C.rest(g2, true);
+      g2._sleeping = 1; try { if (C.rest) C.rest(g2, true); } finally { g2._sleeping = 0; } g2.awake = 0;
       rr.nightDay = g2.day; // после сна наступил новый день — до следующего вечера дома не ночуют
       C.alive(g2).forEach(x => { x.hunger = 0; x.fedDay = g2.day; x.meal = {id: x.id === h.id ? 'home_love' : 'home_supper', day: g2.day}; x.mealAcc = 0; });
       if (C.spiritAdd) C.spiritAdd(g2, 2, 'Ночь дома: тепло, сытно, спокойно.');
@@ -37682,7 +37682,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmv0ljw"></script><script>
+</script><script src="world.js?v=mvmvcvj5"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
