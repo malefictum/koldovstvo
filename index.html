@@ -36114,6 +36114,87 @@ C.addHero = function (g, h) { const r = ah0.apply(this, arguments); try { if (h 
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+/* ---------- дома у своих: разговоры разные, ночь дома лучше любого пира ---------- */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C.FOLK || !C.relOf || !C.FOOD_FX) return;
+const hs = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const nm = (h, c) => (C.Q && C.Q.decl ? C.Q.decl(h.name, h.sex)[c] : h.name);
+// жена говорит
+const TALK_F = [
+  h => `«Садись ближе, ${h.name}. Рассказывай всё, а я послушаю — руки делом заняты, а сердце тобой»`,
+  h => `«Соседка спрашивала, когда ты вернёшься. Я сказала: когда дело сделает. А сама каждый вечер на дорогу смотрю»`,
+  h => `«Ты похудел${h.sex === 'f' ? 'а' : ''}. Не спорь, я вижу. Сейчас каши наложу — и пока всё не съешь, из-за стола не встанешь»`,
+  h => `«Снилось мне, будто ты стоишь у реки и зовёшь меня. Проснулась — а в избе тихо. Береги себя там, слышишь?»`,
+  h => `«Я тут оберег тебе сплела. Не смейся — с ним спокойнее. Носи под рубахой, у сердца»`,
+  h => `«Сколько ещё ходить будешь? Я не держу. Только обещай: когда устанешь — вернёшься сюда, а не куда-нибудь»`,
+  h => `«На торгу говорили про вас — будто вы с нечистью бились. Я слушала и молчала. А руки дрожали, пока не дослушала»`,
+  h => `«Печь я переложила, крыльцо починили. Дом теперь крепкий. Только пустой без тебя»`,
+  h => `«Помнишь, как мы познакомились? Ты тогда так смутил${h.sex === 'f' ? 'ась' : 'ся'}, что ушл${h.sex === 'f' ? 'а' : 'ёл'} без сдачи. Я её до сих пор берегу»`,
+  h => `«Зима скоро. Я тебе тёплое приготовила — вон на лавке лежит. Примерь, пока я не передумала шить второе»`,
+  h => `«Не рассказывай, если тяжело. Просто посиди. Мне и этого хватит»`,
+  h => `«Твои товарищи — хорошие люди? Пусть заходят. Кто тебя бережёт, тому у меня всегда ложка найдётся»`,
+  h => `«Сегодня травы собирала у ручья — и вдруг так тихо стало, будто ты рядом. Обернулась — никого. А на сердце всё равно тепло»`,
+  h => `«Ты у меня упрям${h.sex === 'f' ? 'ая' : 'ый'}, знаю. Только упрямство своё домой неси целым — со всеми руками и ногами»`,
+];
+// муж говорит
+const TALK_M = [
+  h => `«Садись, ${h.name}. Дров я наколол на всю зиму — можешь хоть до весны дома сидеть. Шучу. Знаю, что не усидишь»`,
+  h => `«Соседи спрашивают, где жена. Говорю: дело делает, какое не всякому мужику по плечу. Завидуют»`,
+  h => `«Я тут нож тебе выковал… ну, не выковал — купил. Но точил сам. Бери, не спорь»`,
+  h => `«Ночью проснулся — показалось, ты зовёшь. До утра потом не спал. Береги себя, ладно?»`,
+  h => `«Крышу перекрыл, колодец почистил. Дом крепкий. Только без тебя в нём гулко»`,
+  h => `«На торгу про вас болтали — будто вы с нечистью бились. Я слушал и кулаки сжимал. Потом выпил за вас»`,
+  h => `«Не рассказывай, если не хочешь. Давай просто посидим. Квас холодный»`,
+  h => `«Твои товарищи пусть заходят. Кто тебя в бою прикрывает — тому у меня за столом первое место»`,
+  h => `«Помнишь, как я тебе кольцо протягивал? Руки тряслись хуже, чем у пьяного. А ты смеялась»`,
+  h => `«Я тут подумал: как всё кончится — поставим новую избу, побольше. С крыльцом на закат. Ты только вернись»`,
+  h => `«Ты у меня упрямая, знаю. За то и люблю. Но упрямство своё домой неси целой»`,
+  h => `«Сегодня пёс весь день у ворот лежал, на дорогу смотрел. Тоже ждёт»`,
+];
+const homeRole = role => /^sp_/.test(role) || false;
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try {
+    if (!sc || !g || id !== 'folk' || !g.folkRole) return sc;
+    const role = g.folkRole, at = g.folkAt || g.loc, r = C.relOf(g, role, at);
+    if (!r || r.bond !== 'wed') return sc;
+    const h = C.alive(g).find(x => x.id === r.who); if (!h) return sc;
+    const p = C.folkPerson(g, role, at), pool = p.sex === 'f' ? TALK_F : TALK_M;
+    // приветствие — новое при каждом приходе, а не одно на весь день
+    r.visitN = r.visitN || 0;
+    if (g.homeVisitKey !== g.day + ':' + g.time + ':' + at) { g.homeVisitKey = g.day + ':' + g.time + ':' + at; r.visitN++; }
+    if (sc.lines && sc.lines.length) sc.lines[0] = ['n', pool[(r.visitN + hs(role + at)) % pool.length](h)];
+    const ch = sc.choices.slice(), back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null;
+    let i = ch.length ? Math.max(...ch.map(c => c.i || 0)) + 1 : 0;
+    ch.push({i: i++, label: 'Поговорить по душам', do: g2 => { const rr = C.relOf(g2, role, at); rr.talkN = (rr.talkN || 0) + 1;
+      const line = pool[(rr.talkN * 5 + (rr.visitN || 0) + 3) % pool.length](h); if (C.passH) C.passH(g2, 0.5);
+      if (rr.talkDay !== g2.day && C.spiritAdd) { rr.talkDay = g2.day; C.spiritAdd(g2, 1, `${p.n} — и на душе светлее.`); }
+      g2.folkLast = line; return 'folk'; }});
+    const slept = r.nightDay === g.day;
+    ch.push({i: i++, label: slept ? 'Ночь дома уже была' : 'Остаться дома на ночь', dis: slept ? 'сегодня уже ночевали дома' : null, do: g2 => {
+      const rr = C.relOf(g2, role, at); rr.nightDay = g2.day;
+      if (C.rest) C.rest(g2, true);
+      rr.nightDay = g2.day; // после сна наступил новый день — до следующего вечера дома не ночуют
+      C.alive(g2).forEach(x => { x.hunger = 0; x.fedDay = g2.day; x.meal = {id: x.id === h.id ? 'home_love' : 'home_supper', day: g2.day}; x.mealAcc = 0; });
+      if (C.spiritAdd) C.spiritAdd(g2, 2, 'Ночь дома: тепло, сытно, спокойно.');
+      const say = p.sex === 'f' ? `${p.n} накрывает на стол всё, что есть в печи, и ещё то, чего не было. Ночью в избе тихо и тепло. Утром ${h.name} просыпается отдохнувш${h.sex === 'f' ? 'ей' : 'им'}, как не бывало с самого похода.`
+        : `${p.n} топит баню и ставит на стол всё лучшее. Ночью в избе тихо и тепло. Утром ${h.name} просыпается отдохнувш${h.sex === 'f' ? 'ей' : 'им'}, как не бывало с самого похода.`;
+      g2.folkLast = say; C.note(g2, say); return 'folk'; }});
+    if (back) ch.push(back);
+    sc.choices = ch;
+  } catch (e) {}
+  return sc;
+};
+// сытость от ночи дома: лучше отменного блюда (у супруга) и не хуже его (у остальных)
+C.FOOD_FX.home_love = {hp: 12, pw: 4, rg: 3, tmp: 12, chk: 2, will: 1};
+C.FOOD_FX.home_supper = {hp: 10, pw: 2, rg: 2, tmp: 9, chk: 1};
+if (C.mealText) { const mt0 = C.mealText; C.mealText = function (h, g) { const f = C.mealOf && C.mealOf(h, g);
+  if (f && h.meal && /^home_/.test(h.meal.id)) { const t = C.mealFxText ? C.mealFxText(f) : ''; return t ? `${h.meal.id === 'home_love' ? 'Ночь дома' : 'Домашний ужин'}: ${t}.` : ''; }
+  return mt0.apply(this, arguments); }; }
+})(typeof window !== 'undefined' ? window : globalThis);
 
 /* crafting.js */
 /* Колдовство — ремесло у мастеров. Без DOM.
@@ -37601,7 +37682,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmuq92k"></script><script>
+</script><script src="world.js?v=mvmv0ljw"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
