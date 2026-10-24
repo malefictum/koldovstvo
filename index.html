@@ -37687,7 +37687,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmww4nu"></script><script>
+</script><script src="world.js?v=mvmxau0n"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -38664,6 +38664,7 @@ function heroSheet(h) {
     ${C.heroBond && g && C.heroBond(g, h).length ? `<div class="note" style="margin-top:4px"><b>Родные:</b> ${esc(C.heroBond(g, h).join('; '))}</div>` : ''}
     ${h.kind === 'merc' && C.bondText ? `<div class="note" style="margin-top:4px">${esc(C.bondText(h))}</div>` : ''}
     ${(h.buffs || []).length ? `<div class="note" style="margin-top:4px;color:#2f5a7a"><b>Действует сейчас:</b> ${esc(h.buffs.map(b => b.stat ? `зелье — ${STAT_RU[b.stat] || b.stat} ${b.val}` : `зелье — защита: ${String(b.res).split('+').map(x => x === 'spell' ? 'чары' : (C.DT_RU && C.DT_RU[x]) || x).join(', ')}`).join('; '))}, до конца ближайшего боя.</div>` : ''}
+    ${h.w2late && !(C.ailText && C.ailText(h)) ? `<div class="note" style="margin-top:4px;color:#8a3b2b"><b>На сносях:</b> тяжелее на ногу: в бою на шаг меньше, ловкость и проворство −1.</div>` : ''}
     ${C.ailText && C.ailText(h) ? `<div class="note" style="margin-top:4px;color:#8a3b2b"><b>Хворь и раны:</b> ${esc(C.ailText(h))}.${C.ailTip && C.ailTip(h) ? ` <span title="${esc(C.ailTip(h))}">(${esc(C.ailTip(h))})</span>` : ''}</div>` : ''}
     ${C.speakLangs ? (() => { const L = C.speakLangs(h); return `<div class="note" style="margin-top:6px"><b>Речь:</b> ${esc(L.join(', ') || 'только родная')}. С остальными — с трудом: на переговорах помеха, если в отряде нет знающего.</div>`; })() : ''}
     <div class="note" style="margin-top:6px"><b>Навыки:</b> ${esc([...new Set((R.CLASS_SKILLS[h.cls] || []).concat(Object.keys(h.skills)))].map(k => k + ' +' + R.skill(h, k)).join(', '))}</div>
@@ -39201,7 +39202,7 @@ function newGame(campId, ch) {
 }
 function afterLoad() {
   if (!NET() && window.Net) setTimeout(() => korchmaEnsure('game'), 300);
-  if (g.pendingCreate > 0 && !C.alive(g).length && !g.net) return showCreate();
+  if (g.pendingCreate > 0 && !C.alive(g).length && !g.net) { if (!(C.kidsWipeHeir && C.kidsWipeHeir(g))) return showCreate(); save(); }
   if (g.pendingBattle) { const spec = rebuildSpec(g.pendingBattle); return startBattle(spec); }
   if (g.carryDead && !/^carry_dead/.test(g.scene || '')) return showScene('carry_dead');
   if (g.scene === 'map') return showMap();
@@ -41387,7 +41388,7 @@ function showResult(R0) {
 }
 function resultNext() {
   const R0 = RES, res = R0.res;
-  if (res.wipe) return NET() ? showScene(startScene()) : showCreate(false);
+  if (res.wipe) { if (NET()) return showScene(startScene()); const hh = C.kidsWipeHeir && C.kidsWipeHeir(g); if (hh) { save(); renderTop(); return showScene(startScene()); } return showCreate(false); }
   if (g.carryDead) return showScene('carry_dead');
   if (g.carry && C.CAMPS[g.camp].scenes.free_carry) return showScene('free_carry');
   if (res.won) return R0.win ? showScene(R0.win) : showMap();

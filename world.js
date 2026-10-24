@@ -43139,6 +43139,25 @@ C.sceneOf = function (g, id) {
 };
 
 G.C = C;
+/* ---------- весь отряд пал: старший сын (дочь) встаёт на место героя сразу ---------- */
+C.kidsWipeHeir = function (g) {
+  if (!isFree(g) || g.net || (C.alive(g) || []).length) return null;
+  try {
+    C.kidsFams(g).forEach(F => { if (!F.gone && !alive(g, F.hero)) resolveHero(g, F); }); // поднять некому — семья узнаёт сразу
+    const recs = (g.ageHeirs || []).filter(x => x.kind === 'child' && x.kid && C.kidById(g, x.kid));
+    if (!recs.length) return null;
+    recs.sort((a, b) => (C.kidById(g, a.kid).born || 0) - (C.kidById(g, b.kid).born || 0));
+    const rec = recs[0], p0 = g.pendingCreate; g.pendingCreate = 1;
+    const hh = C.ageHeirTake(g, rec.id);
+    g.pendingCreate = hh ? 0 : p0;
+    if (hh) C.note(g, `Весть о гибели отряда дошла до дома. ${hh.name} ${hh.sex === 'f' ? 'сняла' : 'снял'} со стены ${rec.of && rec.of.sex === 'f' ? 'материнское' : 'отцовское'} оружие и ${hh.sex === 'f' ? 'вышла' : 'вышел'} на дорогу — дело продолжается.`);
+    return hh;
+  } catch (e) { return null; }
+};
+
+/* ---------- на сносях: видно и в подсказке хворей ---------- */
+if (C.ailTip) { const tp0 = C.ailTip; C.ailTip = function (h) { const t = tp0.apply(this, arguments); if (!h || !h.w2late) return t; return (t ? t + ', ' : '') + 'тяжелее на ногу: в бою на шаг меньше, ловкость и проворство −1'; }; }
+
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* w2_family.js */
