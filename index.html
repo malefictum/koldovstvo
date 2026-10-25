@@ -2527,6 +2527,11 @@ C.hireMerc = function (g, id) {
 C.joinMerc = function (g, id) { const camp = C.CAMPS[g.camp], m = camp.mercs[id]; if (!m || g.mercs.some(x => x.mercId === id)) return false; const p = m.price; m.price = 0; g.purse += 0; const ok = C.hireMerc(g, id); m.price = p; return ok; };
 C.dropMerc = function (g, id, why) { const i = g.mercs.findIndex(x => x.mercId === id); if (i >= 0) { const m = g.mercs[i]; g.mercs.splice(i, 1); C.note(g, `${m.name} покидает отряд: ${why}.`); return m; } };
 C.hasMerc = (g, id) => g.mercs.some(x => x.mercId === id);
+/* отряд — не больше шести человек: герои (их по-прежнему до четырёх) и наёмники вместе.
+   C.MERC_ROOM(g) — сколько ещё наёмников можно взять */
+C.PARTY_MAX = 6;
+C.partySize = g => C.alive(g).length + (g.mercs || []).length;
+C.MERC_ROOM = g => Math.max(0, C.PARTY_MAX - C.partySize(g));
 
 /* ---------- смерть и память ---------- */
 C.recordFallen = function (g, h, place, cause) {
@@ -5079,9 +5084,9 @@ S.korchma = {
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'korchma'; }},
+    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'korchma'; }},
     {t: 'Не хватает денег', if: g => g.purse < camp.mercs[id].price, go: 'korchma'},
-    {t: 'С отрядом уже двое наёмников', if: g => g.mercs.length >= 2, go: 'korchma'},
+    {t: 'В отряде уже шестеро — больше не прокормить', if: g => !C.MERC_ROOM(g), go: 'korchma'},
     {t: 'Не сейчас', go: 'korchma'},
   ],
 });
@@ -6692,9 +6697,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'vorony'; }},
+    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'vorony'; }},
     {t: 'Денег не хватает — уйти', if: g => g.purse < camp.mercs[id].price, go: 'vorony'},
-    {t: 'Наёмников уже двое — уйти', if: g => g.mercs.length >= 2, go: 'vorony'},
+    {t: 'В отряде уже шестеро — больше не прокормить', if: g => !C.MERC_ROOM(g), go: 'vorony'},
     {t: 'Не сейчас', go: 'vorony'},
   ],
 });
@@ -8710,9 +8715,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'road', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'lager'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'lager'; }},
     {t: 'Денег не хватает — уйти', if: g => g.purse < camp.mercs[id].price, go: 'lager'},
-    {t: 'Спутников уже двое — уйти', if: g => g.mercs.length >= 2, go: 'lager'},
+    {t: 'В отряде уже шестеро — седьмого не прокормить', if: g => !C.MERC_ROOM(g), go: 'lager'},
     {t: 'Не сейчас', go: 'lager'},
   ],
 });
@@ -9803,9 +9808,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'podvorye'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'podvorye'; }},
     {t: 'Не по карману — отойти', if: g => g.purse < camp.mercs[id].price, go: 'podvorye'},
-    {t: 'С вами уже двое наёмников — больше не прокормить', if: g => g.mercs.length >= 2, go: 'podvorye'},
+    {t: 'В отряде уже шестеро — больше не прокормить', if: g => !C.MERC_ROOM(g), go: 'podvorye'},
     {t: 'Не сейчас', go: 'podvorye'},
   ],
 });
@@ -10462,7 +10467,7 @@ S.griva = g => ({
     {t: 'Позвать Неда', if: g => hireOk(g, 'ned'), go: 'hire_ned'},
     {t: 'Позвать Аллексу', if: g => hireOk(g, 'allexa'), go: 'hire_allexa'},
     {t: 'Позвать Беовульфа', if: g => hireOk(g, 'beowulf'), go: 'hire_beowulf'},
-    {t: 'Позвать Влада', if: g => npc(g).vlad === 'doubting' && !g.flags.vlad_join && g.mercs.length < 2, do: g => { g.flags.vlad_join = 1; g.flags.vlad_ally = 1; C.note(g, 'Влад пойдёт рядом — не в отряде, а рядом: «В бою я ваш. Остальное — потом».'); return 'griva'; }},
+    {t: 'Позвать Влада', if: g => npc(g).vlad === 'doubting' && !g.flags.vlad_join && C.MERC_ROOM(g) > 0, do: g => { g.flags.vlad_join = 1; g.flags.vlad_ally = 1; C.note(g, 'Влад пойдёт рядом — не в отряде, а рядом: «В бою я ваш. Остальное — потом».'); return 'griva'; }},
     {t: 'Отдать Раките медный обруч утопленницы', if: g => g.flags.utop && !g.flags.utop_done, xp: 200, do: g => { g.flags.utop_done = 1; const h = C.recipient(g); if (h) h.inv.push('zele_lecheniya', 'zele_lecheniya'); C.note(g, 'Ракита узнала обруч племянницы и долго молчала. Потом принесла две склянки: «Мать её варила. Берите».'); return 'griva'; }},
     {t: 'Расспросить Ракиту о болоте', if: g => !g.flags.rakita_lore, xp: 150, do: g => { g.flags.rakita_lore = 1; C.note(g, 'Ракита: «Акрополь наши деды звали Безликим городом. Там, говорят, жили люди, что молились девятерым без лиц. Город утонул в одну ночь — за гордость. А кто не утонул, тот ушёл под землю. И живёт там до сих пор». И ещё: «Дед мой ходил к Безликим за тёплыми камнями — через Гнилой остров, нору под ольхой. Пауки там теперь, говорят».'); g.flags.laz_known = 1; return 'griva'; }},
     {t: 'Выйти к людям в сером', if: g => seryiZhdut(g), go: 'seryi'},
@@ -10498,9 +10503,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', art: 'village', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'griva'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'griva'; }},
     {t: 'Не хватает денег', if: g => g.purse < camp.mercs[id].price, go: 'griva'},
-    {t: 'Больше двух спутников не взять', if: g => g.mercs.length >= 2, go: 'griva'},
+    {t: 'В отряде уже шестеро — больше не взять', if: g => !C.MERC_ROOM(g), go: 'griva'},
     {t: 'Не сейчас', go: 'griva'},
   ],
 });
@@ -11840,9 +11845,9 @@ function hireGo(g, id, back) { g.flags.hire_back = back; return 'hire_' + id; }
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', art: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return g.flags.hire_back || home(g); }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return g.flags.hire_back || home(g); }},
     {t: 'Не хватает денег', if: g => g.purse < camp.mercs[id].price, go: g => g.flags.hire_back || home(g)},
-    {t: 'Больше двух спутников не взять', if: g => g.mercs.length >= 2, go: g => g.flags.hire_back || home(g)},
+    {t: 'В отряде уже шестеро — больше не взять', if: g => !C.MERC_ROOM(g), go: g => g.flags.hire_back || home(g)},
     {t: 'Не сейчас', go: g => g.flags.hire_back || home(g)},
   ],
 });
@@ -13566,9 +13571,9 @@ S.korchma = {
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'korchma'; }},
+    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'korchma'; }},
     {t: 'Не хватает денег', if: g => g.purse < camp.mercs[id].price, go: 'korchma'},
-    {t: 'С отрядом уже двое наёмников', if: g => g.mercs.length >= 2, go: 'korchma'},
+    {t: 'В отряде уже шестеро — больше не прокормить', if: g => !C.MERC_ROOM(g), go: 'korchma'},
     {t: 'Не сейчас', go: 'korchma'},
   ],
 });
@@ -14656,9 +14661,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines, back) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return back; }},
+    {t: g => `Нанять (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return back; }},
     {t: 'Денег не хватает — уйти', if: g => g.purse < camp.mercs[id].price, go: back},
-    {t: 'Наёмников уже двое — уйти', if: g => g.mercs.length >= 2, go: back},
+    {t: 'В отряде уже шестеро — больше не прокормить', if: g => !C.MERC_ROOM(g), go: back},
     {t: 'Не сейчас', go: back},
   ],
 });
@@ -14754,7 +14759,7 @@ S.yama_win = {title: 'Дно ямы', bg: 'cellar', art: 'ashes_stoki',
     L('ld_ned', 'Ну вот и закрыли. Теперь, может, и посплю, а? Сорок восемь лет не спал как следует, всё снизу слушал.'),
     L('ld_ned', 'Внук мой, Неждан, пойдёт с вами — даром, я так велел. И вот что ещё: Велемира, волхва, схоронили на погосте за ручьём, под камнем без имени, и посох с ним положили. А на посохе зарубки всех клятв, что у дуба давались, и княжья среди них.')],
   onEnter(g) { const F = g.flags; if (!F.yama_done) { F.yama_done = 1; F.pogost_known = 1; F.oath_heard = 1; g.purse += 1000; C.prince(g, 'nolgrim', 1);
-    if (!C.hasMerc(g, 'nezhdan') && g.mercs.length < 2) C.joinMerc(g, 'nezhdan');
+    if (!C.hasMerc(g, 'nezhdan') && C.MERC_ROOM(g) > 0) C.joinMerc(g, 'nezhdan');
     C.note(g, 'Яма под теремом закрыта. Нед дал десять золотых и внука в провожатые, а ещё сказал, где лежит посох Велемира с зарубками клятв.'); } },
   choices: [{t: 'Наверх', go: 'korovino'}]};
 
@@ -16458,9 +16463,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'lager'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'lager'; }},
     {t: 'Денег не хватает — уйти', if: g => g.purse < camp.mercs[id].price, go: 'lager'},
-    {t: 'Спутников уже двое — уйти', if: g => g.mercs.length >= 2, go: 'lager'},
+    {t: 'В отряде уже шестеро — седьмого не прокормить', if: g => !C.MERC_ROOM(g), go: 'lager'},
     {t: 'Не сейчас', go: 'lager'},
   ],
 });
@@ -17458,9 +17463,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'podvorye'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'podvorye'; }},
     {t: 'Не по карману — отойти', if: g => g.purse < camp.mercs[id].price, go: 'podvorye'},
-    {t: 'С вами уже двое — больше не прокормить', if: g => g.mercs.length >= 2, go: 'podvorye'},
+    {t: 'В отряде уже шестеро — больше не прокормить', if: g => !C.MERC_ROOM(g), go: 'podvorye'},
     {t: 'Не сейчас', go: 'podvorye'},
   ],
 });
@@ -17868,9 +17873,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, who, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', art: 'village', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'griva'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'griva'; }},
     {t: 'Не хватает денег', if: g => g.purse < camp.mercs[id].price, go: 'griva'},
-    {t: 'Больше двух спутников не взять', if: g => g.mercs.length >= 2 && g.purse >= camp.mercs[id].price, go: 'griva'},
+    {t: 'В отряде уже шестеро — больше не взять', if: g => !C.MERC_ROOM(g) && g.purse >= camp.mercs[id].price, go: 'griva'},
     {t: 'Не сейчас', go: 'griva'},
   ],
 });
@@ -18038,7 +18043,7 @@ S.lb_zastava = g => ({title: 'Застава у гати', bg: 'road', art: 'ash
 const zastBattle = g => ({battle: {title: 'Застава у гати', foes: C.fit(g, ['lb_ratnik', 'lb_stragnik', 'lb_kanc', 'lb_ratnik', 'lb_stragnik', 'lb_ratnik'], 0.95, nUs(g) <= 1 ? 1 : 2), field: C.fieldFor('village'), setupKey: 'lb_solo', xpBonus: 500, win: 'lb_yar_free', lose: 'lb_otstup_griva'}});
 S.lb_yar_free = g => ({title: 'Ведунья на воле', bg: 'road', art: 'road',
   lines: [L('lb_yarina', 'Руки-то... затекли. Спасибо. Ключ мой срубили, огонь залили смолой. Ну и пусть: огонь — он не в камне. Я с вами пойду. Мне больше некуда, а вам ведунья пригодится.')],
-  onEnter(g) { if (g.flags.yar !== 'freed') { g.flags.yar = 'freed'; C.trust(g, 'oko', -1); C.trust(g, 'kap', 1); if (g.mercs.length < 2) C.joinMerc(g, 'yarina'); C.note(g, 'Ярина свободна' + (C.hasMerc(g, 'yarina') ? ' и идёт с отрядом.' : ' и ушла в Гриву, к Раките.')); } },
+  onEnter(g) { if (g.flags.yar !== 'freed') { g.flags.yar = 'freed'; C.trust(g, 'oko', -1); C.trust(g, 'kap', 1); if (C.MERC_ROOM(g) > 0) C.joinMerc(g, 'yarina'); C.note(g, 'Ярина свободна' + (C.hasMerc(g, 'yarina') ? ' и идёт с отрядом.' : ' и ушла в Гриву, к Раките.')); } },
   choices: [{t: 'Дальше', go: 'map'}]});
 
 S.lb_istok = g => ({title: 'Красный ключ', bg: 'shrine', art: 'shrine',
@@ -18056,7 +18061,7 @@ S.lb_istok = g => ({title: 'Красный ключ', bg: 'shrine', art: 'shrine
   },
   choices: [
     {t: 'Увести Ярину в Гриву под видом родни', if: g => !g.flags.yar && !g.flags.istok_razed, do: g => { g.flags.yar = 'ally'; C.trust(g, 'kap', 1); C.pass(g, 1);
-      if (g.mercs.length < 2) C.joinMerc(g, 'yarina'); C.note(g, 'Ярина ушла с Красного ключа.' + (C.hasMerc(g, 'yarina') ? ' Идёт с отрядом — в чужом платке, под чужим именем.' : ' Живёт у Ракиты под видом тётки из Выселок.')); return 'lb_istok'; }},
+      if (C.MERC_ROOM(g) > 0) C.joinMerc(g, 'yarina'); C.note(g, 'Ярина ушла с Красного ключа.' + (C.hasMerc(g, 'yarina') ? ' Идёт с отрядом — в чужом платке, под чужим именем.' : ' Живёт у Ракиты под видом тётки из Выселок.')); return 'lb_istok'; }},
     {t: 'Уговорить её уйти в топь, где Око не найдёт', if: g => !g.flags.yar && !g.flags.istok_razed, do: g => { g.flags.yar = 'hidden'; C.giveXP(g, 200, 'ведунья укрыта'); C.note(g, 'Ярина ушла в топь, на сухой остров, о котором знает одна она. Огонь на ключе оставила под берестой. «Позовёте — услышу. Через Ракиту».'); return 'lb_istok'; }},
     {t: 'Отвести Ярину на заставу, как велело Око', if: g => !g.flags.yar && !g.flags.istok_razed, go: 'lb_yar_dan'},
     {t: 'Поклониться огню и отдохнуть у камня', if: g => !g.flags.istok_razed && !g.flags.yar_given, do: g => { C.rest(g, true); C.alive(g).concat(g.mercs).forEach(h => { h.power = R.powerMax(h); }); C.note(g, 'Ночь у последнего огня болота. Спится легко, первый раз за много дней, и к утру сила возвращается вся, до капли.'); return 'lb_istok'; }},
@@ -18173,7 +18178,7 @@ S.lb_bashnya = g => ({title: 'Утопленная башня', bg: 'cellar', ar
     {t: 'Читать с Мираком старую хронику, пока не найдётся имя', if: g => mirakFriend(g) && !g.flags.nadpis && !g.flags.imya && g.flags.mirak_chit !== g.day, do: g => { g.flags.mirak_chit = g.day; C.pass(g, 4); const r = check(g, 'int', 'Знание языков', 15);
       if (r.ok) { g.flags.imya = 'mirak'; C.giveXP(g, 600, 'хроника Мирака'); return 'lb_imya'; }
       C.note(g, `Ночь над хроникой. Буквы плывут (${r.total} против ${r.dc}). Мирак вздыхает: «Без оттиска не выйдет. Привезите оттиск со ступеней».`); return 'lb_bashnya'; }},
-    {t: 'Позвать Мирака вниз, с отрядом', if: g => mirakFriend(g) && g.flags.imya && !C.hasMerc(g, 'mirak') && !g.flags.mirak_zov && g.mercs.length < 2, do: g => { g.flags.mirak_zov = 1; C.joinMerc(g, 'mirak'); C.note(g, 'Мирак захлопнул книгу: «Логично. Главу о грани лучше писать с натуры».'); return 'lb_bashnya'; }},
+    {t: 'Позвать Мирака вниз, с отрядом', if: g => mirakFriend(g) && g.flags.imya && !C.hasMerc(g, 'mirak') && !g.flags.mirak_zov && C.MERC_ROOM(g) > 0, do: g => { g.flags.mirak_zov = 1; C.joinMerc(g, 'mirak'); C.note(g, 'Мирак захлопнул книгу: «Логично. Главу о грани лучше писать с натуры».'); return 'lb_bashnya'; }},
     {t: 'Упокоить мертвецов башни', if: g => !mirakFriend(g) && !g.flags.bashnya_boy, do: g => ({battle: {title: 'Утопленная башня', foes: fitM(g, ['lb_mertvyak', 'lb_mertvets_m', 'lb_mertvets_m', 'lb_mertvets_m', 'lb_mertvyak', 'lb_mertvets_m'], 0.95), field: C.fieldFor('kurgan'), setupKey: 'lb_solo', xpBonus: 400, win: 'lb_bashnya_boy', lose: 'lb_otstup_griva'}})},
     {t: 'Приказать мертвецам лечь по-навьи', need: {cls: ['knizhnik', 'charovnik', 'chernets']}, if: g => !mirakFriend(g) && !g.flags.bashnya_boy && C.alive(g).some(h => R.schoolsOf(h).includes('necro')), xp: 500, do: g => 'lb_bashnya_boy'},
     {t: 'Прочесть журнал Мирака', if: g => !mirakFriend(g) && g.flags.bashnya_boy && !g.flags.imya && g.flags.zhurnal_tried !== g.day, do: g => { g.flags.zhurnal_tried = g.day; C.pass(g, 3); const r = check(g, 'int', 'Грамота', g.flags.nadpis ? 11 : 14);
@@ -18963,9 +18968,9 @@ function hireGo(g, id, back) { g.flags.hire_back = back; return 'hire_' + id; }
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', art: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return g.flags.hire_back || 'tarren'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return g.flags.hire_back || 'tarren'; }},
     {t: 'Не хватает денег', if: g => g.purse < camp.mercs[id].price, go: g => g.flags.hire_back || 'tarren'},
-    {t: 'Больше двух спутников не взять', if: g => g.mercs.length >= 2, go: g => g.flags.hire_back || 'tarren'},
+    {t: 'В отряде уже шестеро — больше не взять', if: g => !C.MERC_ROOM(g), go: g => g.flags.hire_back || 'tarren'},
     {t: 'Не сейчас', go: g => g.flags.hire_back || 'tarren'},
   ],
 });
@@ -20870,9 +20875,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'pz_podvorye'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'pz_podvorye'; }},
     {t: 'Не по карману — отойти', if: g => g.purse < camp.mercs[id].price, go: 'pz_podvorye'},
-    {t: 'С вами уже двое — больше не прокормить', if: g => g.mercs.length >= 2, go: 'pz_podvorye'},
+    {t: 'В отряде уже шестеро — больше не прокормить', if: g => !C.MERC_ROOM(g), go: 'pz_podvorye'},
     {t: 'Не сейчас', go: 'pz_podvorye'},
   ],
 });
@@ -22085,9 +22090,9 @@ const hireOk = (g, id) => camp.mercs[id].avail(g) && !C.hasMerc(g, id) && !g.fla
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return 'lager'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return 'lager'; }},
     {t: 'Денег не хватает — уйти', if: g => g.purse < camp.mercs[id].price, go: 'lager'},
-    {t: 'Спутников уже двое — уйти', if: g => g.mercs.length >= 2, go: 'lager'},
+    {t: 'В отряде уже шестеро — седьмого не прокормить', if: g => !C.MERC_ROOM(g), go: 'lager'},
     {t: 'Не сейчас', go: 'lager'},
   ],
 });
@@ -22514,9 +22519,9 @@ function hireGo(g, id, back) { g.flags.hire_back = back; return 'hire_' + id; }
 const hireScene = (id, lines) => ({
   title: camp.mercs[id].name, bg: 'tavern', art: 'tavern', lines,
   choices: [
-    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, bt: 'act', if: g => g.purse >= camp.mercs[id].price && g.mercs.length < 2, do: g => { C.hireMerc(g, id); return g.flags.hire_back || 'tarren'; }},
+    {t: g => `Позвать (${R.priceText(camp.mercs[id].price) || 'даром'})`, bt: 'act', if: g => g.purse >= camp.mercs[id].price && C.MERC_ROOM(g) > 0, do: g => { C.hireMerc(g, id); return g.flags.hire_back || 'tarren'; }},
     {t: 'Не хватает денег', bt: 'leave', if: g => g.purse < camp.mercs[id].price, go: g => g.flags.hire_back || 'tarren'},
-    {t: 'Больше двух спутников не взять', bt: 'leave', if: g => g.mercs.length >= 2, go: g => g.flags.hire_back || 'tarren'},
+    {t: 'В отряде уже шестеро — больше не взять', bt: 'leave', if: g => !C.MERC_ROOM(g), go: g => g.flags.hire_back || 'tarren'},
     {t: 'Не сейчас', bt: 'leave', go: g => g.flags.hire_back || 'tarren'},
   ],
 });
@@ -23774,7 +23779,8 @@ if (C.Q) C.Q.inject = function (g, sceneId, choices) {
 /* Колдовство — наёмники с дороги. Без DOM.
    Кроме именных наёмников кампании (у каждого своя история), в корчме любого села и города сидят люди,
    готовые пойти с отрядом за серебро: бойцы, стрелки, знахари, книжники. Их двое-трое; через три дня
-   одни уходят, приходят другие. Уровень — около уровня отряда, плата — по уровню. С отрядом — не больше двух наёмников. */
+   одни уходят, приходят другие. Уровень — около уровня отряда, плата — по уровню. В отряде — не больше шести человек
+   вместе с героями (C.MERC_ROOM). У каждого наёмника своё дело: о нём он говорит сразу, при найме (companions.js). */
 (function (G) {
 'use strict';
 const R = G.R, C = G.C, Q = C.Q;
@@ -23813,7 +23819,7 @@ C.roadBoard = function (g) {
   g.hireBoard[g.loc] = {day: g.day, offers}; return offers;
 };
 C.hireRoad = function (g, m) {
-  if (g.purse < m.price || g.mercs.length >= 2) return false;
+  if (g.purse < m.price || !C.MERC_ROOM(g)) return false;
   g.purse -= m.price;
   const h = R.newHero(Object.assign({id: 'merc_' + m.id, name: m.name, portrait: m.portrait, level: m.level}, m.hero));
   h.kind = 'merc'; h.mercId = m.id; h.road = true; h.wageDay = g.day; g.mercs.push(h);
@@ -23837,18 +23843,18 @@ C.dismissMerc = function (g, id) {
 };
 C.mercIdleHere = g => (g.mercIdle || []).filter(x => x.at === g.loc);
 C.rehireMerc = function (g, id) {
-  const i = (g.mercIdle || []).findIndex(x => x.hero.id === id && x.at === g.loc); if (i < 0 || (g.mercs || []).length >= 2) return false;
+  const i = (g.mercIdle || []).findIndex(x => x.hero.id === id && x.at === g.loc); if (i < 0 || !C.MERC_ROOM(g)) return false;
   const h = g.mercIdle[i].hero; g.mercIdle.splice(i, 1); h.wageDay = g.day; g.mercs.push(h);
   C.note(g, `${h.name} допивает кружку, поднимается из-за стола и снова идёт с отрядом.`); return true;
 };
 const nodeScene = g => { const n = C.CAMPS[g.camp].map.nodes[g.loc]; return n ? n.scene : 'map'; };
 const SC = {
   hire_road: g => {
-    const offs = C.roadBoard(g), full = g.mercs.length >= 2;
+    const offs = C.roadBoard(g), full = !C.MERC_ROOM(g);
     const lines = [['n', offs.length ? 'У дальнего стола сидят те, кто ищет найма. Корчмарь кивает на них: «Эти пойдут с кем угодно, лишь бы платили. Люди проверенные — ну, почти».' : 'Сегодня найма никто не ищет. Загляните через пару дней.']];
-    offs.forEach(m => lines.push(['n', `${m.name}, ${R.CLASSES[m.hero.cls].name.toLowerCase()}: «${m.say}»`]));
-    const idle = C.mercIdleHere(g); idle.forEach(x => lines.push(['n', `За угловым столом — ${x.hero.name}: «Не забыли ещё? Позовёте — пойду, как прежде»`]));
-    if (full) lines.push(['n', 'С отрядом уже двое наёмников — больше не прокормить. Хотите взять другого — сперва распрощайтесь с кем-то из своих.']);
+    offs.forEach(m => { const c = C.offerAskSay ? C.offerAskSay(g, m) : ''; lines.push(['n', `${m.name}, ${R.CLASSES[m.hero.cls].name.toLowerCase()}: «${m.say}${c ? ' ' + c.replace(/\.$/, '') : ''}»`]); });
+    const idle = C.mercIdleHere(g); idle.forEach(x => lines.push(['n', `За угловым столом — ${x.hero.name}: «Не забыли ещё? Позовёте — пойду, как прежде${x.hero.ask && x.hero.ask.job && !x.hero.loyal && !x.hero.askDone && C.askCond ? `. И уговор наш помню: ${C.askCond(x.hero.ask)}` : ''}»`]));
+    if (full) lines.push(['n', 'В отряде уже шестеро — больше не прокормить. Хотите взять другого — сперва распрощайтесь с кем-то из наёмников.']);
     if (g.hireLast) lines.push(['n', g.hireLast]);
     return {title: 'Корчма: наём', bg: 'tavern', art: 'tavern', lines,
       choices: offs.map(m => ({t: `Нанять: ${m.name} — ${R.CLASSES[m.hero.cls].name.toLowerCase()}, ${m.level}-й ур., ${R.priceText(m.price)}`, if: g2 => !full && g2.purse >= m.price,
@@ -30489,8 +30495,11 @@ C.AIL_IDS = AIL_IDS;
    У каждого наёмника при найме — нрав (честный, жадный, набожный, старой веры, лихой, трусоватый) и привязанность
    к отряду h.bond (−3…+3). Привязанность растёт от побед, щедрой платы, сытного ужина, лечения, дел по нраву;
    падает от голода, ран, бегства, дел против нрава. У костра и на ночлеге наёмники говорят — по нраву, по
-   привязанности и в манере своего народа. При привязанности 2 и выше наёмник раз за кампанию просит о своём деле;
-   сделали — он верен отряду. При −2 ворчит, при −3 уходит (жадный может прихватить долю). Набожный и человек
+   привязанности и в манере своего народа. Своё дело у наёмника есть сразу: о нём он говорит ещё при найме
+   (в корчме и в сцене найма видно условие каждого), и дело тут же открыто, срок — C.ASK_DAYS дней от найма;
+   сделали — он верен отряду, не успели — обида (late). Распрощались — дело ждёт, позвали снова — продолжается.
+   Кто пришёл по сюжету главы (C.joinMerc) — по-старому: просит при привязанности 2; в главах без побочных дел
+   (noJobs) своего дела нет вовсе. При −2 ворчит, при −3 уходит (жадный может прихватить долю). Набожный и человек
    старой веры у одного костра иногда ссорятся. C.bondText(h) — строка для окна героя. */
 (function (G) {
 'use strict';
@@ -30678,12 +30687,51 @@ const ASK = {
   nabozhny: {kind: 'haunt', say: 'Грех на мне, {a}. Человек из-за меня погиб и лежит неспокойно — по ночам ко мне приходит. Помогите его упокоить, может, и мне полегчает.', title: h => `Отмолить грех ${declOf(h).g}`},
   star: {kind: 'clear', say: 'Капище моего рода стоит заброшенное, и погань там завелась. Очистим его — деды нам спасибо скажут, а я снова спать спокойно стану.', title: h => `Очистить родовое капище ${declOf(h).g}`},
 };
+const askOff = g => { const c = g && C.CAMPS[g.camp]; return !Q || !c || !!c.noJobs; };
+const makeAsk = (g, nrav, ppl) => { const A = ASK[nrav] || ASK.chestny, vic = A.vic && Q && Q.person ? Q.person(g, A.vic, R.PEOPLES[ppl] ? ppl : null) : null;
+  return {kind: A.kind, nrav: ASK[nrav] ? nrav : 'chestny', vic, say: A.say.replace(/\{vic\}/g, vic ? vic.n : '')}; };
 C.compAskOpen = function (g, h) {
-  C.compInit(h); if (h.ask || h.askDone || h.loyal) return h.ask;
-  const A = ASK[h.nrav] || ASK.chestny, vic = A.vic && Q && Q.person ? Q.person(g, A.vic, R.PEOPLES[h.people] ? h.people : null) : null;
-  h.ask = {kind: A.kind, nrav: h.nrav, vic, say: A.say.replace(/\{vic\}/g, vic ? vic.n : '')};
+  C.compInit(h); if (h.ask || h.askDone || h.loyal || askOff(g)) return h.ask; // в главе без побочных дел дело не сделать — и не просят
+  h.ask = makeAsk(g, h.nrav, h.people);
   C.note(g, `${h.name} отводит вас в сторону: «${C.compSay(g, h, h.ask.say)}»`);
   return h.ask;
+};
+/* ---------- дело — при найме ---------- */
+C.ASK_DAYS = 21; // три седмицы от найма: успеть можно, не бросая своих дел; раньше просьба приходила позже и срок был 12 дней
+/* условие наёмника — коротко, для сцены найма */
+C.askCond = function (ask) {
+  if (!ask) return '';
+  const A = ASK[ask.nrav] || ASK.chestny, n = ask.vic ? ask.vic.a || (ask.vic.n && Q && Q.decl ? Q.decl(ask.vic.n, A.vic === 'f' ? 'f' : 'm').a : ask.vic.n) || '' : '';
+  if (ask.kind === 'missing') return A.vic === 'f' ? `найти мою сестру${n ? ', ' + n : ''}` : `найти моего брата${n ? ', ' + n : ''}`;
+  return {retrieve: 'вернуть родовой меч, что у меня отняли обманом', bandits: 'поквитаться с теми, кто бросил меня подыхать в канаве',
+    haunt: 'упокоить человека, что погиб из-за меня', clear: 'очистить капище моего рода от погани'}[ask.kind] || 'с одним моим делом';
+};
+C.askCondSay = ask => `Пойду с вами, только и вы мне помогите — ${C.askCond(ask)}. Дольше трёх седмиц ждать не стану.`;
+const condLine = (name, ask) => `${name}: «${C.askCondSay(ask).replace(/\.$/, '')}»`;
+/* предложение из корчмы: нрав и дело известны до найма */
+C.offerAsk = function (g, m) {
+  if (!m || !m.hero) return null;
+  if (!m.nrav || !C.NRAV[m.nrav]) m.nrav = pickW(NRAV_BY_CLS[m.hero.cls] || {chestny: 1, zhadny: 1, nabozhny: 1, star: 1, lihoy: 1, trus: 1});
+  if (!m.ask && !askOff(g)) m.ask = makeAsk(g, m.nrav, m.hero.people);
+  return m.ask || null;
+};
+C.offerAskSay = (g, m) => { const a = C.offerAsk(g, m); return a ? C.askCondSay(a) : ''; };
+/* человек главы: что он попросит, видно в сцене найма — и это же дело он получит, когда его возьмут */
+C.mercPre = function (g, id) {
+  const camp = C.CAMPS[g.camp], m = camp && camp.mercs && camp.mercs[id]; if (!m || !m.hero || m.noAsk || askOff(g)) return null;
+  g.askPre = g.askPre || {}; const k = g.camp + ':' + id;
+  if (!g.askPre[k]) { const nrav = pickW(NRAV_BY_CLS[m.hero.cls] || {chestny: 1, zhadny: 1, nabozhny: 1, star: 1, lihoy: 1, trus: 1}); g.askPre[k] = {nrav, ask: makeAsk(g, nrav, m.hero.people)}; }
+  return g.askPre[k];
+};
+C.mercAskLine = (g, id) => { const p = C.mercPre(g, id), m = ((C.CAMPS[g.camp] || {}).mercs || {})[id]; return p && m ? condLine(m.name, p.ask) : ''; };
+/* при найме: дело открыто сразу (кроме тех, у кого оно уже сделано, начато или отвергнуто) */
+C.compHireAsk = function (g, h, pre) {
+  if (!h || h.kind !== 'merc') return null;
+  C.compInit(h, pre && pre.nrav);
+  if (h.loyal || h.askDone || (h.ask && h.ask.job) || askOff(g)) return null;
+  if (!h.ask) h.ask = pre && pre.ask && (pre.ask.nrav === h.nrav || !ASK[h.nrav]) ? JSON.parse(JSON.stringify(pre.ask)) : makeAsk(g, h.nrav, h.people);
+  C.note(g, `${h.name} сразу говорит о своём: «${C.compSay(g, h, h.ask.say)}»`);
+  return C.compAccept(g, h);
 };
 C.compAccept = function (g, h) {
   if (!Q || !h || !h.ask || h.ask.job || h.askDone) return null;
@@ -30693,9 +30741,9 @@ C.compAccept = function (g, h) {
   j.v.giver = Object.assign(declOf(h), {sex: h.sex, ppl: h.people});
   if (h.ask.vic) j.v.vic = h.ask.vic;
   if (h.ask.kind === 'retrieve') j.v.item = {n: 'родовой меч', a: 'родовой меч', g: 'родового меча', precious: 1};
-  j.dl = g.day + 12; j.ptitle = A.title(h, j);
+  j.dl = g.day + C.ASK_DAYS; j.ptitle = A.title(h, j);
   try { j.txt = Q.offerText(g, j); } catch (e) { /* текст предложения не показывается: дело берут из рук наёмника */ }
-  Q.accept(g, j); h.ask.job = j.id;
+  Q.accept(g, j); h.ask.job = j.id; h.ask.dl = j.dl;
   return j;
 };
 C.compRefuse = function (g, h) {
@@ -30740,17 +30788,35 @@ C.bondText = function (h) {
   C.compInit(h); const N = C.NRAV[h.nrav];
   let t = `Нрав: ${h.sex === 'f' ? N.f : N.n} — ${N.d}. К вам: ${h.loyal ? sx(h, 'вер[ен|на] отряду — служит не за серебро, а за дружбу') : sx(h, C.BOND_RU[h.bond])}.`;
   if (h.ask && !h.ask.job && !h.askDone) t += sx(h, ' Есть у [него|неё] к вам своя просьба.');
-  else if (h.ask && h.ask.job && !h.loyal) t += sx(h, ' Ждёт, что вы поможете [ему|ей] с [его|её] делом.');
+  else if (h.ask && h.ask.job && !h.loyal && !h.askDone) t += sx(h, ` Ждёт, что вы поможете [ему|ей] с [его|её] делом${h.ask.dl && h.ask.left == null ? ` — до ${h.ask.dl}-го дня` : ''}.`);
   if (!h.loyal) t += ` Жалованье — ${R.priceText(C.wageOf(h))} в неделю.`;
   return t;
 };
 
 /* ================= обёртки ================= */
 /* найм */
-if (C.hireRoad) { const hr0 = C.hireRoad; C.hireRoad = function (g, m) { const n = mercs(g).length, ok = hr0.apply(this, arguments);
-  if (ok && mercs(g).length > n) { const h = g.mercs[g.mercs.length - 1]; h.hirePrice = m.price; C.compInit(h); } return ok; }; }
+if (C.makeRoadMerc) { const mk0 = C.makeRoadMerc; C.makeRoadMerc = function (g) { const m = mk0.apply(this, arguments); try { C.offerAsk(g, m); } catch (e) {} return m; }; }
+if (C.hireRoad) { const hr0 = C.hireRoad; C.hireRoad = function (g, m) { const n = mercs(g).length; C.offerAsk(g, m); const ok = hr0.apply(this, arguments);
+  if (ok && mercs(g).length > n) { const h = g.mercs[g.mercs.length - 1]; h.hirePrice = m.price; C.compHireAsk(g, h, {nrav: m.nrav, ask: m.ask}); } return ok; }; }
+let storyJoin = 0;
 if (C.hireMerc) { const hm0 = C.hireMerc; C.hireMerc = function (g, id) { const n = mercs(g).length, price = ((C.CAMPS[g.camp].mercs || {})[id] || {}).price || 0, ok = hm0.apply(this, arguments);
-  if (ok && mercs(g).length > n) { const h = g.mercs[g.mercs.length - 1]; if (h.hirePrice == null) h.hirePrice = price; C.compInit(h); } return ok; }; }
+  if (ok && mercs(g).length > n) { const h = g.mercs[g.mercs.length - 1]; if (h.hirePrice == null) h.hirePrice = price;
+    if (storyJoin) C.compInit(h); else { const pre = C.mercPre(g, id); C.compHireAsk(g, h, pre); if (pre && g.askPre) delete g.askPre[g.camp + ':' + id]; } } return ok; }; }
+/* пришёл по сюжету (клятва, долг, вызволили) — дело по-старому, когда привяжется */
+if (C.joinMerc) { const jm0 = C.joinMerc; C.joinMerc = function () { storyJoin++; try { return jm0.apply(this, arguments); } finally { storyJoin--; } }; }
+/* распрощались — дело ждёт его возвращения; позвали снова — продолжается с тем же запасом дней (не меньше седмицы) */
+const pauseJob = (g, h) => { const j = h && h.ask && h.ask.job && (g.jobs || []).find(x => x.id === h.ask.job);
+  if (j && j.status === 'open') { j.status = 'gone'; const left = Math.max(0, j.dl - g.day); h.ask.left = left;
+    (g.mercIdle || []).forEach(x => { if (x.hero && x.hero.id === h.id && x.hero.ask) x.hero.ask.left = left; }); } };
+if (C.dismissMerc) { const dm0 = C.dismissMerc; C.dismissMerc = function (g, id) { const h = mercs(g).find(m => m.id === id); const ok = dm0.apply(this, arguments); if (ok && h) pauseJob(g, h); return ok; }; }
+if (C.rehireMerc) { const rh0 = C.rehireMerc; C.rehireMerc = function (g, id) { const ok = rh0.apply(this, arguments);
+  if (ok) { const h = mercs(g).find(m => m.id === id); if (h) { C.compInit(h);
+    const j = h.ask && h.ask.job && (g.jobs || []).find(x => x.id === h.ask.job);
+    if (j && j.status === 'gone' && !h.loyal && !h.askDone) { j.status = 'open'; j.dl = g.day + Math.max(7, h.ask.left || 0); j.day = g.day; delete h.ask.left; h.ask.warned = false; h.ask.dl = j.dl;
+      C.note(g, `${h.name}: «${C.compSay(g, h, 'Уговор наш помните, {a}? Пойду, как прежде, — только и вы своё обещание держите')}». Дело: ${lc(Q.title(j))}, до ${j.dl}-го дня.`); }
+    else if (j && j.status === 'late' && !h.loyal) h.askDone = true;
+    else if (!h.ask) C.compHireAsk(g, h); } }
+  return ok; }; }
 /* бой */
 const be0 = C.battleEnd;
 C.battleEnd = function (g, S, spec) {
@@ -30831,6 +30897,11 @@ if (Q) {
     return r; };
   const tick0 = Q.tick;
   Q.tick = function (g) {
+    // наёмник ушёл (погиб, ушёл в обиде, остался в корчме) — его дело не висит в журнале
+    (g.jobs || []).forEach(j => { if (!j.personal || j.status !== 'open' || mercs(g).some(m => m.id === j.personal)) return;
+      const idle = (g.mercIdle || []).find(x => x.hero && x.hero.id === j.personal); j.status = 'gone'; if (idle && idle.hero.ask) idle.hero.ask.left = Math.max(0, j.dl - g.day); });
+    (g.jobs || []).forEach(j => { if (!j.personal || j.status !== 'open' || j.dl - g.day > 5) return; const h = mercs(g).find(m => m.id === j.personal);
+      if (h && h.ask && !h.ask.warned && h.hp > 0) { h.ask.warned = true; C.note(g, `${h.name} хмуро напоминает: «${C.compSay(g, h, 'Время-то идёт, {a}. Обещали помочь — помните?')}» До ${j.dl}-го дня.`); } });
     const open = (g.jobs || []).filter(j => j.personal && j.status === 'open').map(j => j.id);
     const r = tick0.apply(this, arguments);
     (g.jobs || []).filter(j => j.personal && j.status === 'late' && open.includes(j.id)).forEach(j => { const h = mercs(g).find(m => m.id === j.personal); if (h) { h.askDone = true; C.compAdd(g, h, EV.late.all, WHY.late); } });
@@ -30840,6 +30911,8 @@ if (Q) {
 const so0 = C.sceneOf;
 C.sceneOf = function (g, id) {
   const sc = so0.apply(this, arguments);
+  if (sc && (id === 'free_npc' || (/^hire_/.test(id) && id !== 'hire_road'))) { const key = id === 'free_npc' ? g.npcTalk : id.slice(5), camp = C.CAMPS[g.camp];
+    if (key && camp && camp.mercs && camp.mercs[key] && !C.hasMerc(g, key) && C.MERC_ROOM(g) > 0) { const line = C.mercAskLine(g, key); if (line) sc.lines = sc.lines.concat([['n', line]]); } }
   if (!sc || (id !== 'rogue_pick' && id !== 'rogue_night') || !mercs(g).length) return sc;
   sc.choices = sc.choices.map(c => !c.do || c._comp ? c : Object.assign({}, c, {_comp: 1, do: function (g2) {
     const p0 = g2.purse, k0 = g2.pickDay + '|' + g2.burgDay; const res = c.do.apply(this, arguments);
@@ -34939,7 +35012,7 @@ const hsh = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charC
       camp.mercs[id] = Object.assign({}, m, {reg: r.id, home: homes[hsh(id) % homes.length], level0: m.level || 1, price0: m.price || 0, plot: 1}); }); }); }
 C.freeNpcsAt = (g, loc) => Object.entries(camp.mercs).filter(([id, m]) => m.home === loc && !C.hasMerc(g, id) && !((g.flags['npc_rest_' + id] || 0) > g.day)).map(([id, m]) => Object.assign({id}, m));
 C.freeHirePrice = (g, id) => { const m = camp.mercs[id]; if (!m || !m.price0) return 0; const L = C.zoneLevel(g); return Math.max(50, Math.round(m.price0 * Math.max(1, L) / Math.max(1, m.level0) / 50) * 50); };
-C.freeHire = function (g, id) { const m = camp.mercs[id]; if (!m) return false; const L = Math.max(m.level0, C.zoneLevel(g)), p0 = m.price, l0 = m.level;
+C.freeHire = function (g, id) { const m = camp.mercs[id]; if (!m || !C.MERC_ROOM(g)) return false; const L = Math.max(m.level0, C.zoneLevel(g)), p0 = m.price, l0 = m.level;
   m.price = C.freeHirePrice(g, id); m.level = L; const ok = C.hireMerc(g, id); m.price = p0; m.level = l0; return ok; };
 
 /* место открыто, когда его клетку видели */
@@ -35071,11 +35144,11 @@ const clsName = m => (R.CLASSES[m.hero.cls] ? R.CLASSES[m.hero.cls].name.toLower
 const back = g => (camp.map.nodes[g.loc] ? 'free_place' : 'map');
 camp.scenes.free_npc = g => {
   const id = g.npcTalk, m = camp.mercs[id]; if (!m) return {title: 'Никого', bg: 'village', lines: [['n', 'Дома никого: хозяин ушёл по своим делам и вернётся не скоро.']], choices: [{t: 'Дальше', go: back}]};
-  const price = C.freeHirePrice(g, id), L = Math.max(m.level0, C.zoneLevel(g)), full = C.alive(g).length + g.mercs.length >= 6;
+  const price = C.freeHirePrice(g, id), L = Math.max(m.level0, C.zoneLevel(g)), full = !C.MERC_ROOM(g);
   const lines = [['n', `${m.name}, ${clsName(m)}, ${L <= 3 ? 'ещё молод в ратном деле, но глядит смело' : L <= 7 ? 'повидал на своём веку немало и держится уверенно' : L <= 12 ? 'из бывалых: по рукам и шрамам видно, что не одну битву прошёл' : 'из тех, о ком по корчмам поют песни'}.`], ['n', m.motive || 'Живёт своим умом и в чужие дела без нужды не лезет.']];
   const ch = [];
   if (!full) ch.push({t: price ? `Позвать с собой — ${R.priceText(price)}` : 'Позвать с собой', if: g2 => g2.purse >= price, off: 'не хватает серебра', do: g2 => { C.freeHire(g2, id); return back(g2); }});
-  else lines.push(['n', 'Отряд и так велик: ещё один рот в дороге уже не прокормить.']);
+  else lines.push(['n', 'В отряде уже шестеро — ещё один рот в дороге не прокормить.']);
   ch.push({t: 'Распрощаться', free: 1, go: back});
   return {title: m.name, bg: 'tavern', lines, choices: ch};
 };
@@ -37855,7 +37928,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvnlh0ly"></script><script>
+</script><script src="world.js?v=mvnw1bhb"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

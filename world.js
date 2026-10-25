@@ -43878,7 +43878,7 @@ C.mwHome = function (g, m, why) {
   g.hireLast = t; return true;
 };
 C.mwCall = function (g, key) {
-  const s = recOf(g, key), m = s && s.mw.merc; if (!m || s.mw.dead || !alive(g, s.mw.hero) || mercs(g).length >= 2 || (g.day || 1) < (s.mw.until || 0)) return false;
+  const s = recOf(g, key), m = s && s.mw.merc; if (!m || s.mw.dead || !alive(g, s.mw.hero) || !C.MERC_ROOM(g) || (g.day || 1) < (s.mw.until || 0)) return false;
   s.mw.rel = s.mw.rel || makeRel(g, s); delete s.mw.merc; s.mw.away = 1; show(s);
   m.wageDay = g.day; if (m.hpMax) m.hp = Math.max(m.hp || 0, m.hpMax); m.mw.key = key; g.mercs.push(m); farMail(g, key);
   const kids = kidsAt(g, key).length;
@@ -44051,7 +44051,7 @@ function homeScene(g, sc) {
     const w = s.mw.wife, ready = (g.day || 1) >= (s.mw.until || 0);
     if (!ready) lines.push(['n', `${w.n}: «${fx(w.sex, 'Пока малой не окрепнет — я дома. А там поглядим, кто кого в поход позовёт', 'Пока малой не окрепнет — я дома. А там поглядим, кто кого в поход позовёт')}»`]);
     else lines.push(['n', `${w.n}: «${kids ? 'Малые подросли, ' : ''}${s.mw.why === 'birth' ? 'год прошёл. ' : ''}Позовёшь — пойду с тобой снова, а за домом приглядит родня. Не позовёшь — и дома дел хватит»`]);
-    if (ready) ch.push({i: i++, label: `Позвать ${decl(w.n, w.sex).a} снова в поход`, dis: mercs(g).length >= 2 ? 'с отрядом и так двое наёмников' : null, do: g2 => { C.mwCall(g2, key); return 'folk'; }});
+    if (ready) ch.push({i: i++, label: `Позвать ${decl(w.n, w.sex).a} снова в поход`, dis: !C.MERC_ROOM(g) ? 'в отряде уже шестеро — больше не прокормить' : null, do: g2 => { C.mwCall(g2, key); return 'folk'; }});
   }
   if (back) ch.push(back);
   return Object.assign({}, sc, {lines, choices: ch});
