@@ -23716,11 +23716,24 @@ C.hireRoad = function (g, m) {
   return true;
 };
 /* распрощаться с наёмником: уходит со всем своим — и с тем, что ему дарили (подаренное назад не берут) */
+/* распрощаться: наёмник уходит в корчму (здешнюю или стартового поселения) и ждёт там — можно позвать снова */
+const TAV_KINDS = ['село', 'город'];
+C.mercTavern = function (g) { const camp = C.CAMPS[g.camp] || {}, nodes = (camp.map && camp.map.nodes) || {}, n = nodes[g.loc], TK = (Q && Q.TOWN_KINDS) || TAV_KINDS;
+  return n && TK.includes(n.kind) ? g.loc : camp.start || g.loc; };
 C.dismissMerc = function (g, id) {
   const i = (g.mercs || []).findIndex(m => m.id === id); if (i < 0) return false;
   const m = g.mercs[i]; g.mercs.splice(i, 1);
-  g.hireLast = `${m.name} забирает плату и свою суму, кивает на прощание и уходит своей дорогой.`;
+  if ((C.CAMPS[g.camp] || {}).noHire) { g.hireLast = `${m.name} забирает свою суму, кивает на прощание и уходит своей дорогой.`; C.note(g, g.hireLast); return true; }
+  const at = C.mercTavern(g), nodes = ((C.CAMPS[g.camp] || {}).map || {}).nodes || {}, place = nodes[at] ? nodes[at].name : 'корчма';
+  g.mercIdle = (g.mercIdle || []).filter(x => x.hero.id !== m.id).concat({at, day: g.day || 1, hero: JSON.parse(JSON.stringify(m))});
+  g.hireLast = `${m.name} забирает свою суму, кивает на прощание и уходит${at === g.loc ? ' к дальнему столу корчмы' : ` в корчму — ${place}`}. Понадобится — там и найдёте.`;
   C.note(g, g.hireLast); return true;
+};
+C.mercIdleHere = g => (g.mercIdle || []).filter(x => x.at === g.loc);
+C.rehireMerc = function (g, id) {
+  const i = (g.mercIdle || []).findIndex(x => x.hero.id === id && x.at === g.loc); if (i < 0 || (g.mercs || []).length >= 2) return false;
+  const h = g.mercIdle[i].hero; g.mercIdle.splice(i, 1); h.wageDay = g.day; g.mercs.push(h);
+  C.note(g, `${h.name} допивает кружку, поднимается из-за стола и снова идёт с отрядом.`); return true;
 };
 const nodeScene = g => { const n = C.CAMPS[g.camp].map.nodes[g.loc]; return n ? n.scene : 'map'; };
 const SC = {
@@ -23728,12 +23741,15 @@ const SC = {
     const offs = C.roadBoard(g), full = g.mercs.length >= 2;
     const lines = [['n', offs.length ? 'У дальнего стола сидят те, кто ищет найма. Корчмарь кивает на них: «Эти пойдут с кем угодно, лишь бы платили. Люди проверенные — ну, почти».' : 'Сегодня найма никто не ищет. Загляните через пару дней.']];
     offs.forEach(m => lines.push(['n', `${m.name}, ${R.CLASSES[m.hero.cls].name.toLowerCase()}: «${m.say}»`]));
+    const idle = C.mercIdleHere(g); idle.forEach(x => lines.push(['n', `За угловым столом — ${x.hero.name}: «Не забыли ещё? Позовёте — пойду, как прежде»`]));
     if (full) lines.push(['n', 'С отрядом уже двое наёмников — больше не прокормить. Хотите взять другого — сперва распрощайтесь с кем-то из своих.']);
     if (g.hireLast) lines.push(['n', g.hireLast]);
     return {title: 'Корчма: наём', bg: 'tavern', art: 'tavern', lines,
       choices: offs.map(m => ({t: `Нанять: ${m.name} — ${R.CLASSES[m.hero.cls].name.toLowerCase()}, ${m.level}-й ур., ${R.priceText(m.price)}`, if: g2 => !full && g2.purse >= m.price,
         off: g2 => full ? 'места нет: сперва распрощайтесь с кем-то' : `не хватает серебра: в кошеле ${R.priceText(g2.purse)}`,
         do: g2 => { const mm = (C.roadBoard(g2) || []).find(x => x.id === m.id); if (mm) { C.hireRoad(g2, mm); g2.hireLast = null; } return 'hire_road'; }}))
+        .concat(idle.map(x => ({t: `Позвать снова: ${x.hero.name} (${R.CLASSES[x.hero.cls].name.toLowerCase()}, ${x.hero.level}-й ур.)`, if: () => !full, off: () => 'места нет: сперва распрощайтесь с кем-то',
+          do: g2 => { C.rehireMerc(g2, x.hero.id); g2.hireLast = null; return 'hire_road'; }})))
         .concat((g.mercs || []).map(h => ({t: `Распрощаться: ${h.name} (${R.CLASSES[h.cls].name.toLowerCase()}, ${h.level}-й ур.)`, do: g2 => C.dismissMerc(g2, h.id) ? 'hire_road' : 'hire_road'})))
         .concat([{t: 'Уйти', go: g2 => { g2.hireLast = null; return nodeScene(g2); }}])};
   },
@@ -37687,7 +37703,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvmy2czt"></script><script>
+</script><script src="world.js?v=mvnf874w"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -38646,7 +38662,7 @@ function heroSheet(h) {
   const spells = (h.spells || []).map(id => DATA.spellById[id]).filter(Boolean);
   return `<div class="hhead">${heroFace(h, 'sface')}<div>
     <h3>${esc(h.name)}</h3><div class="sub">${esc(C.clsName ? C.clsName(h) : cls.name)} (${esc(cls.was)}), ${h.level}-й уровень · ${esc((R.PEOPLES[h.people] || {})[h.sex === 'f' ? 'f' : 'name'] || '')}${h.kind === 'merc' ? ' · наёмник' : ''} · <span title="Опыт до следующего уровня">опыт ${h.xp}/${R.xpFor(h.level + 1)}</span></div>
-    <div class="note">${esc(cls.note)}${h.motive ? ' Мотив: ' + esc(h.motive) : ''}</div>${C.originLine && C.originLine(h) ? `<div class="note">${esc(C.originLine(h))}</div>` : ''}${C.ageLine ? `<div class="note">${esc(C.ageLine(h))}</div>` : ''}</div></div>
+    <div class="note">${esc(cls.note)}${h.motive ? ' Мотив: ' + esc(h.motive) : ''}</div>${C.originLine && C.originLine(h) ? `<div class="note">${esc(C.originLine(h))}</div>` : ''}${C.ageLine ? `<div class="note">${esc(C.ageLine(h))}</div>` : ''}${C.nravLine && h.kind !== 'merc' && C.nravLine(h) ? `<div class="note">${esc(C.nravLine(h))}</div>` : ''}</div></div>
     ${C.heroStatus ? (() => { const st = C.heroStatus(g, h); return `<div class="hstate"><b>Состояние:</b> ${st.length ? st.map(x => `<span class="hs ${x.cls}" title="${esc(x.why)}">${esc(x.t)}</span>`).join(' ') + `<div class="note">${esc(st.map(x => x.why).join(' '))}</div>` : '<span class="hs up">бодр и здоров</span>'}</div>`; })() : ''}
     <div class="doll"><div class="dcol">${slot('head', 'Шлем', x => R.isArmor(x) && x.slot === 'голова')}${slot('body', 'Доспех', x => R.isArmor(x) && x.slot === 'тело')}${slot('shield', 'Щит / вторая рука', x => (R.isArmor(x) && x.slot === 'щит') || (R.offhandOk(x) && (x.id !== h.eq.weapon || h.inv.filter(y => y === x.id).length > 1)))}</div>
       <canvas class="dfig" data-doll="${h.id}" width="400" height="520"></canvas>
@@ -38787,7 +38803,7 @@ function showParty(id, keep) {
   const all = C.alive(g).concat(g.mercs);
   const h = all.find(x => x.id === id) || all[0];
   if (!h) { openModal('<h3>Отряд</h3><p>В отряде никого.</p>'); return; }
-  openModal(`${all.length > 1 ? `<div class="htabs">${all.map(x => `<button class="btn small ${x === h ? 'on' : ''}" data-ph="${x.id}"${g.net && ownerOf(x.id) ? ` style="box-shadow:inset 0 -3px 0 ${pcol(ownerOf(x.id))}"` : ''}>${esc(x.name)}${(x.hunger || 0) > 0 ? ' <small>· голод</small>' : ''}</button>`).join('')}</div>` : ''}${g.net && ownerOf(h.id) ? `<p class="note">Герой игрока ${esc(pname(ownerOf(h.id)))} · в кошеле ${esc(R.priceText(h.gold || 0))}${mineH(h) ? ' · <button class="btn small" id="p-trade">Обмен</button>' : ''}</p>` : ''}${h.kind === 'merc' && amLeader() && (NET() ? myHeroes() : C.alive(g)).length ? `<p class="note"><button class="btn small" id="p-gift">Дать наёмнику вещь</button></p>` : ''}${heroSheet(h)}
+  openModal(`${all.length > 1 ? `<div class="htabs">${all.map(x => `<button class="btn small ${x === h ? 'on' : ''}" data-ph="${x.id}"${g.net && ownerOf(x.id) ? ` style="box-shadow:inset 0 -3px 0 ${pcol(ownerOf(x.id))}"` : ''}>${esc(x.name)}${(x.hunger || 0) > 0 ? ' <small>· голод</small>' : ''}</button>`).join('')}</div>` : ''}${g.net && ownerOf(h.id) ? `<p class="note">Герой игрока ${esc(pname(ownerOf(h.id)))} · в кошеле ${esc(R.priceText(h.gold || 0))}${mineH(h) ? ' · <button class="btn small" id="p-trade">Обмен</button>' : ''}</p>` : ''}${h.kind === 'merc' && amLeader() && (NET() ? myHeroes() : C.alive(g)).length ? `<p class="note"><button class="btn small" id="p-gift">Дать наёмнику вещь</button>${!NET() && !battle && !(C.mercKeep && C.mercKeep(g, h)) ? ` <button class="btn small" id="p-bye">${esc(C.mercByeLabel ? C.mercByeLabel(g, h) : 'Распрощаться')}</button><span id="p-bye-q" hidden> ${esc(C.mercByeText ? C.mercByeText(g, h) : `${h.name} уйдёт в корчму со всем, что при ${h.sex === 'f' ? 'ней' : 'нём'}, и будет ждать там.`)} <button class="btn small" id="p-bye-y">Да, отпустить</button> <button class="btn small" id="p-bye-n">Нет</button></span>` : ''}</p>` : ''}${heroSheet(h)}
    ${g.keyItems.length ? `<h4 class="jh">Вещи отряда</h4><div class="bag">${g.keyItems.map(k => `<div class="bi" title="${esc(KEYI[k] || 'вещь для дела')}"><canvas data-ico="${ATLAS.items && ATLAS.items[k] ? 'item:' + k : ''}" width="64" height="64"></canvas><span>${esc(KEYI[k] || 'вещь для дела')}</span></div>`).join('')}</div>` : ''}`, undefined, keep);
   paintDoll(h); paintIcons($('#modal'));
   $('#modal').querySelectorAll('[data-ph]').forEach(b => b.onclick = () => showParty(b.dataset.ph, false));
@@ -38827,6 +38843,8 @@ function showParty(id, keep) {
   $('#modal').querySelectorAll('[data-give]').forEach(b => b.onclick = () => showTrade(b.dataset.give));
   $('#modal').querySelectorAll('[data-invf]').forEach(b => b.onclick = () => { INVF[b.dataset.h] = b.dataset.invf; const bag = $('#modal').querySelector(`[data-invbag="${b.dataset.h}"]`); if (bag) bag.querySelectorAll('.bi').forEach(t => { t.hidden = b.dataset.invf !== 'all' && t.dataset.kind !== b.dataset.invf; }); b.parentElement.querySelectorAll('[data-invf]').forEach(x => x.classList.toggle('on', x === b)); });
   if ($('#p-gift')) $('#p-gift').onclick = () => showTrade(h.id);
+  if ($('#p-bye')) { $('#p-bye').onclick = () => { $('#p-bye').hidden = true; $('#p-bye-q').hidden = false; }; $('#p-bye-n').onclick = () => { $('#p-bye').hidden = false; $('#p-bye-q').hidden = true; };
+    $('#p-bye-y').onclick = () => { if (C.dismissMerc(g, h.id)) { save(); closeModal(); renderTop(); rerender(); } }; }
   if (NET()) MODAL_REFRESH = () => showParty(h.id);
 }
 const KEYI_MORE = {persten_mstislava: 'перстень князя Мстислава', sekira_hrodgara: 'секира Хродгара', pechat_kurgana: 'печать с кургана', hleb_sol: 'хлеб и соль для посада',
@@ -39644,10 +39662,20 @@ function showMail() {
   C.mailDone(g); save();
   const head = m.kind === 'wed' ? (m.sex === 'f' ? 'От жены' : 'От мужа') : m.kind === 'brat' ? (m.sex === 'f' ? 'От посестры' : 'От побратима') : 'От того, кто ждёт';
   openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>Берестяная грамотка · ${esc(head)}</small><h3>${esc(m.from)}</h3><div class="note">${esc(m.t)} · кому: ${esc(m.to)}</div></div></div>
-    <p class="kltext">${esc(m.text)}</p><p class="klgift">В свёртке — <b>${esc(m.gift)}</b>.</p><div class="row"><button class="btn primary" id="kl-ok">Спрятать грамотку за пазуху</button></div></div>`, 'sm');
-  $('#kl-ok').onclick = () => { closeModal(); setTimeout(showMail, 300); };
+    <p class="kltext">${esc(m.text)}</p>${m.gift ? `<p class="klgift">В свёртке — <b>${esc(m.gift)}</b>.</p>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap">${(m.acts || []).length && C.mailAct ? m.acts.map(x => `<button class="btn ${x.id === 'send' ? 'primary' : ''}" data-klact="${esc(x.id)}">${esc(x.t)}</button>`).join('') : '<button class="btn primary" id="kl-ok">Спрятать грамотку за пазуху</button>'}</div></div>`, 'sm');
+  if ($('#kl-ok')) $('#kl-ok').onclick = () => { closeModal(); setTimeout(showMail, 300); };
+  $('#modal').querySelectorAll('[data-klact]').forEach(b => b.onclick = () => { C.mailAct(g, m, b.dataset.klact); save(); renderTop(); closeModal(); setTimeout(showMail, 300); });
+}
+/* наёмник говорит о поступке отряда: тем же окном, что и грамотка, — с лицом и именем */
+function showCompTalk() {
+  if (!g || NETG() || battle || !C.compTalkNext) return; const m = C.compTalkNext(g); if (!m || !$('#modal').hidden) return;
+  C.compTalkDone(g); save();
+  openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>Слово наёмника</small><h3>${esc(m.from)}</h3>${m.sub ? `<div class="note">${esc(m.sub)}</div>` : ''}</div></div>
+    <p class="kltext">«${esc(m.text)}»</p><div class="row"><button class="btn primary" id="kl-ok">${m.up ? 'Кивнуть' : m.up === false ? 'Выслушать молча' : 'Дальше'}</button></div></div>`, 'sm');
+  $('#kl-ok').onclick = () => { closeModal(); setTimeout(showCompTalk, 300); };
 }
 function showScene(id, talk) {
+  setTimeout(showCompTalk, 650);
   battle = null;
   if (id === 'map') return showMap();
   const view = NETG(); viewPurse();
@@ -39844,7 +39872,7 @@ function showShop(back, local) {
 /* ---------- карта края ---------- */
 function showMap() {
   if (window.W && W.isHex(g)) return showHexMap();
-  setTimeout(showMail, 700);
+  setTimeout(showMail, 700); setTimeout(showCompTalk, 1100);
   battle = null; g.scene = 'map'; if (NETH()) SCR = {k: 'map'}; save(); renderTop();
   const nodes = C.nodes(g), edges = C.edges(g), routes = C.routes(g);
   const P = id => CAMP_OF().map.nodes[id];
@@ -39926,7 +39954,7 @@ function weatherFx(host, target) {
   WFX = {cv, raf: requestAnimationFrame(step)};
 }
 function showHexMap() {
-  setTimeout(showMail, 700);
+  setTimeout(showMail, 700); setTimeout(showCompTalk, 1100);
   setTimeout(() => tip1('map'), 400);
   battle = null; g.scene = 'map';
   W.pos(g); W.revealKnown(g); if (NETH()) SCR = {k: 'map', walking: false}; save(); renderTop();
