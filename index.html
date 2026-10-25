@@ -294,6 +294,33 @@ button{font:inherit;cursor:pointer}
 .lplayers{display:grid;gap:8px;width:100%;text-align:left}.lp{background:rgba(0,0,0,.35);border:1px solid var(--rim);border-radius:8px;padding:8px 10px}.lp.off{opacity:.6}.lpn{font:15px var(--t-label);color:var(--paper);margin-bottom:6px}
 .lph{display:flex;gap:8px;flex-wrap:wrap}.lh{display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.3);border-radius:6px;padding:3px 6px;color:var(--paper)}.lh canvas{width:36px;height:36px;border-radius:4px}.lh small{display:block;font-size:12px;color:var(--paper-2)}
 .pool{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:8px}.pcard{display:grid;grid-template-columns:52px 1fr auto;gap:10px;align-items:center;border:1px solid rgba(107,85,55,.45);border-radius:8px;padding:6px 8px;background:rgba(255,255,255,.18)}.pcard canvas{width:52px;height:52px;border-radius:4px}.pcard.dead{opacity:.7}.pcard.dead canvas{filter:grayscale(1) sepia(.35)}.pcard .why{max-width:110px;text-align:right;color:var(--blood)}
+.pcard>.pm{min-width:0}.pcard .prod{margin:0}
+/* «Мои герои» под большой архив: вкладки, поиск, плотный список, курган */
+.ptabs{margin:2px 0 10px}.ptabs .btn{text-align:center}
+.ptools{display:flex;flex-wrap:wrap;gap:8px 10px;align-items:center;margin:0 0 10px}#modal .ptools input{flex:1 1 220px;width:auto;min-width:0}.ptools .tfilt{flex:0 1 auto}
+.plist{display:grid;grid-template-columns:repeat(auto-fill,minmax(400px,1fr));column-gap:22px;border-top:1px solid rgba(107,85,55,.35)}.plist .pgrp{grid-column:1/-1}@media (max-width:900px){.plist{grid-template-columns:minmax(0,1fr)}}
+.prow{display:grid;grid-template-columns:40px minmax(0,1fr) auto;gap:10px;align-items:center;padding:5px 6px;border-bottom:1px solid rgba(107,85,55,.28)}
+.prow>canvas{width:40px;height:40px;border-radius:4px;border:1px solid rgba(107,85,55,.5)}
+.prow .pm{min-width:0;display:grid;gap:1px;line-height:1.25}
+.prow .pm b{font:700 15px var(--t-label);color:#3a2410}
+.prow .pm small{font-size:13px;color:var(--ink-2);overflow-wrap:anywhere}
+.prod{font:italic 400 13px var(--t-text);color:#6b4a26;margin-left:7px;letter-spacing:0}
+.prow .why{color:var(--blood);font-size:12.5px;text-align:right;max-width:170px;line-height:1.2}
+.prow.dead>canvas{filter:grayscale(1) sepia(.35);opacity:.85}
+.prow.sleep>canvas{filter:grayscale(.6) sepia(.5);opacity:1}
+.ptag{font:700 10.5px var(--t-label);letter-spacing:.06em;text-transform:uppercase;color:#f3ead2;background:var(--moss);border-radius:3px;padding:2px 6px;white-space:nowrap}
+button.prow{width:100%;font:inherit;color:inherit;text-align:left;background:none;border:0;border-bottom:1px solid rgba(107,85,55,.28);cursor:pointer}
+button.prow:hover{background:rgba(255,255,255,.3)}button.prow.on{box-shadow:inset 3px 0 0 var(--blood);background:rgba(201,163,92,.2)}
+.pgrp{font:700 12px var(--t-label);letter-spacing:.06em;color:#6b4a26;padding:10px 6px 3px;border-bottom:1px solid rgba(107,85,55,.28)}
+.kurhead{display:grid;gap:2px;margin:10px 0 4px}.kurhead b{font:400 20px var(--t-display);color:#3a2410}
+.kurtop{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.kurtop .kt{display:grid;justify-items:center;align-content:start;text-align:center;gap:3px;padding:10px 8px;border:1px solid rgba(107,85,55,.45);border-radius:8px;background:rgba(255,255,255,.16)}
+.kurtop canvas{width:64px;height:64px;border-radius:50%;border:2px solid #8a6d44;filter:grayscale(1) sepia(.4)}.kurtop .kt.sleep canvas{filter:grayscale(.6) sepia(.5)}
+.kurtop b{font:700 15px var(--t-label);color:#3a2410}.kurtop small{font-size:12.5px;color:var(--ink-2);line-height:1.25}.kurtop .kc{font-style:italic}
+.pmore{display:block;margin:10px auto 0}.pfold{display:block;width:100%;margin-top:12px}
+.title .tlinks .kcount{display:inline-block;margin-left:6px;vertical-align:1px;text-decoration:none}
+.hall-all{width:100%;margin:6px 0 2px;text-align:center}
+@media (max-width:600px){.prow{grid-template-columns:36px minmax(0,1fr) auto;gap:8px;padding:5px 2px}.prow>canvas{width:36px;height:36px}.prow.sleep>canvas{grid-row:1/span 2}.prow.sleep .ptag{grid-column:2;justify-self:start}.prow .why{max-width:112px}.stabs.ptabs{display:grid;grid-template-columns:1fr 1fr;gap:6px}.kurtop{grid-template-columns:minmax(0,1fr);gap:6px}.kurtop .kt{grid-template-columns:48px minmax(0,1fr);justify-items:start;text-align:left;column-gap:10px;row-gap:1px;padding:7px 9px}.kurtop .kt>canvas{grid-row:1/span 4;width:48px;height:48px;align-self:center}.kurtop .kt>*:not(canvas){grid-column:2}.ptools .tfilt{flex:1 1 100%}}
 .netgrid{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:8px}.netgrid>div{display:grid;gap:6px;align-content:start}@media (max-width:640px){.netgrid{grid-template-columns:1fr}}
 .tgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px}@media (max-width:640px){.tgrid{grid-template-columns:1fr}}.tcol .list{max-height:240px;overflow:auto;margin:6px 0}.titem{font:14px var(--t-text);text-transform:none;letter-spacing:0;color:var(--ink);display:flex;gap:6px;align-items:center;margin:0}.titem input{width:auto}
 .it.tp{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
@@ -37703,7 +37730,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvnfgl2a"></script><script>
+</script><script src="world.js?v=mvngu03a"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -39125,7 +39152,7 @@ function showTitle() {
     <button class="btn ttile" id="t-chap"><b>Сага с любой главы</b><span>шесть глав первой саги — своими героями</span></button>
     ${lateN ? `<button class="btn ttile" id="t-late"><b>Поздние саги</b><span>годы после Веры: «Сумерки» с 5-го уровня, «Последние чары» с 10-го</span></button>` : ''}
    </div>` : `<p class="note" style="text-align:center">Все пять саг в пути. Чтобы начать новую, оставьте одну из них — герои останутся с вами.</p>`}
-   <nav class="tlinks">${FS_OK() ? `<button id="t-fs" data-act="fs">${FS_ON() ? 'Обычный экран' : 'Во весь экран'}</button>` : ''}<button id="t-pool">Мои герои</button>${window.Cloud ? `<button id="t-cloud" title="Вход и сохранения в облаке">${esc(cloudLabel())}</button>` : ''}<button id="t-xfer" title="Играть с другого браузера или устройства: перенести героев и саги">Перенос</button></nav>
+   <nav class="tlinks">${FS_OK() ? `<button id="t-fs" data-act="fs">${FS_ON() ? 'Обычный экран' : 'Во весь экран'}</button>` : ''}<button id="t-pool">Мои герои${(() => { const n = poolLoad().filter(h => !h.dead && !h._retired).length; return n ? ` <span class="kcount">${n}</span>` : ''; })()}</button>${window.Cloud ? `<button id="t-cloud" title="Вход и сохранения в облаке">${esc(cloudLabel())}</button>` : ''}<button id="t-xfer" title="Играть с другого браузера или устройства: перенести героев и саги">Перенос</button></nav>
   </div></div>`;
   const root = $('#main');
   $('#t-pool').onclick = () => showPool();
@@ -41519,12 +41546,21 @@ function withPurse(pid, fn, all) {
 function poolLoad() { try { return JSON.parse(localStorage.getItem(ROSTER) || '[]') || []; } catch (e) { return []; } }
 function poolSave(L) { try { localStorage.setItem(ROSTER, JSON.stringify(L)); } catch (e) {} }
 function poolPut(h) { const L = poolLoad(), i = L.findIndex(x => x.id === h.id), e = Object.assign(JSON.parse(JSON.stringify(h)), {_at: Date.now()}); if (i >= 0) L[i] = e; else L.push(e); poolSave(L); }
+/* запись о гибели в «Моих героях»: где, отчего, в какой главе — и когда (для летописи кургана); ушедший во сне — в свой срок.
+   Старые записи — {day, place, cause, camp}: всё новое необязательно */
+function deadRec(f, camp, h0) {
+  const r = {day: f.day, place: f.place, cause: f.cause, camp, at: Date.now()};
+  if (f.level) r.lvl = f.level; const age = f.age != null ? f.age : h0 && h0.age; if (age != null && !isNaN(age)) r.age = Math.floor(age);
+  if (f.ageDied || /во сне/.test(f.cause || '')) r.sleep = 1;
+  if ((f.deeds || []).length) r.deeds = f.deeds.length; if (f.kills) r.kills = f.kills;
+  return r;
+}
 /* одиночная игра: свои герои тоже живут в «Моих героях» — с уровнем, вещами и судьбой */
 function soloPool() {
   const L = poolLoad(); let ch = false; const nm = (C.CAMPS[g.camp] || {}).name;
   C.alive(g).filter(h => h.kind !== 'merc' && !h._trial).forEach(h => { const i = L.findIndex(x => x.id === h.id); const e = Object.assign(JSON.parse(JSON.stringify(h)), {_camp: nm, _at: Date.now()});
     if (i < 0 || L[i].dead || L[i].level !== h.level || L[i].xp !== h.xp || (L[i].inv || []).length !== (h.inv || []).length) { if (i >= 0) L[i] = e; else L.push(e); ch = true; } });
-  (g.fallen || []).filter(f => !f.raised && !(g.bodies || []).some(b => b.id === f.id)).forEach(f => { const i = L.findIndex(x => x.id === f.id); if (i >= 0 && !L[i].dead) { L[i].dead = true; L[i]._dead = {day: f.day, place: f.place, cause: f.cause, camp: nm}; ch = true; } });
+  (g.fallen || []).filter(f => !f.raised && !(g.bodies || []).some(b => b.id === f.id)).forEach(f => { const i = L.findIndex(x => x.id === f.id); if (i >= 0 && !L[i].dead) { L[i].dead = true; L[i]._dead = deadRec(f, nm, L[i]); ch = true; } });
   if (ch) poolSave(L);
 }
 function poolSync() {
@@ -41532,7 +41568,7 @@ function poolSync() {
   Object.entries(g.net.own).forEach(([id, pid]) => {
     if (pid !== me) return; const h = C.alive(g).find(x => x.id === id), i = L.findIndex(x => x.id === id);
     if (h) { const e = Object.assign(JSON.parse(JSON.stringify(h)), {_camp: CAMP_OF().name, _at: Date.now()}); if (i >= 0) L[i] = e; else L.push(e); ch = true; }
-    else { const f = g.fallen.find(x => x.id === id); if (f && i >= 0 && !L[i]._dead) { L[i].dead = true; L[i]._dead = {day: f.day, place: f.place, cause: f.cause, camp: CAMP_OF().name}; ch = true; } }
+    else { const f = g.fallen.find(x => x.id === id); if (f && i >= 0 && !L[i]._dead) { L[i].dead = true; L[i]._dead = deadRec(f, CAMP_OF().name, L[i]); ch = true; } }
   });
   (g.net.parked || []).filter(x => x.owner === me).forEach(x => { const i = L.findIndex(y => y.id === x.hero.id);
     if (i < 0 || L[i].dead) { const e = Object.assign(JSON.parse(JSON.stringify(x.hero)), {_camp: CAMP_OF().name, _at: Date.now()}); if (i >= 0) L[i] = e; else L.push(e); ch = true; } });
@@ -41542,7 +41578,7 @@ function poolSync() {
 function poolSolo() {
   const L = poolLoad(), hs = C.alive(g).filter(h => h.kind !== 'merc'), share = Math.floor((g.purse || 0) / Math.max(1, hs.length)); let ch = false;
   hs.forEach(h => { const i = L.findIndex(x => x.id === h.id), e = Object.assign(JSON.parse(JSON.stringify(h)), {gold: (h.gold || 0) + share, _camp: CAMP_OF().name, _at: Date.now()}, g.trial ? {_trial: 1} : {}); if (i >= 0) L[i] = e; else L.push(e); ch = true; });
-  (g.fallen || []).filter(f => !f.raised && !(g.bodies || []).some(b => b.id === f.id)).forEach(f => { const i = L.findIndex(x => x.id === f.id); if (i >= 0 && !L[i]._dead) { L[i].dead = true; L[i]._dead = {day: f.day, place: f.place, cause: f.cause, camp: CAMP_OF().name}; ch = true; } });
+  (g.fallen || []).filter(f => !f.raised && !(g.bodies || []).some(b => b.id === f.id)).forEach(f => { const i = L.findIndex(x => x.id === f.id); if (i >= 0 && !L[i]._dead) { L[i].dead = true; L[i]._dead = deadRec(f, CAMP_OF().name, L[i]); ch = true; } });
   // ушедшие на покой (возраст): в списке остаются, но за стол больше не садятся
   ((g.chron && g.chron.retired) || []).forEach(r => { const i = L.findIndex(x => x.id === r.id); if (i >= 0 && !L[i]._retired) { L[i]._retired = {age: r.age, camp: CAMP_OF().name}; ch = true; } });
   if (ch) poolSave(L);
@@ -41573,27 +41609,122 @@ function legacySync() {
   if (pc) poolSave(P); if (ch) legacySave(L);
 }
 const inAnySaga = id => { for (const i of [1, 2, 3, 4, 5, FREE_I].filter(i => i <= SAGA_N || i === FREE_I)) if (sagaHolds(i, id)) return true; return false; };
+/* ---------- «Мои герои» под большой архив: вкладки, поиск, плотный список, курган памяти ---------- */
+/* состояние окна держим здесь: вкладка, поиск, порядок, сколько павших показано */
+const PV = {tab: 'free', q: '', sort: 'lvl', dsort: 'ord', n: 20, lvOpen: false, hq: '', hlv: ''};
+const PV_ROWS = 12; // больше — плотный список строками, меньше — карточки
+const HALL_NEAR = 5; // в корчме в колонке «Герой»: выбранный и недавние
+const hClsName = h => (R.CLASSES[h.cls] || {}).name || h.cls || '';
+const lcf = s => s ? s[0].toLowerCase() + s.slice(1) : '';
+const yrsText = n => { const a = n % 10, b = n % 100; return n + ' ' + (a === 1 && b !== 11 ? 'год' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'года' : 'лет'); };
+const hAge = h => { const a = h._dead && h._dead.age != null ? h._dead.age : h.age; return a != null && !isNaN(a) ? Math.floor(a) : null; };
+const hLvl = h => (h._dead && h._dead.lvl) || h.level || 1;
+const hSleep = h => !!h.ageDied || !!(h._dead && (h._dead.sleep || /во сне/.test(h._dead.cause || '')));
+const hDeathAt = h => (h._dead && h._dead.at) || h._at || 0;
+const hGlory = h => hLvl(h) * 100 + ((h._dead && h._dead.deeds) || (h.deeds || []).length) * 12 + Math.min(60, (h._dead && h._dead.kills) || h.kills || 0);
+function heirText(h) { const x = h.heirOf; if (!x || !x.name) return '';
+  const rel = x.kind === 'child' ? (h.sex === 'f' ? 'дочь' : 'сын') : (h.sex === 'f' ? 'ученица' : 'ученик');
+  let gn = x.name; try { if (C.Q && C.Q.decl) gn = C.Q.decl(x.name, x.sex).g || x.name; } catch (e) {} return rel + ' ' + gn; }
+function sagaOfHero(id) { const M = sagaMeta(); for (const i of [1, 2, 3, 4, 5, FREE_I].filter(i => i <= SAGA_N || i === FREE_I)) if (sagaHolds(i, id)) return M[i] || {}; return null; }
+function whereText(h, sg) { const f = h.sex === 'f';
+  if (h._retired) return (f ? 'ушла' : 'ушёл') + ' на покой';
+  if (sg) return 'в пути' + (sg.name ? ` — «${sg.name}»` : '');
+  return (f ? 'свободна' : 'свободен') + (h._camp ? ` · последний поход — «${h._camp}»` : ''); }
+const fallText = h => { const d = h._dead || {}; return [d.place, d.cause].filter(Boolean).join(' — '); };
+const qOk = (h, q) => !q || String(h.name || '').toLowerCase().includes(q) || heirText(h).toLowerCase().includes(q);
+function sortHeroes(L, k) {
+  const by = {lvl: (a, b) => (hLvl(b) - hLvl(a)) || (b._at || 0) - (a._at || 0), at: (a, b) => (b._at || 0) - (a._at || 0), ord: (a, b) => hDeathAt(b) - hDeathAt(a),
+    name: (a, b) => String(a.name || '').localeCompare(String(b.name || ''), 'ru')};
+  return L.slice().sort(by[k] || by.lvl); }
+/* строка плотного списка: лицо, имя (и чей род), класс-уровень-возраст, где сейчас или где пал */
+function heroRow(h, o) { o = o || {}; const T = o.tag || 'div', age = hAge(h), heir = h.dead ? '' : heirText(h), sl = h.dead && hSleep(h);
+  const sg = o.sg !== undefined ? o.sg : (h.dead ? null : sagaOfHero(h.id));
+  const sub = h.dead ? `${esc(lcf(hClsName(h)))} ${hLvl(h)}-го ур.${age != null ? ', ' + yrsText(age) : ''}` : `${esc(lcf(hClsName(h)))}, ${h.level}-й ур.${age != null ? ', ' + yrsText(age) : ''}`;
+  const two = h.dead ? esc(fallText(h)) + (h._dead && h._dead.day ? `, день ${h._dead.day}` : '') : esc(whereText(h, sg));
+  return `<${T} class="prow${h.dead ? ' dead' : ''}${sl ? ' sleep' : ''}${o.on ? ' on' : ''}"${o.attr || ''}>${faceHTML(h.portrait, '')}<span class="pm"><b>${esc(h.name)}${heir ? `<span class="prod">${esc(heir)}</span>` : ''}</b><small>${sub}</small>${two ? `<small>${two}</small>` : ''}</span>${o.right || (sl ? '<span class="ptag">в свой срок</span>' : '')}</${T}>`; }
+/* карточка, когда героев немного */
+function heroCard(h, o) { o = o || {}; const age = hAge(h), heir = heirText(h), sg = o.sg !== undefined ? o.sg : sagaOfHero(h.id);
+  return `<div class="pcard">${faceHTML(h.portrait, '')}<div class="pm"><b>${esc(h.name)}</b>${heir ? `<div class="prod">${esc(heir)}</div>` : ''}<div class="note">${esc(hClsName(h))}, ${h.level}-й ур.${age != null ? ', ' + yrsText(age) : ''} · ${esc(R.priceText(h.gold || 0))}</div><div class="note">${esc(whereText(h, sg))}</div>${(h.holdings || []).length && C.holdingsText ? `<div class="note">Владения: ${esc(C.holdingsText(h).join('; '))}</div>` : ''}</div>${o.right || ''}</div>`; }
+/* курган памяти: самые славные сверху, ниже летопись по порядку гибели — по главам, по двадцать */
+function kurganHTML(list, q) {
+  const head = `<div class="kurhead"><b>Курган памяти</b><span class="note">Здесь помнят всех, кто не вернулся. Ушедшие во сне ушли в свой срок — им почёт особый.</span></div>`;
+  if (!list.length) return head + `<p class="note">${q ? 'Среди павших такого имени нет.' : 'Курган пуст. Пусть так будет подольше.'}</p>`;
+  let top = '';
+  if (!q && list.length > 5) top = `<h4 class="jh">Самые славные</h4><div class="kurtop">${list.slice().sort((a, b) => hGlory(b) - hGlory(a)).slice(0, 5).map(h => `<div class="kt${hSleep(h) ? ' sleep' : ''}">${faceHTML(h.portrait, '')}<b>${esc(h.name)}</b><small>${esc(lcf(hClsName(h)))} ${hLvl(h)}-го ур.${hAge(h) != null ? ', ' + yrsText(hAge(h)) : ''}</small><small>${esc(fallText(h))}</small>${h._dead && h._dead.camp ? `<small class="kc">«${esc(h._dead.camp)}»</small>` : ''}</div>`).join('')}</div>`;
+  const S = sortHeroes(list, PV.dsort), shown = S.slice(0, PV.n); let last = null, rows = '';
+  shown.forEach(h => { if (PV.dsort === 'ord') { const c = (h._dead && h._dead.camp) || ''; if (c !== last) { rows += `<div class="pgrp">${c ? '«' + esc(c) + '»' : 'Давние времена'}</div>`; last = c; } } rows += heroRow(h); });
+  const left = S.length - shown.length;
+  return head + top + `<h4 class="jh">Летопись павших</h4><div class="plist">${rows}</div>${left > 0 ? `<button class="btn small pmore" id="pp-more">Ещё… (${left})</button>` : ''}`;
+}
 function showPool(pick) {
   try { legacySync(); } catch (e) {}
-  const L = poolLoad(), live = L.filter(h => !h.dead && !h._retired), rest = L.filter(h => !h.dead && h._retired), dead = L.filter(h => h.dead);
-  const camp = pick && pick.camp, inP = pick && pick.inParty || [];
-  const card = h => { const why = pick ? poolWhy(h, camp, inP) : (h.dead ? 'пал' : h._retired ? 'на покое' : '');
-    return `<div class="pcard ${h.dead ? 'dead' : ''}">${faceHTML(h.portrait, '')}<div><b>${esc(h.name)}</b><div class="note">${esc(R.CLASSES[h.cls] ? R.CLASSES[h.cls].name : h.cls)}, ${h.level}-й ур. · ${esc(R.priceText(h.gold || 0))}${h._camp ? ' · ' + esc(h._camp) : ''}${!h.dead && sagaMeta() && Object.values(sagaMeta()).some(m => (m.ids || []).includes(h.id)) ? ' · в походе' : ''}</div>${(h.holdings || []).length && C.holdingsText ? `<div class="note">Владения: ${esc(C.holdingsText(h).join('; '))}</div>` : ''}${h._dead ? `<div class="note">${esc(h._dead.place)} — ${esc(h._dead.cause)}.</div>` : ''}</div>
-     ${pick ? (why ? `<span class="note why">${esc(why)}</span>` : `<button class="btn small" data-ppick="${h.id}">Взять</button>`) : ''}</div>`; };
-  openModal(`<h3 class="ttl"><span class="ui-i i-people"></span>${pick ? 'Кого посадить за стол' : 'Мои герои'}</h3>
-   ${pick ? `<p class="note">«${esc(C.CAMPS[camp].name)}» — для героев ${C.levelsOf(camp).join('–')}-го уровня. Новый герой сядет сразу на ${pick.level}-м.</p>` : '<p class="note">Свои герои у каждого игрока. Кто пал за чужим столом — пал навсегда.</p>'}
-   <div class="pool">${live.map(card).join('') || '<p class="note">Пока никого. Соберите героя.</p>'}</div>
-   ${(() => { const LG = pick ? [] : legacyLoad(), heirs = live.filter(h => !inAnySaga(h.id)); if (!LG.length) return '';
+  if (pick) return showPoolPick(pick);
+  const L = poolLoad(), live = L.filter(h => !h.dead && !h._retired), SG = {};
+  live.forEach(h => { SG[h.id] = sagaOfHero(h.id); });
+  const G = {free: live.filter(h => !SG[h.id]), road: live.filter(h => SG[h.id]), rest: L.filter(h => !h.dead && h._retired), dead: L.filter(h => h.dead)};
+  PV.q = ''; PV.n = 20; PV.tab = G.free.length ? 'free' : G.road.length ? 'road' : 'free';
+  const TABS = [['free', 'Свободны'], ['road', 'В пути'], ['rest', 'На покое'], ['dead', 'Павшие']];
+  const EMPTY = {free: live.length ? 'Свободных нет: все, кто жив, сейчас в пути.' : 'Пока никого. Соберите героя.', road: 'Сейчас никто не в пути.', rest: 'На покое пока никого.'};
+  openModal(`<h3 class="ttl"><span class="ui-i i-people"></span>Мои герои</h3>
+   <p class="note">Свои герои у каждого игрока. Кто пал за чужим столом — пал навсегда.</p>
+   ${(() => { const LG = legacyLoad(), heirs = G.free; if (!LG.length) return '';
      return `<h4 class="jh">Наследство</h4><p class="note">Владения павших ждут наследника. Передать можно герою, который сейчас не в пути (не в начатой саге).</p>` + LG.map((x, i) => `<div class="info">${esc(x.from ? 'От ' + (C.Q && C.Q.decl ? C.Q.decl(x.from).g : x.from) + ': ' : '')}${esc((C.ESTATE[x.holding.kind] || {name: x.holding.kind}).name)} (${esc(x.holding.place || '')}), ${x.holding.level}-я ступень
        ${heirs.length ? `<select data-lgh="${i}" style="width:auto;display:inline-block;margin:0 6px">${heirs.map(h => `<option value="${esc(h.id)}">${esc(h.name)}</option>`).join('')}</select> <button class="btn small" data-lg="${i}">Передать</button>` : '<span class="note">— наследника пока нет</span>'}</div>`).join(''); })()}
-   ${pick ? `<div class="row" style="margin-top:10px"><button class="btn primary" id="pp-new">Новый герой (${pick.level}-й ур.)</button></div>` : ''}
-   ${rest.length ? `<h4 class="jh">На покое</h4><div class="pool">${rest.map(card).join('')}</div>` : ''}
-   ${dead.length ? `<h4 class="jh">Павшие</h4><div class="pool">${dead.map(card).join('')}</div>` : ''}`);
-  $('#modal').querySelectorAll('[data-lg]').forEach(b => b.onclick = () => { const i = +b.dataset.lg, LG = legacyLoad(), x = LG[i], hid = $('#modal').querySelector(`[data-lgh="${i}"]`).value; const P = poolLoad(), h = P.find(y => y.id === hid);
-    if (!x || !h) return; (h.holdings = h.holdings || []).push(x.holding); LG.splice(i, 1); poolSave(P); legacySave(LG); toast(`${h.name} принимает наследство: ${(C.ESTATE[x.holding.kind] || {}).name || ''}.`); showPool(pick); });
-  if (!pick) return;
-  $('#modal').querySelectorAll('[data-ppick]').forEach(b => b.onclick = () => { const h = poolLoad().find(x => x.id === b.dataset.ppick); closeModal(); pick.done(h); });
+   <div class="stabs ptabs">${TABS.map(([k, t]) => `<button class="btn small" data-ptab="${k}">${t} (${G[k].length})</button>`).join('')}</div>
+   <div class="ptools"><input id="pp-q" type="search" autocomplete="off" placeholder="Найти по имени"><div class="tfilt" id="pp-sort"></div></div>
+   <div id="pp-body"></div>`, 'lg');
+  const M = $('#modal'), pp = M.querySelector('.paper');
+  M.querySelectorAll('[data-lg]').forEach(b => b.onclick = () => { const i = +b.dataset.lg, LG = legacyLoad(), x = LG[i], hid = M.querySelector(`[data-lgh="${i}"]`).value; const P = poolLoad(), h = P.find(y => y.id === hid);
+    if (!x || !h) return; (h.holdings = h.holdings || []).push(x.holding); LG.splice(i, 1); poolSave(P); legacySave(LG); toast(`${h.name} принимает наследство: ${(C.ESTATE[x.holding.kind] || {}).name || ''}.`); showPool(); });
+  const draw = () => {
+    const dk = PV.tab === 'dead', cur = dk ? PV.dsort : PV.sort, body = $('#pp-body'); if (!body) return;
+    M.querySelectorAll('[data-ptab]').forEach(b => b.classList.toggle('on', b.dataset.ptab === PV.tab));
+    const SO = dk ? [['ord', 'По порядку гибели'], ['lvl', 'По уровню'], ['name', 'По имени']] : [['lvl', 'По уровню'], ['at', 'Недавние'], ['name', 'По имени']];
+    const so = $('#pp-sort'); so.innerHTML = SO.map(([k, t]) => `<button class="btn small ${k === cur ? 'on' : ''}" data-psort="${k}">${t}</button>`).join('');
+    so.querySelectorAll('[data-psort]').forEach(b => b.onclick = () => { if (dk) PV.dsort = b.dataset.psort; else PV.sort = b.dataset.psort; draw(); });
+    const q = PV.q.trim().toLowerCase(), list = G[PV.tab].filter(h => qOk(h, q));
+    if (dk) body.innerHTML = kurganHTML(list, q);
+    else { const S = sortHeroes(list, PV.sort);
+      body.innerHTML = !S.length ? `<p class="note">${q ? 'Никого с таким именем.' : EMPTY[PV.tab]}</p>` : S.length > PV_ROWS ? `<div class="plist">${S.map(h => heroRow(h, {sg: SG[h.id]})).join('')}</div>` : `<div class="pool">${S.map(h => heroCard(h, {sg: SG[h.id]})).join('')}</div>`; }
+    paintFaces(body);
+    const mo = $('#pp-more'); if (mo) mo.onclick = () => { PV.n += 20; draw(); };
+    if (pp) pp.classList.toggle('scrolls', pp.scrollHeight > pp.clientHeight + 2);
+  };
+  M.querySelectorAll('[data-ptab]').forEach(b => b.onclick = () => { PV.tab = b.dataset.ptab; PV.n = 20; draw(); });
+  $('#pp-q').oninput = e => { PV.q = e.target.value; PV.n = 20; draw(); };
+  draw();
+}
+/* окно «Кого посадить за стол»: подходящие сверху, занятые ниже, не подходящие по уровню свёрнуты; павших здесь нет */
+function showPoolPick(pick) {
+  const camp = pick.camp, inP = pick.inParty || [], [lo, hi] = C.levelsOf(camp);
+  const live = poolLoad().filter(h => !h.dead && !h._retired), W = {};
+  live.forEach(h => { W[h.id] = poolWhy(h, camp, inP); });
+  const lvBad = h => !!W[h.id] && (h.level > hi || h.level < lo);
+  PV.q = ''; PV.lvOpen = false;
+  openModal(`<h3 class="ttl"><span class="ui-i i-people"></span>Кого посадить за стол</h3>
+   <p class="note">«${esc(C.CAMPS[camp].name)}» — для героев ${lo}–${hi}-го уровня. Новый герой сядет сразу на ${pick.level}-м.</p>
+   ${live.length > 6 ? '<div class="ptools"><input id="pp-q" type="search" autocomplete="off" placeholder="Найти по имени"></div>' : ''}
+   <div id="pp-body"></div>
+   <div class="row" style="margin-top:10px"><button class="btn primary" id="pp-new">Новый герой (${pick.level}-й ур.)</button></div>`, 'lg');
+  const M = $('#modal'), pp = M.querySelector('.paper');
+  const draw = () => { const body = $('#pp-body'); if (!body) return;
+    const q = PV.q.trim().toLowerCase(), L = live.filter(h => qOk(h, q));
+    const ok = sortHeroes(L.filter(h => !W[h.id]), 'lvl'), busy = sortHeroes(L.filter(h => W[h.id] && !lvBad(h)), 'lvl'), far = sortHeroes(L.filter(lvBad), 'lvl');
+    const rows = ok.length + busy.length + (PV.lvOpen ? far.length : 0) > PV_ROWS;
+    const one = h => { const why = W[h.id], right = why ? `<span class="note why">${esc(why)}</span>` : `<button class="btn small" data-ppick="${h.id}">Взять</button>`; return rows ? heroRow(h, {right}) : heroCard(h, {right}); };
+    const wrap = A => !A.length ? '' : rows ? `<div class="plist">${A.map(one).join('')}</div>` : `<div class="pool">${A.map(one).join('')}</div>`;
+    const none = q ? (busy.length || far.length ? '' : 'Никого с таким именем.') : live.length ? 'Сейчас за этот стол сесть некому. Можно собрать нового героя.' : 'Пока никого. Соберите героя.';
+    body.innerHTML = (ok.length ? wrap(ok) : none ? `<p class="note">${none}</p>` : '')
+      + (busy.length ? `<h4 class="jh">Заняты</h4>${wrap(busy)}` : '')
+      + (far.length ? `<button class="btn small pfold${PV.lvOpen ? ' on' : ''}" id="pp-lv">Не подходят по уровню (${far.length})</button>${PV.lvOpen ? wrap(far) : ''}` : '');
+    paintFaces(body);
+    body.querySelectorAll('[data-ppick]').forEach(b => b.onclick = () => { const h = poolLoad().find(x => x.id === b.dataset.ppick); closeModal(); pick.done(h); });
+    const lv = $('#pp-lv'); if (lv) lv.onclick = () => { PV.lvOpen = !PV.lvOpen; draw(); };
+    if (pp) pp.classList.toggle('scrolls', pp.scrollHeight > pp.clientHeight + 2);
+  };
+  if ($('#pp-q')) $('#pp-q').oninput = e => { PV.q = e.target.value; draw(); };
   $('#pp-new').onclick = () => showCreate(true, {level: pick.level, camp, done: h => { poolPut(h); pick.done(h); }, cancel: () => showPool(pick)});
+  draw();
 }
 
 /* ---------- корчма Вечного мира: сменить своего героя ---------- */
@@ -42303,6 +42434,26 @@ function showHall(opt) {
   battle = null; g = null; renderTop();
   const pool = () => poolLoad().filter(h => !h.dead);
   if (!KR.hero || !pool().some(h => h.id === KR.hero)) KR.hero = (pool().slice(-1)[0] || {}).id || null;
+  /* в колонке «Герой» — выбранный и ещё несколько недавних; весь список — отдельным окном с поиском */
+  const hallNear = ps => { const cur = ps.find(h => h.id === KR.hero); return [cur].concat(ps.filter(h => h !== cur).sort((a, b) => (b._at || 0) - (a._at || 0))).filter(Boolean).slice(0, HALL_NEAR); };
+  const hallAll = () => {
+    const ps = sortHeroes(pool(), 'at'); PV.hq = ''; PV.hlv = '';
+    const BK = [[1, 3], [4, 6], [7, 9], [10, 12], [13, 99]].filter(([a, b]) => ps.some(h => h.level >= a && h.level <= b));
+    openModal(`<h3 class="ttl"><span class="ui-i i-people"></span>Кто сядет у очага</h3>
+     <p class="note">С выбранным героем вы примете зов к столу или сядете по коду.</p>
+     <div class="ptools"><input id="hp-q" type="search" autocomplete="off" placeholder="Найти по имени">${BK.length > 1 ? `<div class="tfilt" id="hp-lv"><button class="btn small on" data-hlv="">Любой уровень</button>${BK.map(([a, b]) => `<button class="btn small" data-hlv="${a}-${b}">${b > 50 ? a + '-й и выше' : a + '–' + b + '-й'}</button>`).join('')}</div>` : ''}</div>
+     <div id="hp-body"></div>`, 'lg');
+    const M = $('#modal'), pp = M.querySelector('.paper');
+    const paint = () => { const body = $('#hp-body'); if (!body) return; const q = PV.hq.trim().toLowerCase(), [a, b] = PV.hlv ? PV.hlv.split('-').map(Number) : [0, 999];
+      const L = ps.filter(h => qOk(h, q) && h.level >= a && h.level <= b);
+      body.innerHTML = L.length ? `<div class="plist">${L.map(h => heroRow(h, {tag: 'button', on: h.id === KR.hero, attr: ` data-hpick="${esc(h.id)}" type="button"`})).join('')}</div>` : '<p class="note">Никого не нашлось.</p>';
+      paintFaces(body);
+      body.querySelectorAll('[data-hpick]').forEach(x => x.onclick = () => { KR.hero = x.dataset.hpick; closeModal(); korchmaEnsure('hall'); draw(); });
+      if (pp) pp.classList.toggle('scrolls', pp.scrollHeight > pp.clientHeight + 2); };
+    $('#hp-q').oninput = e => { PV.hq = e.target.value; paint(); };
+    M.querySelectorAll('[data-hlv]').forEach(x => x.onclick = () => { PV.hlv = x.dataset.hlv; M.querySelectorAll('[data-hlv]').forEach(y => y.classList.toggle('on', y === x)); paint(); });
+    paint();
+  };
   const name = () => ($('#h-name') && $('#h-name').value.trim()) || myName();
   const mine = code => { const b = Net.savedBack(); return !!b && b.code === code; };
   const join = (code, key) => { code = String(code || '').toUpperCase(); if (!/^[A-Z2-9]{4}$/.test(code)) { KR.msg = 'Код — четыре знака.'; return draw(); }
@@ -42354,13 +42505,15 @@ function showHall(opt) {
       <div class="krooms">${[['common', 'Общий зал', 'столы и разговоры'], ['trade', 'Торговый ряд', Net.Hall.lots().length ? Net.Hall.lots().length + ' лот.' : 'купить, продать']].map(([k, t, sub]) => `<button class="kroom ${KR.room === k ? 'on' : ''}" data-room="${k}"><b>${t}</b><small>${sub}</small><span class="badge">${(KR.unread || {})[k] || ''}</span></button>`).join('')}</div>
       <button class="btn" id="h-title">На титул</button></div>
      <div class="kgrid"><aside class="kcol kme"><h3 class="ttl">Вы</h3><label for="h-name">Имя за столом</label><input id="h-name" maxlength="16" value="${esc(Net.LS('name') || '')}" placeholder="${esc(myName())}">
-       <label>Герой</label><div class="pool hpool">${ps.map(h => `<button class="pcard ${h.id === KR.hero ? 'on' : ''}" data-hh="${h.id}">${faceHTML(h.portrait, '')}<div><b>${esc(h.name)}</b><div class="note">${esc(R.CLASSES[h.cls].name)}, ${h.level}-й ур.${heroSaga(h.id) || (sagaMeta()[SAGA_I] || {ids: []}).ids.includes(h.id) ? ' · в походе' : ''}</div></div></button>`).join('') || '<p class="note">Своих героев пока нет.</p>'}</div>
+       <label>Герой</label><div class="pool hpool">${hallNear(ps).map(h => `<button class="pcard ${h.id === KR.hero ? 'on' : ''}" data-hh="${h.id}">${faceHTML(h.portrait, '')}<div><b>${esc(h.name)}</b><div class="note">${esc(hClsName(h))}, ${h.level}-й ур.${heroSaga(h.id) || (sagaMeta()[SAGA_I] || {ids: []}).ids.includes(h.id) ? ' · в походе' : ''}</div></div></button>`).join('') || '<p class="note">Своих героев пока нет.</p>'}</div>
+       ${ps.length > HALL_NEAR ? `<button class="btn small hall-all" id="h-all">Все герои (${ps.length})…</button>` : ''}
        <button class="btn" id="h-new">Новый герой</button><p class="note" id="h-st">${esc(KR.msg)}</p></aside>
       ${trade ? centerBox + `<div class="kstack">${chatBox}${peopleBox}</div>` : chatBox + `<div class="kstack">${centerBox}${peopleBox}</div>`}</div></div>`;
     paintFaces($('#main')); bindWho($('#main')); const lg = $('#k-log'); if (lg) lg.scrollTop = lg.scrollHeight;
     const m = $('#main');
     m.querySelectorAll('[data-room]').forEach(b => b.onclick = () => { KR.room = b.dataset.room; (KR.unread || {})[KR.room] = 0; draw(); });
     m.querySelectorAll('[data-hh]').forEach(b => b.onclick = () => { KR.hero = b.dataset.hh; korchmaEnsure('hall'); draw(); });
+    if ($('#h-all')) $('#h-all').onclick = () => hallAll();
     $('#h-name').onchange = () => { Net.LS('name', name()); korchmaEnsure('hall'); lotsPublish(); };
     $('#h-new').onclick = () => showCreate(true, {level: 1, done: h => { poolPut(h); KR.hero = h.id; korchmaEnsure('hall'); draw(); }, cancel: () => draw()});
     $('#h-title').onclick = () => showTitle();
@@ -42483,7 +42636,7 @@ if (Net) Net.setHooks({
   cmd: (pid, c) => doCmd(c, pid), toast: t => toast(t), presence: onPresence, pushTo: pid => publish(true, pid), players: onPlayers,
   sync: onSync, chat: onChat, typing: onTyping, lost: onLost, bye: onBye,
 });
-window.__net = {toMap: () => showMap(), cur: () => { const S = battle, u = S && !S.over && B.current(S); return u ? {side: u.side, ai: !!u.ai, owner: u.ref && ownerOf(u.ref.id) || null} : null; }, Net, state: () => ({SCR, SCR_IN, META, g, battle, LOBBY, VOTE, CHAT}), act, doCmd, publish, showNetMenu, showTable, showTrade, sendChat, poolLoad, poolSave, myHeroes, leader, joinHero};
+window.__net = {toMap: () => showMap(), cur: () => { const S = battle, u = S && !S.over && B.current(S); return u ? {side: u.side, ai: !!u.ai, owner: u.ref && ownerOf(u.ref.id) || null} : null; }, Net, state: () => ({SCR, SCR_IN, META, g, battle, LOBBY, VOTE, CHAT}), act, doCmd, publish, showNetMenu, showTable, showTrade, sendChat, poolLoad, poolSave, showPool, myHeroes, leader, joinHero};
 
 /* отладка */
 /* деньги: «3 зм 2 см» → цифра и монетка своего металла */

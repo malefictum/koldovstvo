@@ -42101,7 +42101,7 @@ C.cusCustomText = reg => { const c = C.CUSTOMS[reg]; if (!c) return ''; return `
      Расцвет (25–39): то же, 25%. Зрелость (40, 50, 60): обмен −1 к телу (Сила/Ловкость/Телосложение) и +1 к уму
      (Мудрость/Интеллект/Очарование) — выбором игрока (сцена age_swap), у наёмников и в автотестах — сам.
      Старость (65, 70, 75…): −1 Сила и −1 Телосложение, не ниже 6. Возраст не поднимает ничего выше 16.
-   • Смерть от старости (только Вечный мир, только герои): с 65 лет в каждый день рождения 5% + 2% за год сверх 65.
+   • Смерть от старости (только Вечный мир, только герои): с 65 лет в каждый день рождения 1% + 0,25% за год сверх 65.
      Выпало — «последний сезон» (90 дней): знаки в журнале и на ночлеге, последнее желание (личное сказание),
      потом герой уходит во сне на ночлеге. Из Нави его не вернуть.
    • Наследник (Вечный мир): настоящий ребёнок 13 лет и старше (w2_kids.js, C.kidHeirKid) — сын или дочь; нет такого,
@@ -42289,7 +42289,10 @@ C.ageBirthday = function (g, h, o) {
     else h.agePend = (h.agePend || []).concat(A);
   }
   if (A >= 65 && A % 5 === 0) {
-    const lost = ['str', 'con'].filter(s => (h.stats[s] || 0) > C.AGE_FLOOR && C.ageStat(h, s, -1, true));
+    // воинские классы: когда Сила или Телосложение уже опустились до 9 — дальше убывает лишь одна из двух (та, что выше)
+    let pool = ['str', 'con'];
+    if (C.AGE_WAR.includes(h.cls) && Math.min(h.stats.str || 0, h.stats.con || 0) <= 9) { const s0 = (h.stats.str || 0) === (h.stats.con || 0) ? (A % 10 ? 'con' : 'str') : (h.stats.str || 0) > (h.stats.con || 0) ? 'str' : 'con'; pool = [s0]; }
+    const lost = pool.filter(s => (h.stats[s] || 0) > C.AGE_FLOOR && C.ageStat(h, s, -1, true));
     if (lost.length) out.push(fmtH(pickT(C.AGE_OLD, h.name + A), h) + ` (${lost.map(s => R.STAT_NAME[s]).join(' и ')} убывает.)`);
   }
   h.ageAct = act0();
@@ -42302,7 +42305,8 @@ C.ageBirthday = function (g, h, o) {
   if (fate && !o.trans && g && isFree(g) && !h.ageLast) C.ageLastStart(g, h);
   return {lines: out, fate};
 };
-C.ageDeathChance = A => A < 65 ? 0 : 0.05 + 0.02 * (A - 65);
+C.AGE_WAR = C.AGE_WAR || ['druzhinnik', 'yaryi', 'obetnik'];
+C.ageDeathChance = A => A < 65 ? 0 : 0.01 + 0.0025 * (A - 65); // решение Ника 25.10: до 90 доживает каждый третий, до 100 — каждый седьмой
 
 /* ---------- ход времени ---------- */
 C.ageTick = function (g) {
