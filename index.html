@@ -416,7 +416,7 @@ button.prow:hover{background:rgba(255,255,255,.3)}button.prow.on{box-shadow:inse
 @media (max-width:1100px){.kgrid{grid-template-columns:minmax(0,1fr) minmax(260px,320px)}.kgrid .kme{grid-column:1/-1}}
 @media (max-width:760px){.kgrid{grid-template-columns:1fr}.kcard{grid-template-columns:1fr}.kdoll{max-width:260px;margin:0 auto}.kstats{grid-template-columns:repeat(3,minmax(0,1fr))}.kchat .hlog{min-height:46vh}.korchma .khead{min-height:110px}}
 
-.fxl{list-style:none;margin:0;padding:0;display:grid;gap:6px}.fxl li{padding:6px 10px;border-radius:6px;border-left:3px solid #4f7fa8;background:rgba(79,127,168,.1);display:grid;gap:1px}.fxl li.fb{border-left-color:#a3341f;background:rgba(163,52,31,.09)}
+.fxl{list-style:none;margin:0;padding:0;display:grid;gap:6px}.fxl li{padding:6px 10px;border-radius:6px;border-left:3px solid #4f7fa8;background:rgba(79,127,168,.1);display:grid;gap:1px}.fxl li.fb{border-left-color:#a3341f;background:rgba(163,52,31,.09)}.fxon{margin-top:2px;font-size:.92em}.fxon .fb{color:#b5452c}.fxon .fg{color:#3f6f98}
 .fxl li b{font:700 14px var(--t-label)}.fxl .fl{font:700 12px var(--t-label);color:#2f5a7a}.fxl li.fb .fl{color:#8a2a18}.fxl small{color:var(--ink-2);font-size:13px}.ipface{width:72px;height:72px;border-radius:6px}
 #blog .ldmg,#side .ldmg,.ldmg{color:#ff6a4d;font:700 15px var(--t-label);margin-left:4px;text-shadow:0 1px 2px #000}.lheal{color:#7fdc6a;font:700 15px var(--t-label);margin-left:4px;text-shadow:0 1px 2px #000}.ldmgn{color:#ff8f74}
 .jtabs{margin:4px 0 10px}.jbody{display:grid;gap:10px}.jcard{border:1px solid rgba(107,85,55,.45);border-radius:8px;padding:10px 12px;background:rgba(255,255,255,.22);display:grid;gap:5px}
@@ -27283,12 +27283,22 @@ const f0 = W.forage;
 W.forage = function (g) {
   const here = W.pos(g), Tt = W.T[here.t] || W.T.meadow, list = GAME[here.t];
   if (!list || here.road) return f0.apply(this, arguments); // старое поведение: голая земля, дорога
-  C.passH(g, C.HOURS.hunt);
   const hs = C.alive(g); if (!hs.length) return null;
+  // правило повтора: кто уже упустил дичь на этой клетке сегодня, снова сразу не идёт — идёт другой
+  const tryKey = 'hunt:' + here.c + ',' + here.r, fresh = C.failTried ? hs.filter(h => !C.failTried(g, tryKey, h, 'day')) : hs;
+  C.passH(g, C.HOURS.hunt);
+  let fr = null;
+  if (!fresh.length) C.note(g, hs.length > 1 ? 'Все уже ходили сегодня по здешним следам, и дичь распугана: за зверем — в другом месте или завтра. Остаётся собирать, что растёт.' : C.failAgain(hs[0]) + '. Дичь здесь распугана до завтра — остаётся собирать, что растёт.');
+  else {
   const hb = h => R.mod(h.stats.wis) + R.skill(h, 'Выживание') + 2 * T(h, 'ohotnik') + (C.huntDog ? C.huntDog(g) : 0);
-  const hunter = hs.slice().sort((a, b) => hb(b) - hb(a))[0];
+  const hunter = fresh.slice().sort((a, b) => hb(b) - hb(a))[0];
   const dc = 12 + (here.t === 'marsh' ? 1 : 0) + (T(hunter, 'ohotnik') ? 0 : 3);
-  const r = R.d(20), tot = r + hb(hunter), ok = r === 20 || (r !== 1 && tot >= dc);
+  const r = R.d(20), tot = r + hb(hunter);
+  let ok = r === 20 || (r !== 1 && tot >= dc);
+  // голос мастера: «чуть не хватило» — добыли, но заплатили (время, шум); неудача и беда — осложнение
+  const rr = {ok, roll: r, total: tot, dc, hero: hunter};
+  fr = !ok && C.failDeg && C.failDeg(rr) === 'near' ? C.failHit(g, rr, 'Выживание', {price: ['time', 'noise'], enc: true}) : null;
+  if (fr && fr.priced) ok = true; else if (!ok && C.failMark) C.failMark(g, tryKey, hunter);
   if (ok) {
     const best = list.filter(([, m]) => m <= 2 + Math.max(0, tot - dc) * 1.5 + 2).pop() || list[0];
     const cutter = hs.slice().sort((a, b) => T(b, 'zhivotn') - T(a, 'zhivotn'))[0], zt = T(cutter, 'zhivotn');
@@ -27299,6 +27309,8 @@ W.forage = function (g) {
     C.note(g, `${hunter.name} выходит на след и добывает дичь: ${best[0]}. ${zt ? `${cutter.name} умело разделывает тушу` : 'Разделали тушу как умели'}, и в суму идёт мяса ${plural(meat, 'фунт', 'фунта', 'фунтов')}${hide}.`);
     g.fire = g.fire && g.fire.day === g.day ? g.fire : g.fire; // огонь не разводит
   } else C.note(g, pick([`${hunter.name} полдня ходит по следу, но дичь всё-таки уходит.`, `${hunter.name} подбирается к зверю, но тот срывается с места раньше, чем можно ударить. Пусто.`, `Следы оказываются старыми: звери давно ушли. ${hunter.name} возвращается ни с чем.`]) + (T(hunter, 'ohotnik') ? '' : ' Без охотничьей сноровки дичь уходит чаще.'));
+  if (!ok && C.failHit) fr = C.failHit(g, rr, 'Выживание', {enc: true});
+  }
   // припасы: коренья, колосья, грибы, орехи — по рельефу и времени года; «Земледелие» находит больше
   {
     const season = C.seasonOf(g);
@@ -27314,7 +27326,7 @@ W.forage = function (g) {
   // травник по-прежнему находит травы
   const herbal = hs.find(h => ['volhv', 'zhrets', 'vedmak'].includes(h.cls) || T(h, 'travy'));
   if (herbal && R.rand() < 0.5) { herbal.inv.push('zele_lecheniya'); C.note(g, `${herbal.name} заодно набирает трав и варит зелье лечения.`); }
-  if (R.rand() < (Tt.danger || 0.1) * 0.5) { const enc = C.encounter(g, Tt.enc); if (enc) { if (enc.battle) { enc.battle.place = (Tt.word || 'округа'); enc.battle.field = enc.battle.field || C.fieldFor(Tt.enc === 'swamp' ? 'swamp' : Tt.enc, C.isNight(g)); } return {enc}; } }
+  if ((fr && fr.noise) || R.rand() < (Tt.danger || 0.1) * 0.5) { const enc = C.encounter(g, Tt.enc); if (enc) { if (enc.battle) { enc.battle.place = (Tt.word || 'округа'); enc.battle.field = enc.battle.field || C.fieldFor(Tt.enc === 'swamp' ? 'swamp' : Tt.enc, C.isNight(g)); } return {enc}; } }
   return null;
 };
 /* что можно собрать в поле: по времени года и рельефу */
@@ -31430,6 +31442,12 @@ const pickH = (g, score, ok) => { const hs = C.alive(g).filter(h => !ok || ok(h)
 /* проверка выбранным героем: бонус ремесла вычитается из сложности, в окне показывается честный итог */
 const chk = (g, h, stat, skill, dc, bonus) => { bonus = bonus || 0; g.claimHero = h.id; const r = C.bestCheck(g, stat, skill, dc - bonus); r.dc = dc; r.total += bonus; r.hero = h; g.lastCheck = r; return r; };
 const hurt = (h, n) => { h.hp = Math.max(1, h.hp - n); };
+/* голос мастера (w2_fail.js): степень неудачи, правило повтора, развилка «успех с ценой» */
+const near = c => !!(C.failDeg && C.failOffer && C.failDeg(c) === 'near');
+const tried = (g, k, h) => !!(h && C.failTried && C.failTried(g, k, h));
+const mark = (g, k, h) => { if (C.failMark && h) C.failMark(g, k, h); };
+const failMore = (g, c, skill) => { if (C.failHit) C.failHit(g, c, skill, {}); };
+const tryKey = (d, what, id) => 'dg' + what + ':' + d.seed + ':' + id;
 const isCls = (h, ...c) => c.includes(h.cls);
 const anyCls = (g, ...c) => C.alive(g).filter(h => c.includes(h.cls)).sort((a, b) => b.level - a.level)[0];
 const nimble = h => isCls(h, 'tat', 'dushegub', 'lovchiy') || st(h, 'dex') >= 2 || T(h, 'akrob') >= 2;
@@ -31610,7 +31628,8 @@ function SCN(g) {
         const h = pickH(g2, x => st(x, 'wis') + R.skill(x, 'Поиск') + (x.cls === 'tat' ? 5 : 0) + 2 * T(x, 'obokrast'));
         const c = chk(g2, h, 'wis', 'Поиск', 15 + Math.floor(dd.lvl / 3), (h.cls === 'tat' ? 5 : 0) + 2 * T(h, 'obokrast'));
         if (c.ok) { take(g2, (60 + 50 * dd.lvl) * (1 + R.d(3)), dropFor(g2, dd, dd.lvl + 1).slice(0, 1), `${h.name} вынимает неплотный камень, а за ним тайник:`); C.giveXP(g2, 15 * dd.lvl, 'тайник'); }
-        else say(dd, 'Простукали каждый камень, прощупали щели — пусто. То ли нет здесь ничего, то ли спрятано слишком хорошо.'); return null; })});
+        else if (near(c)) return C.failOffer(g2, 'dg_tainik', {back: 'dungeon', bg: K[dd.kind].bg, room: rr.id, h: h.id, text: `${C.failSay(g2, h, 'Поиск', 'near')} Кладка здесь и правда иная. Можно разобрать её всю, до последнего камня, — уйдёт час, а то и больше.`, yes: 'Разобрать кладку до последнего камня', no: 'Бросить и идти дальше'});
+        else { say(dd, 'Простукали каждый камень, прощупали щели — пусто. То ли нет здесь ничего, то ли спрятано слишком хорошо.'); failMore(g2, c, 'Поиск'); } return null; })});
     }
     if (r.type === 'laz' && !r.crawled) {
       const nm = pickH(g, x => st(x, 'dex') + (x.cls === 'tat' ? 3 : 0), nimble);
@@ -31640,7 +31659,7 @@ function SCN(g) {
     const lv = anyCls(g, 'lovchiy');
     if (lv && !r.tracks) ch.push({t: `${lv.name}: прочесть следы (Мудрость, Выживание)`, do: act((g2, dd, rr) => { rr.tracks = 1; const h = C.alive(g2).find(x => x.id === lv.id) || lv;
       const c = chk(g2, h, 'wis', 'Выживание', 10 + Math.floor(dd.lvl / 3), 2);
-      if (!c.ok) { say(dd, 'Пол затоптан вдоль и поперёк, а камень следа не держит: ничего не разобрать.'); return null; }
+      if (!c.ok) { say(dd, 'Пол затоптан вдоль и поперёк, а камень следа не держит: ничего не разобрать.'); failMore(g2, c, 'Выживание'); return null; }
       const near = {}; const q = [[dd.at, 0]]; near[dd.at] = 1; const found = [];
       while (q.length) { const [c0, k] = q.shift(); if (k >= 2) continue; dd.edges.filter(e => (e.a === c0 || e.b === c0) && (!e.secret || e.found)).forEach(e => { const o = other(e, c0); if (near[o]) return; near[o] = 1; q.push([o, k + 1]); if ((dd.rooms[o].foes || []).length) { dd.known[o] = 1; found.push(o); } }); }
       const kd = {kurgan: 'следы босых ног — костяных, без плоти', peshchera: 'когти, помёт, клочья шерсти', ruiny: 'сапоги, много сапог, и капли воска от свечей', podval: 'мелкие следы, как у козлёнка, только на двух ногах'}[dd.kind];
@@ -31653,7 +31672,8 @@ function SCN(g) {
       const hid = dd.edges.filter(e => (e.a === dd.at || e.b === dd.at) && e.secret && !e.found);
       if (c.ok && hid.length) { hid.forEach(e => { e.found = 1; }); say(dd, `${h.name} стучит рукоятью по стене, и в одном месте камень отзывается гулко. Его удаётся сдвинуть, а за ним тайный ход ${DIRS[dirOf(dd, dd.at, other(hid[0], dd.at))][2].toLowerCase()}.`); C.giveXP(g2, 10 * dd.lvl, 'тайный ход'); }
       else if (c.ok) say(dd, 'Стены глухие, кладка цельная: тайных ходов здесь нет.');
-      else say(dd, 'Долго стучали по стенам и слушали, но так ничего и не услышали.');
+      else if (near(c)) return C.failOffer(g2, 'dg_knock', {back: 'dungeon', bg: K[dd.kind].bg, room: dd.at, h: h.id, text: `${C.failSay(g2, h, 'Поиск', 'near')} Где-то здесь камень отозвался не так, как все, — или почудилось. Можно простучать стены ещё раз, медленно, камень за камнем.`, yes: 'Простучать ещё раз, камень за камнем', no: 'Не тратить время'});
+      else { say(dd, 'Долго стучали по стенам и слушали, но так ничего и не услышали.'); failMore(g2, c, 'Поиск'); }
       return null; })});
     // ночлег в подземелье: полный отдых до утра, но на спящих могут выйти бродячие твари
     if (!['boss', 'sokr'].includes(r.type) && d.sleptDay !== g.day) {
@@ -31687,21 +31707,27 @@ function SCN(g) {
               else if (c.total < c.dc - 4) { say(dd, 'Рука дрогнула всего на волосок, но этого хватило.'); spring(g2, dd, fr, h); } else say(dd, `${h.name} отступает от двери: ловушка не далась. Можно попробовать ещё раз.`); return null; })});
             else lines.push(['n', `На двери ${DIRS[k][3]} стоит ловушка — ${TRAPS[e.trap.k].n}. Снять её некому: тут нужен тать или тот, кто учился взлому.`]); }
         }
-        const lp = pickH(g, x => st(x, 'dex') + R.skill(x, 'Ловкость рук') + 2 * T(x, 'zamki') + (x.cls === 'tat' ? 4 : 0), x => x.cls === 'tat' || T(x, 'zamki') >= 1);
+        const lockOk = x => x.cls === 'tat' || T(x, 'zamki') >= 1, lockSc = x => st(x, 'dex') + R.skill(x, 'Ловкость рук') + 2 * T(x, 'zamki') + (x.cls === 'tat' ? 4 : 0), lk = tryKey(d, 'l', e.id);
+        const lp0 = pickH(g, lockSc, lockOk), lp = pickH(g, lockSc, x => lockOk(x) && !tried(g, lk, x));
+        if (lp0 && !lp && (e.jam || 0) < 2) ch.push({t: `${lp0.name}: вскрыть замок двери ${DIRS[k][3]} (Ловкость, Знание замков)`, if: () => false, off: C.failAgain ? C.failAgain(lp0) : 'уже пробовали'});
         if (lp && (e.jam || 0) < 2) ch.push({t: `${lp.name}: вскрыть замок двери ${DIRS[k][3]} (Ловкость, Знание замков)`, do: act((g2, dd) => { const ee = dd.edges[e.id];
-          const h = pickH(g2, x => st(x, 'dex') + R.skill(x, 'Ловкость рук') + 2 * T(x, 'zamki') + (x.cls === 'tat' ? 4 : 0), x => x.cls === 'tat' || T(x, 'zamki') >= 1);
+          const h = pickH(g2, lockSc, x => lockOk(x) && !tried(g2, lk, x)) || lp;
           if (ee.trap && !ee.trap.off) spring(g2, dd, {trap: ee.trap}, h);
           const c = chk(g2, h, 'dex', 'Ловкость рук', 14 + Math.floor(dd.lvl / 2), 2 * T(h, 'zamki') + (h.cls === 'tat' ? 4 : 0));
           if (c.ok) { ee.open = 1; say(dd, `${h.name} долго колдует отмычкой, пока в замке не щёлкает. Дверь подаётся без звука.`); C.giveXP(g2, 10 * dd.lvl, 'замок вскрыт'); }
-          else { ee.jam = (ee.jam || 0) + 1; say(dd, ee.jam >= 2 ? 'Отмычка с хрустом ломается в скважине. Теперь эту дверь только выбивать.' : 'Замок тугой и ржавый, не поддался. Можно попробовать ещё раз.'); }
+          else if (near(c)) return C.failOffer(g2, 'dg_lock', {back: 'dungeon', bg: K[dd.kind].bg, e: e.id, h: h.id, lk, text: `${C.failSay(g2, h, 'Ловкость рук', 'near')} Замок почти поддался. Можно дожать его силой — он откроется, но скрежет разнесётся по ходам.`, yes: 'Дожать замок, не таясь', no: 'Отступить от замка'});
+          else { mark(g2, lk, h); ee.jam = (ee.jam || 0) + 1; say(dd, ee.jam >= 2 ? 'Отмычка с хрустом ломается в скважине. Теперь эту дверь только выбивать.' : 'Замок тугой и ржавый, не поддался. Можно попробовать ещё раз.'); }
           return null; })});
-        const br = pickH(g, x => st(x, 'str') + R.skill(x, 'Атлетика') + (x.cls === 'druzhinnik' ? 3 : x.cls === 'yaryi' ? 2 : 0));
-        ch.push({t: `${br.name}: выбить дверь ${DIRS[k][3]} (Сила, Атлетика)`, do: act((g2, dd) => { const ee = dd.edges[e.id];
-          const h = pickH(g2, x => st(x, 'str') + R.skill(x, 'Атлетика') + (x.cls === 'druzhinnik' ? 3 : x.cls === 'yaryi' ? 2 : 0));
+        const brSc = x => st(x, 'str') + R.skill(x, 'Атлетика') + (x.cls === 'druzhinnik' ? 3 : x.cls === 'yaryi' ? 2 : 0), bk = tryKey(d, 'b', e.id);
+        const br0 = pickH(g, brSc), br = pickH(g, brSc, x => !tried(g, bk, x));
+        if (!br) ch.push({t: `${br0.name}: выбить дверь ${DIRS[k][3]} (Сила, Атлетика)`, if: () => false, off: C.failAgain ? C.failAgain(br0) : 'уже пробовали'});
+        else ch.push({t: `${br.name}: выбить дверь ${DIRS[k][3]} (Сила, Атлетика)`, do: act((g2, dd) => { const ee = dd.edges[e.id];
+          const h = pickH(g2, brSc, x => !tried(g2, bk, x)) || br;
           if (ee.trap && !ee.trap.off) spring(g2, dd, {trap: ee.trap}, h);
           const c = chk(g2, h, 'str', 'Атлетика', 15 + Math.floor(dd.lvl / 3), h.cls === 'druzhinnik' ? 3 : h.cls === 'yaryi' ? 2 : 0);
           if (c.ok) { ee.open = 1; ee.broken = 1; alarm(g2, dd, 2, `${h.name} бьёт плечом раз, другой — дверь вылетает с петель. Грохот катится по ходам.`); }
-          else alarm(g2, dd, 1, 'Дверь гудит от удара, но держит, а эхо катится по ходам далеко вглубь.');
+          else if (near(c)) return C.failOffer(g2, 'dg_door', {back: 'dungeon', bg: K[dd.kind].bg, e: e.id, h: h.id, bk, text: `${C.failSay(g2, h, 'Атлетика', 'near')} Петли уже подались. Ещё один удар со всей силы — и дверь вылетит, только плечу это даром не пройдёт.`, yes: 'Ударить ещё раз, не жалея плеча', no: 'Отступить от двери'});
+          else { mark(g2, bk, h); alarm(g2, dd, 1, 'Дверь гудит от удара, но держит, а эхо катится по ходам далеко вглубь.'); }
           return null; })});
         return;
       }
@@ -31772,6 +31798,26 @@ C.dungeonEnter = function (g, kind, o) {
   return 'dungeon';
 };
 
+/* развилки «успех с ценой» (w2_fail.js: сцена fail_fork) */
+C.FAIL_OFFER = C.FAIL_OFFER || {};
+const offH = (g, o) => C.alive(g).find(x => x.id === o.h) || C.alive(g)[0];
+Object.assign(C.FAIL_OFFER, {
+  dg_lock: {yes: (g, o) => { const d = DG(g), e = d && d.edges[o.e]; if (!e) return 'dungeon'; d.msg = []; const h = offH(g, o); e.open = 1;
+      alarm(g, d, 1, `${h ? h.name : 'Кто-то'} налегает на отмычку, и замок с визгом проворачивается. Дверь открыта, но скрежет ушёл по ходам далеко вглубь.`); C.giveXP(g, 10 * d.lvl, 'замок вскрыт'); return 'dungeon'; },
+    no: (g, o) => { const d = DG(g), e = d && d.edges[o.e]; if (!e) return 'dungeon'; d.msg = []; mark(g, o.lk, offH(g, o)); e.jam = (e.jam || 0) + 1; say(d, e.jam >= 2 ? 'Отмычка с хрустом ломается в скважине. Теперь эту дверь только выбивать.' : 'Замок тугой и ржавый, не поддался. Можно попробовать ещё раз — только не сразу.'); return 'dungeon'; }},
+  dg_door: {yes: (g, o) => { const d = DG(g), e = d && d.edges[o.e]; if (!e) return 'dungeon'; d.msg = []; const h = offH(g, o); e.open = 1; e.broken = 1; if (h) hurt(h, R.d(4));
+      alarm(g, d, 2, `${h ? h.name : 'Кто-то'} бьёт ещё раз, вкладывая всё, — дверь вылетает с петель, а плечо ноет так, что темнеет в глазах. Грохот катится по ходам.`); return 'dungeon'; },
+    no: (g, o) => { const d = DG(g); if (!d) return 'dungeon'; d.msg = []; mark(g, o.bk, offH(g, o)); alarm(g, d, 1, 'Дверь гудит от удара, но держит, а эхо катится по ходам далеко вглубь.'); return 'dungeon'; }},
+  dg_tainik: {yes: (g, o) => { const d = DG(g); if (!d) return 'dungeon'; d.msg = []; const h = offH(g, o); C.passH(g, 1);
+      take(g, (60 + 50 * d.lvl) * (1 + R.d(3)), dropFor(g, d, d.lvl + 1).slice(0, 1), `Камень за камнем разобрали кладку — целый час, весь в пыли, — и за ней всё-таки тайник:`); C.giveXP(g, 15 * d.lvl, 'тайник'); return 'dungeon'; },
+    no: g => { const d = DG(g); if (d) { d.msg = []; say(d, 'Махнули рукой на кладку: то ли нет здесь ничего, то ли спрятано слишком хорошо.'); } return 'dungeon'; }},
+  dg_knock: {yes: (g, o) => { const d = DG(g); if (!d) return 'dungeon'; d.msg = []; const h = offH(g, o); C.passH(g, 1);
+      const hid = d.edges.filter(e => (e.a === d.at || e.b === d.at) && e.secret && !e.found);
+      if (hid.length) { hid.forEach(e => { e.found = 1; }); say(d, `Час простукивали стену, камень за камнем, — и ${h ? h.name : 'кто-то'} находит-таки гулкое место. За сдвинутым камнем тайный ход ${DIRS[dirOf(d, d.at, other(hid[0], d.at))][2].toLowerCase()}.`); C.giveXP(g, 10 * d.lvl, 'тайный ход'); }
+      else say(d, 'Час простукивали стену, камень за камнем: кладка цельная, тайных ходов здесь нет. Теперь это ясно наверняка.');
+      return 'dungeon'; },
+    no: g => { const d = DG(g); if (d) { d.msg = []; say(d, 'Долго стучали по стенам и слушали, но так ничего и не услышали.'); } return 'dungeon'; }},
+});
 /* для заповедных подземелий (fixed_dg.js) */
 C.DG_API = {take, say, chk, pickH, alarm, fight, hurt, room, rng, st, T, isCls, anyCls, dropFor, lvlOf, cap, bname, SCN, OUT};
 /* ---------- регистрация ---------- */
@@ -37809,7 +37855,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvnifwb8"></script><script>
+</script><script src="world.js?v=mvnlh0ly"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -39802,7 +39848,7 @@ function showScene(id, talk) {
   let who = hub ? (talk !== undefined ? talk : (TALK && TALK.scene === id ? TALK.who : null)) : null;
   if (who && !sc.people.includes(who)) who = null;
   TALK = hub ? {scene: id, who} : null;
-  if (NETH()) { if (VOTE && (VOTE.sid !== id)) { clearTimeout(VOTE.timer); VOTE = null; } SCR = {k: 'scene', id, who, chk: chk && {hero: {name: chk.hero ? chk.hero.name : ''}, roll: chk.roll, total: chk.total, dc: chk.dc, ok: chk.ok, adv: chk.adv || 0, rolls: chk.rolls || null, advWhy: chk.advWhy || ''}, ups, nws, shop: 0}; }
+  if (NETH()) { if (VOTE && (VOTE.sid !== id)) { clearTimeout(VOTE.timer); VOTE = null; } SCR = {k: 'scene', id, who, chk: chk && {hero: {name: chk.hero ? chk.hero.name : ''}, roll: chk.roll, total: chk.total, dc: chk.dc, ok: chk.ok, adv: chk.adv || 0, rolls: chk.rolls || null, advWhy: chk.advWhy || '', say: chk.say || ''}, ups, nws, shop: 0}; }
   save();
   let lines = sc.lines, choices = sc.choices, people = '';
   if (hub) {
@@ -39823,7 +39869,7 @@ function showScene(id, talk) {
   if (lbox) lines = lines.filter(l => !/: очков профессий — |учится \(«/.test(l[1]));
   $('#main').innerHTML = `<div class="screen scene"><div class="bg${dmap ? ' dg' : ''}" style="background-image:${sceneBg(sc, bg)}">${dmap ? '<canvas class="dmap"></canvas>' : ''}<h2>${esc(sc.title)}</h2>${sface ? `<div class="sface">${faceHTML(sface.id, 'bigface').replace('width="96" height="96"', 'width="192" height="192"')}<div class="sfn"><b>${esc(sface.n || '')}</b>${sface.sub ? `<small>${esc(sface.sub)}</small>` : ''}</div></div>` : ''}</div>
    <div class="body${lbox ? ' haslearn' : ''}"><div class="lines">${nws.length ? `<div class="news">${nws.map(esc).join(' ')}</div>` : ''}${lines.map(lineHTML).join('')}${people}
-   ${chk ? `<div class="check ${chk.ok ? '' : 'bad'}">${esc(chk.hero ? chk.hero.name : '')}: бросок ${chk.rolls ? `${chk.rolls.join(' и ')} — ${chk.adv > 0 ? 'с преимуществом' : 'с помехой'}${chk.advWhy ? ' (' + esc(chk.advWhy) + ')' : ''}, берётся ${chk.roll}` : chk.roll}, итог ${chk.total} против ${chk.dc} — ${chk.ok ? 'удача' : 'неудача'}.</div>` : ''}
+   ${chk ? `<div class="check ${chk.ok ? '' : 'bad'}">${esc(chk.hero ? chk.hero.name : '')}: бросок ${chk.rolls ? `${chk.rolls.join(' и ')} — ${chk.adv > 0 ? 'с преимуществом' : 'с помехой'}${chk.advWhy ? ' (' + esc(chk.advWhy) + ')' : ''}, берётся ${chk.roll}` : chk.roll}, итог ${chk.total} против ${chk.dc} — ${chk.ok ? 'удача' : 'неудача'}.</div>${chk.say ? lineHTML(['n', chk.say]) : ''}` : ''}
    ${ups.map(u => `<div class="check">${esc(u.hero)} достигает ${u.level}-го уровня (+${u.hp} хитов${u.profPts ? `, +${u.profPts} очк. профессий` : ''})${u.lesson ? `. Можно выучить новое заклинание — ${esc(C.teacherWhere ? C.teacherWhere(u.cls) : 'у наставника')}` : ''}.</div>`).join('')}
    ${SAYS.filter(x => x.sid === id).slice(-8).map(x => x.html).join('')}</div>${lbox}<div class="choices${lbox ? ' lchoices' : ''}">${NET() ? `<div class="votebar" id="votebar"></div>${myHeroes().length ? `<label class="claim note">Проверку бросает: <select id="claimSel"><option value="">лучший в отряде</option>${myHeroes().map(h => `<option value="${h.id}" ${CLAIM === h.id ? 'selected' : ''}>${esc(h.name)} — беру на себя</option>`).join('')}</select></label>` : `<div class="hint">${C.alive(g).length ? 'У вас нет героя за этим столом — можно смотреть и говорить.' : 'Отряд пал. Посадите нового героя.'}</div>`}` : ''}${hub && !who ? sc.people.map(p => `<button class="btn ch" data-talk="${p}"><span class="ui-i i-chat"></span><span class="ct">Подойти: ${esc(shortName(p))}</span></button>`).join('') : ''}${choices.filter(c => c.who).map(c => choiceBtn(id, c)).join('')}${hub && who ? `<button class="btn ch" data-talk=""><span class="ui-i i-steps"></span><span class="ct">Отойти</span></button>` : ''}${menuHTML(id, choices.filter(c => !c.who && !(lbox && c.learn)))}</div></div></div>`;
   paintFaces($('#main')); paintIcons($('#main')); bindFolds($('#main')); if (lbox) bindLearn(id, sc);
@@ -40728,7 +40774,7 @@ function drawField(noFollow) {
   // павшие враги остаются на поле: кровь и тело под живыми
   dieInit(); drawHorseCorpses(); S.units.filter(u => !u.gone && u.dead && u.kind === 'monster').forEach(drawCorpse);
   S.units.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => things.push({y: hexXY(u.c, u.r).y + 0.1, u}));
-  things.sort((a, b) => a.y - b.y).forEach(t => t.o ? drawObj(t.o) : t.c ? drawProp(t.c) : drawUnit(t.u));
+  LABELQ = []; try { things.sort((a, b) => a.y - b.y).forEach(t => t.o ? drawObj(t.o) : t.c ? drawProp(t.c) : drawUnit(t.u)); } finally { const q = LABELQ; LABELQ = null; ctx.save(); q.forEach(f => f()); ctx.restore(); }
   if (anyDying() && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
   // шанс попасть: над врагом под курсором
   if (hover && cur && cur.side === 'party' && !cur.ai && !S.over && !(mode && mode.spell)) { let t = B.unitAt(S, hover.c, hover.r); if (t && !seenByParty(S, t)) t = null;
@@ -40755,7 +40801,7 @@ function drawField(noFollow) {
       if (to) areaCells(S, cur, mode.spell, to).forEach(x => { const p = hexXY(x.c, x.r); hexPath(p.x, p.y, s * 0.92); ctx.fillStyle = 'rgba(190,150,255,.28)'; ctx.fill(); ctx.strokeStyle = 'rgba(210,180,255,.7)'; ctx.lineWidth = 1.5; ctx.stroke(); }); }
     if (mode && mode.spell) B.alliesOf(S, cur).forEach(a => { if (spellTargetOk(cur, mode.spell, a)) { const p = hexXY(a.c, a.r); hexPath(p.x, p.y, s * 0.9); ctx.strokeStyle = '#a6d38a'; ctx.lineWidth = 2.5; ctx.stroke(); } });
   }
-  drawFx(); drawBubbles(); drawMini();
+  drawFx(); drawBubbles(); drawMini(); auraTick();
 }
 /* твари: старый лист beasts и новый beasts2 (люди-враги, нежить, духи, именные) */
 const beastRect = k => k ? (ATLAS.beasts && ATLAS.beasts[k]) || (ATLAS.beasts2 && ATLAS.beasts2[k]) || (ATLAS.figs2 && ATLAS.figs2[k]) || null : null;
@@ -40812,7 +40858,63 @@ function tintSprite(fname, a, hex) {
     x.putImageData(d, 0, 0); TINT_CACHE[key] = cv; return cv;
   } catch (e) { TINT_CACHE[key] = null; return null; }
 }
-const FX_LABEL = {sharp: 'наточен', res_fire: 'от огня', res_ice: 'от холода', res_storm: 'от молнии', ward: 'оберег', antiEvil: 'от зла', prayer: 'молитва', saints: 'святые', bless: 'благословен', mindImm: 'собран', noWeapon: 'сфера', deathWard: 'от смерти', faith: 'вера', holyW: 'святое оружие', starBlade: 'звёздный клинок', antiMagic: 'от магии', noDmg: 'святая броня', silence: 'немота', regen: 'регенерация', fog: 'туман', farSight: 'зоркость', berserk: 'берсерк', growth: 'рост', warrior: 'воитель', spellImm: 'чары не берут', stone: 'каменная кожа', dodgeR: 'уклонение', mindBlock: 'разум закрыт', vuln: 'уязвим', obereg: 'оберег', mindRead: 'чтение мыслей', mirror: 'зеркало', drained: 'обессилен', rain: 'ливень', armorSp: 'магический щит', haste: 'ускорен', windArmor: 'вихрь', invis: 'невидим', poisonW: 'яд на клинке', strength: 'сила', blur: 'размыт', fireW: 'огонь на клинке', fireShield: 'огненный щит', ghostSpeed: 'призрачная скорость', ghostBlade: 'призрачный меч', giant: 'гигант', ghostArmor: 'призрачная броня', vamp: 'вампир', wolf: 'волколак', aged: 'дряхлость', weak: 'слабость', hail: 'сник', curse: 'проклят', saveDown: 'неудача', devilStr: 'дьявольская сила', flying: 'полёт', gate: 'серный дым', prayerFoe: 'смятение'};
+const FX_LABEL = {sharp: 'наточен', res_fire: 'от огня', res_ice: 'от холода', res_storm: 'от молнии', ward: 'оберег', antiEvil: 'от зла', prayer: 'молитва', saints: 'святые', bless: 'благословен', mindImm: 'собран', noWeapon: 'сфера', deathWard: 'от смерти', faith: 'вера', holyW: 'святое оружие', starBlade: 'звёздный клинок', antiMagic: 'от магии', noDmg: 'святая броня', silence: 'немота', regen: 'регенерация', fog: 'туман', farSight: 'зоркость', berserk: 'берсерк', growth: 'рост', warrior: 'воитель', spellImm: 'чары не берут', stone: 'каменная кожа', dodgeR: 'уклонение', mindBlock: 'разум закрыт', vuln: 'уязвим', obereg: 'оберег', mindRead: 'чтение мыслей', mirror: 'зеркало', drained: 'обессилен', rain: 'ливень', armorSp: 'магический щит', haste: 'ускорен', windArmor: 'вихрь', invis: 'невидим', poisonW: 'яд на клинке', strength: 'сила', blur: 'размыт', fireW: 'огонь на клинке', fireShield: 'огненный щит', ghostSpeed: 'призрачная скорость', ghostBlade: 'призрачный меч', giant: 'гигант', ghostArmor: 'призрачная броня', vamp: 'вампир', wolf: 'волколак', aged: 'дряхлость', weak: 'слабость', hail: 'сник', curse: 'проклят', saveDown: 'неудача', devilStr: 'дьявольская сила', flying: 'полёт', gate: 'серный дым', prayerFoe: 'смятение',
+  // боги, великие чары, ведьмины заговоры, новые школы
+  soulSight: 'зрение душ', navChill: 'озноб Нави', navWard: 'оберег от Нави', velesPr: 'молитва Велесу', velesCircle: 'круг Велеса', tangled: 'нить спутана', mokoshWard: 'оберег Мокоши',
+  fateOnce: 'нить судьбы', sureHit: 'верный удар', dolya: 'доля', dodgeOnce: 'заслон пряжи', gornShield: 'огненный оберег', svarogPr: 'молитва Сварогу', gornBlade: 'клинок горит',
+  fireRing: 'огненное кольцо', gornAll: 'небесный горн', anvil: 'как кованый', windShield: 'щит ветра', stribogPr: 'молитва Стрибогу', windArrow: 'попутная стрела', windWall: 'вихревой заслон',
+  tailwind: 'попутный ветер', storm: 'в буре', darkVeil: 'тёмный покров', noFear: 'страх не берёт', blackPr: 'чёрная молитва', darkness: 'во тьме', cmor: 'чёрный мор', guided: 'наставлен',
+  tempered: 'закалённое оружие', svarogSword: 'меч Сварога', whistle: 'свист ветра', elemWard: 'от стихий', evilEye: 'дурной глаз', scythe: 'коса смерти', stars: 'под звёздами',
+  starsSeer: 'читает звёзды', hexBless: 'заклятое оружие', hexed: 'сглажен', sulfur: 'в серном дыму', stealSpell: 'перехват чар', reflect: 'отражение', reborn: 'перерождён',
+  sigil: 'печать на чарах', noInnate: 'без врождённой силы', snake: 'змеиная быстрота', formWard: 'облик под защитой', daze: 'разум в тумане', perun: 'гроза Перуна', freedom: 'свобода',
+  starVeil: 'звёздный покров', clearSight: 'ясный взор', krepost: 'крепость', res_poison: 'от яда', res_acid: 'от кислоты', boneShield: 'костяной щит', mor: 'мор', blackMark: 'чёрная метка',
+  rodPorcha: 'порча на род', chill: 'коченеет'};
+/* что из долгих чар — во вред тому, на ком висит (красным в карточке, первым в подписи у врага) */
+const FX_BAD = new Set(['silence', 'vuln', 'drained', 'aged', 'weak', 'hail', 'curse', 'saveDown', 'prayerFoe', 'gate', 'navChill', 'tangled', 'storm', 'blackPr', 'cmor', 'evilEye',
+  'hexed', 'sulfur', 'noInnate', 'daze', 'mor', 'blackMark', 'rodPorcha', 'chill']);
+/* что видно на фигурке: ключ чар или состояния → вид ауры. Новое чародейство — одной строкой сюда.
+   Виды: fire — языки у ног, burn — горит, ember — искры с оружия, stone — каменный ободок, bone — кости кружат,
+   sphere:<цвет> — полупрозрачная сфера, dark — тёмная дымка, mist — серый туман, bind — цепи, sleep — «з-з»,
+   fear — дрожь, charm — сердечки, daze — круги над головой, holy — тёплое свечение, rot — зелёные пузырьки,
+   hex — лиловые струйки сглаза, glint — блик, frost — иней, sly — полупрозрачен */
+const AURA_OF = {
+  fireRing: 'fire', fireShield: 'fire', gornShield: 'fire',
+  fireW: 'ember', gornBlade: 'ember', gornAll: 'ember', svarogSword: 'ember', starBlade: 'ember', ghostBlade: 'ember',
+  stone: 'stone', krepost: 'stone', anvil: 'stone', boneShield: 'bone',
+  res_fire: 'sphere:fire', res_ice: 'sphere:ice', res_storm: 'sphere:storm', res_poison: 'sphere:poison', res_acid: 'sphere:poison', elemWard: 'sphere:arcane',
+  windShield: 'sphere:wind', windArmor: 'sphere:wind', windWall: 'sphere:wind', storm: 'sphere:wind', noWeapon: 'sphere:holy', noDmg: 'sphere:holy', antiMagic: 'sphere:arcane', spellImm: 'sphere:arcane',
+  darkVeil: 'dark', darkness: 'dark', sulfur: 'dark', gate: 'dark', fog: 'mist', rain: 'mist',
+  tangled: 'bind', daze: 'daze',
+  bless: 'holy', prayer: 'holy', saints: 'holy', faith: 'holy', antiEvil: 'holy', navWard: 'holy', mokoshWard: 'holy', velesCircle: 'holy', deathWard: 'holy', starVeil: 'holy', stars: 'holy',
+  velesPr: 'holy', svarogPr: 'holy', stribogPr: 'holy', dolya: 'holy', fateOnce: 'holy',
+  cmor: 'rot', mor: 'rot', rodPorcha: 'rot', hexed: 'rot', curse: 'hex', blackMark: 'hex', blackPr: 'hex', evilEye: 'hex', saveDown: 'hex', vuln: 'hex',
+  mirror: 'glint', reflect: 'glint', chill: 'frost', invis: 'sly', blur: 'sly'};
+const AURA_COND = {held: 'bind', rooted: 'bind', sleep: 'sleep', fear: 'fear', charm: 'charm', confused: 'daze', stun: 'daze', hidden: 'sly'};
+/* какие виды рисовать первыми, если их много: управление телом — первым, дальше то, что опасно, потом защиты */
+const AURA_ORDER = ['bind', 'sleep', 'fear', 'charm', 'daze', 'burn', 'fire', 'rot', 'hex', 'frost', 'stone', 'bone', 'sphere', 'dark', 'mist', 'glint', 'holy', 'ember'];
+function auraKinds(u) {
+  if (!u || u.dead || u.gone || u._noUi) return [];
+  const out = {}; Object.keys(u.fx || {}).forEach(k => { const a = AURA_OF[k]; if (a && !(a in out)) out[a] = 1; });
+  Object.keys(u.conds || {}).forEach(k => { const a = AURA_COND[k]; if (a && u.conds[k]) out[a] = 1; });
+  const d = u.conds && u.conds.dot; if (d) { const src = String(d.src || ''); if (/огон|огн|пламя|пожар|жар|ожог|горн/i.test(src)) out.burn = 1; else if (/яд|мор|кислот|отрав|гнил|порч/i.test(src)) out.rot = 1; }
+  if (u.down) { delete out.sleep; delete out.fear; delete out.charm; delete out.daze; delete out.bind; }
+  const ks = Object.keys(out), sph = ks.filter(k => k.startsWith('sphere:'));
+  const rank = k => { const i = AURA_ORDER.indexOf(k.startsWith('sphere:') ? 'sphere' : k); return i < 0 ? 99 : i; };
+  return ks.filter(k => k === 'sly' ? false : !k.startsWith('sphere:') || k === sph[0]).sort((a, b) => rank(a) - rank(b)).slice(0, 3).concat(out.sly ? ['sly'] : []);
+}
+/* подпись под полоской хитов: что на бойце важнее всего */
+const COND_SHORT = {held: 'скован', sleep: 'спит', fear: 'страх', charm: 'чары', blind: 'слеп', slow: 'замедлен', atkUp: '+атака', defUp: '+защита', raging: 'ярость', dot: 'яд',
+  stun: 'оглушён', prone: 'сбит с ног', rooted: 'опутан', confused: 'в мороке', doomed: 'обречён', atkDown: '−атака', defDown: '−защита', bleed: 'кровь течёт'};
+const FOE_TAG_PRIO = ['held', 'sleep', 'stun', 'fear', 'rooted', 'blind', 'confused', 'daze', 'silence', 'noInnate', 'slow', 'curse', 'vuln', 'cmor', 'mor', 'rodPorcha', 'blackMark', 'hexed', 'drained',
+  'weak', 'aged', 'chill', 'tangled', 'doomed', 'dot', 'bleed', 'prone', 'blackPr', 'evilEye', 'saveDown', 'hail', 'prayerFoe', 'storm', 'sulfur', 'navChill', 'atkDown', 'defDown',
+  'noDmg', 'noWeapon', 'invis', 'stone', 'mirror', 'reflect', 'spellImm', 'antiMagic', 'boneShield', 'krepost', 'fireShield', 'darkVeil'];
+function foeTags(u, max) {
+  const have = {}; Object.keys(u.conds || {}).forEach(k => { if (u.conds[k] && COND_SHORT[k] && k !== 'charm') have[k] = COND_SHORT[k]; });
+  if (have.dot && u.conds.dot && /огон|огн|пламя|ожог/i.test(String(u.conds.dot.src || ''))) have.dot = 'горит';
+  Object.keys(u.fx || {}).forEach(k => { if (FX_LABEL[k] && !have[k]) have[k] = FX_LABEL[k]; });
+  const ks = Object.keys(have), r = k => { const i = FOE_TAG_PRIO.indexOf(k); return i >= 0 ? i : FX_BAD.has(k) ? 60 : 80; };
+  return ks.sort((a, b) => r(a) - r(b)).slice(0, max || 2).map(k => have[k]);
+}
 /* капюшон: белый клобук перекрашен в тёмную шерсть */
 let HOOD_CV = null;
 /* капюшон тёмной шерсти: колпак над головой, вырез под лицо, полы на плечи */
@@ -41094,6 +41196,88 @@ function drawHorseCorpses() {
   S.horseCorpses.forEach(x => { const a = A['hb_' + x.coat + '_dead']; if (!a) return; const p = hexXY(x.c, x.r), H0 = geo.s * 2.15, k = H0 * 1.2 / 300, w = a[2] * k, h = a[3] * k;
     ctx.save(); ctx.translate(p.x, 0); ctx.scale(x.face < 0 ? -1 : 1, 1); ctx.drawImage(IMG.mounts, a[0], a[1], a[2], a[3], -w / 2, p.y + geo.s * 0.55 - h, w, h); ctx.restore(); });
 }
+/* ауры на фигурках: back — под фигурой (у ног), front — поверх, но прозрачно, чтобы фигурку было видно */
+const AURA_SPH = {fire: [255, 140, 50], ice: [120, 190, 255], storm: [235, 235, 150], poison: [120, 220, 110], arcane: [190, 150, 255], wind: [215, 240, 240], holy: [255, 215, 120]};
+const auraSeed = u => { const id = String(u.id != null ? u.id : u.name || ''); let h = 7; for (let i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 997; return h / 997; };
+function drawAura(u, p, s, H0, kinds, pass) {
+  if (!kinds.length) return;
+  const t = performance.now() / 1000 + auraSeed(u) * 10, fy = p.y + s * 0.45, top = p.y + s * 0.5 - H0 * 0.95, mid = p.y + s * 0.5 - H0 * 0.48, lw = Math.max(1.2, s * 0.06);
+  const rx = s * 0.62, ry = s * 0.24;
+  const rg = (x, y, r, c0, c1) => { const g0 = ctx.createRadialGradient(x, y, 0, x, y, r); g0.addColorStop(0, c0); g0.addColorStop(1, c1); return g0; };
+  ctx.save();
+  kinds.forEach(k => {
+    const kk = k.startsWith('sphere:') ? 'sphere' : k;
+    if (pass === 'back') {
+      if (kk === 'fire' || kk === 'burn') { ctx.globalAlpha = 0.55 + 0.15 * Math.sin(t * 5); ctx.fillStyle = rg(p.x, fy, rx * 1.15, 'rgba(255,150,40,.75)', 'rgba(255,80,0,0)'); ctx.beginPath(); ctx.ellipse(p.x, fy, rx * 1.15, ry * 1.4, 0, 0, 7); ctx.fill(); }
+      else if (kk === 'dark') { ctx.globalAlpha = 0.85; for (let i = 0; i < 5; i++) { const a = t * 0.6 + i * 1.26, x = p.x + Math.cos(a) * rx * 0.8, y = mid + s * 0.2 + Math.sin(a * 1.3) * s * 0.35; ctx.fillStyle = rg(x, y, s * 0.75, 'rgba(14,6,26,.7)', 'rgba(14,6,26,0)'); ctx.beginPath(); ctx.arc(x, y, s * 0.75, 0, 7); ctx.fill(); } }
+      else if (kk === 'mist') { ctx.globalAlpha = 0.45; for (let i = 0; i < 4; i++) { const x = p.x + Math.sin(t * 0.5 + i * 1.7) * rx, y = fy - s * 0.1 - i * s * 0.12; ctx.fillStyle = rg(x, y, s * 0.7, 'rgba(210,215,220,.5)', 'rgba(210,215,220,0)'); ctx.beginPath(); ctx.ellipse(x, y, s * 0.8, s * 0.35, 0, 0, 7); ctx.fill(); } }
+      else if (kk === 'holy') { ctx.globalAlpha = 0.5 + 0.12 * Math.sin(t * 2); ctx.fillStyle = rg(p.x, fy, rx * 1.2, 'rgba(255,225,140,.7)', 'rgba(255,200,90,0)'); ctx.beginPath(); ctx.ellipse(p.x, fy, rx * 1.2, ry * 1.5, 0, 0, 7); ctx.fill(); }
+      else if (kk === 'stone' || kk === 'bone') { ctx.globalAlpha = 0.9; const n = 9; for (let i = 0; i < n; i++) { const a = i / n * 6.283 + (kk === 'bone' ? t * 0.8 : 0), x = p.x + Math.cos(a) * rx * 0.95, y = fy + Math.sin(a) * ry * 1.05; if (Math.sin(a) < -0.1) { ctx.fillStyle = kk === 'bone' ? '#d9d0bc' : '#8d8a83'; ctx.strokeStyle = 'rgba(30,26,22,.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, y, s * 0.13, s * 0.08, a, 0, 7); ctx.fill(); ctx.stroke(); } } }
+      else if (kk === 'frost') { ctx.globalAlpha = 0.65; ctx.strokeStyle = 'rgba(190,230,255,.9)'; ctx.lineWidth = lw; ctx.beginPath(); ctx.ellipse(p.x, fy, rx * 0.9, ry, 0, 0, 7); ctx.stroke(); }
+      return;
+    }
+    // front
+    if (kk === 'fire' || kk === 'burn') {
+      const n = kk === 'fire' ? 9 : 5, R0 = kk === 'fire' ? 1 : 0.55;
+      for (let i = 0; i < n; i++) { const a = i / n * 6.283, x = p.x + Math.cos(a) * rx * R0, y = fy + Math.sin(a) * ry * R0, f = (t * 2.2 + i * 0.37) % 1, hh = s * (0.42 + 0.22 * Math.sin(t * 7 + i * 2)) * (kk === 'fire' ? 1 : 0.85);
+        if (kk === 'fire' && Math.sin(a) < -0.1) continue;
+        ctx.globalAlpha = 0.9; ctx.fillStyle = rg(x, y - hh * 0.3, hh, 'rgba(255,235,130,1)', 'rgba(255,90,10,.15)'); ctx.beginPath(); ctx.moveTo(x - s * 0.09, y); ctx.quadraticCurveTo(x - s * 0.05, y - hh * 0.6, x + Math.sin(t * 6 + i) * s * 0.05, y - hh); ctx.quadraticCurveTo(x + s * 0.06, y - hh * 0.6, x + s * 0.09, y); ctx.closePath(); ctx.fill();
+        ctx.globalAlpha = 1 - f; ctx.fillStyle = '#ffd27a'; ctx.beginPath(); ctx.arc(x + Math.sin(i * 3 + t) * s * 0.1, y - hh - f * s * 0.7, Math.max(1, s * 0.035), 0, 7); ctx.fill(); }
+    } else if (kk === 'ember') {
+      for (let i = 0; i < 4; i++) { const f = (t * 0.9 + i * 0.25) % 1, x = p.x + s * 0.45 + Math.sin(t * 3 + i * 2) * s * 0.15, y = mid - f * s * 0.9; ctx.globalAlpha = 0.9 * (1 - f); ctx.fillStyle = '#ffb347'; ctx.beginPath(); ctx.arc(x, y, Math.max(1, s * 0.04), 0, 7); ctx.fill(); }
+    } else if (kk === 'stone' || kk === 'bone') {
+      const n = 9; for (let i = 0; i < n; i++) { const a = i / n * 6.283 + (kk === 'bone' ? t * 0.8 : 0); if (Math.sin(a) < -0.1) continue; const x = p.x + Math.cos(a) * rx * 0.95, y = fy + Math.sin(a) * ry * 1.05;
+        ctx.globalAlpha = 0.9; ctx.fillStyle = kk === 'bone' ? '#e6dcc4' : '#9a968d'; ctx.strokeStyle = 'rgba(30,26,22,.85)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.ellipse(x, y, s * 0.14, s * 0.09, a, 0, 7); ctx.fill(); ctx.stroke(); }
+      if (kk === 'stone') { ctx.globalAlpha = 0.22; ctx.strokeStyle = '#cfcac0'; ctx.lineWidth = Math.max(2, s * 0.12); ctx.beginPath(); ctx.ellipse(p.x, mid, s * 0.55, H0 * 0.47, 0, 0, 7); ctx.stroke(); }
+    } else if (kk === 'sphere') {
+      const c = AURA_SPH[k.slice(7)] || AURA_SPH.arcane, r = Math.max(s * 0.85, H0 * 0.5), q = 0.5 + 0.5 * Math.sin(t * 1.8);
+      ctx.globalAlpha = 1;
+      const g1 = ctx.createRadialGradient(p.x, mid, r * 0.55, p.x, mid, r); g1.addColorStop(0, `rgba(${c},0)`); g1.addColorStop(1, `rgba(${c},${0.22 + 0.08 * q})`); ctx.fillStyle = g1;
+      ctx.beginPath(); ctx.ellipse(p.x, mid, r * 0.72, r, 0, 0, 7); ctx.fill(); ctx.strokeStyle = `rgba(${c},${0.45 + 0.2 * q})`; ctx.lineWidth = lw; ctx.stroke();
+      if (k === 'sphere:wind') { ctx.strokeStyle = 'rgba(240,255,255,.55)'; for (let i = 0; i < 3; i++) { const a = t * 2.5 + i * 2.1; ctx.beginPath(); ctx.ellipse(p.x, mid + (i - 1) * r * 0.35, r * 0.7, r * 0.18, 0, a, a + 1.4); ctx.stroke(); } }
+      ctx.globalAlpha = 0.5; ctx.fillStyle = 'rgba(255,255,255,.7)'; ctx.beginPath(); ctx.ellipse(p.x - r * 0.3, mid - r * 0.55, r * 0.12, r * 0.06, -0.6, 0, 7); ctx.fill();
+    } else if (kk === 'rot') {
+      for (let i = 0; i < 6; i++) { const f = (t * 0.5 + i / 6) % 1, x = p.x + Math.sin(i * 2.4 + t) * s * 0.45, y = fy - f * H0 * 0.8, r = Math.max(1.5, s * (0.05 + 0.04 * (i % 3)));
+        ctx.globalAlpha = 0.85 * Math.sin(f * Math.PI); ctx.fillStyle = 'rgba(120,200,70,.55)'; ctx.strokeStyle = 'rgba(170,240,110,.9)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill(); ctx.stroke(); }
+    } else if (kk === 'hex') {
+      ctx.strokeStyle = 'rgba(190,110,255,.8)'; ctx.lineWidth = lw; for (let i = 0; i < 3; i++) { const f = (t * 0.45 + i / 3) % 1, x = p.x + (i - 1) * s * 0.35, y = top + H0 * 0.25 - f * s * 0.8;
+        ctx.globalAlpha = 0.8 * Math.sin(f * Math.PI); ctx.beginPath(); ctx.moveTo(x, y + s * 0.3); ctx.quadraticCurveTo(x + s * 0.15 * Math.sin(t * 3 + i), y + s * 0.15, x, y); ctx.stroke(); }
+    } else if (kk === 'bind') {
+      ctx.globalAlpha = 0.95; ctx.strokeStyle = '#c8c2b4'; ctx.lineWidth = Math.max(1.5, s * 0.07);
+      [mid + s * 0.1, fy - s * 0.25].forEach((y, j) => { for (let i = 0; i < 5; i++) { const x = p.x - s * 0.5 + i * s * 0.25, yy = y + (i % 2 ? 1 : -1) * s * 0.04 + j * 0; ctx.beginPath(); ctx.ellipse(x, yy, s * 0.13, s * 0.075, (i % 2 ? 0.4 : -0.4), 0, 7); ctx.stroke(); } });
+    } else if (kk === 'sleep') {
+      ctx.fillStyle = '#dfe8ff'; ctx.strokeStyle = 'rgba(10,10,30,.8)'; ctx.lineWidth = 2; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      for (let i = 0; i < 3; i++) { const f = (t * 0.4 + i / 3) % 1, fs = Math.max(10, Math.round(s * (0.28 + f * 0.25))); ctx.font = `italic 700 ${fs}px Alegreya, Georgia, serif`; ctx.globalAlpha = Math.sin(f * Math.PI);
+        const x = p.x + s * 0.5 + f * s * 0.45, y = top + s * 0.6 - f * s * 0.7; ctx.strokeText('z', x, y); ctx.fillText('z', x, y); }
+    } else if (kk === 'fear') {
+      ctx.strokeStyle = 'rgba(255,240,200,.85)'; ctx.lineWidth = Math.max(1.2, s * 0.05); ctx.globalAlpha = 0.6 + 0.4 * Math.abs(Math.sin(t * 9));
+      [-1, 1].forEach(d => { for (let i = 0; i < 2; i++) { const x = p.x + d * (s * 0.55 + i * s * 0.14); ctx.beginPath(); ctx.arc(p.x, top + H0 * 0.2, x > p.x ? x - p.x : p.x - x, d > 0 ? -0.5 : Math.PI - 0.5, d > 0 ? 0.5 : Math.PI + 0.5); ctx.stroke(); } });
+    } else if (kk === 'charm') {
+      for (let i = 0; i < 3; i++) { const a = t * 1.6 + i * 2.09, x = p.x + Math.cos(a) * s * 0.5, y = top + s * 0.4 + Math.sin(a) * s * 0.15, r = Math.max(3, s * 0.12);
+        ctx.globalAlpha = 0.9; ctx.fillStyle = '#ff8fb8'; ctx.strokeStyle = 'rgba(60,10,30,.8)'; ctx.lineWidth = 1; ctx.beginPath(); ctx.moveTo(x, y + r * 0.9); ctx.bezierCurveTo(x - r * 1.4, y - r * 0.2, x - r * 0.5, y - r * 1.2, x, y - r * 0.35); ctx.bezierCurveTo(x + r * 0.5, y - r * 1.2, x + r * 1.4, y - r * 0.2, x, y + r * 0.9); ctx.fill(); ctx.stroke(); }
+    } else if (kk === 'daze') {
+      for (let i = 0; i < 3; i++) { const a = t * 3 + i * 2.09, x = p.x + Math.cos(a) * s * 0.42, y = top + s * 0.35 + Math.sin(a) * s * 0.12; ctx.globalAlpha = 0.95; ctx.fillStyle = '#fff2a8'; ctx.strokeStyle = 'rgba(40,30,0,.8)'; ctx.lineWidth = 1;
+        const r = Math.max(2.5, s * 0.09); ctx.beginPath(); for (let j = 0; j < 8; j++) { const rr = j % 2 ? r * 0.45 : r, aa = j / 8 * 6.283 + a; ctx.lineTo(x + Math.cos(aa) * rr, y + Math.sin(aa) * rr); } ctx.closePath(); ctx.fill(); ctx.stroke(); }
+    } else if (kk === 'holy') {
+      for (let i = 0; i < 5; i++) { const f = (t * 0.35 + i / 5) % 1, x = p.x + Math.sin(i * 2.7) * s * 0.5, y = fy - f * H0 * 0.9; ctx.globalAlpha = 0.8 * Math.sin(f * Math.PI); ctx.fillStyle = rg(x, y, s * 0.12, 'rgba(255,240,180,1)', 'rgba(255,200,90,0)'); ctx.beginPath(); ctx.arc(x, y, s * 0.12, 0, 7); ctx.fill(); }
+    } else if (kk === 'glint') {
+      const f = (t * 0.45) % 1; if (f < 0.4) { const q = f / 0.4, x = p.x - s * 0.6 + q * s * 1.2, y = mid - s * 0.2 - q * s * 0.4; ctx.globalAlpha = Math.sin(q * Math.PI) * 0.9; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, s * 0.06);
+        ctx.beginPath(); ctx.moveTo(x - s * 0.18, y); ctx.lineTo(x + s * 0.18, y); ctx.moveTo(x, y - s * 0.18); ctx.lineTo(x, y + s * 0.18); ctx.stroke(); ctx.fillStyle = rg(x, y, s * 0.2, 'rgba(255,255,255,.9)', 'rgba(255,255,255,0)'); ctx.beginPath(); ctx.arc(x, y, s * 0.2, 0, 7); ctx.fill(); }
+      ctx.globalAlpha = 0.35; ctx.strokeStyle = 'rgba(220,235,255,.9)'; ctx.lineWidth = lw; ctx.beginPath(); ctx.ellipse(p.x, mid, s * 0.5, H0 * 0.46, 0, -1.2, -0.4); ctx.stroke();
+    } else if (kk === 'frost') {
+      for (let i = 0; i < 5; i++) { const a = i / 5 * 6.283 + 0.3, x = p.x + Math.cos(a) * rx * 0.8, y = fy + Math.sin(a) * ry - s * 0.05, r = Math.max(2, s * 0.08); ctx.globalAlpha = 0.6 + 0.3 * Math.sin(t * 2 + i); ctx.strokeStyle = '#d8f0ff'; ctx.lineWidth = 1;
+        ctx.beginPath(); for (let j = 0; j < 3; j++) { const aa = j / 3 * Math.PI; ctx.moveTo(x - Math.cos(aa) * r, y - Math.sin(aa) * r); ctx.lineTo(x + Math.cos(aa) * r, y + Math.sin(aa) * r); } ctx.stroke(); }
+    }
+  });
+  ctx.restore();
+}
+/* ауры живут, пока на поле есть хоть одна: тихая перерисовка ~12 раз в секунду, без них — ни одного лишнего кадра */
+let auraT = 0;
+function auraTick() {
+  if (auraT || !battle || !cv || (typeof document !== 'undefined' && document.hidden)) return;
+  if (!battle.units.some(u => !u.dead && !u.gone && u.c != null && auraKinds(u).some(k => k !== 'sly') && seenByParty(battle, u))) return;
+  auraT = setTimeout(() => { auraT = 0; if (battle && cv && cv.isConnected && !fxRaf) drawField(true); }, 85); /* идёт вспышка — её кадр сам позовёт ауры */
+}
 function drawUnit(u) {
   const p = hexXY(u.c, u.r), s = geo.s, S = battle, cur = B.current(S);
   if (!seenByParty(S, u)) return;
@@ -41105,9 +41289,13 @@ function drawUnit(u) {
   else { ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.45, s * 0.55, s * 0.2, 0, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
   ctx.lineWidth = isCur ? 3 : 2; ctx.strokeStyle = u.side === 'party' ? (isCur ? '#e7c983' : '#c9a35c') : u.side === 'demon' ? (isCur ? '#d7a8ff' : '#9b5cd6') : (isCur ? '#ff8a70' : '#b04a3a'); ctx.stroke(); }
+  const aK = auraKinds(u), aH = s * 2.15 * (u.scale || 1) * Math.min(1.4, u.bsize || 1);
+  drawAura(u, p, s, aH, aK, 'back');
   ctx.save();
   if (u.down && !u.dead) ctx.globalAlpha = 0.8;
   if (!u.dead && !u._noUi && cur && cur.side === 'party' && !cur.ai && u.side !== cur.side && B.los && !B.los(S, cur, u)) ctx.globalAlpha *= 0.45;
+  if (aK.includes('sly')) ctx.globalAlpha *= 0.6; /* невидим, затаился, размыт — фигурка полупрозрачна */
+  if (aK.includes('fear')) ctx.translate(Math.sin(performance.now() / 28) * Math.max(1, s * 0.035), 0); /* страх — дрожь */
   const H0 = s * 2.15 * (u.scale || 1);
   if (u.mount && u.look && IMG.heroes && !u.dead && !u.down && drawMounted(u, p, H0)) { /* верхом */ }
   else if (u.look && IMG.heroes && drawHero(u, p, H0)) { /* нарисован из нового набора */ }
@@ -41163,29 +41351,41 @@ function drawUnit(u) {
   }
   ctx.restore();
   if (u.dead || u._noUi) return;
+  drawAura(u, p, s, aH, aK, 'front');
   // полоска хитов и имя
   const bw = s * 1.1, bx = p.x - bw / 2, by = p.y - s * 1.55;
   ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(bx, by, bw, 5);
   // цвет полоски: свои — зелёные, враги — красные, очарованные — жёлтые, взятые под нашу волю — синие, наши под чужой волей — лиловые
   const won = u.enthralled && u.side === 'party' && u.enthralled.side0 !== 'party', lost = u.enthralled && u.side !== 'party' && u.enthralled.side0 === 'party';
   ctx.fillStyle = won ? '#5aa0e0' : lost ? '#b07fe0' : u.conds.charm ? '#e0c040' : u.side === 'party' ? '#7fbf5a' : '#d0573f'; ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.hpMax, 5);
-  if (u.side !== 'party' || won) { const tag = won ? 'под нашей волей' : lost ? 'под чужой волей' : u.conds.charm ? 'очарован' : ''; if (tag) { ctx.font = `${Math.max(9, Math.round(s * 0.24))}px "Alegreya", Georgia, serif`; ctx.fillStyle = won ? '#9fd3ff' : lost ? '#d7b8ff' : '#f0dc8a'; ctx.textAlign = 'center'; ctx.fillText(tag, p.x, p.y + s * 0.85); } }
   ctx.fillStyle = '#ece0c4'; ctx.font = `600 ${Math.max(10, Math.round(s * 0.32))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
   ctx.fillText((u.down ? '† ' : '') + u.name.split(',')[0], p.x, by - 3);
+  // подписи чар и состояний под фигурой — вторым проходом, поверх деревьев и камней (см. LABELQ в drawField)
+  const subs = () => {
+  const few = s < 22; /* поле издали (телефон): по одной подписи, чтобы строки не слипались */
   const cs = u.side !== 'party' || won ? [] : Object.keys(u.conds).filter(k => ['held', 'sleep', 'fear', 'charm', 'blind', 'slow', 'atkUp', 'defUp', 'raging', 'dot'].includes(k));
   const fxl = u.side !== 'party' || won ? [] : Object.keys(u.fx || {}).map(k => FX_LABEL[k]).filter(Boolean).concat(u.thp > 0 ? ['+' + u.thp + ' вр. хитов'] : []);
-  if (fxl.length) { ctx.font = `${Math.max(9, Math.round(s * 0.24))}px "Alegreya", Georgia, serif`; ctx.fillStyle = '#9fd3ff'; ctx.textAlign = 'center'; ctx.fillText(fxl.slice(0, 3).join(' · '), p.x, p.y + s * (cs.length ? 1.12 : 0.85)); }
-  if (cs.length) { ctx.font = `${Math.max(9, Math.round(s * 0.26))}px "Alegreya", Georgia, serif`; ctx.fillStyle = '#c9b0ff'; ctx.fillText(cs.map(k => ({held: 'скован', sleep: 'спит', fear: 'страх', charm: 'чары', blind: 'слеп', slow: 'замедлен', atkUp: '+атака', defUp: '+защита', raging: 'ярость', dot: 'яд'})[k]).join(' · '), p.x, p.y + s * 0.85); }
+  const line = (txt, y, col) => { ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic'; ctx.lineWidth = 3; ctx.lineJoin = 'round'; ctx.strokeStyle = 'rgba(15,10,6,.8)'; ctx.strokeText(txt, p.x, y); ctx.fillStyle = col; ctx.fillText(txt, p.x, y); };
+  if (u.side !== 'party' || won) { const tag = won ? 'под нашей волей' : lost ? 'под чужой волей' : u.conds.charm ? 'очарован' : ''; if (tag) { ctx.font = `${Math.max(9, Math.round(s * 0.24))}px "Alegreya", Georgia, serif`; line(tag, p.y + s * 0.85, won ? '#9fd3ff' : lost ? '#d7b8ff' : '#f0dc8a'); } }
+  if (fxl.length) { ctx.font = `${Math.max(9, Math.round(s * 0.24))}px "Alegreya", Georgia, serif`; line(fxl.slice(0, few ? 1 : 3).join(' · '), p.y + s * (cs.length ? 1.12 : 0.85), '#9fd3ff'); }
+  if (cs.length) { ctx.font = `${Math.max(9, Math.round(s * 0.26))}px "Alegreya", Georgia, serif`; line(cs.map(k => COND_SHORT[k]).join(' · '), p.y + s * 0.85, '#c9b0ff'); }
+  // у врагов (и взятых под нашу волю) — не больше двух самых важных подписей; всё прочее — в карточке при наведении
+  if (u.side !== 'party' || won) { const ft = foeTags(u, few ? 1 : 2); if (ft.length) { const tagged = won || lost || u.conds.charm;
+    ctx.font = `${Math.max(9, Math.round(s * 0.25))}px "Alegreya", Georgia, serif`; line(ft.join(' · '), p.y + s * (tagged ? 1.12 : 0.85), '#ffc49a'); } }
+  };
+  if (LABELQ) LABELQ.push(subs); else subs();
 }
+let LABELQ = null;
 /* что действует на своём бойце: чары, состояния, выпитые зелья, свойства — по нажатию на фигуру или карточку */
 const COND_RU = {held: ['скован', 'не двигается и не бьёт'], sleep: ['спит', 'проснётся от удара'], fear: ['страх', 'бежит прочь, не нападает'], charm: ['очарован', 'не поднимет руку на чарующего'], blind: ['ослеплён', 'бьёт почти наугад'],
   slow: ['замедлен', 'половина шагов'], atkUp: ['сильнее бьёт', 'прибавка к попаданию'], defUp: ['крепче стоит', 'прибавка к Защите'], raging: ['ярость', '+2 к урону'], dot: ['яд или ожог', 'теряет хиты каждый ход'],
-  hidden: ['затаился', 'следующий удар — со спины'], helped: ['помощь', 'союзник отвлёк врага: легче попасть'], prone: ['сбит с ног', 'встаёт вместо шага'], stun: ['оглушён', 'пропускает ход'], bleed: ['кровотечение', 'теряет хиты, пока не перевяжут']};
+  hidden: ['затаился', 'следующий удар — со спины'], helped: ['помощь', 'союзник отвлёк врага: легче попасть'], prone: ['сбит с ног', 'встаёт вместо шага'], stun: ['оглушён', 'пропускает ход'], bleed: ['кровотечение', 'теряет хиты, пока не перевяжут'],
+  rooted: ['опутан', 'с места не сойти'], confused: ['в мороке', 'не разберёт, где свой, где чужой'], doomed: ['обречён', 'смерть уже стоит за плечом'], atkDown: ['бьёт слабее', 'хуже попадает'], defDown: ['броня ослаблена', 'по нему легче попасть']};
 const STAT_RU = {str: 'Сила', dex: 'Ловкость', con: 'Телосложение', wis: 'Мудрость', int: 'Интеллект', cha: 'Очарование'};
 const turnsW = n => n >= 99 ? 'до конца боя' : B.plural ? B.plural(n, 'ход', 'хода', 'ходов') : n + ' ход.';
 function fxList(u) {
   const out = [];
-  Object.keys(u.fx || {}).forEach(k => { const v = u.fx[k] || {}; const n = typeof v === 'object' ? v.n : v; out.push({t: FX_LABEL[k] || k, left: n, good: !['silence', 'vuln', 'drained', 'aged'].includes(k)}); });
+  Object.keys(u.fx || {}).forEach(k => { const v = u.fx[k] || {}; const n = typeof v === 'object' ? v.n : v; out.push({t: FX_LABEL[k] || k, left: n, good: !FX_BAD.has(k)}); });
   Object.keys(u.conds || {}).forEach(k => { const c = COND_RU[k]; if (!c) return; const v = u.conds[k]; const n = typeof v === 'object' && v ? v.n : typeof v === 'number' && v > 1 ? v : null; out.push({t: c[0], d: c[1], left: n, good: ['atkUp', 'defUp', 'raging', 'hidden', 'helped'].includes(k)}); });
   if (u.thp > 0) out.push({t: 'временные хиты', d: `+${u.thp}: снимаются первыми`, good: true});
   if (u.hold) out.unshift({t: `держит чары: «${u.hold.name}»`, d: 'удар может сбить: от оружия — Стойкость, от чар — Воля; сложность 10 или половина урона', good: true});
@@ -41379,7 +41579,7 @@ const sg = v => (v >= 0 ? '+' : '−') + Math.abs(v);
 function foeInfo(h) { const el = $('#finfo'); if (!el || !battle) return; let t = h && B.unitAt(battle, h.c, h.r); if (t && !seenByParty(battle, t)) t = null;
   if (!t || t.kind !== 'monster' || !C.resText) { el.innerHTML = ''; return; }
   const txt = C.resText(C.resProfile(t.ref));
-  el.innerHTML = `<b>${esc(t.name)}</b> <small>${t.level}-й ур. · хиты ${Math.max(0, t.hp)}/${t.hpMax} · Защита ${t.def}${B.saveOf ? ` · спасброски: Стойкость ${sg(B.saveOf(t, 'fort'))}, Реакция ${sg(B.saveOf(t, 'refl'))}, Воля ${sg(B.saveOf(t, 'will'))}` : ''}</small>${txt ? `<div>${esc(txt)}</div>` : '<div class="note">Обычный: всё берёт как есть.</div>'}`; }
+  el.innerHTML = `<b>${esc(t.name)}</b> <small>${t.level}-й ур. · хиты ${Math.max(0, t.hp)}/${t.hpMax} · Защита ${t.def}${B.saveOf ? ` · спасброски: Стойкость ${sg(B.saveOf(t, 'fort'))}, Реакция ${sg(B.saveOf(t, 'refl'))}, Воля ${sg(B.saveOf(t, 'will'))}` : ''}</small>${txt ? `<div>${esc(txt)}</div>` : '<div class="note">Обычный: всё берёт как есть.</div>'}${(() => { const L = fxList(t).filter(x => !/^зелье/.test(x.t)); return L.length ? `<div class="fxon">На нём: ${L.map(x => `<span class="${x.good ? 'fg' : 'fb'}">${esc(x.t)}${x.left && x.left < 99 ? ` (${esc(turnsW(x.left))})` : ''}</span>`).join(', ')}</div>` : ''; })()}`; }
 function onField(e) {
   const S = battle; if (!S) return;
   { const r0 = cv.getBoundingClientRect(), h0 = pixToHex(e.clientX - r0.left, e.clientY - r0.top), o = h0 && B.unitAt(S, h0.c, h0.r);
