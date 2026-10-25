@@ -911,11 +911,47 @@ R.roll4d6 = () => { const r = [R.d(6), R.d(6), R.d(6), R.d(6)].sort((a, b) => a 
 R.POINT_COST = {8: 0, 9: 1, 10: 2, 11: 3, 12: 4, 13: 5, 14: 7, 15: 9, 16: 12, 17: 15, 18: 19};
 
 /* ---------- опыт ---------- */
-R.XP = [0, 0, 1000, 3000, 6000, 10000, 15000, 21000, 28000, 36000, 45000];
-R.xpFor = L => 500 * L * (L - 1); // шаг растёт на 1000 за уровень: 1000, 3000, 6000 … 45000 (10-й) … 190000 (20-й)
-/* опыт за врага: до 4-го уровня — как было, дальше растёт ровно с уровнем (около пяти равных врагов на героя за уровень) */
+/* Шкала растянута по образцу старых правил: на первые уровни — около дюжины дел, к десятому — под сорок, к девятнадцатому — под двести.
+   R.XP_BASE[L] — сколько всего опыта нужно на уровень L воину; остальные — с множителем своей группы (плуты быстрее, маги медленнее). */
+R.XP_BASE = [0, 0, 1000, 3000, 6000, 11000, 19000, 31000, 48000, 72000, 105000, 147000, 205000, 281000, 377000, 494000, 634000, 804000, 1006000, 1243000, 1518000];
+R.XP_K = {tat: 0.75, dushegub: 0.75, guslyar: 0.75, chernets: 0.9, volhv: 0.9, zhrets: 0.9, knizhnik: 1.2, charovnik: 1.2};
+R.XP_GROUPS = [['Плуты', ['tat', 'dushegub', 'guslyar'], 0.75], ['Жрецы', ['chernets', 'volhv', 'zhrets'], 0.9], ['Воины', ['druzhinnik', 'yaryi', 'obetnik', 'lovchiy', 'vedmak'], 1], ['Маги', ['knizhnik', 'charovnik'], 1.2]];
+/* красивое округление: до 500 — малые числа, до 1000 — средние, до 5000 — большие */
+R.xpRound = v => { const q = v < 20000 ? 500 : v < 200000 ? 1000 : 5000; return Math.max(q, Math.round(v / q) * q); };
+R.XP_TAB = {};
+(function () {
+  const ks = [...new Set(Object.values(R.XP_K).concat([1]))];
+  ks.forEach(k => { R.XP_TAB[k] = R.XP_BASE.map((v, L) => L < 2 ? 0 : k === 1 ? v : R.xpRound(v * k)); });
+})();
+R.xpKOf = cls => { const id = cls && typeof cls === 'object' ? cls.cls : cls; return (id && R.XP_K[id]) || 1; };
+/* сколько всего опыта на уровень L; cls — класс (строкой или героем), без него — воинская шкала */
+R.xpFor = (L, cls) => {
+  L = L | 0; if (L <= 1) return 0;
+  const t = R.XP_TAB[R.xpKOf(cls)] || R.XP_TAB[1];
+  if (L <= 20) return t[L];
+  return t[20] + (L - 20) * Math.round((t[20] - t[19]) * 1.2); // за двадцатым — только для подписи «опыт до следующего»
+};
+/* шаг: сколько опыта от уровня L до L+1 */
+R.xpStep = (L, cls) => R.xpFor((L | 0) + 1, cls) - R.xpFor(L | 0, cls);
+/* старая сжатая шкала — для пересчёта старых сохранений и выравнивания темпа в главах саг */
+R.xpForOld = L => 500 * L * (L - 1);
+R.xpStepOld = L => 1000 * Math.max(1, L | 0);
+/* опыт за врага: до 4-го уровня — как было, дальше растёт ровно с уровнем */
 R.monXP = L => 50 * L * Math.min(Math.max(L, 0), 4);
-R.levelOf = xp => { let L = 1; while (L < 20 && xp >= R.xpFor(L + 1)) L++; return L; };
+R.levelOf = (xp, cls) => { let L = 1; while (L < 20 && xp >= R.xpFor(L + 1, cls)) L++; return L; };
+/* старое сохранение: опыт переводится на новую шкалу с тем же уровнем и той же долей пройденного до следующего.
+   Метка h.xpV = 2 — чтобы не пересчитать дважды. Возвращает true, если пересчитал. */
+R.XP_VER = 2;
+R.xpMigrate = function (h) {
+  if (!h || typeof h !== 'object' || h.xpV >= R.XP_VER || !h.cls) return false;
+  const L = Math.max(1, Math.min(20, h.level | 0 || 1)), xp = +h.xp || 0;
+  const o0 = R.xpForOld(L), o1 = R.xpForOld(L + 1);
+  const f = Math.max(0, Math.min(0.999, (xp - o0) / (o1 - o0)));
+  h.xp = R.xpFor(L, h.cls) + Math.floor(f * R.xpStep(L, h.cls));
+  h.xpV = R.XP_VER;
+  return true;
+};
+R.xpMigrateAll = list => { let n = 0; (list || []).forEach(h => { if (R.xpMigrate(h)) n++; }); return n; };
 
 /* ---------- классы ---------- */
 /* saves: порядок «основной, второй, последний» по таблице сайта */
@@ -988,7 +1024,7 @@ R.newHero = function (o) {
   const pp = R.PEOPLES[o.people]; if (pp) st[pp.stat] = Math.min(18, st[pp.stat] + 1);
   const h = {
     id: o.id || ('h' + Math.floor(R.rand() * 1e9).toString(36)), kind: 'hero', name: o.name, sex: o.sex || 'm', people: o.people, cls: o.cls,
-    portrait: o.portrait, stats: st, level: o.level || 1, xp: R.xpFor(o.level || 1), hpMax: 0, hp: 0, power: 0,
+    portrait: o.portrait, stats: st, level: o.level || 1, xp: R.xpFor(o.level || 1, o.cls), xpV: R.XP_VER, hpMax: 0, hp: 0, power: 0,
     school: o.school || (cls.schools ? cls.schools[0] : null), spells: [], inv: [], eq: {weapon: null, shield: null, body: null, head: null, ranged: null},
     gold: 0, skills: {}, kills: 0, born: o.day || 1, player: o.player || 1,
   };
@@ -1102,7 +1138,8 @@ R.derive = function (h) {
 
 R.levelUp = function (h) {
   const cls = R.CLASSES[h.cls]; const out = [];
-  while (h.level < 20 && h.xp >= R.xpFor(h.level + 1)) {
+  R.xpMigrate(h);
+  while (h.level < 20 && h.xp >= R.xpFor(h.level + 1, h.cls)) {
     h.level++;
     const gain = h.level > 10 ? (cls.hd >= 10 ? 3 : cls.hd >= 8 ? 2 : 1) : Math.max(1, R.d(cls.hd) + R.mod(h.stats.con));
     h.hpMax += gain; h.hp += gain;
@@ -2468,7 +2505,7 @@ C.partyLevel = g => { const a = C.alive(g); return a.length ? Math.round(a.reduc
 
 /* ---------- герои ---------- */
 C.addHero = function (g, h) {
-  h.joinedDay = g.day; g.heroes.push(h);
+  R.xpMigrate(h); h.joinedDay = g.day; g.heroes.push(h);
   if (!g.net) { g.purse += Math.max(0, h.gold); h.gold = 0; }
   if (g.pendingCreate > 0) g.pendingCreate--;
   // память павших: новичку отдают дело
@@ -2522,7 +2559,9 @@ C.fallenNames = g => g.fallen.map(f => f.name);
 
 /* ---------- сцены ---------- */
 C.CAMPS = {};
-C.register = camp => { C.CAMPS[camp.id] = camp; };
+C.register = camp => { C.CAMPS[camp.id] = camp; camp._story = new Set(Object.keys(camp.scenes || {})); };
+/* сцена главы саги — своя, из файла главы (а не подмешанная корчма, подземелье или доска дел) */
+C.storyScene = (g, id) => { const camp = g && C.CAMPS[g.camp]; return !!(camp && !camp.free && camp._story && camp._story.has(id)); };
 C.sceneOf = function (g, id) {
   const camp = C.CAMPS[g.camp]; const raw = camp.scenes[id]; if (!raw) return null;
   const sc = typeof raw === 'function' ? raw(g) : raw;
@@ -2531,6 +2570,7 @@ C.sceneOf = function (g, id) {
   // off — показать кнопку неактивной с причиной, когда условие не выполнено (не хватает денег, места нет)
   let choices = (sc.choices || []).map((c, i) => [c, i]).filter(([c]) => (!c.need || C.who(g, c.need)) && (!c.if || c.if(g, ctx) || c.off))
     .map(([c, i]) => Object.assign({i, label: typeof c.t === 'function' ? c.t(g, ctx) : c.t}, c, c.need ? {tag: C.tagOf(g, c.need)} : {}, c.off && c.if && !c.if(g, ctx) ? {dis: typeof c.off === 'function' ? c.off(g, ctx) : c.off} : {}));
+  if (C.storyScene(g, id)) choices.forEach(c => { c._plot = 1; }); // свои выборы главы: опыт с них — сюжетный
   if (C.Q) choices = C.Q.inject(g, id, choices);
   // люди на месте: к каждому можно подойти отдельно (см. ui showScene). Присутствует тот, у кого есть реплика или свой выбор.
   const people = (sc.people || []).filter(p => lines.some(l => l[0] === p || l[2] === p) || choices.some(c => c.who === p));
@@ -2566,7 +2606,7 @@ C.enter = function (g, id) {
   const camp = C.CAMPS[g.camp]; const raw = camp.scenes[id];
   const sc = typeof raw === 'function' ? raw(g) : raw;
   g.scene = id; g.visited[id] = (g.visited[id] || 0) + 1;
-  if (sc && sc.onEnter) sc.onEnter(g, C.ctx(g));
+  if (sc && sc.onEnter) { const s0 = C._story; C._story = C.storyScene(g, id); try { sc.onEnter(g, C.ctx(g)); } finally { C._story = s0; } }
   return C.sceneOf(g, id);
 };
 /* выбор: возвращает, что делать дальше: {scene}, {map}, {battle}, {create}, {end}, {check} */
@@ -2574,10 +2614,13 @@ C.choose = function (g, sceneId, idx) {
   const sc = C.sceneOf(g, sceneId); const ch = sc.choices.find(c => c.i === idx) || sc.choices[idx];
   if (!ch || ch.dis) return {scene: sceneId};
   const ctx = C.ctx(g);
-  let res = ch.do ? ch.do(g, ctx) : null;
-  if (res == null) res = ch.go ? (typeof ch.go === 'function' ? ch.go(g, ctx) : ch.go) : null;
-  if (typeof res === 'string') res = res === 'map' ? {map: true} : {scene: res};
-  if (res && ch.xp) C.giveXP(g, ch.xp, ch.label);
+  const s0 = C._story; C._story = !!ch._plot; let res;
+  try {
+    res = ch.do ? ch.do(g, ctx) : null;
+    if (res == null) res = ch.go ? (typeof ch.go === 'function' ? ch.go(g, ctx) : ch.go) : null;
+    if (typeof res === 'string') res = res === 'map' ? {map: true} : {scene: res};
+    if (res && ch.xp) C.giveXP(g, ch.xp, ch.label);
+  } finally { C._story = s0; }
   return res || {map: true};
 };
 /* предпросмотр проверки у кнопки: «сухой» прогон выбора на копии игры ловит, что и с какой сложностью проверяется,
@@ -2619,12 +2662,20 @@ C.xpRel = (g, L) => { if (L == null) return 1; const d = C.partyLevel(g) - L; re
 /* потолок главы: выше него опыт идёт вчетверо медленнее */
 C.xpCap = g => (C.levelsOf ? C.levelsOf(g.camp)[1] : 20) + 1;
 C.xpK = (g, h) => g.trial || h.level < C.xpCap(g) ? 1 : 0.25;
+/* главы саг: уровни теперь дороже, а темп внутри главы — прежний. Опыт каждому множится на «новый шаг его уровня / старый шаг»,
+   сюжетные дела главы — ещё в полтора раза весомее. В Вечном мире награды прежние — потому и растут там медленнее. */
+C.STORY_XP = 1.5;
+C.sagaXpK = (g, h) => !g || !C.CAMPS[g.camp] || C.CAMPS[g.camp].free ? 1 : R.xpStep(h.level, h.cls) / R.xpStepOld(h.level);
+C.xpMul = (g, h, story) => { const camp = g && C.CAMPS[g.camp]; return !camp || camp.free ? 1 : C.sagaXpK(g, h) * (story ? C.STORY_XP : 1); };
 C.giveXP = function (g, xp, why) {
   const hs = C.alive(g); if (!hs.length || !xp) return [];
-  const ups = [];
-  hs.forEach(h => { h.xp += Math.round(xp * C.xpK(g, h)); const u = R.levelUp(h); u.forEach(x => ups.push(Object.assign({hero: h.name, cls: h.cls}, x))); });
-  g.mercs.forEach(m => { m.xp += Math.floor(xp / 2 * (C.xpK ? C.xpK(g, m) : 1)); R.levelUp(m); });
-  C.note(g, `+${xp} опыта каждому${why ? ' — ' + why : ''}.`);
+  const ups = [], story = !!C._story;
+  const got = [];
+  hs.forEach(h => { R.xpMigrate(h); const d = Math.round(xp * C.xpK(g, h) * C.xpMul(g, h, story)); h.xp += d; got.push([h, Math.round(xp * C.xpMul(g, h, story))]); const u = R.levelUp(h); u.forEach(x => ups.push(Object.assign({hero: h.name, cls: h.cls}, x))); });
+  g.mercs.forEach(m => { R.xpMigrate(m); m.xp += Math.floor(xp / 2 * (C.xpK ? C.xpK(g, m) : 1) * C.xpMul(g, m, story)); R.levelUp(m); });
+  const gv = got.map(x => x[1]), lo = Math.min(...gv), hi = Math.max(...gv); ups.got = [lo, hi];
+  if (lo === hi) C.note(g, `+${lo} опыта каждому${why ? ' — ' + why : ''}.`);
+  else C.note(g, `Опыт${why ? ' — ' + why : ''}: ${got.map(([h, d]) => `${h.name} +${d}`).join(', ')}.`);
   const slow = hs.filter(h => C.xpK(g, h) < 1 && !(g.flags || {})['xpcap_' + h.id]); slow.forEach(h => { g.flags = g.flags || {}; g.flags['xpcap_' + h.id] = 1; }); if (slow.length) C.note(g, `${slow.map(h => h.name).join(', ')}: в этих краях учиться уже нечему — опыт идёт вчетверо медленнее.`);
   ups.forEach(u => C.note(g, `${u.hero} достигает ${u.level}-го уровня.`));
   g.lastUps = (g.lastUps || []).concat(ups);
@@ -2747,7 +2798,7 @@ C.battleEnd = function (g, S, spec) {
     const xp = S.units.filter(u => u.side === 'foe' && u.kind === 'monster' && u.summonLeft == null && (u.dead || u.fled)).reduce((s, u) => s + u.xp * C.xpRel(g, u.lvl), 0) + (spec.xpBonus || 0);
     const n = Math.max(1, C.alive(g).length);
     res.xp = Math.round(xp / n);
-    res.ups = C.giveXP(g, res.xp, spec.title);
+    res.ups = C.giveXP(g, res.xp, spec.title); if (res.ups.got) res.xpGot = res.ups.got;
     res.loot = S.units.filter(u => u.side === 'foe' && u.dead && u.kind === 'monster' && !u.undead && u.group !== 'звери').reduce((s, u) => s + R.roll(1, 6) * 10 * u.level, 0);
     g.purse += res.loot;
     g.kills += S.units.filter(u => u.side === 'foe' && u.dead).length;
@@ -2893,9 +2944,27 @@ C.lead = function (ch) {
   return top.includes(ch.last) ? ch.last : 'free';
 };
 C.nextCamp = ch => C.SAGA.find(id => !(ch && ch.done.includes(id)) && C.CAMPS[id]) || null;
+/* конец главы: награда «за главное дело». Каждый живой герой поднимается хотя бы до нижнего уровня следующей главы саги
+   (и получает не меньше четверти своего шага); если следующей главы нет — половину шага своего уровня. Один раз за главу. */
+C.chapterNext = g => { const camp = C.CAMPS[g.camp], ch = g.chron || {done: []}; if (!camp || !C.SAGA.includes(camp.id)) return null;
+  return C.SAGA.slice(C.SAGA.indexOf(camp.id) + 1).find(id => !(ch.done || []).includes(id) && C.CAMPS[id]) || null; };
+C.chapterReward = function (g) {
+  const camp = C.CAMPS[g.camp]; if (!camp || camp.free || g.trial) return [];
+  g.flags = g.flags || {}; if (g.flags._chapRew) return []; g.flags._chapRew = 1;
+  const next = C.chapterNext(g), lo = next ? C.levelsOf(next)[0] : 0, out = [];
+  C.alive(g).forEach(h => { R.xpMigrate(h); const step = R.xpStep(h.level, h.cls);
+    const add = next ? Math.max(R.xpFor(lo, h.cls) - h.xp, Math.round(step * 0.25)) : Math.round(step * 0.5);
+    if (add > 0) { h.xp += add; out.push([h, add, R.levelUp(h)]); } });
+  if (!out.length) return out;
+  C.note(g, next ? `О сделанном идёт молва по всему краю, и дорога сама учит тех, кто её прошёл. ${out.map(([h, d]) => `${h.name} +${d} опыта`).join(', ')}.`
+    : `Главное дело сделано — такое не забывается ни телом, ни памятью. ${out.map(([h, d]) => `${h.name} +${d} опыта`).join(', ')}.`);
+  out.forEach(([h, , ups]) => ups.forEach(u => C.note(g, `${h.name} достигает ${u.level}-го уровня.`)));
+  return out;
+};
 C.closeCampaign = function (g) {
   const camp = C.CAMPS[g.camp], ch = g.chron || C.newChronicle();
   if (ch.done.includes(camp.id)) return ch;
+  C.chapterReward(g);
   camp.chronicle && camp.chronicle(g, ch);
   ch.faith = Math.max(0, Math.min(100, g.flags.faith != null ? g.flags.faith : ch.faith));
   ch.fallen = ch.fallen.concat(g.fallen.map(f => Object.assign({camp: camp.name}, f)));
@@ -2937,7 +3006,7 @@ C.interlude = function (ch, picks, nextCamp) {
       if (mc >= 0 && h.cls !== 'vedmak') { const pool = R.spellPool(h, mc).filter(s => !h.spells.includes(s.id) && (R.Spells.learnable || R.Spells.battleUsable)(s)); if (pool.length) { const s = R.pick(pool), c = R.learnCheck(h, s), ok = c.ok || c.total + 3 >= c.dc; if (ok) h.spells.push(s.id); lines.push(`${h.name} ${ok ? `учит «${s.name}»` : `бьётся над «${s.name}», но заклинание не даётся`}.`); return; } }
       const sk = (R.CLASS_SKILLS[h.cls] || ['Атлетика'])[0]; h.skills[sk] = (h.skills[sk] || 0) + 1; lines.push(`${h.name} учится у мастера: ${sk} +1.`);
     });
-    if (id === 'train') hs.forEach(h => { const gain = Math.round((R.xpFor(h.level + 1) - R.xpFor(h.level)) * 0.35); h.xp += gain; const ups = R.levelUp(h); lines.push(`${h.name}: +${gain} опыта${ups.length ? `, теперь ${h.level}-й уровень` : ''}.`); });
+    if (id === 'train') hs.forEach(h => { R.xpMigrate(h); const gain = Math.round(R.xpStep(h.level, h.cls) * 0.35); h.xp += gain; const ups = R.levelUp(h); lines.push(`${h.name}: +${gain} опыта${ups.length ? `, теперь ${h.level}-й уровень` : ''}.`); });
     if (id === 'trade') hs.forEach(h => { (h.inv = h.inv || []).push('zele_lecheniya'); if (h.eq && h.eq.body && R.item(h.eq.body)) { h.armorTuned = (h.armorTuned || 0) + 1; } lines.push(`${h.name}: зелье лечения в суму${h.eq && h.eq.body ? ', доспех подогнан' : ''}.`); });
     if (id === 'letters') { C.letters(ch).forEach((l, i) => { lines.push(l.t); if (l.item && hs.length) { const h = hs[i % hs.length]; (h.inv = h.inv || []).push(l.item); } }); if (nextCamp && nextCamp.rumors && nextCamp.rumors.length) lines.push('И ещё слух: «' + R.pick(nextCamp.rumors) + '»'); }
   });
@@ -2947,7 +3016,7 @@ C.carryHeroes = function (g) {
   const ch = g.chron; if (!ch || !ch.heroes.length) return 0;
   ch.heroes.forEach(src => {
     const h = JSON.parse(JSON.stringify(src));
-    if (h.level < g.startLevel) { h.xp = Math.max(h.xp, R.xpFor(g.startLevel)); R.levelUp(h); }
+    R.xpMigrate(h); if (h.level < g.startLevel) { h.xp = Math.max(h.xp, R.xpFor(g.startLevel, h.cls)); R.levelUp(h); }
     h.hp = h.hpMax; h.power = R.powerMax(h); h.dead = false; h.joinedDay = 1;
     g.heroes.push(h);
   });
@@ -2958,7 +3027,17 @@ C.carryHeroes = function (g) {
 
 /* ---------- сохранение ---------- */
 C.save = g => JSON.stringify(g);
-C.load = s => JSON.parse(s);
+C.load = s => C.migrateXP(JSON.parse(s));
+/* старые сохранения: опыт героев, наёмников и летописи — на новую шкалу (уровень и доля до следующего — те же) */
+C.migrateXP = g => {
+  if (!g || typeof g !== 'object') return g;
+  try {
+    R.xpMigrateAll(g.heroes); R.xpMigrateAll(g.mercs); R.xpMigrateAll((g.bodies || []).map(b => b && b.hero ? b.hero : b));
+    if (g.chron) C.migrateChronXP(g.chron);
+  } catch (e) {}
+  return g;
+};
+C.migrateChronXP = ch => { if (ch && typeof ch === 'object') try { R.xpMigrateAll(ch.heroes); } catch (e) {} return ch; };
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -26553,7 +26632,7 @@ C.battleEnd = function (g, S, spec) {
   const res = battleEnd0.apply(this, arguments);
   g.purse = purse; delete res.robbed; res.fled = true;
   const xp = S.units.filter(u => u.side === 'foe' && u.kind === 'monster' && u.summonLeft == null && u.dead).reduce((s, u) => s + u.xp * C.xpRel(g, u.lvl), 0);
-  if (xp && C.alive(g).length) { res.xp = Math.round(xp / Math.max(1, C.alive(g).length)); res.ups = C.giveXP(g, res.xp, spec.title); }
+  if (xp && C.alive(g).length) { res.xp = Math.round(xp / Math.max(1, C.alive(g).length)); res.ups = C.giveXP(g, res.xp, spec.title); if (res.ups.got) res.xpGot = res.ups.got; }
   g.kills += S.units.filter(u => u.side === 'foe' && u.dead).length;
   const left = S.units.filter(u => u.side === 'foe' && u.kind === 'monster' && B.active(u) && u.summonLeft == null && !u.ally && u.ref && u.ref.id);
   if (spec.win === 'map' && g.pos && left.length && C.alive(g).length) {
@@ -37730,7 +37809,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvngu03a"></script><script>
+</script><script src="world.js?v=mvnifwb8"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -38296,7 +38375,7 @@ let SAVE_KEY = sagaKey(SAGA_I, 'save'), CHRON_KEY = sagaKey(SAGA_I, 'chron');
 Object.defineProperty(window, '__sagaKeys', {configurable: true, get: () => [SAVE_KEY, CHRON_KEY]});
 const CAMP_OF = () => C.CAMPS[g && g.camp ? g.camp : C.SAGA[0]];
 const startScene = () => { const c = CAMP_OF(), n = g && c.map.nodes[g.loc]; return n ? n.scene : c.start; };
-function loadChron() { try { const s = localStorage.getItem(CHRON_KEY); return s ? JSON.parse(s) : null; } catch (e) { return null; } }
+function loadChron() { try { const s = localStorage.getItem(CHRON_KEY); return s ? (C.migrateChronXP ? C.migrateChronXP(JSON.parse(s)) : JSON.parse(s)) : null; } catch (e) { return null; } }
 function saveChron(ch) { try { localStorage.setItem(CHRON_KEY, JSON.stringify(ch)); } catch (e) {} }
 
 /* ---------- картинки ---------- */
@@ -38688,7 +38767,7 @@ function heroSheet(h) {
   };
   const spells = (h.spells || []).map(id => DATA.spellById[id]).filter(Boolean);
   return `<div class="hhead">${heroFace(h, 'sface')}<div>
-    <h3>${esc(h.name)}</h3><div class="sub">${esc(C.clsName ? C.clsName(h) : cls.name)} (${esc(cls.was)}), ${h.level}-й уровень · ${esc((R.PEOPLES[h.people] || {})[h.sex === 'f' ? 'f' : 'name'] || '')}${h.kind === 'merc' ? ' · наёмник' : ''} · <span title="Опыт до следующего уровня">опыт ${h.xp}/${R.xpFor(h.level + 1)}</span></div>
+    <h3>${esc(h.name)}</h3><div class="sub">${esc(C.clsName ? C.clsName(h) : cls.name)} (${esc(cls.was)}), ${h.level}-й уровень · ${esc((R.PEOPLES[h.people] || {})[h.sex === 'f' ? 'f' : 'name'] || '')}${h.kind === 'merc' ? ' · наёмник' : ''} · <span title="Опыт до следующего уровня">опыт ${h.xp}/${R.xpFor(h.level + 1, h.cls)}</span></div>
     <div class="note">${esc(cls.note)}${h.motive ? ' Мотив: ' + esc(h.motive) : ''}</div>${C.originLine && C.originLine(h) ? `<div class="note">${esc(C.originLine(h))}</div>` : ''}${C.ageLine ? `<div class="note">${esc(C.ageLine(h))}</div>` : ''}${C.nravLine && h.kind !== 'merc' && C.nravLine(h) ? `<div class="note">${esc(C.nravLine(h))}</div>` : ''}</div></div>
     ${C.heroStatus ? (() => { const st = C.heroStatus(g, h); return `<div class="hstate"><b>Состояние:</b> ${st.length ? st.map(x => `<span class="hs ${x.cls}" title="${esc(x.why)}">${esc(x.t)}</span>`).join(' ') + `<div class="note">${esc(st.map(x => x.why).join(' '))}</div>` : '<span class="hs up">бодр и здоров</span>'}</div>`; })() : ''}
     <div class="doll"><div class="dcol">${slot('head', 'Шлем', x => R.isArmor(x) && x.slot === 'голова')}${slot('body', 'Доспех', x => R.isArmor(x) && x.slot === 'тело')}${slot('shield', 'Щит / вторая рука', x => (R.isArmor(x) && x.slot === 'щит') || (R.offhandOk(x) && (x.id !== h.eq.weapon || h.inv.filter(y => y === x.id).length > 1)))}</div>
@@ -41425,7 +41504,7 @@ function finishBattle() {
   const res = withPurse(null, () => C.battleEnd(g, S, spec), true); lastRes = res;
   g.pendingBattle = null; battle = null;
   const ups = g.lastUps || []; g.lastUps = []; if (ups.length) setTimeout(() => tip1('level'), 700);
-  RES = {res: {won: res.won, fled: res.fled, hunt: res.hunt, xp: res.xp, loot: res.loot, items: res.items || [], robbed: res.robbed, deaths: res.deaths, wipe: res.wipe}, ups, win: spec.win, lose: spec.lose};
+  RES = {res: {won: res.won, fled: res.fled, hunt: res.hunt, xp: res.xp, xpGot: res.xpGot, loot: res.loot, items: res.items || [], robbed: res.robbed, deaths: res.deaths, wipe: res.wipe}, ups, win: spec.win, lose: spec.lose};
   if (NETH()) SCR = {k: 'result', n: ++resN, res: RES};
   save(); renderTop();
   showResult(RES);
@@ -41433,7 +41512,7 @@ function finishBattle() {
 function showResult(R0) {
   const res = R0.res, ups = R0.ups || [], net = !!(g && g.net); RES_OPEN = true;
   openModal(`<h3 class="ttl big"><span class="ui-i i-${res.won ? 'ev_victory' : 'ev_defeat'}"></span>${res.won ? 'Победа' : res.fled ? 'Отступление' : 'Поражение'}</h3>
-   ${res.won ? `<p>Опыт: <b>${res.xp}</b> каждому герою.${res.loot ? ` Добыча: <b>${esc(R.priceText(res.loot))}</b>${net ? ' — поровну на всех' : ''}.` : ''}${(res.items || []).length ? ` Подобрали: ${esc(res.items.map(x => (R.item(x.id) || {name: x.id}).name.toLowerCase() + ' (' + x.hero + ')').join(', '))}. Лишнее продаётся в лавке.` : ''}</p>` : res.fled ? `<p>Отряд ушёл с поля${res.xp ? `. За поверженных — опыт: <b>${res.xp}</b> каждому` : ''}.</p>${res.hunt ? `<p class="note">Враги не отстанут: ${esc(res.hunt)} идут по следу. Скрытный шаг собьёт их со следа, у жилья они отстанут, через три дня бросят погоню.</p>` : ''}` : `<p>${res.robbed ? `Пока вы лежали, у отряда забрали ${esc(R.priceText(res.robbed))}.` : ''}</p>`}
+   ${res.won ? `<p>Опыт: <b>${res.xpGot && res.xpGot[0] !== res.xpGot[1] ? res.xpGot[0] + '–' + res.xpGot[1] : res.xpGot ? res.xpGot[0] : res.xp}</b> каждому герою.${res.loot ? ` Добыча: <b>${esc(R.priceText(res.loot))}</b>${net ? ' — поровну на всех' : ''}.` : ''}${(res.items || []).length ? ` Подобрали: ${esc(res.items.map(x => (R.item(x.id) || {name: x.id}).name.toLowerCase() + ' (' + x.hero + ')').join(', '))}. Лишнее продаётся в лавке.` : ''}</p>` : res.fled ? `<p>Отряд ушёл с поля${res.xp ? `. За поверженных — опыт: <b>${res.xp}</b> каждому` : ''}.</p>${res.hunt ? `<p class="note">Враги не отстанут: ${esc(res.hunt)} идут по следу. Скрытный шаг собьёт их со следа, у жилья они отстанут, через три дня бросят погоню.</p>` : ''}` : `<p>${res.robbed ? `Пока вы лежали, у отряда забрали ${esc(R.priceText(res.robbed))}.` : ''}</p>`}
    ${ups.map(u => `<p class="note">${esc(u.hero)} достигает ${u.level}-го уровня, +${u.hp} хитов${u.profPts ? `, +${u.profPts} очк. профессий` : ''}${u.lesson ? `. Можно выучить новое заклинание — ${esc(C.teacherWhere ? C.teacherWhere(u.cls) : 'у наставника')}` : ''}.</p>`).join('')}
    ${res.deaths.length ? `<p><b>Пали:</b> ${esc(res.deaths.map(d => d.name + (d.merc ? ' (наёмник)' : '')).join(', '))}. Их имена в летописи.</p>` : ''}
    ${res.wipe ? (net ? '<p>Отряд погиб. Каждый может посадить к огню нового героя — дело не умерло.</p>' : '<p>Отряд погиб, но дело не умерло: к огню сядут новые герои на стартовом уровне кампании и подхватят его вместе с вещами отряда.</p>') : ''}
@@ -41453,6 +41532,7 @@ function showEnd() {
   if (NETH()) {
     // гостям — итог, стол закрывается; хозяин идёт дальше по своей саге
     const camp = CAMP_OF();
+    if (C.chapterReward) C.chapterReward(g); // награда за главу — до того, как гости заберут героев
     SCR = {k: 'end', name: camp.name, text: `Пройдено за ${g.day} дн. Боёв: ${g.battles}. Павших: ${g.fallen.length}.`, heroes: C.alive(g).map(h => `${h.name} (${R.CLASSES[h.cls].name}, ${h.level}-й ур.)`).join(', ')};
     publish(true); const gg = g; setTimeout(() => { try { Net.Hall.uninvite(Net.S.code); KR.role = ''; Net.leave('Кампания завершена. Ваши герои вернулись в ваш список — с опытом и добром.'); } catch (e) {} }, 1500); g = gg;
   }
@@ -41543,7 +41623,7 @@ function withPurse(pid, fn, all) {
 }
 
 /* ---------- пул героев игрока ---------- */
-function poolLoad() { try { return JSON.parse(localStorage.getItem(ROSTER) || '[]') || []; } catch (e) { return []; } }
+function poolLoad() { try { const L = JSON.parse(localStorage.getItem(ROSTER) || '[]') || []; if (R.xpMigrateAll && Array.isArray(L) && R.xpMigrateAll(L)) poolSave(L); return L; } catch (e) { return []; } }
 function poolSave(L) { try { localStorage.setItem(ROSTER, JSON.stringify(L)); } catch (e) {} }
 function poolPut(h) { const L = poolLoad(), i = L.findIndex(x => x.id === h.id), e = Object.assign(JSON.parse(JSON.stringify(h)), {_at: Date.now()}); if (i >= 0) L[i] = e; else L.push(e); poolSave(L); }
 /* запись о гибели в «Моих героях»: где, отчего, в какой главе — и когда (для летописи кургана); ушедший во сне — в свой срок.
@@ -41897,9 +41977,10 @@ function addNetHero(h, pid) {
   const [lo, hi] = C.levelsOf(g.camp);
   if (h.level > hi) return `${h.name} (${h.level}-й ур.) не сядет за этот стол: здесь ${lo}–${hi}-й уровень.`;
   if (h.level < lo) return `Сюда нужен герой хотя бы ${lo}-го уровня.`;
+  if (!(h.xpV >= 2) && R.xpMigrate) { h = JSON.parse(JSON.stringify(h)); R.xpMigrate(h); } // герой со старой шкалой опыта (старая сборка у гостя)
   { // хозяин сверяет присланного героя: уровень по опыту, разумные характеристики и хиты — подделанного не сажаем
     const L = h.level | 0, xp = h.xp || 0, cl = R.CLASSES[h.cls];
-    if (L < 1 || L > 20 || (!h._trial && R.xpFor && (xp < R.xpFor(L) || (L < 20 && xp >= R.xpFor(L + 1) * 4)))) return 'герой не сходится с опытом';
+    if (L < 1 || L > 20 || (!h._trial && R.xpFor && (xp < R.xpFor(L, h.cls) || (L < 20 && xp >= R.xpFor(L + 1, h.cls) * 4)))) return 'герой не сходится с опытом';
     if (Object.values(h.stats).some(v => typeof v !== 'number' || v < 3 || v > 22)) return 'у героя невозможные характеристики';
     if ((h.hpMax || 0) > L * ((cl.hd || 10) + 6) + 60) return 'у героя невозможные хиты'; 
     if (typeof h.gold === 'number' && (h.gold < 0 || h.gold > 60000 * L + 20000)) return 'у героя невозможный кошель';
