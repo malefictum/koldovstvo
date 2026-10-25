@@ -43748,8 +43748,9 @@ const heroWed = (g, h) => !!(h.spouse || Object.values(g.folkRel || {}).some(r =
 const heroTaken = (g, h, m) => Object.values(g.folkRel || {}).some(r => r && r.who === h.id && r.bond !== 'brat' && r.bond !== 'kin' && (r.answered || r.love))
   || mercs(g).some(x => x !== m && x.mw && ['blizk', 'wed'].includes(x.mw.tier) && x.mw.who === h.id);
 const heroBrat = (g, h, m) => Object.values(g.folkRel || {}).some(r => r && r.bond === 'brat' && r.who === h.id) || mercs(g).some(x => x !== m && x.mw && x.mw.tier === 'brat' && x.mw.who === h.id);
-const canLove = (g, m, h) => !!(h && h.kind !== 'merc' && h.sex !== m.sex && !VOW.includes(m.cls) && !heroWed(g, h) && !heroTaken(g, h, m));
-const canBrat = (g, m, h) => !!(h && h.kind !== 'merc' && h.sex === m.sex && !heroBrat(g, h, m));
+const hostHero = (g, h) => !(g && g.net && g.net.own) || g.net.own[h.id] === 'p0'; // за общим столом — только герои хозяина стола
+const canLove = (g, m, h) => !!(h && hostHero(g, h) && h.kind !== 'merc' && h.sex !== m.sex && !VOW.includes(m.cls) && !heroWed(g, h) && !heroTaken(g, h, m));
+const canBrat = (g, m, h) => !!(h && hostHero(g, h) && h.kind !== 'merc' && h.sex === m.sex && !heroBrat(g, h, m));
 C.mwOf = function (m) { if (!m || m.kind !== 'merc' || !m.loyal) return null; if (!m.mw || typeof m.mw !== 'object') m.mw = {pts: 0, tier: 'tov'}; return m.mw; };
 
 /* ---------- речи ---------- */

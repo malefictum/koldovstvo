@@ -37703,7 +37703,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvnf874w"></script><script>
+</script><script src="world.js?v=mvnfgl2a"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -38691,7 +38691,7 @@ function heroSheet(h) {
     ${(() => { if (!C.feedHero || battle || mineH(h) && h.kind !== 'merc') return ''; const hungry = (h.hunger || 0) > 0 || C.foodDays(h) < 1; if (!hungry) return '';
       const donors = (NET() ? myHeroes() : C.alive(g)).filter(x => x !== h && C.foodDays(x) >= 1); if (!donors.length) return '';
       return `<div class="info hunt">${esc(h.name)} ${(h.hunger || 0) > 0 ? 'голодает' : 'без еды'}. ${donors.map(x => `<button class="btn small" data-feed="${h.id}" data-from="${x.id}">Накормить из сумы ${esc(x.name)}</button>`).join(' ')}</div>`; })()}
-    ${C.ABIL_TEXT && (C.ABIL_TEXT[h.cls] || (C.abilOpts && C.abilOpts(g, h).length)) ? `<h4 class="jh">Умения вне боя</h4><p class="note" style="margin:0 0 4px">${esc(C.ABIL_TEXT[h.cls] || '')}</p>${mineH(h) && !battle ? `<div class="row" style="gap:4px;flex-wrap:wrap">${C.abilOpts(g, h).map(o => `<button class="btn small" data-abil="${esc(o.arg)}" data-h="${h.id}" ${o.why ? `disabled title="${esc(o.why)}"` : ''}>${esc(o.t)}${o.why ? ` — ${esc(o.why)}` : ''}</button>`).join('')}</div>` : ''}` : ''}
+    ${C.ABIL_TEXT && (C.ABIL_TEXT[h.cls] || (C.abilOpts && C.abilOpts(g, h).length)) ? `<h4 class="jh">Умения вне боя</h4><p class="note" style="margin:0 0 4px">${esc(C.ABIL_TEXT[h.cls] || '')}</p>${(mineH(h) || hostMw(h)) && !battle ? `<div class="row" style="gap:4px;flex-wrap:wrap">${abilList(h).map(o => `<button class="btn small" data-abil="${esc(o.arg)}" data-h="${h.id}" ${o.why ? `disabled title="${esc(o.why)}"` : ''}>${esc(o.t)}${o.why ? ` — ${esc(o.why)}` : ''}</button>`).join('')}</div>` : ''}` : ''}
     ${C.RECIPES ? (() => { const rcps = [...new Set(h.inv.filter(x => /^rcp_/.test(x)))], ops = C.cookOpts(g, h), known = C.recipesOfHero(h).length;
       return `<h4 class="jh">Стряпня · рецептов ${known} из ${C.recipeCap(h)}</h4><p class="note" style="margin:0 0 4px">${C.fireHere(g) ? 'Костёр горит — можно готовить.' : 'Готовят у костра: «Короткий отдых» или «Привал» на карте.'} Продуктов в суме: ${h.inv.filter(x => C.RAW[x]).length}.${C.keepText && C.keepText(g) ? ' ' + esc(C.keepText(g)) + '.' : ''}</p>
       ${mineH(h) && !battle ? `<div class="row" style="gap:4px;flex-wrap:wrap">${ops.map(o => `<button class="btn small" data-cook="${o.rid}" data-h="${h.id}" ${o.why ? `disabled title="${esc(o.why)}"` : ''}>${esc(o.t)}${o.why && C.fireHere(g) ? ` <small>— ${esc(o.why)}</small>` : ''}</button>`).join('')}${rcps.map(id => `<button class="btn small" data-rcp="${id}" data-h="${h.id}">Запомнить: ${esc(R.item(id).name.replace(/^Рецепт: /, ''))}</button>`).join('')}</div>` : ''}`; })() : ''}
@@ -41480,6 +41480,11 @@ const ownerOf = id => g && g.net && g.net.own[id];
 const heroesOf = pid => g ? C.alive(g).filter(h => g.net && g.net.own[h.id] === pid) : [];
 const myHeroes = () => heroesOf(myPid());
 const mineH = h => !NET() || (!!h && ownerOf(h.id) === myPid());
+/* за общим столом дружба и браки с наёмниками — только у хозяина стола и только с его героями */
+const hostMw = h => NET() && NETH() && !!h && h.kind === 'merc' && (g.mercs || []).includes(h);
+const netMwOk = (h, o) => { if (!/^mw_/.test(o.arg || '')) return false; const p = o.arg.split(':'), ids = /^mw_gift:/.test(o.arg) ? [p[2]] : p[1] ? [p[1]] : [];
+  if (h.mw && h.mw.who && /^mw_(wed|fire)$/.test(o.arg)) ids.push(h.mw.who); return ids.every(id => ownerOf(id) === myPid()); };
+const abilList = h => { const L0 = C.abilOpts ? C.abilOpts(g, h) : []; return hostMw(h) ? L0.filter(o => netMwOk(h, o)) : L0; };
 const mineU = u => !NET() || (!!u && !!u.ref && ownerOf(u.ref.id) === myPid());
 const leader = () => { const l = g && g.net && g.net.leader; return l && isOnline(l) ? l : 'p0'; };
 const amLeader = () => !NET() || leader() === myPid();
@@ -41734,7 +41739,9 @@ function doCmd1(c, pid) {
     case 'cook': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.cook(g, hh, c.rid) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'rcp': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.learnRecipe(g, hh, c.item) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'ocast': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; if (battle && !battle.over) return 'идёт бой'; if (C.OUTCAST[c.id] === 'pero' && (pid !== leader() || SCR.k !== 'map')) return 'увести отряд «Пером» может только вожатый — и только с карты'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.outCast(g, hh, c.id, c.arg) : {err: 'нет героя'}; if (r.err) return r.err; { const tid = String(c.arg || '').replace(/^for:/, '').split(':')[0], tg = heroById(tid); if (tg && ownerOf(tg.id) && ownerOf(tg.id) !== pid && r.text) Net.sysChat(r.text); } save(); if (r.scene) return showScene(r.scene); rerender(); return; }
-    case 'abil': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.abil(g, hh, c.arg) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
+    case 'abil': { if (ownerOf(c.hero) !== pid) { const m = (g.mercs || []).find(x => x.id === c.hero);
+        if (!(m && pid === myPid() && /^mw_/.test(c.arg || '') && netMwOk(m, {arg: c.arg}))) return 'это не ваш герой';
+        const r = C.abil(g, m, c.arg); if (r.err) return r.err; save(); rerender(); return; } const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.abil(g, hh, c.arg) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'brew': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.brew(g, hh, c.kind) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'med': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.meditate(g, hh) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
     case 'study': { if (ownerOf(c.hero) !== pid) return 'это не ваш герой'; const hh = C.alive(g).find(x => x.id === c.hero); const r = hh ? C.studyScroll(g, hh, c.item) : {err: 'нет героя'}; if (r.err) return r.err; save(); rerender(); return; }
