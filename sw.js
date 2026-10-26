@@ -1,6 +1,6 @@
 // Сервис-воркер «Колдовства».
 // Новая сборка = новое имя кэша, старый удаляется.
-var CACHE = 'kldv-202610261811';
+var CACHE = 'kldv-202610262046';
 var CORE = ["./", "index.html", "manifest.webmanifest", "img/atlas.json", "img/fonts/alegreya-italic.woff2", "img/fonts/alegreya-sc-bold.woff2", "img/fonts/alegreya-sc.woff2", "img/fonts/alegreya.woff2", "img/fonts/ruslan.woff2", "img/icons/icon-150.png", "img/icons/icon-180.png", "img/icons/icon-192.png", "img/icons/icon-32.png", "img/icons/icon-44.png", "img/icons/icon-512.png", "img/icons/maskable-512.png"];
 
 self.addEventListener('install', function (e) {

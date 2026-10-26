@@ -19096,7 +19096,11 @@ const harm = (g, d, H) => {
   if (H.foes && H.foes.length) return A.fight(g, d, H.foes.filter(id => C.beast(id)), {title: `${d.name}: ${H.title || 'засада'}`});
   return null;
 };
-const nodeChoices = (g, d, r, N) => (N.choices || []).filter(c => !c.hide || okNeed(g, c.need)).map((c, i) => {
+// выбор, который держится на знании (прошлое сказание, найденная улика, другое подземелье), без этого знания не показывается вовсе:
+// откуда герою знать, что можно «прочесть имена по списку», если списка он не видел
+const KNOW = ['after', 'flag', 'noFlag', 'dg'];
+const knowOk = (g, N) => { if (!N) return true; const K = {}; KNOW.forEach(k => { if (N[k] != null) K[k] = N[k]; }); return !Object.keys(K).length || okNeed(g, K); };
+const nodeChoices = (g, d, r, N) => (N.choices || []).map((c, i) => [c, i]).filter(([c]) => (!c.hide || okNeed(g, c.need)) && knowOk(g, c.need)).map(([c, i]) => {
   const lbl = c.check ? `${c.t} (${C.STAT_NAME[c.check[0]] || c.check[0]}${c.check[1] ? ', ' + c.check[1] : ''})` : c.t;
   return {t: lbl, if: g2 => okNeed(g2, c.need), off: c.off || 'не хватает того, что нужно', do: g2 => {
     const dd = g2.dungeon; if (!dd) return 'dungeon'; dd.msg = []; const rr = A.room(dd); if (C.passH) C.passH(g2, (C.HOURS && C.HOURS.dungeonAct) || 0.5);
