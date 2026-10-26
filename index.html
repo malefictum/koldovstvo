@@ -2720,11 +2720,18 @@ C.hireMerc = function (g, id) {
   if (g.mercs.some(x => x.mercId === id)) return false;
   if (g.purse < m.price) return false;
   g.purse -= m.price;
-  const h = R.newHero(Object.assign({id: 'merc_' + id, name: m.name, portrait: m.portrait, level: Math.max(1, m.level || g.startLevel)}, m.hero));
+  const lv = Math.max(1, m.level || g.startLevel), old = C.mercFromChron(g, m, id);
+  const h = old || R.newHero(Object.assign({id: 'merc_' + id, name: m.name, portrait: m.portrait, level: lv}, m.hero));
+  if (old) { R.xpMigrate(h); if (h.level < lv) { h.xp = Math.max(h.xp || 0, R.xpFor(lv, h.cls)); R.levelUp(h); } h.id = 'merc_' + id; h.hp = h.hpMax; h.power = R.powerMax(h); h.dead = false; h.ails = []; h.hunger = 0; h.joinedDay = g.day || 1; if (!h.askDone && !h.loyal) delete h.ask; }
   h.kind = 'merc'; h.mercId = id; h.motive = m.motive;
   g.mercs.push(h); C.note(g, `${m.name} идёт с отрядом.`);
   return true;
 };
+/* наёмники саги помнят прошлые главы: уровень, чары и вещи — с ними (по имени и лицу) */
+C.mercKey = m => (m.name || '') + '|' + (m.portrait || '');
+C.mercsToChron = function (g, ch) { ch.mercs = ch.mercs || {}; (g.mercs || []).filter(m => !m.dead).forEach(m => { const c = JSON.parse(JSON.stringify(m)); delete c.mw; ch.mercs[C.mercKey(m)] = c; }); };
+C.mercFromChron = function (g, m, id) { const ch = g.chron; if (!ch || !ch.mercs) return null; const k = C.mercKey(m), src = ch.mercs[k]; if (!src || src.cls !== (m.hero && m.hero.cls || src.cls)) return null;
+  const h = JSON.parse(JSON.stringify(src)); delete ch.mercs[k]; return h; };
 /* наёмник, который идёт с отрядом даром — по клятве или долгу */
 C.joinMerc = function (g, id) { const camp = C.CAMPS[g.camp], m = camp.mercs[id]; if (!m || g.mercs.some(x => x.mercId === id)) return false; const p = m.price; m.price = 0; g.purse += 0; const ok = C.hireMerc(g, id); m.price = p; return ok; };
 C.dropMerc = function (g, id, why) { const i = g.mercs.findIndex(x => x.mercId === id); if (i >= 0) { const m = g.mercs[i]; g.mercs.splice(i, 1); C.note(g, `${m.name} покидает отряд: ${why}.`); return m; } };
@@ -3177,6 +3184,7 @@ C.closeCampaign = function (g) {
   ch.fallen = ch.fallen.concat(g.fallen.map(f => Object.assign({camp: camp.name}, f)));
   ch.endings[camp.id] = g.flags.ending || null; ch.last = ({oko: 'oko', kapishche: 'kap', kap: 'kap', free: camp.id === 'dead_water' ? 'nav' : 'free', nav: 'nav'})[g.flags.ending] || ch.last; // в «Мёртвой воде» вольный исход — отпустить Гордея, это навья сторона
   ch.heroes = C.alive(g).map(h => JSON.parse(JSON.stringify(h)));
+  C.mercsToChron(g, ch);
   ch.purse = Math.max(0, g.purse || 0); // кошель уходит с отрядом в следующую кампанию
   ch.done.push(camp.id);
   return ch;
@@ -38265,7 +38273,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvpua4b8"></script><script>
+</script><script src="world.js?v=mvpul1nl"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
