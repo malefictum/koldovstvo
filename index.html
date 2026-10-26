@@ -193,7 +193,7 @@ button{font:inherit;cursor:pointer}
 .march{display:flex;gap:6px;flex-wrap:wrap}.march .btn{flex:1;text-align:center}
 .icards{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px;margin:12px 0;text-align:left}
 .icard{display:grid;gap:4px;padding:12px 14px;white-space:normal}.icard b{font-size:16px;color:var(--brass-2)}.icard span{font:14px/1.35 var(--t-text);color:var(--paper-2);letter-spacing:0}
-.box.inter{max-width:820px}
+.box.inter{max-width:820px}.box.inter .icard{align-content:start}
 .people{display:flex;flex-wrap:wrap;gap:10px;margin-top:6px}
 .person{display:flex;align-items:center;gap:10px;background:rgba(255,240,210,.06);border:1px solid var(--rim);border-radius:8px;padding:6px 12px 6px 6px;color:var(--paper);cursor:pointer;font:inherit;text-align:left}
 .person:hover{border-color:var(--brass-2);background:rgba(255,240,210,.12)}
@@ -1440,10 +1440,20 @@ B.start = function (o) {
   const S = {field: B.makeField(Object.assign({}, o.field || {}, o.ambush ? {ambush: o.ambush} : {})), units: [], round: 1, order: [], cur: 0, log: [], over: null, title: o.title || 'Бой', ctx: o.ctx || {}, foesStart: 0, moved: 0, acted: false, freeHit: {}};
   const W = S.field.w, H = S.field.h;
   const SP = S.field.spawn || {party: 1, foe: W - 2, mid: Math.floor(H / 2)};
+  // ставить только туда, откуда можно дойти до остального поля: наибольший связный кусок проходимой земли (не за избами, не в загородке)
+  const REACH = (() => { const seen = new Set(), best = []; let top = new Set();
+    for (const x of Object.values(S.field.cells)) { const k0 = x.c + ',' + x.r; if (seen.has(k0) || !B.passable(S, x.c, x.r)) continue;
+      const comp = new Set([k0]), q = [[x.c, x.r]]; seen.add(k0);
+      while (q.length) { const [c, r] = q.pop(); for (const n of B.neigh(c, r)) { const k = n.c + ',' + n.r; if (seen.has(k) || !B.passable(S, n.c, n.r)) continue; seen.add(k); comp.add(k); q.push([n.c, n.r]); } }
+      if (comp.size > top.size) top = comp; }
+    return top; })();
+  const okCell = (c, r) => B.passable(S, c, r) && !B.unitAt(S, c, r) && (!REACH.size || REACH.has(c + ',' + r));
   const place = (u, side) => {
     const c0 = side === 'party' ? SP.party : SP.foe, back = side === 'party' ? -1 : 1, cols = [c0, c0 + back, c0 - back, c0 + 2 * back, c0 - 2 * back];
     const rows = R.shuffle([...Array(H).keys()]).sort((a, b) => Math.abs(a - SP.mid) - Math.abs(b - SP.mid));
-    for (const c of cols) for (const r of rows) if (B.passable(S, c, r) && !B.unitAt(S, c, r)) { u.c = c; u.r = r; return; }
+    for (const c of cols) for (const r of rows) if (okCell(c, r)) { u.c = c; u.r = r; return; }
+    const all = Object.values(S.field.cells).filter(x => okCell(x.c, x.r)).sort((a, b) => Math.abs(a.c - c0) - Math.abs(b.c - c0));
+    if (all.length) { u.c = all[0].c; u.r = all[0].r; return; }
     for (const x of Object.values(S.field.cells)) if (B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r)) { u.c = x.c; u.r = x.r; return; }
   };
   o.party.forEach(u => { place(u, 'party'); S.units.push(u); });
@@ -1504,7 +1514,12 @@ B.startTurn = function (S, u) {
     return false;
   }
   if (c.surprised) { delete c.surprised; B.log(S, `${u.name} застигнут врасплох и пропускает ход.`); return false; }
-  if (c.dot) { const d = R.dice(c.dot.dice); B.damage(S, u, d, c.dot.src || 'яд'); c.dot.n--; if (c.dot.n <= 0) delete c.dot; if (!B.active(u)) return false; }
+  if (c.dot) { const dt = c.dot, ven = B.isVenomDot(dt); let d = R.dice(dt.dice);
+    if (ven && B.venomCap(u)) { const cap = Math.max(0, Math.min(d, u.hp - 1)); if (cap < d && !dt._capSaid) { dt._capSaid = 1; B.log(S, `${u.name}: яд ломит тело, но с ног не валит.`, '', 'яд не добивает: не ниже 1 хита'); } }
+    S._venom = ven; try { B.damage(S, u, d, dt.src || 'яд'); } finally { S._venom = false; }
+    dt.n--; if (dt.n <= 0) delete c.dot;
+    else if (dt.save && B.active(u) && B.saveRoll(u, 'Стойкость', dt.dc || 12)) { delete c.dot; B.log(S, `${u.name} перебарывает яд.`, '', `Стойкость против ${dt.dc || 12}: выдержал`); }
+    if (!B.active(u)) return false; }
   for (const k of ['held', 'sleep', 'fear', 'charm']) if (c[k]) {
     if (c[k].each && B.saveRoll(u, c[k].save, c[k].dc)) { delete c[k]; B.log(S, `${u.name} стряхивает чары (${k === 'sleep' ? 'сон' : k === 'fear' ? 'страх' : k === 'charm' ? 'очарование' : 'оковы'}).`); continue; }
     if (k === 'fear') continue; // страх убывает в конце хода — в этот ход он ещё гонит прочь
@@ -1557,6 +1572,9 @@ B.cover = function (S, a, t) {
 };
 B.damage = function (S, t, d, src, by) {
   if (B.takeHook) d = B.takeHook(S, t, d, src, by);
+  // яд не добивает своих: опускает не ниже 1 хита (решение Ника)
+  if (S && S._venom && d > 0 && B.venomCap(t)) d = Math.max(0, Math.min(d, t.hp - 1));
+  if (!(d > 0) && S && S._venom) return;
   if (t.conds.sleep) { if (t.conds.sleep.deep) { delete t.conds.sleep.deep; B.log(S, `${t.name} ворочается, но сонная пыль держит.`); } else { delete t.conds.sleep; B.log(S, `${t.name} просыпается от удара.`); } }
   t.hp -= d;
   if (by) by.dealt = (by.dealt || 0) + d;
@@ -1660,10 +1678,53 @@ B.attack = function (S, u, t, ranged) {
       if (B.venomProof(t)) B.log(S, `Яд не берёт ${t.name}: в этом теле нет живой крови.`, '', 'яд: не действует');
       else { t.conds.dot = {dice: '1d4+' + Math.max(1, Math.floor(u.level / 2)), n: 3, src: 'яд'}; B.log(S, G.N.pickLine(S, 'venom', [`Отравленный клинок сделал своё: ${t.name} бледнеет, по жилам ползёт яд.`, `${t.name} шатается — яд с клинка уже в крови.`]), 'ctrl', `яд: 1d4+${Math.max(1, Math.floor(u.level / 2))} урона в начале хода, 3 хода`); }
     }
+    if (d > 0 && !t.dead && t.side !== u.side && B.venomHit) B.venomHit(S, u, t, ranged);
   }
 };
 /* яд не берёт нежить, духов и истуканов */
 B.venomProof = t => !!(t.undead || t.group === 'духи' || /истукан|дух|голем/i.test(t.name || ''));
+/* ---------- яды против героев ----------
+   Ядовитые твари травят укусом и жалом не всегда: шанс 30–50% по величине твари, потом Стойкость (10 + пол-уровня твари);
+   провал — яд на несколько ходов, Стойкость повторяется каждый ход. Тати и душегубы врага мажут клинок (две склянки),
+   степняки иногда пускают отравленную стрелу. Яд на своих (героях, наёмниках, спутниках) не добивает: не ниже 1 хита. */
+B.isVenomDot = d => !!d && (!!d.venom || /(^|[^а-яё])(яд|отрав)/i.test(String(d.src || '')) || /^яд/i.test(String(d.src || '')));
+B.venomCap = t => !!t && t.side === 'party';
+const VEN_DICE = L => L <= 3 ? '1d4' : L <= 6 ? '1d6' : L <= 9 ? '2d4' : L <= 13 ? '2d6' : '3d6';
+B.venomOf = function (u) {
+  if (!u || u.kind !== 'monster' || !u.ref) return null;
+  if (u._ven !== undefined) return u._ven;
+  const m = u.ref, L = m.level || u.level || 1, sp = (m.specials || []).join('; ').toLowerCase(), nm = (m.name || '').toLowerCase(), id = String(m.id || ''), atn = ((u.attacks && u.attacks[0] && u.attacks[0].name) || '').toLowerCase();
+  let v = null;
+  if (B.venomProof(u)) v = null;
+  else if (/укус ядовит|яд: при попадании|ядовитая слюна|ядовит\S* (?:жал|укус)/.test(sp) || /паук|паучих|паучья|вдова|полоз|аспид|гадюк|сколопендр|шершен|скорпион|ядовит/.test(nm) || /^(pauk|pauch|chernaya_vdova|poloz|aspid|yascher_yad)/.test(id) || /жал|с ядом/.test(atn)) {
+    const dm = /стойкость или (\d+d\d+)/.exec(sp), nn = /до (\d+) ход/.exec(sp);
+    const small = L <= 3 || (u.bsize && u.bsize < 0.8);
+    v = {kind: 'bite', chance: small ? 0.3 : L <= 6 ? 0.4 : 0.5, dice: dm ? dm[1] : VEN_DICE(L), n: nn ? Math.max(2, +nn[1]) : 3, dc: 10 + Math.floor(L / 2),
+      verb: /полоз/.test(nm) || /^poloz/.test(id) ? 'дотягивается клыками' : /аспид|жал/.test(nm + ' ' + atn) ? 'бьёт жалом' : 'кусает'};
+    if (/полоз/.test(nm) || /^poloz/.test(id)) v.chance = Math.min(v.chance, 0.35); // полозы бьют трезубцем, клыки — изредка
+  } else if (/отравленн|яд на клинке/.test(atn + ' ' + sp) && !/сон/.test(sp)) v = {kind: 'blade', vials: 3, chance: 0.6, dice: VEN_DICE(L), n: 3, dc: 10 + Math.floor(L / 2), verb: 'бьёт отравленным клинком'};
+  else if (/^tat$|ubiyts|dushegub|_tat$/.test(id) || /^тать|душегуб|убийц|ночной тать/.test(nm)) v = {kind: 'blade', vials: L >= 4 ? 2 : 1, chance: 0.4, dice: VEN_DICE(L), n: 3, dc: 10 + Math.floor(L / 2), verb: 'бьёт смазанным клинком'};
+  else if (m.group === 'степные дикари' && (u.ranged || /stepnyak/.test(id))) v = {kind: 'arrow', vials: 2, chance: 0.3, dice: VEN_DICE(L), n: 3, dc: 10 + Math.floor(L / 2), verb: 'пускает отравленную стрелу'};
+  u._ven = v; return v;
+};
+/* попадание ядовитой твари или отравленного оружия врага: шанс, Стойкость, яд по времени */
+B.venomHit = function (S, u, t, ranged) {
+  if (!u || !t || u.side === 'party' || t.side !== 'party' || t.dead || t.down || u.summonLeft != null) return;
+  const v = B.venomOf(u); if (!v) return;
+  if (v.kind === 'bite' && ranged) return;
+  if (v.kind === 'blade' && ranged) return;
+  if (v.kind === 'arrow' && !ranged) return;
+  if (v.vials != null && v.vials <= 0) return;
+  if (R.rand() >= v.chance) return;
+  if (v.vials != null) v.vials--;
+  if (B.venomProof(t) || (t.kind === 'monster' && G.C && G.C.resProfile && (G.C.resProfile(t.ref).mult || {}).poison === 0)) { B.log(S, `${t.name}: яд не берёт.`, '', 'неуязвим к яду'); return; }
+  const dc = v.dc + (t.fx && t.fx.res_poison ? -2 : 0);
+  const head = v.kind === 'bite' ? `${u.name} ${v.verb} — ` : `${u.name} ${v.verb} — `;
+  if (B.saveRoll(t, 'Стойкость', dc)) { B.log(S, `${head}${t.name} перебарывает яд.`, '', `яд: Стойкость против ${dc} — выдержал`); return; }
+  const was = t.conds.dot && B.isVenomDot(t.conds.dot) ? t.conds.dot : null;
+  t.conds.dot = {dice: v.dice, n: Math.max(v.n, was ? was.n : 0), src: 'яд', save: 1, dc, venom: 1};
+  B.log(S, `${head}яд в крови у ${t.name}.`, 'ctrl', `яд: Стойкость против ${dc} — провал; ${v.dice} в начале хода до ${v.n} ходов, Стойкость каждый ход; не ниже 1 хита`);
+};
 
 /* ---------- движение ---------- */
 /* верхом в лесу деревья мешают: каждый поворот — минус 2 шага (по прямой — как обычно) */
@@ -1768,6 +1829,11 @@ B.defend = function (S, u) { u.conds.dodge = 1; S.acted = true; B.log(S, G.N ? G
 B.bandage = function (S, u, t) {
   S.acted = true;
   const r = R.d(20), tot = r + (u.medic || 0);
+  // яд в крови у стоящего на ногах: надрезать, высосать, прижечь — Медицина против сложности яда
+  if (!t.down && t.conds && B.isVenomDot(t.conds.dot)) { const dc = t.conds.dot.dc || 12;
+    if (tot >= dc) { delete t.conds.dot; B.log(S, `${u.name} надрезает ранку у ${t.name}, высасывает и сплёвывает чёрную кровь — яд выгнан.`, 'heal', `Медицина: ${tot} против ${dc}`); }
+    else B.log(S, `${u.name} пытается выгнать яд из раны ${t.name}, да не выходит.`, '', `Медицина: ${tot} против ${dc}`);
+    return; }
   if (tot >= 10) { t.stable = true; B.log(S, G.N ? G.N.bandage(S, u, t, true) : `${u.name} перевязывает ${t.name}.`, 'heal', `перевязка: ${tot} против 10`); }
   else B.log(S, G.N ? G.N.bandage(S, u, t, false) : `Перевязка не вышла.`, '', `перевязка: ${tot} против 10`);
 };
@@ -2030,10 +2096,89 @@ S_.usableNow = (S, u) => (u.spells || []).map(S_.spell).filter(s => s && S_.batt
 B.Spells = S_; R.Spells = S_;
 
 /* ---------- ИИ ---------- */
+/* задняя линия отряда: колдуны и стрелки держатся за своими ближниками, в 2–3 клетках за строем, но в дальности чар и выстрела */
+const MELEE_CLS = ['druzhinnik', 'yaryi', 'obetnik', 'tat', 'dushegub', 'vedmak'];
+B.isBackliner = function (u) {
+  if (!u || u.side !== 'party' || u.kind === 'monster' || u.summonLeft != null || u.pet) return false;
+  if (MELEE_CLS.includes(u.cls)) return false;
+  if (['knizhnik', 'charovnik', 'guslyar', 'lovchiy'].includes(u.cls)) return true;
+  if (['chernets', 'volhv', 'zhrets'].includes(u.cls)) return !!u.ranged || ((u.power || 0) > 0 && (u.spells || []).length > 0);
+  return !!u.ranged;
+};
+B.aiBackOn = (S, u) => B.isBackliner(u) && u.ai && !(u.ref && u.ref.nrav === 'lihoy') && !u.conds.fear && !u.conds.raging && !u._berserk;
+const meleeMates = (S, u) => B.alliesOf(S, u).filter(x => x !== u && B.active(x) && x.summonLeft == null && !B.isBackliner(x) && x.kind !== 'monster');
+/* оценка клетки для задней линии. need: {ts: цели, rg: дальность} — хотя бы одна цель в дальности и на виду */
+B.backScore = function (S, u, x, need, live, mates, front) {
+  const dE = live.length ? Math.min(...live.map(e => B.dist(x, e))) : 99;
+  let v = 0;
+  if (dE <= 1) v -= 100; else if (dE === 2) v -= 12;
+  if (mates.length) {
+    if (dE < front + 1) v -= 4 * (front + 1 - dE);
+    const dM = Math.min(...mates.map(m => B.dist(x, m))); if (dM > 3) v -= 4 * (dM - 3);
+  }
+  if (need && need.ts && need.ts.length) {
+    const inR = need.ts.some(t => { const d = B.dist(x, t); return d <= need.rg && (d <= 1 || !B.los || B.los(S, x, t)); });
+    if (inR) v += 20; else v -= 2 * Math.max(0, Math.min(...need.ts.map(t => B.dist(x, t))) - need.rg);
+  }
+  if (x.c === 0 || x.r === 0 || x.c === S.field.w - 1 || x.r === S.field.h - 1) v -= 3;
+  return v - 0.3 * (x.cost || 0);
+};
+B.backSpot = function (S, u, need) {
+  const live = B.enemiesOf(S, u).filter(e => !e.down), mates = meleeMates(S, u);
+  const front = mates.length ? Math.min(...mates.map(m => live.length ? Math.min(...live.map(e => B.dist(m, e))) : 99)) : 0;
+  const reach = B.reach(S, u), cur = {c: u.c, r: u.r, cost: 0};
+  const cv = B.backScore(S, u, cur, need, live, mates, front); let best = null;
+  for (const k in reach) { const x = reach[k]; if (x.c === u.c && x.r === u.r) continue; if (B.unitAt(S, x.c, x.r)) continue;
+    const v = B.backScore(S, u, x, need, live, mates, front); if (!best || v > best.v) best = {c: x.c, r: x.r, v}; }
+  return best && best.v > cv + 1.5 ? best : null;
+};
+/* отойти на шаг за своих: от врага вплотную — с отходом (малое действие), чтобы не били вдогонку */
+B.backStep = function (S, u, need) {
+  const sp = B.backSpot(S, u, need); if (!sp) return false;
+  if (B.enemiesOf(S, u).some(e => B.dist(e, u) === 1 && B.holdsZone(e)) && !S.bonus && !u.conds.disengage) B.disengage(S, u, true);
+  B.move(S, u, sp.c, sp.r); return true;
+};
+/* свой колдун не бьёт чарами по своим: кого из своих заденет заклинание по этой цели */
+B.aiAllyHits = function (S, u, s, t) {
+  if (!t) return [];
+  const mode = S_.targetMode(s); let hit = [];
+  if (mode === 'area' && (s.kind.includes('damage') || s.kind.includes('control') || s.kind.includes('debuff')) && !S_.vsUnholy(s)) hit = S_.areaTargets(S, u, s, t);
+  if (B.aiChainHits) hit = hit.concat(B.aiChainHits(S, u, s, t) || []);
+  return hit.filter(x => x.side === u.side && !x.dead && !x.gone);
+};
+const careful = u => u && u.side === 'party' && u.kind !== 'monster' && !u._berserk;
+/* стража: прикрыть колдуна или стрелка, к которому идёт враг — встать между ними, держать соседство */
+B.aiCover = function (S, u, en) {
+  if (!B.canGuard(u) || u.side !== 'party' || u.kind === 'monster' || u.summonLeft != null || u.conds.raging || u._berserk || (u.ref && u.ref.nrav === 'lihoy')) return false;
+  if (en.some(e => B.dist(u, e) === 1 && !e.down)) return false; // сам в сече — бьётся
+  const live = en.filter(e => !e.down && !e.ranged);
+  const wards = B.alliesOf(S, u).filter(x => x !== u && B.active(x) && B.isBackliner(x) && (!B.guardOf(S, x) || B.guardOf(S, x) === u));
+  let pick = null;
+  for (const w of wards) {
+    const th = live.filter(e => B.dist(e, w) <= 4).sort((a, b) => B.dist(a, w) - B.dist(b, w))[0]; if (!th) continue;
+    // уже стоит другой страж рядом с ним ближе к врагу — не толпиться
+    const other = B.alliesOf(S, u).find(x => x !== u && B.active(x) && B.canGuard(x) && B.dist(x, w) === 1 && B.dist(x, th) < B.dist(w, th));
+    if (other && B.guardOf(S, w) !== u) continue;
+    const d = B.dist(th, w); if (!pick || d < pick.d) pick = {w, th, d};
+  }
+  if (!pick) return false;
+  const {w, th} = pick, reach = B.reach(S, u); let best = null;
+  for (const k in reach) { const x = reach[k]; if (B.dist(x, w) !== 1) continue; if (B.unitAt(S, x.c, x.r) && !(x.c === u.c && x.r === u.r)) continue;
+    const v = B.dist(x, th) * 3 + (B.dist(x, th) >= B.dist(w, th) ? 6 : 0) + x.cost * 0.2; if (!best || v < best.v) best = {c: x.c, r: x.r, v}; }
+  if (!best) return false;
+  if (best.c !== u.c || best.r !== u.r) B.move(S, u, best.c, best.r);
+  if (!B.active(u)) return true;
+  if (B.dist(u, w) === 1 && !(u.guarding === w.id && B.guardOf(S, w) === u)) B.guard(S, u, w);
+  const adj = en.filter(e => B.dist(u, e) === 1 && !e.down);
+  if (adj.length && !S.acted) { B.attack(S, u, adj.sort((a, b) => a.hp - b.hp)[0], false); S.acted = true; }
+  return true;
+};
 /* одиночка: свой (не зверь и не призванный) рвётся к врагу, а свои далеко позади и врагов там много — лучше держаться отряда.
    Лихой наёмник и ярый в ярости всё равно бросятся вперёд. */
 B.aiLoner = function (S, u, en) {
   if (!u || u.side !== 'party' || u.kind === 'monster' || u.summonLeft != null || u.conds.raging) return false;
+  if (B.isBackliner(u)) return false; // колдун и стрелок держатся задней линии — своё правило
+  if (S.round > 2 && S.units.some(x => x.side === 'party' && x !== u && B.active(x) && B.enemiesOf(S, u).some(e => !e.down && B.dist(e, x) === 1))) return false; // свои уже рубятся — не отсиживаться
   const nr = u.ref && u.ref.nrav; if (nr === 'lihoy') return false;
   const mates = B.alliesOf(S, u).filter(x => x !== u && B.active(x) && x.summonLeft == null && x.kind !== 'monster');
   if (!mates.length) return false;
@@ -2060,15 +2205,23 @@ B.ai = function (S, u) {
     if (heal.length && hurt.length) {
       const t = hurt[0], s = (/свою жизнь/.test(heal[0].effect) && (t === u || u.hp < u.hpMax * 0.5)) ? heal.find(x => !/свою жизнь/.test(x.effect)) : heal[0], rg = s ? Math.max(1, S_.range(s)) : 0;
       if (s) {
-      if (B.dist(u, t) > rg) B.goNear(S, u, t);
+      if (B.dist(u, t) > rg) { if (B.aiBackOn(S, u)) B.backStep(S, u, {ts: [t], rg}); else B.goNear(S, u, t); }
+      if (!B.active(u)) return;
       if (B.dist(u, t) <= rg && (!B.seen || B.seen(S, u, t))) { S_.cast(S, u, s, t); return; }
     } }
     const fallen = B.alliesOf(S, u).filter(x => x.down && !x.dead && !x.stable && x.kind !== 'monster').sort((a, b) => a.bleed - b.bleed);
     if (fallen.length && u.kind !== 'monster' && (u.layOnHands || B.hasPotion(u) || u.medic > 0 || !u.ranged)) {
       const t = fallen[0];
-      if (B.dist(u, t) > 1) B.goNear(S, u, t);
+      if (B.dist(u, t) > 1 && B.aiBackOn(S, u)) {
+        // задняя линия бежит к упавшему, только если дотянется за ход и не окажется в гуще врагов
+        const reach = B.reach(S, u), live = B.enemiesOf(S, u).filter(e => !e.down); let spot = null;
+        for (const k in reach) { const x = reach[k]; if (B.dist(x, t) !== 1 || B.unitAt(S, x.c, x.r)) continue; const ne = live.filter(e => B.dist(e, x) === 1).length; if (ne > 1) continue; const v = ne * 10 + x.cost; if (!spot || v < spot.v) spot = {c: x.c, r: x.r, v}; }
+        if (spot) B.move(S, u, spot.c, spot.r);
+      } else if (B.dist(u, t) > 1) B.goNear(S, u, t);
       if (B.dist(u, t) <= 1 && B.active(u)) { if (u.layOnHands) B.layHands(S, u, t); else if (B.hasPotion(u)) B.potion(S, u, t); else B.bandage(S, u, t); return; }
     }
+    // знает Медицину — выгнать яд у соседа или у себя, пока тот не ослаб совсем
+    if (u.kind !== 'monster' && (u.medic || 0) >= 3 && !B.enemiesOf(S, u).some(e => B.dist(e, u) === 1)) { const vt = B.alliesOf(S, u).filter(x => !x.down && !x.dead && B.dist(u, x) <= 1 && B.isVenomDot(x.conds.dot) && x.hp < x.hpMax * 0.6)[0]; if (vt) { B.bandage(S, u, vt); return; } }
     if (B.hasPotion(u) && u.hp < u.hpMax * 0.3 && u.kind !== 'monster') { B.potion(S, u, u); return; }
     if (u.layOnHands > 0 && u.hp < u.hpMax * 0.35 && u.kind !== 'monster') { B.layHands(S, u, u); return; }
     // изгнание: есть нечисть рядом, ещё не напуганная
@@ -2088,6 +2241,7 @@ B.ai = function (S, u) {
           if (S_.vsUnholy(s) && !e.nechist) continue;
           if (B.dist(u, e) > reach) continue;
           if (!cone && B.seen && !B.seen(S, u, e)) continue;
+          if (careful(u) && B.aiAllyHits(S, u, s, e).length) continue; // своих не задеть
           const hit = S_.areaTargets(S, u, s, e), hitE = hit.filter(x => x.side !== u.side && (!S_.vsUnholy(s) || x.nechist)), hitA = S_.vsUnholy(s) || !s.kind.includes('damage') ? [] : hit.filter(x => x.side === u.side);
           let v = 0;
           if (s.kind.includes('damage')) v = (hitE.reduce((a, x) => a + B.aiResK(s, x).dmg, 0) - hitA.length * 1.5) * S_.expDmg(s, u.level, u.spellMod);
@@ -2095,7 +2249,7 @@ B.ai = function (S, u) {
           if (v > bestV) { bestV = v; best = [s, e]; }
         }
       } else if (mode === 'enemy') {
-        const tg = en.filter(e => B.dist(u, e) <= rg && (!B.seen || B.seen(S, u, e)) && (!S_.vsUnholy(s) || e.nechist) && (!/животн/.test(s.name) || e.group === 'звери'));
+        const tg = en.filter(e => B.dist(u, e) <= rg && (!B.seen || B.seen(S, u, e)) && (!S_.vsUnholy(s) || e.nechist) && (!/животн/.test(s.name) || e.group === 'звери') && !(careful(u) && B.aiAllyHits(S, u, s, e).length));
         if (!tg.length) continue;
         const t = tg.slice().sort((a, b) => ((s.kind.includes('debuff') && !s.kind.includes('damage')) ? (!!a.conds.atkDown - !!b.conds.atkDown) : 0) || b.level - a.level || a.hp - b.hp)[0];
         const rk = B.aiResK(s, t);
@@ -2113,9 +2267,15 @@ B.ai = function (S, u) {
     // слабый в рукопашной колдун (книжник с посохом) бьёт даже малыми чарами — это лучше тычка палкой
     const avgD = d => { const m = String(d || '').match(/(\d+)d(\d+)(?:\s*([+-])\s*(\d+))?/); return m ? +m[1] * (+m[2] + 1) / 2 + (m[3] ? (m[3] === '-' ? -1 : 1) * +m[4] : 0) : 2; };
     const meleeV = u.attacks && u.attacks[0] ? avgD(u.attacks[0].dmg) * 0.6 : 2;
-    if (best && (bestV >= 3 || u.kind === 'monster' || (bestV > 0 && bestV >= meleeV * 0.8))) {
+    const back = B.aiBackOn(S, u);
+    if (best && (bestV >= 3 || u.kind === 'monster' || (bestV > 0 && bestV >= meleeV * 0.8) || (back && bestV > 0))) {
+      // задняя линия: стать за своих, не теряя цель из дальности (вплотную к врагу — отойти на шаг с отходом)
+      if (back && S_.targetMode(best[0]) === 'enemy' && best[1] && best[1].side !== u.side) {
+        const rg = Math.max(1, S_.range(best[0])); B.backStep(S, u, {ts: [best[1]], rg}); if (!B.active(u)) return;
+        if (B.dist(u, best[1]) > rg || (B.seen && B.dist(u, best[1]) > 1 && !B.seen(S, u, best[1]))) { const alt = en.filter(e => B.active(e) && B.dist(u, e) <= rg && (!B.seen || B.seen(S, u, e)) && !(careful(u) && B.aiAllyHits(S, u, best[0], e).length)).sort((a, b) => a.hp - b.hp)[0]; if (alt) best[1] = alt; else { S.acted = true; return; } }
+        S_.cast(S, u, best[0], best[1]); return; }
       // колдун в отряде, к которому подошли вплотную: иногда сперва отходит на шаг-другой и бьёт чарами издали
-      if (u.kind !== 'monster' && S.moved === 0 && en.some(e => B.dist(u, e) === 1) && R.rand() < 0.5 && S_.targetMode(best[0]) === 'enemy') {
+      if (!back && u.kind !== 'monster' && S.moved === 0 && en.some(e => B.dist(u, e) === 1) && R.rand() < 0.5 && S_.targetMode(best[0]) === 'enemy') {
         const away = B.stepAway(S, u, en); if (away && B.dist(away, best[1]) <= Math.max(1, S_.range(best[0]))) B.move(S, u, away.c, away.r);
         if (!B.active(u)) return; }
       S_.cast(S, u, best[0], best[1]); return; }
@@ -2125,6 +2285,13 @@ B.ai = function (S, u) {
       if (atk.length && !en.some(e => B.dist(u, e) === 1)) {
         const s = atk.sort((a, b) => S_.range(b) - S_.range(a))[0], rg = S_.range(s);
         const near = en.filter(e => !e.down).sort((a, b) => B.dist(u, a) - B.dist(u, b))[0];
+        if (near && back) {
+          // задняя линия: подойти на дальность чар, но оставаться за своими
+          const ts = en.filter(e => !e.down && (!S_.vsUnholy(s) || e.nechist)); B.backStep(S, u, {ts, rg}); if (!B.active(u)) return;
+          const tg = ts.filter(e => B.dist(u, e) <= rg && (!B.seen || B.seen(S, u, e)) && !(careful(u) && B.aiAllyHits(S, u, s, e).length));
+          if (tg.length) { S_.cast(S, u, s, tg.sort((a, b) => a.hp - b.hp)[0]); return; }
+          B.defend(S, u); return;
+        }
         if (near) {
           const reach = B.reach(S, u); let spot = null;
           for (const k in reach) { const x = reach[k], d = B.dist(x, near); if (d < 2 || d > rg) continue; if (!spot || d > spot.d || (d === spot.d && x.cost < spot.cost)) spot = {c: x.c, r: x.r, cost: x.cost, d}; }
@@ -2144,7 +2311,12 @@ B.ai = function (S, u) {
   if (u.ranged && !fear) {
     const adj = en.filter(e => B.dist(u, e) === 1);
     const shootable = en.filter(e => B.rangeBand(u, e) !== null);
-    if (shootable.length && (!adj.length || u.attacks[0].dmg === '1d3')) {
+    const backR = B.aiBackOn(S, u), rgR = (u.ranged.range || [5, 9, 14])[1];
+    if (backR && S.moved === 0 && (adj.length || shootable.length)) { B.backStep(S, u, {ts: en.filter(e => !e.down), rg: rgR}); if (!B.active(u)) return; }
+    if (backR && !shootable.length) { B.backStep(S, u, {ts: en.filter(e => !e.down), rg: rgR}); if (!B.active(u)) return; if (!en.some(e => B.dist(u, e) === 1)) { B.defend(S, u); return; } }
+    const adj2 = en.filter(e => B.dist(u, e) === 1), shoot2 = en.filter(e => B.rangeBand(u, e) !== null);
+    if (backR && shoot2.length && (!adj2.length || u.attacks[0].dmg === '1d3')) { const t = shoot2.sort((a, b) => (a.hp - b.hp))[0]; if (t && B.active(u)) { B.attack(S, u, t, true); S.acted = true; return; } }
+    if (!backR && shootable.length && (!adj.length || u.attacks[0].dmg === '1d3')) {
       if (adj.length && S.moved === 0) { const away = B.stepAway(S, u, en); if (away) B.move(S, u, away.c, away.r); }
       const t = en.filter(e => B.rangeBand(u, e) !== null).sort((a, b) => (a.hp - b.hp))[0];
       if (t && B.active(u)) { B.attack(S, u, t, true); S.acted = true; return; }
@@ -2155,8 +2327,13 @@ B.ai = function (S, u) {
   // 5. ближний бой: цель — раненый/слабый, задняя линия по возможности
   const adj = en.filter(e => B.dist(u, e) === 1);
   let t = null;
+  // страж прикрывает колдуна или стрелка, к которому идёт враг
+  if (!fear && !adj.length && B.aiCover(S, u, en)) return;
+  // задняя линия, которой нечем действовать: не лезть с посохом в сечу — стать за своих и ждать
+  if (!adj.length && B.aiBackOn(S, u)) { B.backStep(S, u, null); if (B.active(u) && !S.acted) { const t2 = en.find(e => B.dist(u, e) === 1); if (t2) { B.attack(S, u, t2, false); S.acted = true; } else B.defend(S, u); } return; }
   // страж держит место у прикрытого, прикрытый не лезет вперёд: бьют только тех, кто подошёл сам
-  const ward = u.guarding && B.U(S, u.guarding), holding = u.summonLeft == null && ((ward && B.guardOf(S, ward) === u) || !!B.guardOf(S, u)); // призванный зверь не стоит в обороне — его дело нападать
+  const ward = u.guarding && B.U(S, u.guarding), wardHot = w => w && en.some(e => !e.down && !e.ranged && B.dist(e, w) <= 4);
+  const holding = u.summonLeft == null && ((ward && B.guardOf(S, ward) === u && (!B.isBackliner(ward) || wardHot(ward))) || (!!B.guardOf(S, u) && !B.isBackliner(u))); // призванный зверь не стоит в обороне — его дело нападать
   if (holding && !adj.length && en.some(e => !e.ranged && !e.down)) { if (u.kind !== 'monster' && S.round > 1) B.defend(S, u); return; }
   if (adj.length) t = adj.sort((a, b) => (a.down - b.down) || (!!B.guardOf(S, a) - !!B.guardOf(S, b)) || (a.hp - b.hp))[0];
   else if (B.aiLoner(S, u, en)) {
@@ -3011,7 +3188,74 @@ C.INTERLUDE = [
   {id: 'train', name: 'Тренировка', desc: 'Всю зиму — меч, лук и бег по снегу. Каждый получает опыт.'},
   {id: 'trade', name: 'Торг и кузня', desc: 'Кузнец подгоняет доспех, знахарка продаёт зелья: у каждого в суме прибавится.'},
   {id: 'letters', name: 'Письма и вести', desc: 'Знакомые по прошлым делам шлют весточки — с ними приходят подарки и слухи о новом деле.'},
+  {id: 'holdings', name: 'Хозяйство', desc: 'Хозяева зимуют в своих владениях: доход за зиму, порядок в хозяйстве — и весной гонец привезёт всё сполна. Кто без владений, тот нанимается к соседям за плату.'},
+  {id: 'family', name: 'Зима дома', desc: 'Женатые и замужние живут зиму с семьёй: дети растут, в доме может прибавиться, весной герой уходит бодрым. Семью зиму кормят из кошеля. Кто без семьи — гостит у родни.'},
 ];
+/* ---- «Хозяйство» и «Зима дома»: что у отряда есть, то и описано честно ---- */
+const ilHasHold = h => (h.holdings || []).some(x => C.ESTATE && C.ESTATE[x.kind]);
+const ilKinPack = h => (h.mwKin && h.mwKin.pack && (h.mwKin.pack.kids || []).length) ? h.mwKin.pack : null;
+const ilHasFam = h => !!(h.spouse || ilKinPack(h));
+C.interludeDesc = function (ch, x) {
+  const hs = (ch && ch.heroes) || [];
+  if (x.id === 'holdings' && !hs.some(ilHasHold)) return 'Своих владений ни у кого нет, и всю зиму герои помогают соседям по хозяйству: немного серебра в кошель, а добрая молва дойдёт до мастеров в новом краю.';
+  if (x.id === 'family' && !hs.some(ilHasFam)) return 'Семьи ни у кого нет, и герои гостят у родни: отъедаются, отсыпаются, весной уходят в добром духе и с гостинцем в суме.';
+  return x.desc;
+};
+const ilYears = n => { const a = n % 10, b = n % 100; return `${n} ${a === 1 && b !== 11 ? 'год' : a >= 2 && a <= 4 && (b < 12 || b > 14) ? 'года' : 'лет'}`; };
+const ilKidWord = (k, age) => `${k.n || (k.sex === 'f' ? 'дочь' : 'сын')}${k.n ? (k.sex === 'f' ? ' (дочь)' : ' (сын)') : ''} — ${age < 1 ? 'ещё в люльке' : ilYears(age)}`;
+const ilKidStage = (age, f) => age < 1 ? `ещё в люльке, но уже тянет ручонки к поясу ${f ? 'матери' : 'отца'}` : age < 7 ? 'носится по двору и лезет под руку' : age < 13 ? 'помогает по хозяйству — носит воду, пасёт гусей' : 'просится в дорогу и по вечерам точит нож у порога';
+/* годы детей к началу новой главы: дни с рождения на конец главы плюс годы между главами */
+const ilKids = (h, pk, from, nextCamp) => { const Y = C.AGE_YEAR || 360, gap = C.ageGap && nextCamp ? Math.max(0, C.ageGap(from, nextCamp.id) || 0) : 0;
+  return (pk.kids || []).filter(k => !k.went).map(k => ({k, age: Math.floor(((k.ago || 0) + gap * Y) / Y), ago: k.ago || 0})); };
+const ilKidLines = (h, kids, lines) => { if (!kids.length) return;
+  const g_ = C.Q && C.Q.decl ? C.Q.decl(h.name, h.sex).g : h.name, y = kids.slice().sort((a, b) => a.age - b.age)[0], yn = y.k.n || (y.k.sex === 'f' ? 'малышка' : 'малыш');
+  const head = kids.length === 1 ? `${y.k.sex === 'f' ? 'Дочь' : 'Сын'} ${g_} ${y.k.sex === 'f' ? 'подросла' : 'подрос'}: ${y.k.n ? y.k.n + ' — ' : ''}${y.age < 1 ? 'ещё в люльке' : ilYears(y.age)}.` : `Дети ${g_} подросли: ${kids.map(x => ilKidWord(x.k, x.age)).join(', ')}.`;
+  lines.push(`${head} За зиму ${kids.length > 1 ? 'младш' + (y.k.sex === 'f' ? 'ая' : 'ий') + ', ' + yn + ',' : (y.k.sex === 'f' ? 'она' : 'он')} ${ilKidStage(y.age, h.sex === 'f')}.`); };
+C.INTERLUDE_FAM = {P: 0.6};
+const ilHome = function (h, nextCamp, lines, ch) {
+  const sp = h.spouse, f = h.sex === 'f', K = C.KIDS || {MAX: 3, SPACE: 720, SEASON: 90}, rnd = C.kidsRand || R.rand;
+  const dg = C.Q && C.Q.decl ? C.Q.decl(h.name, h.sex) : {n: h.name, g: h.name, d: h.name};
+  lines.push(`${h.name} зимует дома: ${sp.n} ${sp.sex === 'f' ? 'топит печь и прядёт' : 'чинит сани и плетёт сети'}, по вечерам — долгие разговоры при лучине, и дорога понемногу отпускает.`);
+  // дети и прибавление (только у пары разного пола — как в w2_kids)
+  let pk = sp.kids || null;
+  if (!pk && sp.sex && sp.sex !== h.sex) pk = sp.kids = {wedAgo: K.SEASON, nights: 0, kids: [], preg: null};
+  if (pk) {
+    const kids = ilKids(h, pk, sp.camp, nextCamp); ilKidLines(h, kids, lines);
+    const live = (pk.kids || []).filter(k => !k.went), youngOk = !live.length || Math.min(...live.map(k => k.ago || 0)) >= K.SPACE;
+    if (pk.preg) lines.push(f ? `${h.name} носит дитя и зиму бережётся — ${sp.n} не даёт ей поднять и ведра.` : `${sp.n} ждёт ребёнка: зиму ${h.name} носит воду и колет дрова за двоих.`);
+    else if (live.length < K.MAX && youngOk && rnd() < C.INTERLUDE_FAM.P) {
+      pk.preg = {start: 0, due: 0, mom: f ? 'hero' : 'sp', told: 1, ago: 0, winter: 1}; // зачат зимой: срок считает kidsUnpack по годам между главами
+      lines.push(f ? `К весне ${h.name} знает: в семье будет прибавление. ${sp.n} ходит гордый, будто сам${sp.sex === 'f' ? 'а' : ''} всё придумал${sp.sex === 'f' ? 'а' : ''}.` : `На исходе зимы ${sp.n} шепчет ${dg.d}: «${live.length ? 'Будет у нас ещё один' : 'Будет у нас дитя'}». Весть греет лучше печи.`);
+    }
+  }
+  // семью надо кормить: тринадцать седмиц — из денег на хозяйство, потом из кошеля, не хватит — в долг у лавочника
+  const HC = C.HEARTH || {}, WEEK = HC.WEEK || 200, KID = HC.KID || 100, ASK = HC.ASK_MAX || 4;
+  const H = sp.hearth = sp.hearth || {coin: 0, buy: []}, buy = H.buy || [];
+  let wk = WEEK + KID * (pk ? (pk.kids || []).filter(k => !k.went).length : 0); if (buy.includes('hlev')) wk *= 0.75; if (buy.includes('pogreb')) wk *= 0.85; wk = Math.round(wk / 10) * 10;
+  let need = wk * 13; const fromCoin = Math.max(0, Math.min(need, H.coin || 0)); H.coin = (H.coin || 0) - fromCoin; need -= fromCoin;
+  const fromPurse = Math.max(0, Math.min(need, ch.purse || 0)); ch.purse = (ch.purse || 0) - fromPurse; need -= fromPurse;
+  if (need > 0) { const was = H.coin; H.coin = Math.max(H.coin - need, Math.min(was, -wk * ASK)); need = was - H.coin; }
+  const total = fromCoin + fromPurse + Math.max(0, need), parts = [];
+  if (fromCoin) parts.push(`${R.priceText(fromCoin)} из денег на хозяйство`); if (fromPurse) parts.push(`${R.priceText(fromPurse)} из кошеля`);
+  if (need > 0) parts.push(`${R.priceText(need)} ${sp.n} взял${sp.sex === 'f' ? 'а' : ''} у лавочника в долг`);
+  lines.push(`На хлеб, дрова и обувку за зиму ушло ${R.priceText(total)}${parts.length > 1 ? ': ' + parts.join(', ') : fromCoin ? ' — из денег на хозяйство' : fromPurse ? ' — из кошеля' : ''}.${total < wk * 13 ? ' Остальное семья перебилась, как смогла: лавочник больше в долг не верит.' : ''}`);
+  h.spirit = Math.max(h.spirit || 0, 2);
+  lines.push(`Весной ${h.name} уходит из дома ${f ? 'бодрой' : 'бодрым'}: дом согревает лучше любой корчмы.`);
+};
+const ilWidow = function (h, nextCamp, lines) {
+  const pk = ilKinPack(h), f = h.sex === 'f';
+  lines.push(`${h.name} зимует у детей: дом держит ${pk.rel && pk.rel.n ? pk.rel.n : 'родня'}, а по вечерам вспоминают ${pk.wife && pk.wife.n ? (pk.wife.sex === 'f' ? 'мать' : 'отца') + ' — ' + pk.wife.n : 'ушедших'}.`);
+  ilKidLines(h, ilKids(h, pk, pk.from, nextCamp), lines);
+  h.spirit = Math.max(h.spirit || 0, 2);
+  lines.push(`Весной ${h.name} уходит ${f ? 'бодрой' : 'бодрым'}: ради них и дорога.`);
+};
+const IL_KIN = ['у тётки в посаде', 'у двоюродного брата на хуторе', 'у старой бабки за рекой', 'у дядьки-бортника в лесной деревне', 'у сестры, что вышла замуж за мельника', 'у крёстного, старого рыбака'];
+const ilGuest = function (h, lines) {
+  const f = h.sex === 'f', gift = R.item && R.item('dish_pirog') ? 'dish_pirog' : 'hleb_karavay';
+  (h.inv = h.inv || []).push(gift);
+  h.spirit = Math.max(h.spirit || 0, 1);
+  lines.push(`${h.name} гостит ${R.pick(IL_KIN)}: отъедается, отсыпается, слушает старые были. В дорогу родня кладёт ${((R.item && R.item(gift)) || {name: 'каравай'}).name.toLowerCase()}, и весной ${f ? 'она' : 'он'} в добром духе.`);
+};
 C.letters = function (ch) {
   const n = ch.npc || {}, out = [];
   if (['hidden', 'proved', 'free', 'saved'].includes(n.veta)) out.push({t: 'Вета: «Живу. Лес не выдал. Шлю вам склянку — не по ранам, так по сердцу».', item: 'zele_lecheniya'});
@@ -3038,6 +3282,19 @@ C.interlude = function (ch, picks, nextCamp) {
     });
     if (id === 'train') hs.forEach(h => { R.xpMigrate(h); const gain = Math.round(R.xpStep(h.level, h.cls) * 0.35); h.xp += gain; const ups = R.levelUp(h); lines.push(`${h.name}: +${gain} опыта${ups.length ? `, теперь ${h.level}-й уровень` : ''}.`); });
     if (id === 'trade') hs.forEach(h => { (h.inv = h.inv || []).push('zele_lecheniya'); if (h.eq && h.eq.body && R.item(h.eq.body)) { h.armorTuned = (h.armorTuned || 0) + 1; } lines.push(`${h.name}: зелье лечения в суму${h.eq && h.eq.body ? ', доспех подогнан' : ''}.`); });
+    if (id === 'holdings') hs.forEach(h => {
+      const own = (h.holdings || []).filter(x => C.ESTATE && C.ESTATE[x.kind]), f = h.sex === 'f';
+      if (own.length) {
+        let gold = 0; own.forEach(x => { gold += C.holdingIncome ? C.holdingIncome(h, x) : 0; x.tended = 1; }); // зима при хозяйстве: доход сезона и порядок — весной без беды
+        ch.purse = (ch.purse || 0) + gold;
+        const where = own.map(x => `${C.ESTATE[x.kind].short} — ${x.place}`).join(', ');
+        lines.push(`${h.name} зимует в своих владениях (${where}): ${f ? 'сама' : 'сам'} считает мешки, чинит кровлю и гоняет нерадивых работников.${gold ? ` За зиму — ${R.priceText(gold)} в кошель.` : ''} Хозяйство в порядке: весной гонец привезёт доход сполна, без недостачи.`);
+      } else {
+        const earn = Math.round((h.level || 1) * 600 / 10) * 10; ch.purse = (ch.purse || 0) + earn; h.winterHelp = 1;
+        lines.push(`${h.name} своего хозяйства не ${f ? 'нажила' : 'нажил'} и всю зиму помогает соседям: колет дрова, правит изгороди, ходит с обозом на торг. Заработано ${R.priceText(earn)}, а о ${f ? 'работящей' : 'работящем'} человеке слух идёт далеко — в новом краю мастера встретят как ${f ? 'знакомую' : 'знакомого'}.`);
+      }
+    });
+    if (id === 'family') hs.forEach(h => { if (h.spouse) ilHome(h, nextCamp, lines, ch); else if (ilKinPack(h)) ilWidow(h, nextCamp, lines); else ilGuest(h, lines); });
     if (id === 'letters') { C.letters(ch).forEach((l, i) => { lines.push(l.t); if (l.item && hs.length) { const h = hs[i % hs.length]; (h.inv = h.inv || []).push(l.item); } }); if (nextCamp && nextCamp.rumors && nextCamp.rumors.length) lines.push('И ещё слух: «' + R.pick(nextCamp.rumors) + '»'); }
   });
   return lines;
@@ -3052,6 +3309,11 @@ C.carryHeroes = function (g) {
   });
   g.pendingCreate = 0;
   if (ch.purse) { g.purse += ch.purse; ch.purse = 0; C.note(g, `В кошеле с прошлого похода — ${R.priceText(g.purse)}.`); }
+  // «Хозяйство» без владений: кто зиму помогал соседям, того мастер в стартовом поселении уже знает понаслышке
+  try { const helped = C.alive(g).filter(h => h.winterHelp); helped.forEach(h => { delete h.winterHelp; });
+    if (helped.length && C.relAdd && C.folkHere && C.folkPerson) { const role = (C.folkHere(g) || []).find(r => C.FOLK && C.FOLK[r] && !/^sp_/.test(r));
+      if (role) { C.relAdd(g, role, g.loc, 8 * helped.length); const p = C.folkPerson(g, role, g.loc);
+        if (p) C.note(g, `${p.n} встречает отряд как старых знакомых: «Слыхал${p.sex === 'f' ? 'а' : ''}, как вы зиму у людей работали. Таким у нас рады».`); } } } catch (e) {}
   return g.heroes.length;
 };
 
@@ -27182,9 +27444,10 @@ Object.keys(POISON).forEach(id => {
     if (!hit.length) { B.log(S, `«${s.name}» расползается впустую.`, ''); return; }
     hit.forEach(t => {
       if (immune(t)) { B.log(S, `${t.name}: яд не берёт.`, '', 'неуязвим к яду'); return; }
-      if (P.burst) { const b = R.dice(P.burst) + Math.floor((u.level || 1) / 2); B.log(S, `${t.name}: яд входит с касанием — ${b}.`, 'hit'); B.damage(S, t, b, s.name, u); if (t.dead || t.down) return; }
-      if (B.saveRoll(t, 'Стойкость', dc)) { const x = Math.max(1, R.dice(per)); B.log(S, `${t.name} задерживает дыхание — глоток яда, но не больше.`, 'hit', `Стойкость против ${dc}: выдержал; ${x} урона один раз`); B.damage(S, t, x, s.name, u); return; }
-      t.conds.dot = {dice: per, n: 10, src: s.name, save: 1, dc};
+      const vd = (x) => { S._venom = true; try { B.damage(S, t, x, s.name, u); } finally { S._venom = false; } };
+      if (P.burst) { const b = R.dice(P.burst) + Math.floor((u.level || 1) / 2); B.log(S, `${t.name}: яд входит с касанием — ${b}.`, 'hit'); vd(b); if (t.dead || t.down) return; }
+      if (B.saveRoll(t, 'Стойкость', dc)) { const x = Math.max(1, R.dice(per)); B.log(S, `${t.name} задерживает дыхание — глоток яда, но не больше.`, 'hit', `Стойкость против ${dc}: выдержал; ${x} урона один раз`); vd(x); return; }
+      t.conds.dot = {dice: per, n: 10, src: s.name, save: 1, dc, venom: 1};
       B.log(S, `${t.name} глотает яд: ${per} в начале каждого хода, пока не выдержит Стойкость (до 10 ходов).`, 'spell', `Стойкость против ${dc}: провал`);
     });
   };
@@ -27195,9 +27458,11 @@ B.startTurn = function (S, u) {
   const d = u.conds && u.conds.dot;
   if (!d || !d.save || u.dead || u.down) return st0.apply(this, arguments);
   delete u.conds.dot;
-  const x = Math.max(1, R.dice(d.dice));
-  B.log(S, `${u.name}: яд жжёт изнутри.`, 'bad', `${d.src}: ${x} урона`);
-  B.damage(S, u, x, d.src);
+  if (u.poisonRes && !d._r) { d.n = Math.ceil(d.n / 2); d._r = 1; } // «Сопротивление организма»: яд вдвое короче
+  const x = Math.max(1, R.dice(d.dice)), ven = B.isVenomDot ? B.isVenomDot(d) : true, capped = ven && B.venomCap && B.venomCap(u) ? Math.max(0, Math.min(x, u.hp - 1)) : x;
+  if (capped > 0) B.log(S, `${u.name}: яд жжёт изнутри.`, 'bad', `${d.src}: ${capped} урона`);
+  else B.log(S, `${u.name}: яд ломит тело, но с ног не валит.`, '', 'яд не добивает: не ниже 1 хита');
+  S._venom = ven; try { B.damage(S, u, x, d.src); } finally { S._venom = false; }
   d.n--;
   let keep = d.n > 0 && B.active(u);
   if (keep && B.saveRoll(u, 'Стойкость', d.dc)) { keep = false; B.log(S, `${u.name} перебарывает яд.`, '', `Стойкость против ${d.dc}: выдержал`); }
@@ -28518,6 +28783,15 @@ S_.cast = function (S, u, s, target) {
 /* ---------- белая школа: мороз режет ловкость, разряд идёт по железу, «Засечь невидимых» ---------- */
 const NIMBLE = t => !!t && (['tat', 'dushegub', 'lovchiy', 'guslyar'].includes(t.cls) || /тать|убийц|разбойн|пролаз|следопыт|лучник|метател|новик|дозорн|бесен|анчутк/i.test(t.name || ''));
 B.armored = t => !!t && (t.def >= 15 || /латник|витяз|гридень|ратник|мечник|стражник|багатур|рубак|теневой|наёмник|истукан/i.test(t.name || ''));
+/* ИИ своего колдуна: по кому перескочит «Разряд» от этой цели (без бросков — как выбирает молния) */
+B.aiChainHits = function (S, u, s, t) {
+  if (!s || s.id !== 'white_razryad' || !t) return [];
+  const out = [], used = new Set([t.id, u.id]); let from = t, hops = 1 + Math.floor((u.level || 1) / 3);
+  while (hops-- > 0) { const near = S.units.filter(x => !used.has(x.id) && B.active(x) && B.dist(x, from) <= 2);
+    const nx = near.filter(B.armored).sort((a, b) => B.dist(a, from) - B.dist(b, from))[0] || near.sort((a, b) => B.dist(a, from) - B.dist(b, from))[0]; if (!nx) break;
+    used.add(nx.id); out.push(nx); from = nx; if (!B.armored(nx)) break; }
+  return out;
+};
 function chill(S, u, t, n, why) { const nim = NIMBLE(t), d = nim ? 4 : 2; t.fx = t.fx || {}; t.fx.chill = {n, def: d}; t.conds.slow = Math.max(t.conds.slow || 0, n);
   B.log(S, `${t.name} коченеет: ${nim ? 'ловкость уходит — уворачиваться нечем' : 'движения вязкие'}.`, 'ctrl', `${why}: −${d} к Защите и спасброскам Ловкости, вдвое медленнее, ${n} ход.`); }
 const am1 = B.atkMod;
@@ -30206,6 +30480,22 @@ C.AILS.mor = {name: 'Наведённый мор', dc: 13, self: 0.5, grow: 0.3,
   say: ['кашляет, на щеках лихорадочный румянец', 'заходится кашлем, по ночам жар', 'мор жжёт изнутри, кашель с кровью'],
   catchTxt: h => `${v(h, 'подхватил', 'подхватила')} наведённую хворь`,
   pen: s => ({chk: 1, atk: 1, hp: 0.1 * s}), bleed: () => R.d(6)};
+/* яд вне боя: игла в замке, отравленный тайник, ядовитый газ, яд, что не вышел с боем. Не убивает: хиты не ниже 1.
+   Недомогание на день-другой: всё валится из рук, руки слабеют, сил меньше; лечат противоядие, Медицина и травы в отряде, знахарь */
+C.AILS.otrava = {name: 'Отравление', dc: 12, self: 0.75, grow: 0.15, venom: true,
+  say: ['мутит, во рту горько, руки дрожат', 'яд ломает тело: пот холодный, ноги ватные', 'яд держит крепко: лицо серое, губы синие'],
+  catchTxt: h => `${v(h, 'отравлен', 'отравлена')}: яд ходит по жилам`,
+  pen: s => ({chk: s, str: 1, atk: s >= 2 ? 1 : 0, hp: 0.1 * s}), bleed: s => R.d(2 + 2 * s)};
+/* отравить героя вне боя: Стойкость (сопротивление организма помогает), провал — сразу урон (не ниже 1 хита) и «Отравление» */
+C.venomOut = function (g, h, lvl, o) {
+  o = o || {}; if (!h || h.dead) return {ok: true, text: ''};
+  const L = Math.max(1, lvl || 1), dc = (o.dc || 11 + Math.floor(L / 2)), soft = T(h, 'soprot');
+  if (saveFort(h, dc, soft)) return {ok: true, saved: true, text: `${h.name} ${v(h, 'перемог', 'перемогла')} яд: замутило и отпустило.`};
+  const n = Math.max(1, R.d(4) + Math.floor(L / 2) - (soft >= 2 ? 2 : 0)); h.hp = Math.max(1, (h.hp || 1) - n);
+  const sev = Math.max(1, Math.min(3, (o.sev || 1) + (L >= 9 ? 1 : 0) - (soft >= 2 ? 1 : 0)));
+  if (h.kind !== 'merc') C.ailAdd(g, h, 'otrava', sev, true); else h.hp = Math.max(1, h.hp - R.d(3));
+  return {ok: false, n, text: `${h.name}: яд в крови (−${n} хитов), ${h.kind !== 'merc' ? 'до отдыха и лекаря будет мутить' : 'пару дней ходить серым'}.`};
+};
 const AIL_IDS = Object.keys(C.AILS);
 C.ailsOf = h => (h && Array.isArray(h.ails) ? h.ails : []);
 C.ailSeen = h => C.ailsOf(h).filter(a => !a.hide);
@@ -30403,7 +30693,7 @@ B.takeHook = function (S, t, d, src, by) {
 const be0 = C.battleEnd;
 C.battleEnd = function (g, S, spec) {
   const snap = (S && S.units ? S.units : []).filter(u => u.side === 'party' && u.ref && u.kind !== 'merc' && !u.dead)
-    .map(u => ({h: u.ref, down: !!u.down, low: u.hp < (u.hpMax || 1) / 3, hit: (S._ail || {})[u.id] || {}}));
+    .map(u => ({h: u.ref, down: !!u.down, low: u.hp < (u.hpMax || 1) / 3, hit: (S._ail || {})[u.id] || {}, venom: u.conds && B.isVenomDot && B.isVenomDot(u.conds.dot) ? (u.conds.dot.dc || 12) : 0}));
   const res = be0.apply(this, arguments);
   if (!g || C.AIL_OFF) return res;
   const med = C.medBest(g), out = [];
@@ -30416,6 +30706,7 @@ C.battleEnd = function (g, S, spec) {
     if (s.hit.und && R.rand() < 0.3 && !saveFort(h, 12)) C.ailAdd(g, h, 'trupny', 1);
     if (s.hit.hvor && !C.ailsOf(h).some(a => a.id === 'mor')) { C.ailAdd(g, h, 'mor', 1); out.push(`${h.name}: наведённая хворь не ушла с боем — кашель, жар, отдых не впрок.`); }
     if (s.hit.wolf && !C.ailsOf(h).some(a => a.id === 'volchya') && !saveFort(h, 14)) C.ailAdd(g, h, 'volchya', 1, true);
+    if (s.venom && !C.ailsOf(h).some(a => a.id === 'otrava') && !saveFort(h, s.venom, T(h, 'soprot'))) { C.ailAdd(g, h, 'otrava', 1, true); out.push(`${h.name}: яд не вышел с боем — мутит, руки дрожат.`); }
     capHp(h);
   });
   out.forEach(m => C.note(g, m));
@@ -30430,12 +30721,12 @@ if (C.abilOpts) { const ao0 = C.abilOpts, ab0 = C.abil;
   C.abilOpts = function (g, h) { const out = ao0.apply(this, arguments);
     const inv = h.inv || [], ail = id => C.ailsOf(h).some(a => a.id === id);
     if (inv.includes('otvar_volchets') && ail('volchya')) out.push({t: 'Выпить отвар волчьей отравы', arg: 'ail_volch', why: ''});
-    if ((inv.includes('protivoyadie') || inv.includes('zelye_protivoyadie')) && (ail('trupny') || ail('ponos'))) out.push({t: 'Выпить противоядие от хвори', arg: 'ail_anti', why: ''});
+    if ((inv.includes('protivoyadie') || inv.includes('zelye_protivoyadie')) && (ail('trupny') || ail('ponos') || ail('otrava'))) out.push({t: 'Выпить противоядие от хвори', arg: 'ail_anti', why: ''});
     return out; };
   C.abil = function (g, h, arg) {
     if (arg === 'ail_volch') { const i = (h.inv || []).indexOf('otvar_volchets'); if (i < 0) return {err: 'нет отвара'}; h.inv.splice(i, 1); C.ailDrop(h, 'volchya');
       const t = `${h.name} пьёт чёрный отвар — всю ночь ломает и трясёт, а к утру отпускает. Волчья кровь ушла.`; C.pass && C.pass(g, 1); C.note(g, t); return {ok: true, text: t}; }
-    if (arg === 'ail_anti') { let i = (h.inv || []).indexOf('protivoyadie'); if (i < 0) i = (h.inv || []).indexOf('zelye_protivoyadie'); if (i < 0) return {err: 'нет противоядия'}; h.inv.splice(i, 1); C.ailDrop(h, 'trupny'); C.ailEase(h, 'ponos', 3);
+    if (arg === 'ail_anti') { let i = (h.inv || []).indexOf('protivoyadie'); if (i < 0) i = (h.inv || []).indexOf('zelye_protivoyadie'); if (i < 0) return {err: 'нет противоядия'}; h.inv.splice(i, 1); C.ailDrop(h, 'trupny'); C.ailDrop(h, 'otrava'); C.ailEase(h, 'ponos', 3);
       const t = `${h.name} выпивает противоядие. К вечеру лицо порозовело.`; C.note(g, t); return {ok: true, text: t}; }
     return ab0.apply(this, arguments); };
 }
@@ -31474,6 +31765,7 @@ const TRAPS = {
   yama: {n: 'яма', a: 'яма с кольями под плитами', hit: (h, d) => `Плита уходит из-под ног, и ${h.name} падает в яму, прямо на колья. −${d} хитов.`, dmg: L => R.d(6) + R.d(6) + L},
   igla: {n: 'игла', a: 'отравленная игла в щели', hit: (h, d) => `${h.name} задевает щель рукой и чувствует укол: игла смазана ядом. Пальцы немеют, лицо белеет. −${d} хитов.`, dmg: L => R.d(4) + 2 * L, poison: 1},
   obval: {n: 'обвал', a: 'подпорка свода, привязанная к верёвке', hit: (h, d) => `Подпорка вылетает, и свод с грохотом рушится всем на головы. По ${d} хитов каждому.`, dmg: L => R.d(6) + Math.floor(L / 2), all: 1},
+  gaz: {n: 'газ', a: 'трещина в полу, из которой тянет сладковатым гнилым духом', hit: (h, d) => `Из трещины под ногами с шипом выходит жёлтый дух — сладкий, гнилой. Кашель рвёт грудь, глаза режет. По ${d} хитов каждому.`, dmg: L => R.d(4) + Math.floor(L / 2), all: 1, poison: 1, gas: 1},
   zvon: {n: 'бубенцы', a: 'нитка со сторожевыми бубенцами', hit: () => 'Бубенцы заливаются звоном на всё подземелье. Теперь вас здесь ждут.', dmg: () => 0, noise: 3},
 };
 
@@ -31523,7 +31815,7 @@ C.dungeonMake = function (g, kind, lvl, seed, opt) {
     if (r.type === 'boss') { const bp = pool(KD.boss), top = bp.length ? bp.sort((a, b) => C.beast(b).level - C.beast(a).level)[0] : KD.boss[0];
       const left = Math.max(0, Math.round(C.budget(g, 1.05)) - C.beast(top).level); const minions = left > 0 ? C.compose(pool(KD.guards).slice(), left).slice(0, 4) : [];
       r.foes = [top].concat(minions); }
-    if (r.type === 'lovushka') r.trap = {k: pick(Object.keys(TRAPS)), dc: 12 + Math.floor(L / 2)};
+    if (r.type === 'lovushka') { r.trap = {k: pick(Object.keys(TRAPS).filter(k => k !== 'gaz')), dc: 12 + Math.floor(L / 2)}; if (r.v % 4 === 0 && r.trap.k !== 'igla') r.trap.k = 'gaz'; }
     if (r.type === 'sokr' && rnd() < 0.5) r.trap = {k: pick(['samostrel', 'igla']), dc: 13 + Math.floor(L / 2), chest: 1};
   });
   return {kind, lvl: L, seed: String(seed), name: KD.name, rooms, edges, at: 0, seen: {0: 1}, known: {}, alarm: 0, loot: {m: 0, items: []}, roam: [], steps: 0, msg: [], back: 'map'};
@@ -31627,6 +31919,8 @@ function spring(g, d, r, who) {
   const hs = C.alive(g); const h = who || hs[Math.floor(R.rand() * hs.length)]; const dmg = tr.dmg(L);
   if (tr.all) hs.forEach(x => hurt(x, dmg)); else if (dmg) hurt(h, dmg);
   say(d, tr.hit(h, dmg)); C.note(g, tr.hit(h, dmg));
+  // яд: игла и газ — Стойкость, провал — отравление (вне боя, не убивает)
+  if (tr.poison && C.venomOut) (tr.all ? hs : [h]).forEach(x => { const vr = C.venomOut(g, x, L + (tr.gas ? 0 : 1)); if (vr.text) { say(d, vr.text); if (!vr.ok) C.note(g, vr.text); } });
   alarm(g, d, tr.noise || 1);
 }
 
@@ -31728,7 +32022,10 @@ function SCN(g) {
       ch.push({t: th.cls === 'tat' || T(th, 'obokrast') ? `${th.name}: искать по-воровски` : 'Искать тайник (Мудрость, Поиск)', do: act((g2, dd, rr) => { rr.searched = 1;
         const h = pickH(g2, x => st(x, 'wis') + R.skill(x, 'Поиск') + (x.cls === 'tat' ? 5 : 0) + 2 * T(x, 'obokrast'));
         const c = chk(g2, h, 'wis', 'Поиск', 15 + Math.floor(dd.lvl / 3), (h.cls === 'tat' ? 5 : 0) + 2 * T(h, 'obokrast'));
-        if (c.ok) { take(g2, (60 + 50 * dd.lvl) * (1 + R.d(3)), dropFor(g2, dd, dd.lvl + 1).slice(0, 1), `${h.name} вынимает неплотный камень, а за ним тайник:`); C.giveXP(g2, 15 * dd.lvl, 'тайник'); }
+        if (c.ok) { take(g2, (60 + 50 * dd.lvl) * (1 + R.d(3)), dropFor(g2, dd, dd.lvl + 1).slice(0, 1), `${h.name} вынимает неплотный камень, а за ним тайник:`); C.giveXP(g2, 15 * dd.lvl, 'тайник');
+          // хозяин берёг тайник: в щели — шип, смазанный ядом (тать и знаток ловушек замечают его вовремя)
+          if (rr.v % 5 === 2 && C.venomOut) { if (h.cls === 'tat' || T(h, 'lovushki_poisk') >= 1) say(dd, `${h.name} вовремя замечает в щели шип с тёмной коркой — яд. Вынимает добро, не касаясь краёв.`);
+            else { say(dd, `Под камнем торчал шип, и ${h.name} задевает его ладонью: на коже тёмная капля.`); const vr = C.venomOut(g2, h, dd.lvl + 1); if (vr.text) { say(dd, vr.text); C.note(g2, vr.text); } } } }
         else if (near(c)) return C.failOffer(g2, 'dg_tainik', {back: 'dungeon', bg: K[dd.kind].bg, room: rr.id, h: h.id, text: `${C.failSay(g2, h, 'Поиск', 'near')} Кладка здесь и правда иная. Можно разобрать её всю, до последнего камня, — уйдёт час, а то и больше.`, yes: 'Разобрать кладку до последнего камня', no: 'Бросить и идти дальше'});
         else { say(dd, 'Простукали каждый камень, прощупали щели — пусто. То ли нет здесь ничего, то ли спрятано слишком хорошо.'); failMore(g2, c, 'Поиск'); } return null; })});
     }
@@ -31817,7 +32114,9 @@ function SCN(g) {
           const c = chk(g2, h, 'dex', 'Ловкость рук', 14 + Math.floor(dd.lvl / 2), 2 * T(h, 'zamki') + (h.cls === 'tat' ? 4 : 0));
           if (c.ok) { ee.open = 1; say(dd, `${h.name} долго колдует отмычкой, пока в замке не щёлкает. Дверь подаётся без звука.`); C.giveXP(g2, 10 * dd.lvl, 'замок вскрыт'); }
           else if (near(c)) return C.failOffer(g2, 'dg_lock', {back: 'dungeon', bg: K[dd.kind].bg, e: e.id, h: h.id, lk, text: `${C.failSay(g2, h, 'Ловкость рук', 'near')} Замок почти поддался. Можно дожать его силой — он откроется, но скрежет разнесётся по ходам.`, yes: 'Дожать замок, не таясь', no: 'Отступить от замка'});
-          else { mark(g2, lk, h); ee.jam = (ee.jam || 0) + 1; say(dd, ee.jam >= 2 ? 'Отмычка с хрустом ломается в скважине. Теперь эту дверь только выбивать.' : 'Замок тугой и ржавый, не поддался. Можно попробовать ещё раз.'); }
+          else { mark(g2, lk, h); ee.jam = (ee.jam || 0) + 1;
+            if (c.total < c.dc - 4 && !ee.trap && !ee.needle && (ee.id + dd.lvl) % 3 === 0 && C.venomOut) { ee.needle = 1; say(dd, `Из скважины выскакивает тонкая игла и колет ${h.name} в палец — замок с секретом, игла в яду.`); const vr = C.venomOut(g2, h, dd.lvl + 1); if (vr.text) { say(dd, vr.text); C.note(g2, vr.text); } }
+            say(dd, ee.jam >= 2 ? 'Отмычка с хрустом ломается в скважине. Теперь эту дверь только выбивать.' : 'Замок тугой и ржавый, не поддался. Можно попробовать ещё раз.'); }
           return null; })});
         const brSc = x => st(x, 'str') + R.skill(x, 'Атлетика') + (x.cls === 'druzhinnik' ? 3 : x.cls === 'yaryi' ? 2 : 0), bk = tryKey(d, 'b', e.id);
         const br0 = pickH(g, brSc), br = pickH(g, brSc, x => !tried(g, bk, x));
@@ -31920,7 +32219,7 @@ Object.assign(C.FAIL_OFFER, {
     no: g => { const d = DG(g); if (d) { d.msg = []; say(d, 'Долго стучали по стенам и слушали, но так ничего и не услышали.'); } return 'dungeon'; }},
 });
 /* для заповедных подземелий (fixed_dg.js) */
-C.DG_API = {take, say, chk, pickH, alarm, fight, hurt, room, rng, st, T, isCls, anyCls, dropFor, lvlOf, cap, bname, SCN, OUT};
+C.DG_API = {spring, take, say, chk, pickH, alarm, fight, hurt, room, rng, st, T, isCls, anyCls, dropFor, lvlOf, cap, bname, SCN, OUT};
 /* ---------- регистрация ---------- */
 const SC = {dungeon: SCN, dungeon_out: OUT};
 Object.values(C.CAMPS).forEach(camp => Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }));
@@ -34684,7 +34983,8 @@ C.holdingsJoin = function (g) {
         g.estSeq = (g.estSeq || 0) + 1; C.estates(g).push({id: 'est' + g.estSeq, kind: x.kind, node: null, level: x.level, day: g.day, acc: 0, store: {}, steward: false, payDay: g.day, trouble: null, blight: 0, invested: x.invested, bought: x.place, owner: h.id});
         h.holdings = h.holdings.filter(y => y !== x); got.push(K.name.toLowerCase()); return; }
       let v = C.holdingIncome(h, x);
-      if (v && R.rand() < 0.15) { v = r10(v / 2); news.push(`${K.short} (${x.place}) дал${['izba', 'dvor', 'ugol'].includes(x.kind) ? '' : 'а'} лишь половину, потому что ${R.pick(['был набег', 'случился неурожай', 'горела клеть'])}`); }
+      const tended = x.tended; delete x.tended; // хозяин зимовал при хозяйстве — порядок, беды нет
+      if (v && !tended && R.rand() < 0.15) { v = r10(v / 2); news.push(`${K.short} (${x.place}) дал${['izba', 'dvor', 'ugol'].includes(x.kind) ? '' : 'а'} лишь половину, потому что ${R.pick(['был набег', 'случился неурожай', 'горела клеть'])}`); }
       gold += v;
       (GOODS[x.kind] || (() => []))(x.level).forEach(([id, n]) => { if (!DATA.items[id] || n <= 0) return; for (let i = 0; i < n; i++) h.inv.push(id); got.push(`${(R.item(id) || {name: id}).name.toLowerCase().replace(/,? ?\d.*$/, '')}`); });
     });
@@ -35509,7 +35809,8 @@ const FOE_CAST = {
   charodey_uchenik: [10, {white: ['white_magicheskaya_strela', 'white_zamorozka', 'white_nalozhit_zaschitu'], black: ['black_proklyatie', 'black_sglaz', 'black_neudacha'],
     necro: ['necro_vysosat_zhizn', 'necro_ledyanoe_prikosnovenie', 'necro_proklyatie_mertvyh'], holy: ['holy_kara', 'holy_molitva_o_zdravii', 'holy_svyatoy_schit']}],
   charodey_master: [12, {white: ['white_magicheskaya_strela', 'white_udar_holoda', 'white_razryad', 'white_magicheskiy_schit'], black: ['black_proklyatie', 'black_sglaz', 'black_hvor', 'black_oderzhimost'],
-    necro: ['necro_vysosat_zhizn', 'necro_ledyanoe_prikosnovenie', 'necro_prizrachnye_puty', 'necro_prizrachnaya_bronya'], holy: ['holy_kara', 'holy_okovy_molitvy', 'holy_udar_boga', 'holy_vosstanovlenie_sil']}],
+    necro: ['necro_vysosat_zhizn', 'necro_ledyanoe_prikosnovenie', 'necro_prizrachnye_puty', 'necro_yadovityy_tuman'], holy: ['holy_kara', 'holy_okovy_molitvy', 'holy_udar_boga', 'holy_vosstanovlenie_sil'],
+    alchem: ['alchem_otravlyayuschiy_gaz', 'alchem_kislota', 'alchem_oglushenie', 'alchem_usilenie']}],
   charodey_velikiy: [20, {white: ['white_razryad', 'white_molniya', 'white_udar_holoda', 'white_magicheskiy_schit', 'white_ognennoe_yadro'], black: ['black_hvor', 'black_sglaz', 'black_oderzhimost', 'black_proklyatie', 'black_smerch'],
     necro: ['necro_vysosat_zhizn', 'necro_prizrachnye_puty', 'necro_ledyanoe_prikosnovenie', 'necro_prizyv_zombi', 'necro_yadovityy_tuman'], holy: ['holy_udar_boga', 'holy_obraschenie', 'holy_okovy_molitvy', 'holy_vosstanovlenie_sil', 'holy_izgnanie']}],
   zhrets_staryh_bogov: [6, ['holy_kara', 'holy_zaschita_ot_zla', 'holy_molitva_o_zdravii']],
@@ -35525,13 +35826,13 @@ const FOE_CAST = {
   shaman_ordy: [8, ['alchem_kislota', 'alchem_oglushenie', 'alchem_razmytie']],
   dvuglavyy_volot: [10, ['black_proklyatie', 'black_sglaz', 'black_groza']],
   lesnoy_charodey: [8, ['white_magicheskaya_strela', 'white_udar_holoda', 'white_shok']],
-  staryy_vedun: [12, ['druid_perunova_strela', 'druid_svyazat_travami', 'druid_regeneratsiya', 'druid_lechenie_travami', 'druid_otvar_geroya']],
+  staryy_vedun: [12, ['druid_perunova_strela', 'druid_svyazat_travami', 'druid_otravlenie', 'druid_lechenie_travami', 'druid_otvar_geroya']],
   zhritsa_mokoshi: [10, ['mokosh_sputannaya_nit', 'mokosh_lechenie', 'mokosh_uzel', 'mokosh_ekzortsizm']],
   starejshina_gortsev: [8, ['astro_paduchaya_zvezda', 'astro_uyazvimost', 'astro_udacha']],
   runnyy_zaklinatel: [8, ['white_magicheskaya_strela', 'white_nalozhit_zaschitu', 'alchem_usilenie']],
   podzemnyy_charodey: [8, ['necro_vysosat_zhizn', 'necro_ledyanoe_prikosnovenie', 'black_sglaz']],
-  podzemnyy_koldun: [10, ['necro_vysosat_zhizn', 'necro_prizrachnye_puty', 'black_proklyatie']],
-  tyomnaya_zhritsa: [12, ['black_proklyatie', 'black_hvor', 'necro_vysosat_zhizn']],
+  podzemnyy_koldun: [12, ['necro_vysosat_zhizn', 'necro_prizrachnye_puty', 'necro_yadovityy_tuman']],
+  tyomnaya_zhritsa: [12, ['black_proklyatie', 'black_hvor', 'necro_vysosat_zhizn', 'druid_otravlenie']],
   duh_vihrya: [10, ['white_razryad', 'white_magicheskiy_schit']],
   duh_grozy: [8, ['white_magicheskaya_strela', 'white_shok']],
 };
@@ -35545,6 +35846,14 @@ B.fromMonster = function (m, side, extra) {
     const set = Array.isArray(fc[1]) ? fc[1] : fc[1][R.pick(Object.keys(fc[1]))];
     u.spells = set.filter(ok); u.power = u.powerMax = fc[0]; u.caster = true;
   }
+  // колдуны среднего уровня (8–14) и ведьмы знают и яды: некроманты — «Ядовитый туман», алхимики и шаманы — газ, ведьмы и ведуны — «Отравление»
+  if (u.spells && u.spells.length && u.side !== 'party' && !u.undead && !u._venSp) { u._venSp = 1;
+    const L = u.level || 0, nm = (m && m.name) || '', sch = u.spells.map(id => (DATA.spellById[id] || {}).school), has = id => u.spells.includes(id);
+    const witch = /ведьм|ворож|знахарк|ведунь/i.test(nm);
+    if (!['necro_yadovityy_tuman', 'alchem_otravlyayuschiy_gaz', 'druid_otravlenie'].some(has) && ((L >= 8 && L <= 14) || (witch && L >= 4))) {
+      const add = sch.includes('necro') && (u.powerMax || 0) >= 9 ? 'necro_yadovityy_tuman' : sch.includes('alchem') ? 'alchem_otravlyayuschiy_gaz' : witch || sch.includes('druid') || sch.includes('mokosh') ? 'druid_otravlenie' : null;
+      if (add && ok(add)) u.spells.push(add);
+    } }
   return u;
 };
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -37956,7 +38265,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvps1hg9"></script><script>
+</script><script src="world.js?v=mvpua4b8"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -41605,7 +41914,7 @@ function drawUnit(u) {
 let LABELQ = null;
 /* что действует на своём бойце: чары, состояния, выпитые зелья, свойства — по нажатию на фигуру или карточку */
 const COND_RU = {held: ['скован', 'не двигается и не бьёт'], sleep: ['спит', 'проснётся от удара'], fear: ['страх', 'бежит прочь, не нападает'], charm: ['очарован', 'не поднимет руку на чарующего'], blind: ['ослеплён', 'бьёт почти наугад'],
-  slow: ['замедлен', 'половина шагов'], atkUp: ['сильнее бьёт', 'прибавка к попаданию'], defUp: ['крепче стоит', 'прибавка к Защите'], raging: ['ярость', '+2 к урону'], dot: ['яд или ожог', 'теряет хиты каждый ход'],
+  slow: ['замедлен', 'половина шагов'], atkUp: ['сильнее бьёт', 'прибавка к попаданию'], defUp: ['крепче стоит', 'прибавка к Защите'], raging: ['ярость', '+2 к урону'], dot: ['яд или ожог', 'теряет хиты каждый ход'], venom: ['яд в крови', 'теряет хиты каждый ход, но не ниже 1 хита; Стойкость каждый ход; лечат противоядие, «Снятие яда», перевязка (Медицина)'],
   hidden: ['затаился', 'следующий удар — со спины'], helped: ['помощь', 'союзник отвлёк врага: легче попасть'], prone: ['сбит с ног', 'встаёт вместо шага'], stun: ['оглушён', 'пропускает ход'], bleed: ['кровотечение', 'теряет хиты, пока не перевяжут'],
   rooted: ['опутан', 'с места не сойти'], confused: ['в мороке', 'не разберёт, где свой, где чужой'], doomed: ['обречён', 'смерть уже стоит за плечом'], atkDown: ['бьёт слабее', 'хуже попадает'], defDown: ['броня ослаблена', 'по нему легче попасть']};
 const STAT_RU = {str: 'Сила', dex: 'Ловкость', con: 'Телосложение', wis: 'Мудрость', int: 'Интеллект', cha: 'Очарование'};
@@ -41613,7 +41922,7 @@ const turnsW = n => n >= 99 ? 'до конца боя' : B.plural ? B.plural(n, 
 function fxList(u) {
   const out = [];
   Object.keys(u.fx || {}).forEach(k => { const v = u.fx[k] || {}; const n = typeof v === 'object' ? v.n : v; out.push({t: FX_LABEL[k] || k, left: n, good: !FX_BAD.has(k)}); });
-  Object.keys(u.conds || {}).forEach(k => { const c = COND_RU[k]; if (!c) return; const v = u.conds[k]; const n = typeof v === 'object' && v ? v.n : typeof v === 'number' && v > 1 ? v : null; out.push({t: c[0], d: c[1], left: n, good: ['atkUp', 'defUp', 'raging', 'hidden', 'helped'].includes(k)}); });
+  Object.keys(u.conds || {}).forEach(k => { const c = k === 'dot' && u.side === 'party' && B.isVenomDot && B.isVenomDot(u.conds.dot) ? COND_RU.venom : COND_RU[k]; if (!c) return; const v = u.conds[k]; const n = typeof v === 'object' && v ? v.n : typeof v === 'number' && v > 1 ? v : null; out.push({t: c[0], d: c[1], left: n, good: ['atkUp', 'defUp', 'raging', 'hidden', 'helped'].includes(k)}); });
   if (u.thp > 0) out.push({t: 'временные хиты', d: `+${u.thp}: снимаются первыми`, good: true});
   if (u.hold) out.unshift({t: `держит чары: «${u.hold.name}»`, d: 'удар может сбить: от оружия — Стойкость, от чар — Воля; сложность 10 или половина урона', good: true});
   const h = u.ref; (h && h.buffs || []).forEach(b => out.push({t: b.stat ? `зелье: ${STAT_RU[b.stat] || b.stat} ${b.val}` : `зелье: защита — ${String(b.res).split('+').map(x => x === 'spell' ? 'чары' : (C.DT_RU && C.DT_RU[x]) || x).join(', ')}`, d: b.battle ? 'до конца этого боя' : '', good: true}));
@@ -41641,7 +41950,9 @@ function drawPanel() {
   if (S.over) { acts.innerHTML = `<div class="hint">${S.over === 'win' ? 'Победа.' : S.over === 'fled' ? 'Отряд ушёл с поля.' : 'Отряд пал.'}</div>${NET() && !amLeader() ? `<div class="note">Итоги откроет вожатый — ${esc(pname(leader()))}.</div>` : ''}<button class="btn primary" id="b-end" ${NET() && !amLeader() ? 'disabled' : ''}>Итоги боя</button>`; $('#b-end').onclick = () => NET() ? act({a: 'bend'}) : finishBattle(); }
   else if (u.side === 'party' && !u.ai && !busy && mineU(u) && !netAI(u)) {
     const sp = B.Spells.usableNow(S, u), scs = B.scrollsOf ? B.scrollsOf(u) : [], pots = B.potsOf ? B.potsOf(u) : [];
-    const fallen = B.alliesOf(S, u).filter(x => x.down && !x.dead && B.dist(u, x) === 1);
+    const fallen0 = B.alliesOf(S, u).filter(x => x.down && !x.dead && B.dist(u, x) === 1);
+    const venomed = B.isVenomDot ? B.alliesOf(S, u).filter(x => !x.down && !x.dead && B.dist(u, x) <= 1 && B.isVenomDot(x.conds.dot)) : [];
+    const suck = !fallen0.length && venomed.length > 0, fallen = suck ? venomed : fallen0;
     const nbrs = B.alliesOf(S, u).filter(x => x !== u && !x.dead && !x.gone && !x.down && B.dist(u, x) === 1);
     const nbrsAll = B.alliesOf(S, u).filter(x => x !== u && !x.dead && !x.gone && B.dist(u, x) === 1), healN = (u.ref && u.ref.inv || []).filter(x => x === 'zele_lecheniya').length;
     const A = S.acted, Bn = S.bonus, adjE = B.enemiesOf(S, u).filter(e => B.dist(e, u) === 1);
@@ -41663,7 +41974,8 @@ function drawPanel() {
     const windWhy = u.cls === 'druzhinnik' ? (u.windUsed ? 'Второе дыхание в этом бою уже было.' : usedB) : null;
     const poisonWhy = CL.poison ? B.poisonWhy(S, u) : null;
     const tip = (why, what) => why ? why + ' — ' + what : what;
-    const bandB = btn('b-band', (B.hasPotion(u) ? 'Зелье' : 'Перевязать') + (fallen.length ? ': ' + esc(fallen[0].name) : ''), A || !fallen.length, tip(fallen.length ? usedA : 'Рядом нет упавших союзников.', B.hasPotion(u) ? 'Влить зелье упавшему соседу: 2d4+2 хитов' : 'Перевязать упавшего соседа, чтобы не истёк кровью: Медицина против 10'));
+    const bandB = suck ? btn('b-band', 'Выгнать яд: ' + esc(fallen[0].name), A, tip(usedA, `Надрезать, высосать и прижечь: Медицина против ${fallen[0].conds.dot.dc || 12} — яд уходит`))
+      : btn('b-band', (B.hasPotion(u) ? 'Зелье' : 'Перевязать') + (fallen.length ? ': ' + esc(fallen[0].name) : ''), A || !fallen.length, tip(fallen.length ? usedA : 'Рядом нет упавших союзников.', B.hasPotion(u) ? 'Влить зелье упавшему соседу: 2d4+2 хитов' : 'Перевязать упавшего соседа, чтобы не истёк кровью: Медицина против 10'));
     const rare = [u.mount ? btn('b-unmount', 'Спешиться', false, `Слезть с коня: ${esc(u.mount.name || 'коня')} уведут за край поля, после боя он снова с вами; шаги — пешие`) : '', btn('b-dash', 'Рывок', A, tip(usedA, 'Ещё столько же шагов в этот ход')), btn('b-dis', 'Отход', A, tip(usedA, 'До конца хода уходишь из сшибки без ударов вдогонку')),
       tat ? btn('b-tdash', 'Хитрость: рывок', Bn, tip(usedB, 'Малым действием: ещё 2 шага')) : '', tat ? btn('b-tdis', 'Хитрость: отход', Bn, tip(usedB, 'Отход малым действием')) : '',
       B.fleeWhy ? (() => { const fw = B.fleeWhy(S, u); return btn('b-flee', 'Уйти с поля', !!fw, tip(fw, 'Покинуть бой. Упавшего соседа унесёшь с собой. Когда уйдут все — бой кончен, а уцелевшие враги пойдут по следу')); })() : '',
@@ -41884,7 +42196,9 @@ function bop(op, a) {
     case 'pot': { const e = B.potion(S, u, u, true); if (e) return e; break; }
     case 'hpot': { const f = T(a.t); if (!f || f.dead || f.side !== u.side || B.dist(u, f) !== 1) return 'до него не дотянуться'; if (!B.hasPotion(u)) return 'зелья нет'; { const e = B.potion(S, u, f); if (e) return e; } break; }
     case 'guard': { const x = T(a.t); if (!x) return 'некого прикрыть'; B.guard(S, u, u.guarding === x.id && B.guardOf(S, x) === u ? null : x); break; }
-    case 'band': { const f = T(a.t); if (!f || !f.down || f.dead || B.dist(u, f) !== 1) return 'до раненого не дотянуться'; if (S.acted) return 'Действие уже потрачено в этот ход.'; if (B.hasPotion(u)) { const e = B.potion(S, u, f); if (e) return e; } else B.bandage(S, u, f); break; }
+    case 'band': { const f = T(a.t);
+      if (f && !f.down && !f.dead && B.dist(u, f) <= 1 && B.isVenomDot && B.isVenomDot(f.conds.dot)) { if (S.acted) return 'Действие уже потрачено в этот ход.'; B.bandage(S, u, f); break; }
+      if (!f || !f.down || f.dead || B.dist(u, f) !== 1) return 'до раненого не дотянуться'; if (S.acted) return 'Действие уже потрачено в этот ход.'; if (B.hasPotion(u)) { const e = B.potion(S, u, f); if (e) return e; } else B.bandage(S, u, f); break; }
     case 'spell': { const s = DATA.spellById[a.s]; if (!s || !B.Spells.usableNow(S, u).some(x => x.id === s.id)) return 'это заклинание сейчас не сотворить'; const tm = B.Spells.targetMode(s);
       if (tm === 'self') B.Spells.cast(S, u, s, u); else if (tm === 'place') B.Spells.cast(S, u, s, a.c != null ? {c: a.c, r: a.r} : null);
       else if (tm === 'area') { if (B.dist(u, a) > Math.max(1, B.Spells.range(s)) + 1) return 'слишком далеко'; B.Spells.cast(S, u, s, {c: a.c, r: a.r}); }
@@ -41987,7 +42301,7 @@ function showInterlude(ch, next) {
   const draw = (lines) => {
     $('#main').innerHTML = `<div class="screen title"><div class="box inter"><h1 style="font-size:clamp(30px,6vw,52px)">Привал саги</h1>
       <p>Между делами проходит зима. У огня — ${esc(ch.heroes.map(h => h.name).join(', '))}. ${lines ? 'Вот как прошла зима.' : 'Выбери два дела на зиму.'}</p>
-      ${lines ? `<div class="news" style="text-align:left">${lines.map(esc).join('<br>')}</div>` : `<div class="icards">${C.INTERLUDE.map(x => `<button class="btn icard ${picks.includes(x.id) ? 'on' : ''}" data-ip="${x.id}"><b>${esc(x.name)}</b><span>${esc(x.desc)}</span></button>`).join('')}</div>`}
+      ${lines ? `<div class="news" style="text-align:left">${lines.map(esc).join('<br>')}</div>` : `<div class="icards">${C.INTERLUDE.map(x => `<button class="btn icard ${picks.includes(x.id) ? 'on' : ''}" data-ip="${x.id}"><b>${esc(x.name)}</b><span>${esc(C.interludeDesc ? C.interludeDesc(ch, x) : x.desc)}</span></button>`).join('')}</div>`}
       <div class="row">${lines ? `<button class="btn primary" id="i-go">В путь: «${esc(nc.name)}»</button>` : `<button class="btn primary" id="i-do" ${picks.length === 2 ? '' : 'disabled'}>Зимовать (${picks.length}/2)</button><button class="btn" id="i-skip">Сразу в путь</button>`}</div></div></div>`;
     $('#main').querySelectorAll('[data-ip]').forEach(b => b.onclick = () => { const id = b.dataset.ip; const i = picks.indexOf(id); if (i >= 0) picks.splice(i, 1); else if (picks.length < 2) picks.push(id); draw(); });
     if ($('#i-do')) $('#i-do').onclick = () => { const out = C.interlude(ch, picks, nc); saveChron(ch); draw(out); };
