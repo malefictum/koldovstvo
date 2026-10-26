@@ -1576,13 +1576,15 @@ B.damage = function (S, t, d, src, by) {
   if (S && S._venom && d > 0 && B.venomCap(t)) d = Math.max(0, Math.min(d, t.hp - 1));
   if (!(d > 0) && S && S._venom) return;
   if (t.conds.sleep) { if (t.conds.sleep.deep) { delete t.conds.sleep.deep; B.log(S, `${t.name} ворочается, но сонная пыль держит.`); } else { delete t.conds.sleep; B.log(S, `${t.name} просыпается от удара.`); } }
-  t.hp -= d;
+  const hp0 = t.hp, wasUp = !t.down; let hitE = null; t.hp -= d;
   if (by) by.dealt = (by.dealt || 0) + d;
+  if (S) { const e = {kind: 'hit', tid: t.id, by: by && by.id != null ? by.id : null, d, hp0}; if (S._crit) e.crit = 1; if (S._hitI != null) e.i = S._hitI; B.ev(S, e); hitE = e; }
   if (t.hp <= 0 && !t.down) {
     if (t.kind === 'monster' || t.summonLeft != null) { t.dead = true; t.down = true; B.log(S, G.N ? G.N.down(S, t, 'kill') : `${t.name} падает замертво.`, 'kill'); if (by) by.kills = (by.kills || 0) + 1; B.morale(S, t); }
     else if (t.hp <= -Math.max(6, Math.floor(t.hpMax / 2))) { t.dead = true; t.down = true; B.log(S, G.N ? G.N.down(S, t, 'dead') : `${t.name} убит.`, 'death'); S.lastDeath = {id: t.id, cause: by ? 'пал от руки: ' + by.name : src}; }
     else { t.down = true; t.bleed = 3; t.stable = false; B.log(S, G.N ? G.N.down(S, t, 'down') : `${t.name} падает при смерти.`, 'bad', 'при смерти: 3 хода, чтобы перевязать'); }
   } else if (t.down && t.hp <= -Math.max(6, Math.floor(t.hpMax / 2)) && !t.dead) { t.dead = true; B.log(S, G.N ? G.N.down(S, t, 'finish') : `${t.name} добит.`, 'death'); S.lastDeath = {id: t.id, cause: by ? 'добит: ' + by.name : src}; }
+  if (hitE) { hitE.hp1 = t.hp; if (wasUp && t.down) hitE.fell = 1; if (t.dead) hitE.dead = 1; }
 };
 
 /* ---------- удар ---------- */
@@ -1638,14 +1640,18 @@ const C2 = () => G.C || {};
 B.rollAdv = a => { const r1 = R.d(20); if (!a) return {r: r1, rolls: [r1]}; const r2 = R.d(20); return {r: a > 0 ? Math.max(r1, r2) : Math.min(r1, r2), rolls: [r1, r2]}; };
 B.hitChance = function (S, u, t, ranged) { const [m] = B.hitMods(S, u, t, ranged); const need = t.def - (ranged ? u.atkR : u.atk) - m; let ok = 1; for (let r = 2; r <= 19; r++) if (r >= need) ok++; const p = ok / 20;
   const a = B.advOf ? B.advOf(S, u, t, ranged, !!(u.conds && u.conds.hidden)).a : 0; return a > 0 ? 1 - (1 - p) * (1 - p) : a < 0 ? p * p : p; };
-B.fx = function (S, o) { S.fxn = (S.fxn || 0) + 1; (S.fxq = S.fxq || []).push(Object.assign({t0: 0, n: S.fxn}, o)); if (S.fxq.length > 12) S.fxq.shift(); };
+B.fx = function (S, o) { S.fxn = (S.fxn || 0) + 1; (S.fxq = S.fxq || []).push(Object.assign({t0: 0, n: S.fxn}, o)); if (S.fxq.length > 12) S.fxq.shift();
+  B.evPush(S, {n: S.fxn, kind: o.kind, fx: 1, from: o.from, to: o.to, uid: o.uid, tid: o.tid}); };
+/* записи для показа хода (ui.js проигрывает их по порядку): шаги, удары, промахи, урон. На правила не влияют */
+B.evPush = (S, e) => { (S.evq = S.evq || []).push(e); if (S.evq.length > 40) S.evq.shift(); };
+B.ev = function (S, o) { if (!S) return; S.fxn = (S.fxn || 0) + 1; B.evPush(S, Object.assign({n: S.fxn}, o)); };
 B.attack = function (S, u, t, ranged) {
   if (!ranged && t.side !== u.side && !u._react) { const gd = B.guardOf(S, t); if (gd && gd !== u) {
     // страж заступает дорогу и тянет врага на себя: ставит его рядом, если есть место
     if (B.dist(u, gd) > 1) { const spot = B.neigh(gd.c, gd.r).filter(n => B.passable(S, n.c, n.r) && !B.unitAt(S, n.c, n.r)).sort((a, b) => B.dist(a, u) - B.dist(b, u))[0]; if (spot) { u.c = spot.c; u.r = spot.r; } }
-    B.log(S, G.N ? G.N.guard(S, gd, u, t) : `${gd.name} заступает дорогу.`, 'buff', `прикрытие: удар по ${t.name} принимает ${gd.name}`); t = gd; } }
+    B.log(S, G.N ? G.N.guard(S, gd, u, t) : `${gd.name} заступает дорогу.`, 'buff', `прикрытие: удар по ${t.name} принимает ${gd.name}`); B.ev(S, {kind: 'block', tid: gd.id, by: u.id}); t = gd; } }
   const hits = ranged ? (u.shots || 1) : u.nAtt; u.pose = 'atk'; B.faceTo(u, t); S.attacked = true;
-  B.fx(S, {kind: ranged ? 'shot' : 'slash', from: {c: u.c, r: u.r}, to: {c: t.c, r: t.r}, bolt: !!(u.ranged && /самостр|арбалет/i.test(u.ranged.name || ''))});
+  B.fx(S, {kind: ranged ? 'shot' : 'slash', from: {c: u.c, r: u.r}, to: {c: t.c, r: t.r}, uid: u.id, tid: t.id, bolt: !!(u.ranged && /самостр|арбалет/i.test(u.ranged.name || ''))});
   const fromHiding = !!u.conds.hidden; if (fromHiding) { delete u.conds.hidden; }
   if (u.look && (ranged ? u.look.wr : u.look.wm)) u.look.weapon = ranged ? u.look.wr : u.look.wm;
   const sneaky = !!u.sneak && (fromHiding || (!ranged && (t.conds.surprised || t.conds.held || t.conds.sleep || S.units.some(x => x !== u && x.side === u.side && B.active(x) && B.dist(x, t) === 1))));
@@ -1661,7 +1667,7 @@ B.attack = function (S, u, t, ranged) {
     let crit = r >= (a.crit || 20), helm = false;
     if (crit && t.helmSave && R.rand() < t.helmSave) { crit = false; helm = true; }
     const nums = `${a.name}: ${r}+${tot - r} против ${t.def}${why.length ? '; ' + why.join(', ') : ''}`;
-    if (r === 1 || (r !== 20 && tot < t.def)) { B.log(S, G.N ? G.N.attack(S, {u, t, a, ranged, miss: true, roll: r, tot, why}) : `${u.name} → ${t.name}: промах.`, 'miss', nums); continue; }
+    if (r === 1 || (r !== 20 && tot < t.def)) { B.log(S, G.N ? G.N.attack(S, {u, t, a, ranged, miss: true, roll: r, tot, why}) : `${u.name} → ${t.name}: промах.`, 'miss', nums); B.ev(S, {kind: 'miss', tid: t.id, by: u.id, i}); continue; }
     let d = R.dice(a.dmg, {L: u.level, mod: 0}) + (a.bonus || 0);
     // крит: кубики урона ещё раз, прибавка — один раз (без «удвоения всего»)
     if (crit) { const dm = String(a.dmg).match(/^(\d*)d(\d+)/); d += dm ? R.roll(+dm[1] || 1, +dm[2]) : 0; }
@@ -1672,7 +1678,8 @@ B.attack = function (S, u, t, ranged) {
     // бесплотные и прочие стойкие к простому железу — в foes_steel.js
     d = Math.max(1, d);
     B.log(S, G.N ? G.N.attack(S, {u, t, a, ranged, d, crit, helm, sneaky: sneakNow}) : `${u.name} → ${t.name}: ${d} урона.`, crit ? 'hit crit' : 'hit', `${nums} → ${d} урона${crit ? ', крит' : ''}${helm ? ', шлем погасил крит' : ''}${sneakNow ? ', в спину' : ''}`);
-    B.damage(S, t, d, a.name, u);
+    if (helm) B.ev(S, {kind: 'helm', tid: t.id, by: u.id, i});
+    S._crit = crit; S._hitI = i; try { B.damage(S, t, d, a.name, u); } finally { S._crit = false; S._hitI = null; }
     if (u.venom && !ranged && !t.dead) {
       u.venom = false;
       if (B.venomProof(t)) B.log(S, `Яд не берёт ${t.name}: в этом теле нет живой крови.`, '', 'яд: не действует');
@@ -1785,17 +1792,18 @@ B.guard = function (S, u, t) {
 B.move = function (S, u, c, r) {
   const map = B.reach(S, u); const k = B.key(c, r); if (!map[k]) return false;
   const path = []; if (map[k].path) map[k].path.forEach(p => path.push(p)); else { let x = map[k]; while (x) { path.unshift(x); x = x.prev ? map[x.prev] : null; } }
+  let seg = 0; const segOut = i => { if (i > seg) B.ev(S, {kind: 'move', id: u.id, path: path.slice(seg, i + 1).map(p => ({c: p.c, r: p.r}))}); seg = i; };
   for (let i = 1; i < path.length; i++) {
     // уход из зоны врага — свободный удар
     B.enemiesOf(S, u).forEach(e => {
       if (B.dist(e, u) === 1 && B.dist(e, path[i]) > 1 && !e.reacted && !u.conds.disengage && !e.conds.held && !e.conds.sleep && !e.conds.fear) {
-        e.reacted = true; B.log(S, G.N ? G.N.free(S, e, u) : `${e.name} бьёт вдогонку.`, '', 'удар вдогонку (реакция)'); const n = e.nAtt; e.nAtt = 1; e._react = 1; try { B.attack(S, e, u, false); } finally { delete e._react; } e.nAtt = n;
+        segOut(i - 1); e.reacted = true; B.log(S, G.N ? G.N.free(S, e, u) : `${e.name} бьёт вдогонку.`, '', 'удар вдогонку (реакция)'); const n = e.nAtt; e.nAtt = 1; e._react = 1; try { B.attack(S, e, u, false); } finally { delete e._react; } e.nAtt = n;
       }
     });
     if (!B.active(u)) { S.moved = u.steps; return true; }
     B.faceTo(u, path[i]); u.c = path[i].c; u.r = path[i].r;
   }
-  S.moved += map[k].cost; u.lastPath = path; u.pose = 'walk';
+  segOut(path.length - 1); S.moved += map[k].cost; u.lastPath = path; u.pose = 'walk';
   return true;
 };
 
@@ -38273,7 +38281,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvpul1nl"></script><script>
+</script><script src="world.js?v=mvpw6gvp"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -40312,7 +40320,7 @@ function showMail() {
 function showCompTalk() {
   if (!g || NETG() || battle || !C.compTalkNext) return; const m = C.compTalkNext(g); if (!m || !$('#modal').hidden) return;
   C.compTalkDone(g); save();
-  openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>Слово наёмника</small><h3>${esc(m.from)}</h3>${m.sub ? `<div class="note">${esc(m.sub)}</div>` : ''}</div></div>
+  openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>${m.hero ? 'У костра' : m.ban ? 'Разговор в отряде' : 'Слово наёмника'}</small><h3>${esc(m.from)}</h3>${m.sub ? `<div class="note">${esc(m.sub)}</div>` : ''}</div></div>
     <p class="kltext">«${esc(m.text)}»</p><div class="row"><button class="btn primary" id="kl-ok">${m.up ? 'Кивнуть' : m.up === false ? 'Выслушать молча' : 'Дальше'}</button></div></div>`, 'sm');
   $('#kl-ok').onclick = () => { closeModal(); setTimeout(showCompTalk, 300); };
 }
@@ -41174,14 +41182,218 @@ function drawShout(f, k, s) {
   ctx.fillStyle = SHOUT_COL[f.school] || (f.side === 'party' ? '#2a1d10' : '#8a1d1d'); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(t, 0, fs * 0.05);
   ctx.restore();
 }
+/* ---------- показ хода ----------
+   Логика боя сразу приходит в конечное состояние, а здесь — только показ: фигуры идут по клеткам, бойцы делают выпад,
+   цель вздрагивает и краснеет, над ней всплывает урон. Источник — записи S.evq из battle.js (B.ev / B.fx), по номеру n.
+   У гостя в сети состояние приходит целиком, вместе с S.evq, — и он проигрывает те же записи у себя. */
+const BSPD_KEY = 'kldv_bspeed', BSPD_NAME = {1: 'Обычно', 2: 'Быстрее', off: 'Сразу'};
+let BSPEED = (() => { try { const v = localStorage.getItem(BSPD_KEY); return v === '2' || v === 'off' ? v : '1'; } catch (e) { return '1'; } })();
+const PLAY = {key: null, lastN: 0, prepN: 0, gate: Infinity, busy: false, wait: null, pend: null, actor: null, mode: null, aim: null,
+  anim: {}, pos: {}, fl: {}, hold: {}, hpShow: {}, pops: [], posK: {}, hpK: {}, raf: 0};
+const STEP_MS = 120, wpt = (c, r) => ({x: SQ3 * (c + 0.5 + (r & 1) * 0.5), y: 1 + r * 1.5});
+const pk = () => BSPEED === '2' ? 0.5 : 1;
+const playOn = () => BSPEED !== 'off' && !!cv && cv.isConnected && typeof requestAnimationFrame === 'function' && !(typeof document !== 'undefined' && document.hidden);
+const pwait = ms => new Promise(r => setTimeout(r, ms * pk()));
+const playKey = S => (S.title || '') + '|' + S.units.slice(0, 6).map(x => x.id).join();
+function playSnap(S) { S.units.forEach(u => { PLAY.posK[u.id] = u.c + ',' + u.r; PLAY.hpK[u.id] = u.hp; }); }
+function playReset(S) { Object.assign(PLAY, {key: playKey(S), lastN: S.fxn || 0, prepN: S.fxn || 0, gate: Infinity, actor: null, mode: null, aim: null, anim: {}, pos: {}, fl: {}, hold: {}, hpShow: {}, pops: [], posK: {}, hpK: {}}); playSnap(S); }
+/* подготовка новых записей: кто где стоит до шага, какие хиты показывать до удара, кого ещё рано ронять */
+function playPrep(S, evs) {
+  const moving = {};
+  evs.forEach(e => {
+    if (e.kind === 'move' && e.path && e.path.length) { moving[e.id] = 1; if (!PLAY.pos[e.id] && !PLAY.anim[e.id]) PLAY.pos[e.id] = wpt(e.path[0].c, e.path[0].r); }
+    if (e.kind === 'hit' && e.tid != null) { if (PLAY.hpShow[e.tid] == null) PLAY.hpShow[e.tid] = e.hp0; const t = B.U(S, e.tid); if (e.fell && t && (t.down || t.dead)) PLAY.hold[e.tid] = 1; }
+  });
+  // сдвинут без шага (заступил страж, толкнули, отбросило чарами) — короткое скольжение
+  S.units.forEach(u => { const k0 = PLAY.posK[u.id]; if (!k0 || moving[u.id] || PLAY.pos[u.id] || PLAY.anim[u.id] || k0 === u.c + ',' + u.r || u.gone) return;
+    const [c0, r0] = k0.split(',').map(Number); PLAY.anim[u.id] = {k: 'slide', a: wpt(c0, r0), b: wpt(u.c, u.r), t0: performance.now(), dur: 220 * pk()}; PLAY.posK[u.id] = u.c + ',' + u.r; });
+  PLAY.prepN = Math.max(PLAY.prepN, ...evs.map(e => e.n));
+}
+/* вызывается в начале каждого кадра поля: новый бой — с чистого листа, новые записи — подготовить и запустить показ */
+function playSync(S) {
+  if (PLAY.key !== playKey(S) || (S.fxn || 0) < PLAY.lastN) playReset(S);
+  const evs = (S.evq || []).filter(e => e.n > PLAY.prepN);
+  if (!evs.length) { if (!PLAY.busy && !(S.evq || []).some(e => e.n > PLAY.lastN)) { playDiff(S); playSnap(S); } return; }
+  if (!playOn()) { PLAY.lastN = PLAY.prepN = S.fxn || 0; PLAY.gate = Infinity; if (!PLAY.busy) playSnap(S); return; }
+  playPrep(S, evs);
+  if (!PLAY.busy) playNew();
+}
+/* что изменилось без записи (лечение, зелье, плата кровью) — цифрой над бойцом */
+function playDiff(S) { if (!playOn()) return; S.units.forEach(u => { const k = PLAY.hpK[u.id]; if (k != null && u.hp !== k && !u.gone && u.c != null && !(u.dead && u.hp < k) && seenByParty(S, u)) playPop(u, u.hp - k); }); }
+function playNew() { if (PLAY.busy) return PLAY.wait; PLAY.busy = true; PLAY.wait = playRun(); return PLAY.wait; }
+const playWait = () => PLAY.busy && PLAY.wait ? PLAY.wait : Promise.resolve();
+async function playRun() {
+  try {
+    for (let guard = 0; guard < 600; guard++) {
+      const S = battle; if (!S || !cv || !cv.isConnected) break;
+      if (PLAY.key !== playKey(S)) break;
+      const e = (S.evq || []).find(x => x.n > PLAY.lastN); if (!e) break;
+      if (!playOn()) { PLAY.lastN = PLAY.prepN = S.fxn || 0; break; }
+      if (e.n > PLAY.prepN) playPrep(S, (S.evq || []).filter(x => x.n > PLAY.prepN));
+      PLAY.gate = e.n - 1; playKick();
+      try { await playEv(S, e); } catch (err) { console.error(err); }
+      PLAY.lastN = Math.max(PLAY.lastN, e.n); PLAY.gate = PLAY.lastN;
+    }
+  } finally {
+    const S = battle;
+    PLAY.gate = Infinity; PLAY.actor = null; PLAY.mode = null; PLAY.aim = null; PLAY.hold = {}; PLAY.hpShow = {}; PLAY.pos = {};
+    Object.keys(PLAY.anim).forEach(id => { if (PLAY.anim[id].k === 'walk') delete PLAY.anim[id]; });
+    if (S && PLAY.key === playKey(S)) {
+      playDiff(S);
+      PLAY.lastN = Math.max(PLAY.lastN, S.fxn || 0); PLAY.prepN = Math.max(PLAY.prepN, PLAY.lastN); playSnap(S);
+    }
+    PLAY.busy = false;
+    if (typeof requestAnimationFrame === 'function') requestAnimationFrame(() => { if (battle && cv && cv.isConnected) drawField(); });
+    const f = PLAY.pend; PLAY.pend = null; if (f) setTimeout(f, 0);
+  }
+}
+const pU = (S, id) => id == null ? null : B.U(S, id);
+function playFollow(c, r) { if (c != null && geo && geo.big && !(CAM.drag && CAM.drag.moved)) camFollow({c, r}); }
+/* одна запись: сколько ждать до следующей — по смыслу */
+async function playEv(S, e) {
+  const now = () => performance.now(), k = e.kind;
+  if (k === 'move') {
+    const u = pU(S, e.id); if (!u || !e.path || e.path.length < 2) { delete PLAY.pos[e.id]; return; }
+    const end = e.path[e.path.length - 1];
+    // кого не видит отряд (туман, чаща, затаился) — без показа: и время не тянуть, и не выдавать
+    if (u.side !== 'party' && !seenByParty(S, Object.assign({}, u, {c: e.path[0].c, r: e.path[0].r})) && !seenByParty(S, Object.assign({}, u, {c: end.c, r: end.r}))) { delete PLAY.pos[e.id]; PLAY.posK[e.id] = end.c + ',' + end.r; return; }
+    PLAY.actor = e.id; PLAY.mode = null; const pts = e.path.map(p => wpt(p.c, p.r));
+    playFollow(end.c, end.r);
+    PLAY.anim[e.id] = {k: 'walk', pts, t0: now(), step: STEP_MS * pk()}; PLAY.pos[e.id] = pts[0]; playKick();
+    await pwait(STEP_MS * (pts.length - 1));
+    if (PLAY.anim[e.id] && PLAY.anim[e.id].k === 'walk') delete PLAY.anim[e.id];
+    PLAY.pos[e.id] = pts[pts.length - 1]; PLAY.posK[e.id] = end.c + ',' + end.r; playKick(); return;
+  }
+  if (k === 'slash' || k === 'shot') {
+    const u = pU(S, e.uid), t = pU(S, e.tid); PLAY.actor = e.uid != null ? e.uid : PLAY.actor;
+    PLAY.mode = {k: k === 'slash' ? 'melee' : 'shot', uid: e.uid, tid: e.tid};
+    if (u && !seenByParty(S, u)) { PLAY.gate = e.n; return; }
+    if (u) playFollow(u.c, u.r);
+    PLAY.aim = {a: e.uid, b: e.tid, from: e.from, to: e.to, t0: now(), dur: 200 * pk(), side: u ? u.side : 'foe'}; playKick();
+    await pwait(200);
+    PLAY.gate = e.n; // удар или выстрел виден с этой минуты
+    if (k === 'shot') { if (u) PLAY.anim[e.uid] = {k: 'pose', pose: 'atk', t0: now(), dur: 650 * pk()}; playKick(); await pwait(300); }
+    return;
+  }
+  if (k === 'cast') {
+    const u = S.units.find(x => x.c === e.from.c && x.r === e.from.r && !x.gone) || null; if (u) { PLAY.actor = u.id; PLAY.anim[u.id] = {k: 'pose', pose: 'cast', t0: now(), dur: 700 * pk()}; playFollow(u.c, u.r); }
+    PLAY.mode = {k: 'cast', uid: u ? u.id : null}; PLAY.gate = e.n; playKick();
+    // выкрик заклинателя (он следом) — сразу, вместе с чарами
+    const nx = (S.evq || []).find(x => x.n === e.n + 1); if (nx && nx.kind === 'shout') PLAY.gate = nx.n;
+    const self = e.from && e.to && e.from.c === e.to.c && e.from.r === e.to.r;
+    await pwait(self ? 320 : 500); return;
+  }
+  if (k === 'shout' || e.fx) { PLAY.gate = e.n; return; } // выкрики и прочие вспышки — не держат ход
+  if (k === 'hit' || k === 'miss' || k === 'helm' || k === 'block') {
+    const t = pU(S, e.tid), by = pU(S, e.by), M = PLAY.mode;
+    if (e.by != null && (k !== 'hit' || by)) PLAY.actor = e.by; else if (k === 'hit' && e.by == null && !M) PLAY.actor = e.tid; // яд, ожог — в начале своего хода
+    const melee = M && M.k === 'melee' && e.by != null && M.uid === e.by && by && t && k !== 'helm' && k !== 'block';
+    if (melee) {
+      const a = playPos(by), b = playPos(t); PLAY.anim[by.id] = {k: 'lunge', a, b, t0: now(), dur: 250 * pk(), alt: (e.i || 0) % 2}; playKick();
+      await pwait(110);
+    }
+    if (t) playHit(S, e, t, by);
+    await pwait(melee ? 170 : M && M.k === 'cast' ? 110 : k === 'helm' ? 60 : 220); return;
+  }
+}
+/* где фигура сейчас на поле (мировые единицы) */
+function playPos(u) { const v = dispUnit(u); return v._wx != null ? {x: v._wx, y: v._wy} : wpt(u.c, u.r); }
+function playHit(S, e, t, by) {
+  const k = e.kind, now = performance.now();
+  if (k === 'hit') {
+    const k0 = PLAY.hpK[t.id]; if (k0 != null && e.hp0 > k0) playPop(t, e.hp0 - k0); // лечили до удара
+    PLAY.hpShow[t.id] = e.hp1; PLAY.hpK[t.id] = e.hp1; if (e.fell) delete PLAY.hold[t.id];
+    if (e.d > 0) { const a = by ? playPos(by) : null, b = playPos(t); PLAY.fl[t.id] = {t0: now, dx: a ? b.x - a.x : 0, dy: a ? b.y - a.y : 0}; }
+    playPop(t, -e.d, e.crit);
+  } else if (k === 'miss') playPop(t, 0, false, 'мимо');
+  else if (k === 'helm') playPop(t, 0, false, 'шлем');
+  else if (k === 'block') playPop(t, 0, false, 'прикрыл');
+  playKick();
+}
+/* всплывающая цифра: урон красным, лечение зелёным, слова — светлым; на одном бойце строки не налезают */
+function playPop(u, v, crit, word) {
+  const now = performance.now(), P = playPos(u), mine = PLAY.pops.filter(p => p.id === u.id && now - p.t0 < p.dur * 0.7);
+  const txt = word || (v === 0 ? 'не берёт' : (v > 0 ? '+' : '−') + Math.abs(v) + (crit ? '!' : ''));
+  const col = word ? (word === 'мимо' ? '#efe6d2' : '#9fd3ff') : v === 0 ? '#efe6d2' : v > 0 ? '#8fe07a' : crit ? '#ffcf5a' : '#ff6a4d';
+  PLAY.pops.push({id: u.id, x: P.x, y: P.y, txt, col, big: !!crit, word: !!word || v === 0, t0: now, dur: 1050, slot: mine.length});
+  if (PLAY.pops.length > 30) PLAY.pops.shift(); playKick();
+}
+/* отображаемая копия бойца: позиция, поза, лицо, хиты — по показу; само состояние не трогается */
+function dispUnit(u) {
+  const id = u.id, A = PLAY.anim[id], P = PLAY.pos[id], hs = PLAY.hpShow[id], hold = PLAY.hold[id], F = PLAY.fl[id];
+  const norm = BSPEED !== 'off' && (u.pose === 'walk' || u.pose === 'atk');
+  if (!A && !P && hs == null && !hold && !F && !norm) return u;
+  const v = Object.assign({}, u), now = performance.now();
+  if (norm) v.pose = 'stand';
+  if (hold) { v.dead = false; v.down = false; if (v.hp <= 0) v.hp = 1; }
+  if (hs != null) v.hp = hold ? Math.max(1, hs) : hs;
+  let x = null, y = null; if (P) { x = P.x; y = P.y; }
+  if (A) { const q = (now - A.t0) / (A.k === 'walk' ? A.step * (A.pts.length - 1) : A.dur);
+    if (q >= 1 && A.k !== 'walk') { delete PLAY.anim[id]; }
+    else if (A.k === 'walk') { const L = A.pts.length - 1, f = Math.max(0, Math.min(L, (now - A.t0) / A.step)), i = Math.min(L - 1, Math.floor(f)), w = f - i, a = A.pts[i], b = A.pts[i + 1];
+      x = a.x + (b.x - a.x) * w; y = a.y + (b.y - a.y) * w; if (Math.abs(b.x - a.x) > 0.01) v.face = b.x > a.x ? 1 : -1; v.pose = f >= L ? 'stand' : 'walk'; }
+    else if (A.k === 'slide') { const e = q * (2 - q); x = A.a.x + (A.b.x - A.a.x) * e; y = A.a.y + (A.b.y - A.a.y) * e; }
+    else if (A.k === 'lunge') { const d = Math.hypot(A.b.x - A.a.x, A.b.y - A.a.y) || 1, o = 0.3 * SQ3 * Math.sin(Math.PI * Math.min(1, q)) * (q < 0.45 ? 1 : 1);
+      if (x == null) { x = A.a.x; y = A.a.y; } x += (A.b.x - A.a.x) / d * o; y += (A.b.y - A.a.y) / d * o; v.pose = 'atk'; v._atkAlt = A.alt; if (Math.abs(A.b.x - A.a.x) > 0.01) v.face = A.b.x > A.a.x ? 1 : -1; }
+    else if (A.k === 'pose') v.pose = A.pose; }
+  if (F) { const q = (now - F.t0) / 300; if (q >= 1) delete PLAY.fl[id]; else {
+    if (x == null) { const w = wpt(u.c, u.r); x = w.x; y = w.y; }
+    const d = Math.hypot(F.dx, F.dy); if (d > 0.01) { const o = 0.1 * SQ3 * Math.sin(Math.PI * q); x += F.dx / d * o; y += F.dy / d * o; } else x += Math.sin(q * 30) * 0.06;
+    v._red = q < 0.67 ? 1 - q / 0.67 * 0.6 : (1 - q) * 1.2; v._hitT = now; } }
+  if (x != null) { v._wx = x; v._wy = y; }
+  return v;
+}
+const unitXY = u => u._wx != null ? {x: geo.ox + u._wx * geo.s, y: geo.oy + u._wy * geo.s} : hexXY(u.c, u.r);
+/* чей ход показывать: того, чьё действие проигрывается, иначе — текущего */
+function curShowId(S) { if (PLAY.busy && PLAY.actor != null) return PLAY.actor; const c = B.current(S); return c ? c.id : null; }
+function playActive() { const now = performance.now(); return PLAY.busy || Object.keys(PLAY.anim).length || Object.keys(PLAY.fl).length || PLAY.pops.some(p => now - p.t0 < p.dur) || (PLAY.aim && now - PLAY.aim.t0 < PLAY.aim.dur + 260); }
+function playKick() { if (PLAY.raf || !playActive() || typeof requestAnimationFrame !== 'function') return; PLAY.raf = requestAnimationFrame(() => { PLAY.raf = 0; if (battle && cv && cv.isConnected) drawField(true); }); }
+/* стрелка от бьющего к цели и цифры — поверх фигур */
+function drawPlayTop() {
+  const S = battle, s = geo.s, now = performance.now();
+  const A = PLAY.aim; if (A && now - A.t0 < A.dur + 260) {
+    // дуга над головами: от бьющего к цели, наконечник — над целью; у цели под ногами — метка
+    const ua = pU(S, A.a), ub = pU(S, A.b), pa = ua ? unitXY(dispUnit(ua)) : hexXY(A.from.c, A.from.r), pb = ub ? unitXY(dispUnit(ub)) : hexXY(A.to.c, A.to.r);
+    const q = Math.min(1, (now - A.t0) / A.dur), e = q * (2 - q), fade = now - A.t0 > A.dur ? Math.max(0, 1 - (now - A.t0 - A.dur) / 260) : 1;
+    const ax = pa.x, ay = pa.y - s * 0.9, bx = pb.x, by = pb.y - s * 0.75, d = Math.hypot(bx - ax, by - ay) || 1, lift = Math.max(s * 0.9, d * 0.32);
+    const cx = (ax + bx) / 2, cy = Math.min(ay, by) - lift, col = A.side === 'party' ? '255,222,140' : A.side === 'demon' ? '215,168,255' : '255,110,80';
+    const pt = t => ({x: (1 - t) * (1 - t) * ax + 2 * (1 - t) * t * cx + t * t * bx, y: (1 - t) * (1 - t) * ay + 2 * (1 - t) * t * cy + t * t * by});
+    const tEnd = Math.max(0.05, e * 0.93), N = 18;
+    ctx.save(); ctx.globalAlpha = fade; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.ellipse(pb.x, pb.y + s * 0.45, s * 0.72, s * 0.28, 0, 0, Math.PI * 2); ctx.strokeStyle = 'rgba(15,10,6,.8)'; ctx.lineWidth = Math.max(5, s * 0.2); ctx.stroke(); ctx.strokeStyle = `rgba(${col},1)`; ctx.lineWidth = Math.max(2.5, s * 0.1); ctx.stroke();
+    const path = () => { ctx.beginPath(); for (let i = 0; i <= N; i++) { const p = pt(0.06 + (tEnd - 0.06) * i / N); i ? ctx.lineTo(p.x, p.y) : ctx.moveTo(p.x, p.y); } };
+    path(); ctx.strokeStyle = 'rgba(15,10,6,.8)'; ctx.lineWidth = Math.max(6, s * 0.26); ctx.stroke();
+    path(); ctx.strokeStyle = `rgba(${col},1)`; ctx.lineWidth = Math.max(3, s * 0.13); ctx.shadowColor = `rgba(${col},.8)`; ctx.shadowBlur = s * 0.3; ctx.stroke(); ctx.shadowBlur = 0;
+    const h0 = pt(tEnd), h1 = pt(tEnd - 0.04), ang = Math.atan2(h0.y - h1.y, h0.x - h1.x), hs = Math.max(10, s * 0.42);
+    ctx.translate(h0.x, h0.y); ctx.rotate(ang); ctx.beginPath(); ctx.moveTo(hs * 0.55, 0); ctx.lineTo(-hs * 0.5, -hs * 0.5); ctx.lineTo(-hs * 0.25, 0); ctx.lineTo(-hs * 0.5, hs * 0.5); ctx.closePath();
+    ctx.fillStyle = `rgba(${col},1)`; ctx.strokeStyle = 'rgba(15,10,6,.9)'; ctx.lineWidth = 2; ctx.fill(); ctx.stroke(); ctx.restore();
+  }
+  PLAY.pops = PLAY.pops.filter(p => now - p.t0 < p.dur);
+  if (PLAY.pops.length) { ctx.save(); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
+    PLAY.pops.forEach(p => { const q = (now - p.t0) / p.dur, u = pU(S, p.id), live = u ? unitXY(dispUnit(u)) : null;
+      const bx = live ? live.x : geo.ox + p.x * s, by0 = live ? live.y : geo.oy + p.y * s;
+      const pop = q < 0.12 ? 0.6 + q / 0.12 * 0.55 : q < 0.22 ? 1.15 - (q - 0.12) / 0.1 * 0.15 : 1, a = q > 0.7 ? (1 - q) / 0.3 : 1;
+      const fs = Math.round(Math.max(p.word ? 15 : 18, s * (p.word ? 0.52 : 0.7)) * (p.big ? 1.4 : 1));
+      const x = bx + (p.slot % 2 ? 1 : -1) * Math.min(1, p.slot) * s * 0.35, y = by0 - s * 2.25 - p.slot * fs * 0.95 - q * s * 0.75;
+      ctx.globalAlpha = a; ctx.font = `${p.word ? 'italic 700' : '800'} ${Math.round(fs * pop)}px "Alegreya SC", Alegreya, Georgia, serif`;
+      ctx.lineWidth = Math.max(3, fs * 0.22); ctx.strokeStyle = 'rgba(14,9,5,.92)'; ctx.strokeText(p.txt, x, y); ctx.fillStyle = p.col; ctx.fillText(p.txt, x, y); });
+    ctx.restore(); }
+}
+function speedBtn() {
+  const sc = document.querySelector('.screen.battle'); if (!sc || !cv) return;
+  let w = $('#bspdw'); if (!w) { w = document.createElement('div'); w.id = 'bspdw'; w.className = 'bcam'; w.innerHTML = '<div class="bzoom"><button class="btn" id="bspd" title="Как показывать ходы: обычно, быстрее (вдвое) или сразу, без показа"></button></div>'; sc.appendChild(w);
+    $('#bspd').onclick = () => { BSPEED = BSPEED === '1' ? '2' : BSPEED === '2' ? 'off' : '1'; try { localStorage.setItem(BSPD_KEY, BSPEED); } catch (e) {} speedBtn(); drawField(); } }
+  const b = $('#bspd'); if (b.textContent !== BSPD_NAME[BSPEED]) b.textContent = BSPD_NAME[BSPEED];
+  w.style.left = (cv.offsetLeft + 10) + 'px'; w.style.top = (cv.offsetTop + cv.clientHeight - w.offsetHeight - 10) + 'px';
+}
 function drawFx() {
   const S = battle; if (!S || !S.fxq || !S.fxq.length) return;
-  const now = performance.now(), s = geo.s;
-  S.fxq.forEach(f => { if (!f.t0) f.t0 = now; });
-  S.fxq = S.fxq.filter(f => now - f.t0 < fxDur(f));
+  const now = performance.now(), s = geo.s, held = f => f.n > PLAY.gate; /* ещё не дошла очередь в показе хода */
+  S.fxq.forEach(f => { if (!f.t0 && !held(f)) f.t0 = now; });
+  S.fxq = S.fxq.filter(f => held(f) || now - f.t0 < fxDur(f));
   ctx.save(); ctx.globalCompositeOperation = 'lighter';
   S.fxq.forEach(f => {
-    if (f.kind === 'shout') return;
+    if (f.kind === 'shout' || held(f)) return;
     const k = (now - f.t0) / fxDur(f), A = hexXY(f.from.c, f.from.r), B2 = hexXY(f.to.c, f.to.r);
     const ax = A.x, ay = A.y - s * 0.55, bx = B2.x, by = B2.y - s * 0.55;
     if (f.kind === 'slash') {
@@ -41217,15 +41429,16 @@ function drawFx() {
     else { const q = (k - 0.45) / 0.55; glow(bx, by, rad * (0.5 + q * 0.7), 1 - q, C); for (let i = 0; i < 12; i++) { const a2 = i / 12 * 6.283, d = rad * 0.9 * q; glow(bx + Math.cos(a2) * d, by + Math.sin(a2) * d * 0.6, s * 0.14, 1 - q, C); } }
   });
   ctx.restore();
-  S.fxq.forEach(f => { if (f.kind === 'shout') drawShout(f, (now - f.t0) / fxDur(f), s); });
-  if (S.fxq.length && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
+  S.fxq.forEach(f => { if (f.kind === 'shout' && !held(f)) drawShout(f, (now - f.t0) / fxDur(f), s); });
+  if (S.fxq.some(f => !held(f)) && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
 }
 function drawField(noFollow) {
   if (!battle || !cv) return;
   layout();
   const S = battle, s = geo.s, F = S.field;
-  // ход перешёл к другому или боец сдвинулся — камера к нему
-  if (!noFollow && geo.big) { const cu = B.current(S), pos = cu ? cu.c + ',' + cu.r : '';
+  playSync(S);
+  // ход перешёл к другому или боец сдвинулся — камера к нему (пока идёт показ хода — камера у того, кто действует)
+  if (!noFollow && geo.big && !PLAY.busy) { const cu = B.current(S), pos = cu ? cu.c + ',' + cu.r : '';
     if (cu && (CAM.lastCur !== cu.id || CAM.lastPos !== pos)) { const first = CAM.lastCur == null; CAM.lastCur = cu.id; CAM.lastPos = pos;
       if (first) { CAM.cx = SQ3 * (cu.c + 0.5 + (cu.r & 1) * 0.5); CAM.cy = 1 + cu.r * 1.5; layout(); } else { camFollow(cu); } } }
   ctx.fillStyle = '#1a1510'; ctx.fillRect(0, 0, geo.W, geo.H);
@@ -41262,8 +41475,9 @@ function drawField(noFollow) {
   cells.forEach(c => { if (c.o != null && F.objs && F.objs[c.o]) { if (seenObj[c.o]) return; seenObj[c.o] = 1; const o = F.objs[c.o], ys = o.cells.map(x => hexXY(x.c, x.r)); if (ys.every(off)) return; things.push({y: Math.max(...ys.map(q => q.y)), o}); return; }
     if (['tree', 'rock', 'brush', 'grave', 'fence', 'house', 'wall', 'idol', 'log', 'hay', 'wood', 'barrels', 'well', 'fire', 'shelter', 'rye'].includes(c.t)) { const p = hexXY(c.c, c.r); if (!off(p)) things.push({y: p.y, c}); } });
   // павшие враги остаются на поле: кровь и тело под живыми
-  dieInit(); drawHorseCorpses(); S.units.filter(u => !u.gone && u.dead && u.kind === 'monster').forEach(drawCorpse);
-  S.units.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => things.push({y: hexXY(u.c, u.r).y + 0.1, u}));
+  const DU = S.units.map(dispUnit);
+  dieInit(); drawHorseCorpses(); DU.filter(u => !u.gone && u.dead && u.kind === 'monster').forEach(drawCorpse);
+  DU.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => things.push({y: unitXY(u).y + 0.1, u}));
   LABELQ = []; try { things.sort((a, b) => a.y - b.y).forEach(t => t.o ? drawObj(t.o) : t.c ? drawProp(t.c) : drawUnit(t.u)); } finally { const q = LABELQ; LABELQ = null; ctx.save(); q.forEach(f => f()); ctx.restore(); }
   if (anyDying() && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
   // шанс попасть: над врагом под курсором
@@ -41291,7 +41505,7 @@ function drawField(noFollow) {
       if (to) areaCells(S, cur, mode.spell, to).forEach(x => { const p = hexXY(x.c, x.r); hexPath(p.x, p.y, s * 0.92); ctx.fillStyle = 'rgba(190,150,255,.28)'; ctx.fill(); ctx.strokeStyle = 'rgba(210,180,255,.7)'; ctx.lineWidth = 1.5; ctx.stroke(); }); }
     if (mode && mode.spell) B.alliesOf(S, cur).forEach(a => { if (spellTargetOk(cur, mode.spell, a)) { const p = hexXY(a.c, a.r); hexPath(p.x, p.y, s * 0.9); ctx.strokeStyle = '#a6d38a'; ctx.lineWidth = 2.5; ctx.stroke(); } });
   }
-  drawFx(); drawBubbles(); drawMini(); auraTick();
+  drawFx(); drawPlayTop(); drawBubbles(); drawMini(); speedBtn(); auraTick(); playKick();
 }
 /* твари: старый лист beasts и новый beasts2 (люди-враги, нежить, духи, именные) */
 const beastRect = k => k ? (ATLAS.beasts && ATLAS.beasts[k]) || (ATLAS.beasts2 && ATLAS.beasts2[k]) || (ATLAS.figs2 && ATLAS.figs2[k]) || null : null;
@@ -41457,7 +41671,8 @@ function drawHero(u, p, H0) {
   const pick = ps => ps.map(x => L.base + '_' + x).find(n => A[n]);
   // кадр «atk» — рука вперёд: годится для выстрела, укола и чар; рубящее оружие — замах из стойки
   const swing = pose === 'atk' && L.weapon && !['spear', 'dagger', 'bow', 'crossbow', 'sling', 'staff'].includes(L.weapon);
-  const fname = pick(pose === 'cast' ? ['cast', 'atk', 'stand'] : swing ? ['atk2', 'atk', 'cast', 'stand'] : pose === 'atk' ? ['atk', 'cast', 'stand'] : [pose, 'stand']);
+  // в показе хода удары чередуют кадры: замах и выпад (u._atkAlt — второй удар серии)
+  const fname = pick(pose === 'cast' ? ['cast', 'atk', 'stand'] : swing ? (u._atkAlt ? ['atk', 'atk2', 'cast', 'stand'] : ['atk2', 'atk', 'cast', 'stand']) : pose === 'atk' ? (u._atkAlt && !['bow', 'crossbow', 'sling'].includes(L.weapon) ? ['atk2', 'atk', 'cast', 'stand'] : ['atk', 'cast', 'stand']) : [pose, 'stand']);
   if (!fname) return false;
   const a = A[fname], ref = A[L.base + '_stand'] || a, an1 = ATLAS.anchors[fname] || {};
   const H = (dead ? (an1.cx != null ? H0 * a[3] / ref[3] : H0 * 0.5) : H0 * Math.min(1.3, a[3] / ref[3])) * (BODY_K[L.base] || BODY_K0), Wd = H * a[2] / a[3];
@@ -41823,19 +42038,25 @@ function auraTick() {
   auraT = setTimeout(() => { auraT = 0; if (battle && cv && cv.isConnected && !fxRaf) drawField(true); }, 85); /* идёт вспышка — её кадр сам позовёт ауры */
 }
 function drawUnit(u) {
-  const p = hexXY(u.c, u.r), s = geo.s, S = battle, cur = B.current(S);
+  const p = unitXY(u), s = geo.s, S = battle, cur = B.current(S);
   if (!seenByParty(S, u)) return;
-  const isCur = cur === u;
+  const isCur = !u.dead && !u._noUi && u.id != null && u.id === curShowId(S);
   if ((u.dead || u.down) && !u._dieDone && !u._noUi && u.kind !== 'monster') { const q = dieQ(u); if (q < 1) { drawDying(u, q); return; } }
   // тень и кольцо стороны
   if (u.dead) bloodPool(u, p, s);
   else if (u._noUi) { ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.45, s * 0.55, s * 0.2, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill(); }
   else { ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.45, s * 0.55, s * 0.2, 0, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
-  ctx.lineWidth = isCur ? 3 : 2; ctx.strokeStyle = u.side === 'party' ? (isCur ? '#e7c983' : '#c9a35c') : u.side === 'demon' ? (isCur ? '#d7a8ff' : '#9b5cd6') : (isCur ? '#ff8a70' : '#b04a3a'); ctx.stroke(); }
+  ctx.lineWidth = isCur ? 3 : 2; ctx.strokeStyle = u.side === 'party' ? (isCur ? '#e7c983' : '#c9a35c') : u.side === 'demon' ? (isCur ? '#d7a8ff' : '#9b5cd6') : (isCur ? '#ff8a70' : '#b04a3a'); ctx.stroke();
+    // чей ход: светящееся кольцо, свои — золотом, враги — огнём
+    if (isCur) { const t = performance.now() / 1000, q = 0.5 + 0.5 * Math.sin(t * 4), col = u.side === 'party' ? '255,222,140' : u.side === 'demon' ? '215,168,255' : '255,110,80';
+      ctx.save(); ctx.shadowColor = `rgba(${col},.95)`; ctx.shadowBlur = s * (0.35 + 0.25 * q); ctx.strokeStyle = `rgba(${col},${0.75 + 0.25 * q})`; ctx.lineWidth = Math.max(2.5, s * 0.1);
+      ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.45, s * (0.66 + 0.05 * q), s * (0.25 + 0.02 * q), 0, 0, Math.PI * 2); ctx.stroke(); ctx.restore(); } }
   const aK = auraKinds(u), aH = s * 2.15 * (u.scale || 1) * Math.min(1.4, u.bsize || 1);
   drawAura(u, p, s, aH, aK, 'back');
   ctx.save();
+  const REDF = u._red > 0.02 ? `sepia(${u._red.toFixed(2)}) saturate(${(1 + 5 * u._red).toFixed(2)}) hue-rotate(${(-45 * u._red).toFixed(0)}deg) brightness(${(1 + 0.12 * u._red).toFixed(2)})` : ''; /* вздрогнул от удара — краснеет */
+  if (REDF) ctx.filter = REDF;
   if (u.down && !u.dead) ctx.globalAlpha = 0.8;
   if (!u.dead && !u._noUi && cur && cur.side === 'party' && !cur.ai && u.side !== cur.side && B.los && !B.los(S, cur, u)) ctx.globalAlpha *= 0.45;
   if (aK.includes('sly')) ctx.globalAlpha *= 0.6; /* невидим, затаился, размыт — фигурка полупрозрачна */
@@ -41855,7 +42076,7 @@ function drawUnit(u) {
     if (u.btint && B.BEAST_TINT[u.btint]) f.push(B.BEAST_TINT[u.btint]);
     if (u.tint === 'dead') f.push('grayscale(.6) sepia(.3) hue-rotate(50deg) brightness(.85)');
     if (u.down || u.dead) f.push('brightness(.55) saturate(.6)');
-    if (f.length) ctx.filter = f.join(' ');
+    if (REDF) f.push(REDF); if (f.length) ctx.filter = f.join(' ');
     ctx.translate(p.x, p.y + s * 0.5); if ((u.face || (u.side === 'foe' ? -1 : 1)) > 0) ctx.scale(-1, 1);
     const dk = (u.down || u.dead) ? corpseKind(u) : null;
     const jit = dk ? ((corpseSeed(u) % 100) / 100 - 0.5) * 0.24 : 0;
@@ -41874,6 +42095,7 @@ function drawUnit(u) {
     if (u.tint === 'dead') ctx.filter = 'grayscale(.8) sepia(.4) hue-rotate(50deg) brightness(.85)';
     else if (u.tint === 'imp') ctx.filter = 'brightness(.35) sepia(.6) hue-rotate(320deg)';
     else if (u.tint === 'navi') ctx.filter = 'grayscale(.5) sepia(.3) hue-rotate(220deg) brightness(.8)';
+    if (REDF && u.tint) ctx.filter += ' ' + REDF;
     if (a && IMG.units && u.dead && !(name && deadOk(name))) {
       // своего «лежачего» рисунка нет — кладём фигуру набок
       const h = s * 1.75 * (u.scale || 1), w = h * a[2] / a[3];
@@ -41903,7 +42125,12 @@ function drawUnit(u) {
   const won = u.enthralled && u.side === 'party' && u.enthralled.side0 !== 'party', lost = u.enthralled && u.side !== 'party' && u.enthralled.side0 === 'party';
   ctx.fillStyle = won ? '#5aa0e0' : lost ? '#b07fe0' : u.conds.charm ? '#e0c040' : u.side === 'party' ? '#7fbf5a' : '#d0573f'; ctx.fillRect(bx, by, bw * Math.max(0, u.hp) / u.hpMax, 5);
   ctx.fillStyle = '#ece0c4'; ctx.font = `600 ${Math.max(10, Math.round(s * 0.32))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'alphabetic';
-  ctx.fillText((u.down ? '† ' : '') + u.name.split(',')[0], p.x, by - 3);
+  if (!isCur) ctx.fillText((u.down ? '† ' : '') + u.name.split(',')[0], p.x, by - 3);
+  else { const plate = () => { const nm = u.name.split(',')[0], fs = Math.max(11, Math.round(s * 0.36)); ctx.save(); ctx.font = `700 ${fs}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      const tw = ctx.measureText(nm).width + fs * 0.9, h = fs * 1.45, x0 = p.x - tw / 2, y0 = by - 4 - h, col = u.side === 'party' ? '#e7c983' : u.side === 'demon' ? '#d7a8ff' : '#ff8a70';
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(x0, y0, tw, h, h * 0.3) : ctx.rect(x0, y0, tw, h); ctx.fillStyle = 'rgba(20,14,8,.9)'; ctx.fill(); ctx.strokeStyle = col; ctx.lineWidth = 1.5; ctx.stroke();
+      ctx.fillStyle = col; ctx.fillText(nm, p.x, y0 + h / 2 + 1); ctx.restore(); };
+    if (LABELQ) LABELQ.push(plate); else plate(); }
   // подписи чар и состояний под фигурой — вторым проходом, поверх деревьев и камней (см. LABELQ в drawField)
   const subs = () => {
   const few = s < 22; /* поле издали (телефон): по одной подписи, чтобы строки не слипались */
@@ -42175,6 +42402,7 @@ function onField(e) {
 }
 /* действие в бою: в одиночной игре сразу, в сетевой — через хозяина */
 function bdo(op, a) {
+  if (PLAY.busy && op !== 'look') { PLAY.pend = () => bdo(op, a); return; } // идёт показ — действие выполнится сразу после
   if (NET()) { act(Object.assign({a: 'b', op}, a)); redraw(); return; }
   const e = bop(op, a); if (e) toast(e);
 }
@@ -42236,14 +42464,17 @@ async function runAI() {
   if (NETG()) return;
   const S = battle; if (!S) return;
   busy = true;
+  await playWait(); if (battle !== S) return; // сначала досмотреть последнее действие игрока
   while (!S.over) {
     const u = B.current(S);
     if (!u) break;
     if (u.side === 'party' && !u.ai && !netAI(u)) break;
     redraw();
-    await new Promise(r => setTimeout(r, 380));
+    await new Promise(r => setTimeout(r, BSPEED === 'off' ? 260 : 240 * pk())); // кольцо на том, кто сейчас пойдёт
     if (battle !== S) return;
     B.aiTurn(S);
+    redraw(); await playWait(); // показ хода: подход, удары, отклик — и только потом следующий
+    if (battle !== S) return;
   }
   busy = false;
   if (battle === S) redraw();
@@ -43490,7 +43721,7 @@ function coinize(root) {
 }
 new MutationObserver(ms => { ms.forEach(m => { m.addedNodes.forEach(n => { if (n.nodeType === 1 && n.querySelector && !n.closest('.dd') && (n.tagName === 'SELECT' || n.querySelector('select:not(.dd-src)'))) enhanceSelects(n.tagName === 'SELECT' ? n.parentNode : n); if (n.nodeType === 1) coinize(n); else if (n.nodeType === 3 && n.parentNode) coinize(n.parentNode); }); if (m.type === 'characterData' && m.target.parentNode) coinize(m.target.parentNode); }); }).observe(document.body, {childList: true, subtree: true, characterData: true});
 coinize(document.body);
-window.__kldv = { hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
+window.__kldv = { play: () => PLAY, playDraw: () => drawField(true), hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
   /* картинка для сайта: фигура бойца целиком и значок вещи */
   fig: (c, u) => { const x = c.getContext('2d'), W = c.width, Hc = c.height; x.clearRect(0, 0, W, Hc);
     const fit = (img, a, flip, filt) => { const k = Math.min(W * 0.94 / a[2], Hc * 0.94 / a[3]), w = a[2] * k, h = a[3] * k; x.save(); if (filt) x.filter = filt; x.translate(W / 2, Hc * 0.97); if (flip) x.scale(-1, 1); x.drawImage(img, a[0], a[1], a[2], a[3], -w / 2, -h, w, h); x.restore(); return true; };

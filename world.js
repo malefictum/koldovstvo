@@ -44621,6 +44621,412 @@ C.sceneOf = function (g, id) {
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* w2_banter.js */
+/* Колдовство — w2_banter: наёмники говорят между собой и кричат в бою. Без DOM. И в Вечном мире, и в главах саг.
+   • Беседы вне боя: 2–4 реплики по очереди между двумя наёмниками отряда (или наёмником и героем, если наёмник один,
+     или наёмником и героем, с которым он побратался/обручился). Каждая реплика — отдельное окно «Слово наёмника»
+     (та же очередь, что у w2_nrav: C.compTalkNext/Done; беседа лежит в своей очереди g.compBanter и идёт целиком, чужие
+     реплики из g.compTalk не выкидывает и не перебивает) и строка в журнале «Имя: «…»».
+   • Поводы: ночлег в поле (W.nightCamp), ночлег в корчме (C.lodge) и сама корчма, новый день пути (C.dailyMeal: дорога,
+     голод, непогода, зима), победа, тяжёлый бой (кто-то упал), гибель товарища, вход в город или село, спуск в подземелье,
+     разговор с нечистью (C.nechDoWay), встреча с дознавателями и судом Ока.
+   • Пары: жадный и честный (о плате), лихой и трусоватый, набожный и старой веры (осторожно расходятся), земляки (по
+     народу), разные народы (подтрунивают — по народу собеседника), побратим/суженый/супруг и герой; и бытовые беседы.
+   • Частота: в среднем ~1 беседа в сутки пути (2+ наёмника), не больше C.BANTER.DAY в день, не больше C.BANTER.PEND
+     непоказанных бесед; не повторяются, пока не сказаны остальные (память g.w2ban.seen). Броски — от хеша, не от ГСЧ игры.
+   • Выкрики в бою: наёмник коротко кричит (надпись над фигурой — B.fx kind:'shout', и строка в журнале боя, класс 'say'):
+     в начале боя, при крите и сражённом враге, раненый ниже трети, когда упал товарищ, когда прикрывает или перевязывает,
+     при промахе, при отравлении, когда враг бежит, при победе; ярый — боевые кличи. Не чаще раза в 2 раунда на наёмника
+     и раза за раунд на весь бой; шанс от хеша — общий ГСЧ боя не трогается, исходы боёв те же.
+   • Обёртки снаружи: C.compTalkNext/Done, W.nightCamp, C.lodge, C.dailyMeal, C.battleEnd, C.travel, W.walk, C.dungeonEnter,
+     C.nechDoWay, C.choose, C.sceneOf; в бою — B.start, B.attack, B.damage, B.morale, B.checkEnd, B.guard, B.bandage,
+     B.rageOn, B.venomHit. Сеть: окно у гостей не открывается (ui.js), беседы ведутся у хозяина.
+   • Наружу: C.BANTER (настройки, off — выключить), C.BANTER_TALKS, C.BANTER_SHOUTS, C.banterTry, C.banterShout. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, W = G.W;
+if (!C || !C.CAMPS) return;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; x = Math.imul(x, 2246822507); x ^= x >>> 13; return x >>> 0; };
+const pickH = (a, key) => a[hsh(key) % a.length];
+C.BANTER = Object.assign({off: false, DAY: 2, PEND: 2, BOOST: 45,
+  P: {camp: 55, inn: 45, road: 35, hunger: 55, weather: 45, winter: 45, win: 30, heavy: 70, mourn: 90, town: 40, dungeon: 50, nechist: 55, oko: 55},
+  SHOUT_P: {start: 60, kill: 35, crit: 35, hurt: 45, down: 50, guard: 40, aid: 35, miss: 20, poison: 45, flee: 50, win: 50, rage: 60},
+  SHOUT_GAP: 2}, C.BANTER || {});
+const K = () => C.BANTER;
+
+/* ================= беседы ================= */
+/* Разметка реплик: {A} {B} — имена участников (a — наёмник, b — наёмник или герой), {A:g} {B:d} — падеж (n g d a i p);
+   {X} — павший/упавший товарищ (в беседах heavy/mourn), ^м|ж^ — по полу {X}; [м|ж] — по полу говорящего,
+   <м|ж> — по полу того, к кому он обращается; {w} — присказка народа говорящего (у героя — пусто).
+   Поля беседы: t — поводы ('any' — подходит к костру, дороге и корчме), p — пара (zc жадный+честный, lt лихой+трусоватый,
+   ns набожный+старой веры, zem земляки, tease — разные народы, warm — с героем по узам), ppl — народ (для zem — обоих,
+   для tease — того, над кем подтрунивают), tie — узы (brat, drug, blizk, wed), h — b может быть героем. */
+const T = (id, t, o, L) => Object.assign({id, t: t.split(' '), L}, o || {});
+C.BANTER_TALKS = [
+  /* --- у костра --- */
+  T('c_drova', 'camp', {h: 1}, [['a', 'Дров на всю ночь не хватит. Кто со мной за сушняком?'], ['b', 'Утром сходим. Ночью в лесу найдёшь не сушняк, а того, кто его стережёт.'], ['a', 'Тоже верно. Тогда спим теснее.']]),
+  T('c_hrap', 'camp', {h: 1}, [['a', '{B}, ты храпишь, как медведь в берлоге. Я полночи не спал[|а].'], ['b', 'Зато ни один зверь к костру не сунулся. Скажи спасибо.']]),
+  T('c_zvezdy', 'camp', {h: 1}, [['a', 'Звёзды нынче какие — крупные, что горох.'], ['b', 'К морозу. Или к ветру. {w}'], ['a', 'Или просто к звёздам. Не всё же на свете к чему-то.']]),
+  T('c_sol', 'camp', {}, [['a', 'Кашу кто солил? Признавайся.'], ['b', 'Я. А что, мало?'], ['a', 'Мало? Её теперь до утра запивать.'], ['b', 'Значит, воды больше наберём. Не ворчи.']]),
+  T('c_bayka', 'camp', {h: 1}, [['a', 'Хочешь, байку расскажу? Про мельника и водяного.'], ['b', 'Ты её третий раз рассказываешь.'], ['a', 'Так она с каждым разом лучше выходит.']]),
+  T('c_dozor', 'camp', {h: 1}, [['a', 'Давай я первым[|ой] в дозор, {B}. Всё равно не спится.'], ['b', 'Разбуди, коли что. И не геройствуй там один<|а>.'], ['a', 'Я? Геройствовать? Да я при первом шорохе всех перебужу.']]),
+  T('c_sapog', 'camp', {}, [['a', 'Сапог совсем прохудился. Ещё два перехода — и пойду босиком.'], ['b', 'Дай сюда. Ремешком перетянем — до торга дотянет.'], ['a', 'Руки у тебя золотые, {B}.'], ['b', 'Руки как руки. Это сапоги у тебя худые.']]),
+  T('c_filin', 'camp', {h: 1}, [['a', 'Слышишь, филин ухает? Дед мой говорил: филин — к тихой ночи.'], ['b', 'А мой говорил — к покойнику.'], ['a', 'Ну вот. Всю ночь испортил<|а>.']]),
+  T('c_dom', 'camp', {h: 1}, [['a', 'О чём думаешь, {B}?'], ['b', 'О доме. О чём ещё у костра думать.'], ['a', 'А я — о бане. Тоже, выходит, о доме.']]),
+  T('c_iskry', 'camp', {}, [['a', 'Гляди, {B}, искры к лесу летят. Не спалить бы чего.'], ['b', 'Не спалим. Роса уже легла, трава мокрая.'], ['a', 'Мокрая трава — это хорошо. А мокрые портянки — плохо. Подвинься к огню.']]),
+  /* --- в дороге --- */
+  T('r_holm', 'road', {h: 1}, [['a', 'Сколько ещё до ночлега, как думаешь?'], ['b', 'Вон за тем холмом. Ну, или за следующим.'], ['a', 'Ты это и за прошлым холмом говорил<|а>.']]),
+  T('r_nogi', 'road', {h: 1}, [['a', 'Ноги гудят, как пчелиный улей.'], ['b', 'Значит, живые. У мёртвых ноги не гудят.'], ['a', 'Утешил<|а>, нечего сказать.']]),
+  T('r_pesnya', 'road', {}, [['a', '{B}, давай споём что-нибудь? Дорога короче станет.'], ['b', 'Ты как запоёшь, волки за три версты разбегаются.'], ['a', 'Вот и я о том: и дорога короче, и спокойней.']]),
+  T('r_vorona', 'road', {h: 1}, [['a', 'Видишь ворону? Второй день за нами летит.'], ['b', 'Может, и не та же самая.'], ['a', 'Та. На правое крыло припадает. Я её запомнил[|а].'], ['b', 'Ну, раз запомнил<|а> — корми теперь.']]),
+  T('r_sush', 'road', {h: 1}, [['a', 'Хорошая дорога. Ровная, сухая. Не к добру это.'], ['b', 'Тебе всё не к добру — и грязь, и сушь.'], ['a', 'Так оно всё и есть не к добру. Зато я всегда наготове.']]),
+  T('r_koza', 'road', {}, [['a', 'Вот скажи, {B}, осел<|а> бы ты где-нибудь? Двор, огород, коза.'], ['b', 'Коза — это хорошо. А двор зачем? Козе и дорога — двор.'], ['a', 'Так ты и есть коза, выходит.'], ['b', 'Выходит, так. Бодливая.']]),
+  T('r_dolgo', 'road', {h: 1}, [['a', 'Третий день одно и то же: лес, поле, лес.'], ['b', 'Радуйся. Начнётся что-то другое — заскучаешь по лесу и полю.']]),
+  T('r_put', 'road any', {h: 1}, [['a', 'А ты, {B}, куда пойдёшь, когда всё это кончится?'], ['b', 'Не знаю. Может, никуда. Сяду у дороги и буду смотреть, как другие идут.'], ['a', 'Скучно.'], ['b', 'Зато ноги не гудят.']]),
+  /* --- после победы --- */
+  T('w_topor', 'win', {h: 1}, [['a', 'Видал<|а>, как я того, с топором? Раз — и всё!'], ['b', 'Видал[|а]. А того, что тебе в спину целил, видал<|а>? Я его снял[|а].'], ['a', '…Ну, тогда с меня кружка.']]),
+  T('w_tsely', 'win', {h: 1}, [['a', 'Все целы? Ну и ладно.'], ['b', 'Цел[|а]. Только руки трясутся.'], ['a', 'Это пройдёт. У меня после каждой драки трясутся. {w}']]),
+  T('w_delezh', 'win', {}, [['a', 'Добычу как делить будем?'], ['b', 'Как всегда — сперва раненым, потом остальным.'], ['a', 'А если раненых нет?'], ['b', 'Тогда поровну. И не гляди так.']]),
+  T('w_styd', 'win', {h: 1}, [['a', 'Хорошо дрались. Не стыдно.'], ['b', 'Не стыдно. Только пусть это будет последняя драка на этой седмице.']]),
+  /* --- тяжёлый бой: кто-то упал, но жив --- */
+  T('h_upal', 'heavy', {h: 1}, [['a', 'Видел[|а], как {X} упал^|а^? Я думал[|а] — не встанет.'], ['b', 'Встал^|а^ же. Значит, ещё поживём.']]),
+  T('h_ruka', 'heavy', {h: 1}, [['a', 'Перевяжи мне руку, {B}. Только не туго.'], ['b', 'Терпи. Туго — значит, кровь не уйдёт. Вон {X} терпит и молчит.'], ['a', 'Так {X} без памяти лежал^|а^, потому и молчит.']]),
+  T('h_shchity', 'heavy', {h: 1}, [['a', 'Ещё одна такая драка — и нас всех вынесут на щитах.'], ['b', 'Не каркай. Живы — и ладно. {X} отлежится. {w}'], ['a', 'Отлежится… Если б не мы, не отлежал^ся|ась^ бы.']]),
+  T('h_vina', 'heavy', {}, [['a', 'Я виноват[|а]. Не прикрыл[|а] {X:a} вовремя.'], ['b', 'Никто не виноват. Их было больше, а мы живы. Спи.'], ['a', 'Не спится.'], ['b', 'Тогда сиди тихо и не мешай спать мне.']]),
+  /* --- гибель товарища --- */
+  T('m_smeh', 'mourn', {h: 1}, [['a', '{X} ещё вчера смеял^ся|ась^ у этого костра.'], ['b', 'Помянем. Отломим хлеба на ^его|её^ долю.'], ['a', 'Отломим. И кружку нальём, до краёв.']]),
+  T('m_mesto', 'mourn', {h: 1}, [['a', 'Мне надо было стоять там, где стоял^|а^ {X}.'], ['b', 'Тогда бы мы сейчас поминали тебя. Не надо так.']]),
+  T('m_imya', 'mourn', {h: 1}, [['a', 'Положим ^ему|ей^ в дорогу хоть корку хлеба.'], ['b', 'Положим. И имя запомним. Это главное.'], ['a', 'Запомним. {X}. Хорошее было имя.']]),
+  /* --- голод --- */
+  T('g_suhar', 'hunger', {h: 1}, [['a', 'Живот к спине прилип. {B}, у тебя сухаря не осталось?'], ['b', 'Последний ещё позавчера съели. Вместе, если помнишь.'], ['a', 'Помню. Вкусный был сухарь.']]),
+  T('g_remen', 'hunger', {h: 1}, [['a', 'Ремень на последнюю дырку застегнул[|а]. Дальше только новую прокалывать.'], ['b', 'Прокалывай. До жилья ещё два перехода.']]),
+  T('g_griby', 'hunger', {}, [['a', 'Вон грибы. Есть их можно?'], ['b', 'Можно. Один раз.'], ['a', 'Тьфу на тебя, {B}.']]),
+  T('g_podmetka', 'hunger', {h: 1}, [['a', 'Я бы сейчас и подмётку сварил[|а], честное слово.'], ['b', 'Подмётки не трожь — на чём идти будем?'], ['a', 'Тогда ремень. Ремень всё одно на последней дырке.']]),
+  /* --- непогода --- */
+  T('p_promok', 'weather', {h: 1}, [['a', 'Промок[|ла] до последней нитки. Даже в сапогах лужи.'], ['b', 'А я сух[ой|ая]… в одном месте. Под шапкой.']]),
+  T('p_tetiva', 'weather', {h: 1}, [['a', 'Тетиву береги, {B}: мокрая — что верёвка.'], ['b', 'За пазухой держу. Ближе к сердцу.'], ['a', 'Сердце у тебя, выходит, тоже мокрое.']]),
+  T('p_zhara', 'weather', {}, [['a', 'Жарища. Кольчуга как сковорода.'], ['b', 'Сними — изжаришься медленней. Но и проткнут быстрее.'], ['a', 'Выбор-то какой хороший.']]),
+  /* --- зима --- */
+  T('z_paltsy', 'winter', {h: 1}, [['a', 'Пальцы не гнутся. Как я меч держать буду?'], ['b', 'Сунь под мышку. И не ной — зима у всех одна.']]),
+  T('z_sledy', 'winter', {h: 1}, [['a', 'Снегу намело по пояс. Хорошо хоть следы зверя видно.'], ['b', 'И наши следы видно, {A}. Тем, кто за нами идёт.'], ['a', '…Умеешь ты утешить.']]),
+  T('z_spina', 'winter', {}, [['a', 'Ляжем спиной к спине, {B}. Так теплее.'], ['b', 'Только не пихайся, как в прошлый раз.'], ['a', 'Я не пихал[ся|ась]. Я грел[ся|ась].']]),
+  /* --- город, село --- */
+  T('t_koshel', 'town', {h: 1}, [['a', 'Ну, люди кругом. Держите кошели крепче. {w}'], ['b', 'Мой кошель и так пуст. Пусть свои держат.']]),
+  T('t_shum', 'town', {h: 1}, [['a', 'Сколько народу… После леса аж в ушах звенит.'], ['b', 'Потерпи. День-два — и снова в лес.'], ['a', 'Вот этого я и боюсь. Что опять в лес.']]),
+  T('t_torg', 'town', {}, [['a', '{B}, пойдём на торг, поглядим?'], ['b', 'Поглядеть — можно. Покупать — нет.'], ['a', 'А если очень захочется?'], ['b', 'Тогда тем более нет.']]),
+  T('t_strazha', 'town', {h: 1}, [['a', 'Стража здесь злая. Не задирайся, {B}.'], ['b', 'Я? Задираться? Да я тише воды.'], ['a', 'Вот и будь тише воды. До самого утра.']]),
+  /* --- корчма --- */
+  T('i_pivo', 'inn', {h: 1}, [['a', 'Пиво тут кислое, а хозяин хитрый.'], ['b', 'Зато крыша есть. И печь.'], ['a', 'За крышу и печь я ему кислое прощу.']]),
+  T('i_kulak', 'inn', {h: 1}, [['a', 'Видал<|а>, какая у хозяина дочка?'], ['b', 'Видал[|а]. И хозяина видал[|а]. У него кулак с твою голову.']]),
+  T('i_kosti', 'inn', {}, [['a', 'Сыграем в кости, {B}?'], ['b', 'С тобой? Ты их мечешь, будто сговорил<ся|ась> с ними заранее.'], ['a', 'Это не сговор, это ловкость рук.'], ['b', 'Вот потому и не сыграю.']]),
+  T('i_postel', 'inn', {h: 1}, [['a', 'Постель мягкая — аж страшно. Отвык[|ла].'], ['b', 'Привыкнешь. За одну ночь — нет, а за две — запросто.']]),
+  /* --- подземелье --- */
+  T('d_pogreb', 'dungeon', {h: 1}, [['a', 'Темно, сыро, и пахнет, как в погребе у покойника.'], ['b', 'А ты бывал<|а> в погребе у покойника?'], ['a', 'Теперь, считай, бывал[|а].']]),
+  T('d_fakel', 'dungeon', {h: 1}, [['a', 'Факел береги, {B}. Без света мы тут пропадём.'], ['b', 'Берегу. Пуще кошеля.'], ['a', 'Ты кошель-то не очень бережёшь.'], ['b', 'Вот видишь — факел, значит, ещё пуще.']]),
+  T('d_kapaet', 'dungeon', {h: 1}, [['a', 'Слышишь? Капает. Или скребётся?'], ['b', 'Капает. Пусть будет — капает.']]),
+  T('d_pervy', 'dungeon', {}, [['a', 'Кто первым пойдёт?'], ['b', 'Тот, кто спросил.'], ['a', 'Так и знал[|а].']]),
+  /* --- после нечисти --- */
+  T('n_reka', 'nechist', {h: 1}, [['a', 'С нечистью рядиться — что с рекой спорить. Всё одно своё возьмёт.'], ['b', 'Сегодня взяла немного. Можно и потерпеть.']]),
+  T('n_glaza', 'nechist', {h: 1}, [['a', 'Ты видел<|а> его глаза, {B}? Как у рыбы — а всё понимают.'], ['b', 'Видел[|а]. Не напоминай на ночь.']]),
+  T('n_hleb', 'nechist', {}, [['a', 'Хлеба им надо было оставить. Не взяли бы — так хоть знали бы, что мы с уважением.'], ['b', 'Оставили. Я оставил[|а], пока ты не видел<|а>.'], ['a', 'Вот за это спасибо, {B}.']]),
+  /* --- после дознавателей и суда Ока --- */
+  T('o_smotrel', 'oko', {h: 1}, [['a', 'Как он на нас смотрел, дознаватель этот… Будто мы уже на суде.'], ['b', 'Работа у них такая — смотреть да записывать.'], ['a', 'Хоть бы раз записали что хорошее.']]),
+  T('o_molchi', 'oko', {h: 1}, [['a', 'Ты бы при дознавателях помалкивал<|а>, {B}.'], ['b', 'Я и молчал[|а].'], ['a', 'Ты молчал<|а> очень громко.']]),
+  T('o_svitki', 'oko', {}, [['a', 'Обетники у ворот опять свитки читали. Ищут кого-то.'], ['b', 'Не нас — и ладно.'], ['a', 'Пока не нас.']]),
+  /* --- жадный и честный --- */
+  T('zc_plata', 'any camp road', {p: 'zc'}, [['a', 'Слушай, {B}, вот ты бы за двойную плату пош<ёл|ла> в ту пещеру?'], ['b', 'Я и за одинарную пош[ёл|ла]. Уговор есть уговор.'], ['a', 'Вот потому тебе и платят одинарную.']]),
+  T('zc_kolco', 'win', {p: 'zc'}, [['a', 'С того разбойника я сапоги снял[|а]. Хорошие сапоги.'], ['b', 'Мёртвому они ни к чему, это верно. А кольцо его где?'], ['a', 'Какое кольцо?'], ['b', 'Вот и я спрашиваю: какое.']]),
+  T('zc_schet', 'any camp road', {p: 'zc'}, [['a', 'Я каждый вечер считаю, сколько мне должны. Хочешь, и тебе посчитаю?'], ['b', 'Мне не должны. Мне платят.'], ['a', 'Это пока платят, {B}.']]),
+  T('zc_tovar', 'any camp inn', {p: 'zc'}, [['a', 'Честность твоя, {B}, — товар неходовой. На торгу за неё и медяка не дадут.'], ['b', 'А я её и не продаю.'], ['a', 'Вот и зря. Цену бы узнал<|а>.']]),
+  T('zc_ves', 'town', {p: 'zc'}, [['a', 'Купцы тут простые: обвесить — раз плюнуть.'], ['b', 'Только попробуй. Я тебя сам[|а] на весы положу.'], ['a', 'Да я так, к слову…']]),
+  /* --- лихой и трусоватый --- */
+  T('lt_volki', 'camp', {p: 'lt'}, [['a', 'Эх, сейчас бы волков стаю — размяться!'], ['b', 'Типун тебе на язык. Я только задремал[|а].'], ['a', 'Ничего, волки разбудят.']]),
+  T('lt_troe', 'win', {p: 'lt'}, [['a', 'Видал<|а>? Трое на одного — а я стою!'], ['b', 'Видал[|а]. Я из-за дерева всё хорошо видал[|а].'], ['a', 'Ну хоть кто-то видал<|а>.']]),
+  T('lt_dyra', 'dungeon', {p: 'lt'}, [['a', 'Чур, я перв[ый|ая] в ту дыру!'], ['b', 'Чур, я последн[ий|яя]. А лучше — снаружи посторожу.'], ['a', 'Ещё чего. Вместе пойдём, я тебя за руку поведу.']]),
+  T('lt_beg', 'road any', {p: 'lt'}, [['a', 'Спорим, я тот холм бегом возьму?'], ['b', 'А за холмом кто? Не знаешь. А бежишь.'], ['a', 'Так затем и бегу, чтобы знать!']]),
+  T('lt_drozh', 'heavy', {p: 'lt'}, [['a', 'Ну что, {B}, дрожишь ещё?'], ['b', 'Дрожу. Зато жив[|а].'], ['a', 'И то верно. Я тоже дрожу. Только внутри.']]),
+  /* --- набожный и старой веры --- */
+  T('ns_ogon', 'camp', {p: 'ns'}, [['a', 'Опять ты в огонь каши плеснул<|а>.'], ['b', 'Огню. Он нас греет — пусть и сам будет сыт.'], ['a', 'Око и так видит, что мы за тепло благодарны.'], ['b', 'Вот пусть Око и глядит. А огонь я покормлю.']]),
+  T('ns_zvezda', 'road town', {p: 'ns'}, [['a', 'Восьмилучевую звезду над воротами видел<|а>? Ровно вырезали, красиво.'], ['b', 'Ровно. А раньше там конёк резной стоял. Тоже был ровный.'], ['a', '…Не будем об этом, {B}.'], ['b', 'Не будем.']]),
+  T('ns_les', 'nechist', {p: 'ns'}, [['a', 'С нечистью говорить — грех. Братья Ока такого не одобряют.'], ['b', 'Братья Ока к ним и не ходят. А нам — идти через их лес.'], ['a', 'Потому и молчу. Только знак звезды на груди держу.'], ['b', 'Держи. А я им хлеба оставлю. Каждому своё.']]),
+  T('ns_provody', 'mourn', {p: 'ns'}, [['a', 'Пусть Око примет ^его|её^ в свет.'], ['b', 'А деды встретят у порога. Пусть хоть кто-нибудь да встретит.'], ['a', 'Пусть.']]),
+  /* --- земляки --- */
+  T('zem_kapusta', 'any camp road', {p: 'zem', ppl: 'nolgrim'}, [['a', 'Ить, {B}, а помнишь, как у нас по осени капусту рубят? Всем селом в один двор.'], ['b', 'Помню. И пироги потом, с ней же.'], ['a', 'Чай, доживём ещё до тех пирогов.']]),
+  T('zem_stolby', 'any road', {p: 'zem', ppl: 'imperets'}, [['a', 'Сие напоминает мне дороги близ Эдвина, {B}. Только там вдоль обочин межевые столбы.'], ['b', 'И стража через каждые десять вёрст. Здесь бы столько порядка.'], ['a', 'Надлежит смириться. Пока.']]),
+  T('zem_dym', 'any camp', {p: 'zem', ppl: 'terak'}, [['a', 'Пахнет дымом. Как в долине у нас.'], ['b', 'Да. Хороший дым.'], ['a', 'Вернёмся — расскажем у очага.'], ['b', 'Коротко расскажем.']]),
+  T('zem_more', 'any camp inn', {p: 'zem', ppl: 'yuzhnober'}, [['a', 'Знаешь, {B}, чего мне не хватает? Моря. И рыбы. Жареной.'], ['b', 'А мне — торга у пристани. Где каждый тебя обманывает, а ты — каждого.'], ['a', 'Эх… Вот это была жизнь.']]),
+  T('zem_les', 'any road camp', {p: 'zem', ppl: 'loss'}, [['a', 'Здешний лес молодой, {B}. Шумит, а слов не знает.'], ['b', 'Научится. Лет через триста.'], ['a', 'Подождём.']]),
+  T('zem_kamen', 'any road dungeon', {p: 'zem', ppl: 'gorets'}, [['a', 'Камень тут мягкий, крошится. Из такого и порога не вытешешь.'], ['b', 'Зато в ручье ржа на камнях. Руда где-то рядом, я примечал[|а].'], ['a', 'Вот это дело. Запомним место.']]),
+  T('zem_tesno', 'any road camp', {p: 'zem', ppl: 'stepnyak'}, [['a', 'Тесно тут, {B}. Деревья со всех сторон, как частокол.'], ['b', 'И небо в дырочку. Да.'], ['a', 'Вернусь — седмицу буду скакать, пока края не увижу.']]),
+  T('zem_slova', 'any camp inn', {p: 'zem', ppl: 'parnass'}, [['a', 'Позволю себе заметить, {B}: в здешних говорах уцелели слова, которые у нас знают только по книгам.'], ['b', 'Я записываю. Уже два листа.'], ['a', 'Покажете? В обмен на мои три.']]),
+  T('zem_rodom', 'any camp road', {p: 'zem'}, [['a', 'А ты откуда родом, {B}?'], ['b', 'Оттуда же, откуда и ты. По говору разве не слышишь?'], ['a', 'Слышу. Просто приятно спросить.']]),
+  /* --- разные народы: подтрунивают (ppl — народ того, над кем шутят, это b) --- */
+  T('ts_it', 'any camp road', {p: 'tease', ppl: 'nolgrim'}, [['a', 'Вы, нолгримцы, всё «ить» да «чай». Хоть слово без них скажешь, {B}?'], ['b', 'Ить, скажу. Чай, не нем[ой|ая].']]),
+  T('ts_kury', 'any camp inn', {p: 'tease', ppl: 'imperets'}, [['a', '{B}, правда, что у вас в Империи даже кур по указу считают?'], ['b', 'Не кур, а дворы. Но и кур — по описи.'], ['a', 'Ну я ж говорю.']]),
+  T('ts_tri', 'any camp road', {p: 'tease', ppl: 'terak'}, [['a', '{B}, ты хоть раз больше трёх слов подряд скажешь?'], ['b', 'Нет.'], ['a', 'Вот и поговорили.']]),
+  T('ts_tsena', 'any inn town', {p: 'tease', ppl: 'yuzhnober'}, [['a', 'У тебя, {B}, даже «здравствуй» с ценой. Сколько возьмёшь, чтобы помолчать?'], ['b', 'Для тебя, друг мой, — недорого. Но не меньше пяти медяков.']]),
+  T('ts_derevo', 'any road camp', {p: 'tease', ppl: 'loss'}, [['a', '{B}, ты сейчас с деревом разговаривал<|а>?'], ['b', 'Не разговаривал[|а]. Слушал[|а].'], ['a', 'И что оно говорит?'], ['b', 'Что ты стоишь на его корнях.']]),
+  T('ts_okalina', 'any camp', {p: 'tease', ppl: 'gorets'}, [['a', '{B}, у тебя каша опять окалиной пахнет.'], ['b', 'Это не окалина. Это вкус. У нас в горах его ценят.']]),
+  T('ts_sedlo', 'any road camp', {p: 'tease', ppl: 'stepnyak'}, [['a', 'Говорят, степняки и спят в седле.'], ['b', 'Врут. В седле мы едим. А спим на коне — это другое.']]),
+  T('ts_pishet', 'any camp inn', {p: 'tease', ppl: 'parnass'}, [['a', '{B}, ты опять что-то пишешь. Про меня, небось?'], ['b', 'Позволю себе заметить: про вас — только хорошее. Пока.'], ['a', 'Что значит «пока»?!']]),
+  /* --- узы с героем: побратим/посестра, друг, суженый, супруг --- */
+  T('u_rodnya', 'any camp', {p: 'warm', tie: 'brat'}, [['a', 'У меня родни почти не осталось, {B}. А теперь, выходит, есть.'], ['b', 'Есть. И будет, пока мы оба живы.'], ['a', 'Тогда давай подольше жить. Оба.']]),
+  T('u_tryapka', 'any camp road', {p: 'warm', tie: 'brat'}, [['a', 'Помнишь, как мы с тобой побратались? Ладони порезали, а потом полдня тряпицу искали.'], ['b', 'Помню. Глупо вышло.'], ['a', 'Зато навсегда.']]),
+  T('u_detstvo', 'any road camp', {p: 'warm', tie: 'drug'}, [['a', 'С тобой, {B}, и дорога не в тягость. Будто с другом детства идём.'], ['b', 'Так мы и есть друзья. Только детство у нас было врозь.']]),
+  T('u_gljazhu', 'any camp', {p: 'warm', tie: 'blizk'}, [['a', '{B}… ты не серчай. Я на тебя гляжу не как наёмни[к|ца] на нанимателя.'], ['b', 'Я заметил[|а].'], ['a', 'И что скажешь?'], ['b', 'Скажу — гляди и дальше.']]),
+  T('u_storozh', 'camp', {p: 'warm', tie: 'wed'}, [['a', 'Ты сегодня устал<|а>. Сядь ближе к огню, я сам[|а] посторожу.'], ['b', 'Разбуди через пару часов. Вместе досидим.']]),
+  T('u_dvor', 'any camp road', {p: 'warm', tie: 'wed'}, [['a', 'Вот кончится всё это — заведём свой двор, {B}?'], ['b', 'Заведём. С печью и козой.'], ['a', 'Коза-то зачем?'], ['b', 'Для порядка.']]),
+  T('u_nazad', 'win any', {p: 'warm', tie: 'wed'}, [['a', 'Я в бою назад не гляжу. Знаю, что ты там.'], ['b', 'Гляди всё-таки иногда. Мне так спокойней.']]),
+];
+/* присказки народов — хвостом к реплике, где стоит {w} (в манере C.FIRE_PPL / C.NRAV_PPL) */
+C.BANTER_W = {
+  nolgrim: ['Ить, так-то.', 'Вот те и весь сказ.'], imperets: ['Так надлежит.', 'Сие бесспорно.'], terak: ['Сказано.', 'Так говорят у очага.'],
+  yuzhnober: ['Поверь торговому человеку.', 'Счёт — дело верное.'], loss: ['Лес слышит.', 'Корни помнят.'], gorets: ['Камень не врёт.', 'Крепко, как в горне.'],
+  stepnyak: ['Ветер свидетель.', 'Небо видит.'], parnass: ['Так и в книгах писано.', 'Позволю себе так заметить.'],
+};
+
+const isMerc = h => !!h && h.kind === 'merc';
+const live = g => ((g && g.mercs) || []).filter(m => m && !m.dead && m.hp > 0);
+const heroes = g => (g && g.heroes ? C.alive(g).filter(h => !isMerc(h)) : []);
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n, sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const ST = g => { const s = g.w2ban = (g.w2ban && typeof g.w2ban === 'object') ? g.w2ban : {}; s.seen = s.seen || []; if (s.day !== g.day) { s.day = g.day; s.n = 0; } return s; };
+const tieOf = (g, m) => { const M = m && m.loyal && m.mw; if (!M || !M.who) return null; const h = heroes(g).find(x => x.id === M.who); if (!h) return null;
+  const t = M.tier; return t === 'brat' ? {t: 'brat', h} : t === 'drug' ? {t: 'drug', h} : t === 'blizk' ? {t: 'blizk', h} : t === 'wed' ? {t: 'wed', h} : null; };
+const subOf = h => { if (isMerc(h)) { const N = (C.NRAV && C.NRAV[h.nrav]) || null, pp = (R.PEOPLES || {})[h.people] || null;
+    return [N ? (h.sex === 'f' ? N.f : N.n) : '', pp ? (h.sex === 'f' ? pp.f : pp.name).toLowerCase() : ''].filter(Boolean).join(', '); }
+  const c = (R.CLASSES || {})[h.cls], pp = (R.PEOPLES || {})[h.people] || null;
+  return [c && c.name ? c.name.toLowerCase() : '', pp ? (h.sex === 'f' ? pp.f : pp.name).toLowerCase() : ''].filter(Boolean).join(', '); };
+const sexF = (t, sex, rx) => t.replace(rx, (_, m, f) => (sex === 'f' ? f : m));
+/* подстановки одной реплики */
+const fill = (g, raw, who, other, P, salt) => {
+  let t = String(raw);
+  t = t.replace(/\{([ABX])(?::([ngdaip]))?\}/g, (_, k, c) => { const h = P[k]; if (!h) return ''; return c ? (decl(h.name, h.sex)[c] || h.name) : h.name; });
+  t = t.replace(/\{w\}/g, () => (isMerc(who) && C.BANTER_W[who.people] ? pickH(C.BANTER_W[who.people], salt + 'w') : ''));
+  t = sexF(t, P.X ? P.X.sex : 'm', /\^([^|^]*)\|([^^]*)\^/g);
+  t = sexF(t, other ? other.sex : 'm', /<([^|<>]*)\|([^<>]*)>/g);
+  t = isMerc(who) && C.compSay ? C.compSay(g, who, t) : sexF(t.replace(/\{a\}/g, ''), who.sex, /\[([^|\]]*)\|([^\]]*)\]/g);
+  return t.replace(/\s{2,}/g, ' ').replace(/\s+([.,!?…])/g, '$1').trim();
+};
+
+/* кто с кем говорит: пары по нравам, народам и узам */
+function pairs(g) {
+  const ms = live(g), out = [];
+  for (let i = 0; i < ms.length; i++) for (let j = 0; j < ms.length; j++) { if (i === j) continue; const a = ms[i], b = ms[j];
+    const k = [];
+    if (a.nrav === 'zhadny' && b.nrav === 'chestny') k.push('zc');
+    if (a.nrav === 'lihoy' && b.nrav === 'trus') k.push('lt');
+    if (a.nrav === 'nabozhny' && b.nrav === 'star') k.push('ns');
+    if (a.people && a.people === b.people) k.push('zem'); else if (a.people && b.people) k.push('tease');
+    out.push({a, b, k}); }
+  ms.forEach(m => { const ti = tieOf(g, m); if (ti) out.push({a: m, b: ti.h, k: ['warm'], tie: ti.t, hero: 1}); });
+  if (ms.length === 1) { const hs = heroes(g); if (hs.length) out.push({a: ms[0], b: hs[hsh(ms[0].id + '|' + g.day) % hs.length], k: [], hero: 1}); }
+  return out;
+}
+const fitsTopic = (T0, topic) => T0.t.includes(topic) || (T0.t.includes('any') && ['camp', 'road', 'inn'].includes(topic));
+const fitsPair = (T0, pr) => {
+  if (!T0.p) return !pr.hero || !!T0.h;
+  if (!pr.k.includes(T0.p)) return false;
+  if (T0.p === 'warm') return T0.tie === pr.tie || (T0.tie === 'drug' && pr.tie === 'brat') || (T0.tie === 'blizk' && pr.tie === 'wed');
+  if (T0.p === 'zem') return !T0.ppl || T0.ppl === pr.a.people;
+  if (T0.p === 'tease') return T0.ppl === pr.b.people;
+  return true;
+};
+/* выбор беседы: сперва несказанные; особые пары — втрое вероятнее */
+function choose(g, topic, salt) {
+  const s = ST(g), cand = [];
+  pairs(g).forEach(pr => C.BANTER_TALKS.forEach(T0 => { if (!fitsTopic(T0, topic) || !fitsPair(T0, pr)) return;
+    const need = T0.L.some(l => /\{X/.test(l[1]) || /\^/.test(l[1])); if (need && !s.ctxX) return;
+    if (s.ctxX && (pr.a.name === s.ctxX.name || pr.b.name === s.ctxX.name)) return;
+    cand.push({T: T0, pr, w: T0.p ? 3 : 1}); }));
+  if (!cand.length) return null;
+  const fresh = cand.filter(c => !s.seen.includes(c.T.id));
+  let pool = fresh;
+  if (!pool.length) { const age = id => { const i = s.seen.indexOf(id); return i < 0 ? 1e9 : i; }; const lo = Math.min(...cand.map(c => age(c.T.id))); pool = cand.filter(c => age(c.T.id) === lo); }
+  const sum = pool.reduce((a, c) => a + c.w, 0); let x = hsh(salt + '|pick') % sum;
+  for (const c of pool) { x -= c.w; if (x < 0) return c; }
+  return pool[0];
+}
+const pendN = g => (g.compBanter || []).filter(x => !x.mid).length;
+/* попытка завести беседу: повод, шанс, пределы */
+C.banterTry = function (g, topic, o) {
+  o = o || {};
+  try {
+    if (K().off || !g || !g.heroes || !heroes(g).length || !live(g).length) return null;
+    const s = ST(g);
+    if (s.n >= K().DAY || pendN(g) >= K().PEND) return null;
+    const salt = [g.seed || 0, g.day, g.time || 0, g.loc || '', topic, s.cnt || 0, o.salt || ''].join('|');
+    let p = o.force ? 100 : (K().P[topic] || 30);
+    if (s.last != null && g.day - s.last >= 2) p += K().BOOST;
+    if (s.last === g.day) p = Math.round(p / 2); // второй разговор за день — реже
+    if (hsh(salt) % 100 >= p) return null;
+    s.ctxX = o.X || null;
+    const c = choose(g, topic, salt); s.ctxX = null;
+    if (!c) return null;
+    const P = {A: c.pr.a, B: c.pr.b, X: o.X || null};
+    const items = c.T.L.map((l, i) => { const who = l[0] === 'a' ? c.pr.a : c.pr.b, other = l[0] === 'a' ? c.pr.b : c.pr.a;
+      const text = fill(g, l[1], who, other, P, salt + '|' + i);
+      return {from: who.name, face: who.portrait || '', sex: who.sex, sub: subOf(who), text, up: null, day: g.day, ban: c.T.id, mid: i > 0, hero: who.kind !== 'merc'}; });
+    g.compBanter = (g.compBanter || []).concat(items);
+    items.forEach(it => C.note(g, `${it.from}: «${it.text}»`));
+    s.n++; s.last = g.day; s.cnt = (s.cnt || 0) + 1; s.total = (s.total || 0) + 1;
+    s.seen = s.seen.filter(id => id !== c.T.id).concat(c.T.id).slice(-Math.max(20, Math.floor(C.BANTER_TALKS.length * 0.7)));
+    return {id: c.T.id, topic, items};
+  } catch (e) { return null; }
+};
+
+/* очередь окна: беседа идёт целиком; реплики о поступках (g.compTalk) — между беседами */
+const stale = g => { const b = g.compBanter; if (!b || !b.length) return; while (b.length && !b[0].mid && b[0].day < (g.day || 0) - 1) { b.shift(); while (b.length && b[0].mid) b.shift(); } };
+const tn0 = C.compTalkNext, td0 = C.compTalkDone;
+const banterFirst = g => { const b = g && g.compBanter; if (!b || !b.length) return false; return b[0].mid || !((g.compTalk || []).length); };
+C.compTalkNext = function (g) { if (g) stale(g); if (banterFirst(g)) return g.compBanter[0]; return tn0 ? tn0.apply(this, arguments) : ((g && g.compTalk || [])[0] || null); };
+C.compTalkDone = function (g) { if (banterFirst(g)) { g.compBanter.shift(); return; } return td0 ? td0.apply(this, arguments) : (g && g.compTalk && g.compTalk.shift()); };
+
+/* ---------- поводы вне боя ---------- */
+const BAD_W = {rain: 'weather', downpour: 'weather', fog: 'weather', heat: 'weather', snow: 'winter', blizzard: 'winter'};
+if (W && W.nightCamp) { const nc0 = W.nightCamp; W.nightCamp = function (g) { const r = nc0.apply(this, arguments);
+  try { if (g && g.heroes && !(r && r.enc)) C.banterTry(g, 'camp'); } catch (e) {} return r; }; }
+if (C.lodge) { const lo0 = C.lodge; C.lodge = function (g) { const r = lo0.apply(this, arguments); try { if (g && g.heroes) C.banterTry(g, 'inn', {salt: 'lodge'}); } catch (e) {} return r; }; }
+if (C.dailyMeal) { const dm0 = C.dailyMeal; C.dailyMeal = function (g) { const r = dm0.apply(this, arguments);
+  try { if (g && g.heroes && live(g).length) {
+    const hungry = live(g).some(m => (m.hunger || 0) > 0) || heroes(g).some(h => (h.hunger || 0) > 1);
+    const wk = g.weather && g.weather.day === g.day ? BAD_W[g.weather.kind] : null, winter = C.seasonOf && C.seasonOf(g) === 'winter';
+    const topic = hungry ? 'hunger' : wk ? wk : winter && hsh(g.day + 'zw') % 3 === 0 ? 'winter' : g.dungeon ? 'dungeon' : 'road';
+    C.banterTry(g, topic, {salt: 'day'}); } } catch (e) {} return r; }; }
+/* бой окончен: победа, тяжёлый бой, гибель */
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S) {
+  let fell = null, dead = null;
+  try { if (S && S.units) { const pu = S.units.filter(u => u.side === 'party' && u.ref && (u.kind === 'hero' || u.kind === 'merc'));
+    dead = pu.find(u => u.dead) || null; fell = pu.find(u => !u.dead && u.down) || null; } } catch (e) {}
+  const res = be0.apply(this, arguments);
+  try { if (g && g.heroes && S && S.over === 'win') {
+    if (dead) C.banterTry(g, 'mourn', {X: {name: dead.ref.name, sex: dead.ref.sex}, salt: 'm' + g.battles});
+    else if (fell && live(g).some(m => m !== fell.ref) && (heroes(g).length + live(g).length) >= 2) C.banterTry(g, 'heavy', {X: {name: fell.ref.name, sex: fell.ref.sex}, salt: 'h' + g.battles});
+    else C.banterTry(g, 'win', {salt: 'w' + g.battles}); } } catch (e) {}
+  return res; }; }
+/* город и село */
+const TOWN = ['город', 'село', 'подворье', 'торг', 'застава', 'площадь', 'хутор'];
+const townAt = g => { try { const n = C.CAMPS[g.camp].map.nodes[g.loc]; return n && TOWN.includes(n.kind); } catch (e) { return false; } };
+const arrive = (g, loc0) => { if (g && g.heroes && g.loc !== loc0 && townAt(g)) C.banterTry(g, 'town', {salt: g.loc}); };
+if (C.travel) { const tr0 = C.travel; C.travel = function (g) { const l0 = g && g.loc; const r = tr0.apply(this, arguments); try { if (r && !r.enc) arrive(g, l0); } catch (e) {} return r; }; }
+if (W && W.walk) { const wk0 = W.walk; W.walk = function (g) { const l0 = g && g.loc; const r = wk0.apply(this, arguments); try { if (r && r.arrive && !r.enc && !r.fight) arrive(g, l0); } catch (e) {} return r; }; }
+/* подземелье, нечисть, Око */
+if (C.dungeonEnter) { const de0 = C.dungeonEnter; C.dungeonEnter = function (g) { const r = de0.apply(this, arguments); try { if (g && g.heroes && g.dungeon) C.banterTry(g, 'dungeon', {salt: 'dg'}); } catch (e) {} return r; }; }
+if (C.nechDoWay) { const nw0 = C.nechDoWay; C.nechDoWay = function (g) { const r = nw0.apply(this, arguments); try { if (g && g.heroes) C.banterTry(g, 'nechist', {salt: 'nech'}); } catch (e) {} return r; }; }
+const OKO_SC = ['w2_hunt', 'w2_gate', 'cus_court'];
+if (C.choose) { const ch0 = C.choose; C.choose = function (g, sceneId) { const r = ch0.apply(this, arguments);
+  try { if (g && g.heroes && OKO_SC.includes(sceneId)) C.banterTry(g, 'oko', {salt: sceneId}); } catch (e) {} return r; }; }
+/* корчма: зашли — иногда заговорят (раз в день на место) */
+if (C.sceneOf) { const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (sc && g && g.heroes && (id === 'korchma' || id === 'folk_tavern')) { const s = ST(g), k = g.loc + '|' + g.day; if (s.inn !== k) { s.inn = k; C.banterTry(g, 'inn', {salt: 'inn'}); } } } catch (e) {}
+  return sc; }; }
+
+/* ================= выкрики в бою ================= */
+/* [м|ж] — по полу кричащего; {n} — имя товарища ({n:a} — падеж). Надпись над фигурой — не длиннее 33 знаков. */
+C.BANTER_SHOUTS = {
+  start: {all: ['Ну, держись!', 'Сомкнись!', 'За мной!', 'Пошли, родимые!'],
+    lihoy: ['Потеха пошла!', 'Кто первый — тому слава!'], trus: ['Ох, только не меня…', 'Я сзади, если что!'], zhadny: ['За серебро — вперёд!', 'Чур, добыча моя!'],
+    chestny: ['Стоим честно, не бежим!', 'Плечом к плечу!'], nabozhny: ['Око с нами!', 'Свет Ока, веди!'], star: ['Чур, оборони!', 'Деды, гляньте на нас!'],
+    ppl: {nolgrim: ['Ить, понеслась!'], imperets: ['Строй держать!'], terak: ['За род!'], yuzhnober: ['Шкуры дорого продадим!'], loss: ['Лес, укрой!'],
+      gorets: ['Гора, дай крепости!'], stepnyak: ['Ветер в спину!'], parnass: ['Позвольте начать!']},
+    yaryi: ['Ярость, приди!', 'Кровь за кровь!', 'Ррра-а! Ко мне!']},
+  kill: {all: ['Готов!', 'Один есть!', 'Лежать!'], lihoy: ['Следующий!', 'Ха! Кто ещё?'], zhadny: ['Сапоги чур мои!', 'Это мне в счёт!'],
+    chestny: ['Сам напросился.', 'Честно взято.'], nabozhny: ['Око тебе судья.', 'Ступай во тьму.'], star: ['К дедам не пустят!', 'Чур тебя!'],
+    trus: ['Ой… я попал[|а]?', 'Не встанет? Не встанет!'], yaryi: ['Мало! Ещё!', 'Кто следующий?!']},
+  crit: {all: ['Вот так!', 'Получай!', 'Насквозь!'], lihoy: ['Знатно вошло!'], zhadny: ['Дорого ему обошлось!'], trus: ['Ой, я сильно?'], yaryi: ['Р-раз!']},
+  hurt: {all: ['Задело… держусь!', 'Кровь… ничего.', 'Прикройте!'], trus: ['Я ранен[|а]! Ранен[|а]!', 'Уберите их от меня!'], lihoy: ['Царапина!', 'Только злее стал[|а]!'],
+    zhadny: ['За такое — двойная плата!'], nabozhny: ['Око, дай сил…'], star: ['Деды, держите!'], chestny: ['Стою. Пока стою.']},
+  down: {all: ['Держись, {n}!', '{n}! Встань!', 'Не помирай, {n}!'], lihoy: ['За {n:a} — ответите!'], trus: ['Ой, {n}… {n}!'],
+    nabozhny: ['Око, сбереги {n:a}!'], star: ['Деды, не берите {n:a}!'], zhadny: ['{n}, долг за тобой!']},
+  guard: {all: ['Прикрою, {n}!', 'За спину, {n}!', 'Я тут, {n}!'], trus: ['Ладно… прикрою…'], lihoy: ['Ко мне, вражины!']},
+  aid: {all: ['Сейчас, {n}, сейчас…', 'Терпи, {n}!', 'Не помирай, перевяжу!']},
+  miss: {all: ['Тьфу ты!', 'Мимо!', 'Вертлявый, зараза!'], lihoy: ['Ну погоди!'], trus: ['Ой, мамочки…'],
+    ppl: {nolgrim: ['Ить, промазал[|а]!'], imperets: ['Досадно.'], terak: ['Хм.'], yuzhnober: ['Убыток!'], loss: ['Ветка помешала.'], gorets: ['Кривой замах…'],
+      stepnyak: ['Конь бы не промахнулся!'], parnass: ['Досадная погрешность.']}},
+  poison: {all: ['Яд! Жжёт…', 'Отравили, гады!', 'Всё плывёт…'], trus: ['Я умираю! Яд!'], star: ['Чур, вытяни отраву!'], nabozhny: ['Око, очисти…']},
+  flee: {all: ['Бегут! Бегут!', 'Куда, трусы?!', 'Пятки сверкают!'], lihoy: ['Стой! Мы не закончили!'], zhadny: ['Кошели-то оставьте!'], trus: ['Бегут? Правда бегут?']},
+  win: {all: ['Всё! Наша взяла!', 'Отбились!', 'Живы, братцы!'], lihoy: ['Мало! Ещё бы!'], zhadny: ['Теперь — добыча!'], trus: ['Кончилось? Кончилось…'],
+    nabozhny: ['Хвала Оку.'], star: ['Спасибо, деды.'], chestny: ['Честно бились.']},
+  rage: {all: ['Р-р-ра-а!', 'Кровь кипит!', 'Ярость, приди!']},
+};
+const SHOUT_MAX = 33;
+const BS = new WeakMap(); let bSerial = 0;
+const isMercU = u => !!u && u.side === 'party' && !!u.ref && u.ref.kind === 'merc' && u.summonLeft == null && !u.pet;
+const bst = S => { let s = BS.get(S); if (!s) { s = {id: ++bSerial, has: !!(S && S.units && S.units.some(isMercU)), last: {}, round: -9, said: {}, win: 0, n: 0}; BS.set(S, s); } return s; };
+const up = u => B.active(u) && !(u.conds && (u.conds.sleep || u.conds.held));
+const shoutText = (u, reason, n, salt) => {
+  const P = C.BANTER_SHOUTS[reason]; if (!P) return null; const h = u.ref;
+  let pool = (P.all || []).concat(P[h.nrav] || []);
+  if (P.ppl && P.ppl[h.people]) pool = pool.concat(P.ppl[h.people], P.ppl[h.people]);
+  if (h.cls === 'yaryi' && P.yaryi) pool = pool.concat(P.yaryi, P.yaryi);
+  const sub = t => { let x = t.replace(/\{n(?::([ngdaip]))?\}/g, (_, c) => (n ? (c ? decl(n.name, n.sex)[c] || n.name : n.name) : ''));
+    return sexF(x, h.sex, /\[([^|\]]*)\|([^\]]*)\]/g); };
+  const ok = pool.map(sub).filter(t => t.length <= SHOUT_MAX && !/\{|\}|\[|\]/.test(t));
+  return ok.length ? pickH(ok, salt) : null;
+};
+/* крикнуть, если можно: пределы и шанс от хеша */
+C.banterShout = function (S, u, reason, o) {
+  o = o || {};
+  try {
+    if (K().off || !S || !S.units || !B || !isMercU(u) || u.dead || u.down) return null;
+    const s = bst(S); if (!s.has) return null;
+    if (S.over && reason !== 'win') return null;
+    if (reason !== 'win' && s.round === S.round) return null;
+    if (reason !== 'win' && s.last[u.id] != null && S.round - s.last[u.id] < K().SHOUT_GAP) return null;
+    const salt = s.id + '|' + S.round + '|' + u.id + '|' + reason + '|' + S.log.length;
+    if (!o.force && hsh(salt) % 100 >= (K().SHOUT_P[reason] || 30)) return null;
+    let text = shoutText(u, reason, o.n, salt + 't'); if (!text) return null;
+    if (s.said[u.id] === text) { const t2 = shoutText(u, reason, o.n, salt + 't2'); if (t2) text = t2; }
+    s.said[u.id] = text; s.last[u.id] = S.round; s.round = S.round; s.n++;
+    B.fx(S, {kind: 'shout', from: {c: u.c, r: u.r}, to: {c: u.c, r: u.r}, text, side: u.side});
+    B.log(S, `${u.name}: «${text}»`, 'say');
+    return text;
+  } catch (e) { return null; }
+};
+const someMerc = (S, salt, not) => { const ms = S.units.filter(x => isMercU(x) && x !== not && up(x)); return ms.length ? ms[hsh(salt) % ms.length] : null; };
+if (B) {
+  if (B.start) { const st0 = B.start; B.start = function () { const S = st0.apply(this, arguments);
+    try { if (S && S.units) { const s = bst(S); if (s.has) { const u = someMerc(S, s.id + 'st'); if (u) C.banterShout(S, u, 'start'); } } } catch (e) {} return S; }; }
+  let inAtk = null;
+  if (B.attack) { const at0 = B.attack; B.attack = function (S, u) {
+    if (!S || !isMercU(u) || inAtk || !bst(S).has) return at0.apply(this, arguments);
+    const lastE = S.log.length ? S.log[S.log.length - 1] : null; inAtk = {u, kill: null};
+    let r; try { r = at0.apply(this, arguments); } finally { const A = inAtk; inAtk = null;
+      try { if (A.kill) C.banterShout(S, u, 'kill');
+        else { const i0 = lastE ? S.log.lastIndexOf(lastE) + 1 : 0, es = S.log.slice(i0).filter(e => e.cls === 'miss' || /^hit/.test(e.cls || ''));
+          if (es.some(e => /crit/.test(e.cls))) C.banterShout(S, u, 'crit');
+          else if (es.length && es.every(e => e.cls === 'miss')) C.banterShout(S, u, 'miss'); } } catch (e) {} }
+    return r; }; }
+  if (B.damage) { const dm0 = B.damage; B.damage = function (S, t, d, src, by) {
+    if (!S || !t || !bst(S).has) return dm0.apply(this, arguments);
+    const wasDown = !!t.down, hp0 = t.hp; const r = dm0.apply(this, arguments);
+    try {
+      if (t.side === 'foe' && !wasDown && t.down && isMercU(by)) { if (inAtk && inAtk.u === by) inAtk.kill = t; else C.banterShout(S, by, 'kill'); }
+      else if (t.side === 'party' && !t.pet && t.summonLeft == null && t.ref && (t.kind === 'hero' || t.kind === 'merc')) {
+        if (!wasDown && t.down) { const m = someMerc(S, bst(S).id + '|dn|' + t.id + '|' + S.round, t); if (m) C.banterShout(S, m, 'down', {n: {name: t.name, sex: t.sex}}); }
+        else if (isMercU(t) && !t.down && t.hpMax && hp0 > t.hpMax / 3 && t.hp <= t.hpMax / 3) C.banterShout(S, t, 'hurt'); }
+    } catch (e) {}
+    return r; }; }
+  if (B.morale) { const mo0 = B.morale; B.morale = function (S) {
+    if (!S || !bst(S).has) return mo0.apply(this, arguments);
+    const f0 = S.units.filter(x => x.side === 'foe' && x.fled).length; const r = mo0.apply(this, arguments);
+    try { if (S.units.filter(x => x.side === 'foe' && x.fled).length > f0) { const u = someMerc(S, bst(S).id + '|fl|' + S.round); if (u) C.banterShout(S, u, 'flee'); } } catch (e) {}
+    return r; }; }
+  if (B.checkEnd) { const ce0 = B.checkEnd; B.checkEnd = function (S) {
+    const was = S && S.over; const r = ce0.apply(this, arguments);
+    try { if (S && !was && S.over === 'win') { const s = bst(S); if (s.has && !s.win) { s.win = 1; const u = someMerc(S, s.id + '|win'); if (u) C.banterShout(S, u, 'win'); } } } catch (e) {}
+    return r; }; }
+  if (B.guard) { const gu0 = B.guard; B.guard = function (S, u, t) { const r = gu0.apply(this, arguments);
+    try { if (isMercU(u) && t && t !== u && t.side === 'party' && u.guarding === t.id) C.banterShout(S, u, 'guard', {n: {name: t.name, sex: t.sex}}); } catch (e) {} return r; }; }
+  if (B.bandage) { const bd0 = B.bandage; B.bandage = function (S, u, t) { const r = bd0.apply(this, arguments);
+    try { if (isMercU(u) && t && t !== u) C.banterShout(S, u, 'aid', {n: {name: t.name, sex: t.sex}}); } catch (e) {} return r; }; }
+  if (B.rageOn) { const rg0 = B.rageOn; B.rageOn = function (S, u) { const was = u && u.conds && u.conds.raging; const r = rg0.apply(this, arguments);
+    try { if (isMercU(u) && !was && u.conds.raging) C.banterShout(S, u, 'rage'); } catch (e) {} return r; }; }
+  if (B.venomHit) { const vh0 = B.venomHit; B.venomHit = function (S, u, t) { const d0 = t && t.conds && t.conds.dot; const r = vh0.apply(this, arguments);
+    try { if (isMercU(t) && t.conds.dot && t.conds.dot !== d0) C.banterShout(S, t, 'poison'); } catch (e) {} return r; }; }
+}
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* w2_fail.js */
 /* Колдовство — голос мастера на неудачах. Без DOM. И в Вечном мире, и в главах саг.
    Неудача — не «ничего не произошло», а развилка: осложнение, цена или поворот.
