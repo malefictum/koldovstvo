@@ -25306,7 +25306,7 @@ S_.dmgHook = function (u, s, t) {
   if (el && u.elemPow && u.elemPow[el]) { const dice = ((s.dice && s.dice.base) || '').match(/(\d*)d\d+/g) || []; const n = dice.reduce((a, x) => a + (+x.split('d')[0] || 1), 0) || 1; d += Math.min(10, n); }
   if (u.staff && ['posoh_perunovo_drevo'].includes(u.staff) && ['fire', 'storm'].includes(el)) d += 2;
   if (u.staff === 'posoh_sosna' && el === 'ice') d += 2;
-  if (t && t.elemRes && el && t.elemRes[el]) d -= t.elemRes[el];
+  /* t.elemRes (вещи «Защита от …») — в spellfx.js takeHook: от любого урона стихией, не только от чар */
   if (t && t.spellRes) d -= t.spellRes;
   return d;
 };
@@ -25524,7 +25524,7 @@ if (G.W) { const st0 = G.W.step; G.W.step = function (g, cell, isLast) { const h
 const DRINK_HEAL = {zelye_izlechenie: '1d20+20', zelye_lechenie: '1d10+10', zelye_vosstanovlenie: '1d10', zele_lecheniya: '2d4+2'};
 const STAT_POT = {zelye_sila: ['str', 18], zelye_skorost: ['dex', 18], zelye_um: ['int', 18], zelye_koldovstvo: ['wis', 18], zelye_krepkoe_telo: ['con', 18],
   zelye_gigantskaya_sila: ['str', 20], zelye_bolshaya_skorost: ['dex', 20], zelye_yasnyi_um: ['int', 20], zelye_silnoe_koldovstvo: ['wis', 20], zelye_kamennoe_telo: ['con', 20]};
-const RES_POT = {zelye_z_ogon: 'fire', zelye_z_molniya: 'storm', zelye_z_yad: 'poison', zelye_z_smert: 'dark', zelye_z_svet_holod: 'holy+ice', zelye_z_chary: 'spell', zelye_z_strah: 'mind', zelye_z_prevrashchenie: 'mind'};
+const RES_POT = {zelye_z_ogon: 'fire', zelye_z_molniya: 'storm', zelye_z_yad: 'poison', zelye_z_smert: 'dark', zelye_z_svet_holod: 'holy+ice', zelye_z_chary: 'spell', zelye_z_strah: 'mind+held', zelye_z_prevrashchenie: 'petrify'}; // «от страха и оцепенения» — и против оков; «от обращения» — против превращения и окаменения, а не страха
 const THROW = {zelye_svyataya_voda: 0, svyataya_voda_flyaga: 0, zelye_kislota: 0, zelye_goryuchaya: 1, maslo_goryuchee_grecheskiy_ogon: 1, zelye_dym: 2, zelye_vonyuchee: 1, zelye_paraliz_gaz: 1};
 const BLADE = ['zelye_yad', 'zelye_yad_smert'];
 C.potKind = id => DRINK_HEAL[id] || STAT_POT[id] || RES_POT[id] || ['zelye_protivoyadie', 'protivoyadie', 'zelye_nyuhatelnaya_sol', 'zelye_razrushenie', 'zelye_voskreshenie'].includes(id) ? 'drink' : THROW[id] != null ? 'throw' : BLADE.includes(id) ? 'blade' : null;
@@ -25575,7 +25575,7 @@ B.usePotion = function (S, u, id, tgt) {
     else if (id === 'zelye_nyuhatelnaya_sol') { ['held', 'sleep', 'fear'].forEach(c => delete t.conds[c]); B.log(S, `${t.name} вдыхает соль и приходит в себя.`, 'heal'); }
     else if (id === 'zelye_razrushenie') { B.log(S, 'Отворотное зелье в бою не поможет — его пьют в тишине.', 'bad'); return 'не в бою'; }
     else if (STAT_POT[id]) { const [st, v] = STAT_POT[id], cur = t.ref && t.ref.stats ? (t.ref.stats[st] || 10) : 10, add = Math.max(0, R.mod(v) - R.mod(cur)); /* как вне боя: характеристика становится не ниже зелья, прибавка — разница */ if (st === 'str') { t.atk += add; t.attacks[0].bonus = (t.attacks[0].bonus || 0) + add; } else if (st === 'dex') { t.def += add; t.atkR += add; } else if (st === 'con') { t.hp += 5 * add; t.hpMax += 5 * add; } else t.spellMod = (t.spellMod || 0) + add; B.log(S, `${t.name} пьёт «${nm}» — сила играет в жилах.`, 'buff'); }
-    else if (RES_POT[id]) { const rs = RES_POT[id]; t.elemSave = t.elemSave || {}; rs.split('+').forEach(el => { if (el === 'spell') t.spellRes = (t.spellRes || 0) + 4; else if (el === 'mind') t.mindSave = (t.mindSave || 0) + 4; else { t.elemSave[el] = (t.elemSave[el] || 0) + 4; } }); B.log(S, `${t.name} пьёт «${nm}».`, 'buff'); }
+    else if (RES_POT[id]) { const rs = RES_POT[id]; t.elemSave = t.elemSave || {}; rs.split('+').forEach(el => { if (el === 'spell') t.spellRes = (t.spellRes || 0) + 4; else if (el === 'mind') t.mindSave = (t.mindSave || 0) + 4; else if (el === 'held') t.ctrlSave = Object.assign({}, t.ctrlSave, {held: ((t.ctrlSave || {}).held || 0) + 4}); else { t.elemSave[el] = (t.elemSave[el] || 0) + 4; } }); B.log(S, `${t.name} пьёт «${nm}».`, 'buff'); }
     if (bonus) S.bonus = true; else S.acted = true;
   }
   h.inv.splice(h.inv.indexOf(id), 1);
@@ -25597,7 +25597,7 @@ B.dmgHook = function (S, u, t, ranged, i, sneaky) {
 const fh0 = B.fromHero;
 B.fromHero = function (h, side, ai) {
   const u = fh0(h, side, ai);
-  (h.buffs || []).forEach(b => { if (b.res) { u.elemSave = u.elemSave || {}; b.res.split('+').forEach(el => { if (el === 'spell') u.spellRes = (u.spellRes || 0) + 4; else if (el === 'mind') u.mindSave = (u.mindSave || 0) + 4; else u.elemSave[el] = (u.elemSave[el] || 0) + 4; }); } });
+  (h.buffs || []).forEach(b => { if (b.res) { u.elemSave = u.elemSave || {}; b.res.split('+').forEach(el => { if (el === 'spell') u.spellRes = (u.spellRes || 0) + 4; else if (el === 'mind') u.mindSave = (u.mindSave || 0) + 4; else if (el === 'held') u.ctrlSave = Object.assign({}, u.ctrlSave, {held: ((u.ctrlSave || {}).held || 0) + 4}); else u.elemSave[el] = (u.elemSave[el] || 0) + 4; }); } });
   return u;
 };
 
@@ -26298,7 +26298,8 @@ const NEG = ['curse', 'saveDown', 'weak', 'aged', 'silence', 'atkRdown', 'dmgDow
 /* ---------- обработчики: (S, u, s, target) → true, если заклинание сделано здесь ---------- */
 const FX = {};
 const one = (S, u, s, t, fn) => { if (!t) return; fn(t); };
-const res = name => (S, u, s, t) => one(S, u, s, t, x => { const n = dur(s, u) + 3; add(x, 'res_' + name, n); say(S, `${x.name}: урон ${EL_RU[name]} вдвое меньше — ${n} ход.`); });
+/* защита от стихии: удерживать не нужно (advantage.js, C.ELEM_WARD); та же защита повторно не складывается — продлевается */
+const res = name => (S, u, s, t) => one(S, u, s, t, x => { const was = fx(x, 'res_' + name), n = Math.max(dur(s, u) + 3, was ? was.n : 0); add(x, 'res_' + name, n); say(S, `${x.name}: урон ${EL_RU[name]} вдвое меньше — ${n} ход${was ? ' (защита продлена, не складывается)' : ''}.`); });
 FX.holy_zaschita_ot_holoda = res('ice'); FX.holy_zaschita_ot_ognya = res('fire'); FX.holy_zaschita_ot_molnii = res('storm');
 FX.holy_krestnoe_znamenie = (S, u, s) => { const n = dur(s, u) + 3; add(u, 'ward', n, {p: 0.2, saveSp: 2}); say(S, `${u.name}: знамение звезды — каждое враждебное заклинание может сорваться (1 из 5), +2 к спасброскам от чар, ${n} ход.`); };
 FX.holy_zaschita_ot_zla = (S, u, s, t) => one(S, u, s, t, x => { const n = dur(s, u) + 3; add(x, 'antiEvil', n, {saveSp: 4, mind: 4, defU: 2}); say(S, `${x.name}: защита от зла — +4 к спасброскам от чар, страха и оков, +2 к Защите от нечисти — ${n} ход.`); });
@@ -26462,12 +26463,16 @@ const th0 = B.takeHook;
 B.takeHook = function (S, t, d, src, by) {
   d = th0 ? th0(S, t, d, src, by) : d;
   if (d <= 0) return d;
-  const sp = S_._cur, e = sp ? el(sp) : null, melee = by && !sp && B.dist(by, t) <= 1;
+  const sp = S_._cur, e = B.elemOf ? B.elemOf(S, src) : (sp ? el(sp) : null), melee = by && !sp && B.dist(by, t) <= 1; // стихия — из чар, удара твари, тика или ловушки (resist.js)
   if (fx(t, 'noDmg')) { B.log(S, `${t.name}: удар не касается святой брони.`, ''); return 0; }
   if (sp && fx(t, 'spellImm')) { B.log(S, `${t.name}: чары не берут.`, ''); return 0; }
   if (!sp && by && fx(t, 'noWeapon') && !fx(by, 'fireW') && !fx(by, 'starBlade') && !fx(by, 'ghostBlade')) { B.log(S, `${t.name}: оружие не ранит.`, ''); return 0; }
   if (by && !sp && fx(by, 'devilStr')) d = Math.floor(d * 1.5);
+  // вещи «Защита от …» (−2 за ступень) — от любого урона этой стихией, не только от чар
+  if (e && t.elemRes && t.elemRes[e]) d = Math.max(0, d - t.elemRes[e]);
+  // защита от стихии — вдвое; «Защита от стихий» Стрибога — на треть; разные защиты одной стихии не складываются: берётся сильнейшая
   if (e && (fx(t, 'res_' + e) || (e === 'ice' && fx(t, 'fireShield')))) d = Math.floor(d / 2);
+  else if (e && d > 1 && fx(t, 'elemWard') && ['fire', 'ice', 'storm'].includes(e)) d -= Math.floor(d / 3);
   if (!sp && fx(t, 'stone')) { const st = t.fx.stone, cut = Math.min(st.left, d - Math.floor(d / 4)); d -= cut; st.left -= cut; if (st.left <= 0) { delete t.fx.stone; B.log(S, `${t.name}: каменная кожа осыпалась.`, ''); } }
   if (fx(t, 'faith')) d -= Math.floor(d / 4);
   if (t.thp > 0) { const a = Math.min(t.thp, d); t.thp -= a; d -= a; if (a && !t.thp) B.log(S, `${t.name}: временные хиты кончились.`, ''); }
@@ -27311,6 +27316,10 @@ C.resProfile = function (m) {
       const st = /удар\S*\s*—\s*(огн\S*|холод\S*|молни\S*)/.exec(cl); if (st) P.strike = typesIn(st[1])[0] || null;
     });
   });
+  // удар стихией по имени атаки: «огненный удар», «ледяное касание», «холодное касание», «чары (Шок…)» — первая ближняя атака
+  if (!P.strike) { const a0 = ((m.attacks || []).find(a => !/\d+\s*клет/.test(a.name || '')) || {}).name || '';
+    const an = a0.toLowerCase(); P.strike = /огненн|пламенн|жгуч/.test(an) ? 'fire' : /ледян|холодн|студён|морозн/.test(an) ? 'ice' : /шок|разряд|молни|грозов/.test(an) ? 'storm' : /кислот|едк/.test(an) ? 'acid' : null; }
+  if (!P.strike && C.STRIKE_EL && C.STRIKE_EL[m.id] && C.STRIKE_EL[m.id].name.test(m.name || '')) P.strike = C.STRIKE_EL[m.id].el;
   // если «колющее» держит, а про стрелы не сказано — стрелы так же
   if (P.mult.pierce != null && P.mult.arrow == null) P.mult.arrow = P.mult.pierce;
   // род
@@ -27322,7 +27331,7 @@ C.resProfile = function (m) {
   // имя
   if (/огн|пламен|горн|жар/.test(nm) && ['духи', 'нечисть'].includes(gr)) { set('fire', 0); set('ice', 2); if (!P.strike) P.strike = 'fire'; }
   if (/лёд|ледян|льда|снеж|стуж|студ/.test(nm) && ['духи', 'нечисть', 'чудовища'].includes(gr)) { set('ice', 0); set('fire', 2); }
-  if (/гроз/.test(nm) && gr === 'духи') set('storm', 0);
+  if (/гроз/.test(nm) && gr === 'духи') { set('storm', 0); if (!P.strike) P.strike = 'storm'; }
   Object.defineProperty(m, '_res', {value: P, enumerable: false, configurable: true});
   return P;
 };
@@ -27361,7 +27370,7 @@ B.atkType = function (u, ranged) {
 const at0 = B.attack;
 B.attack = function (S, u, t, ranged) {
   const keep = S._dt; const P = prof(u);
-  S._dt = {phys: B.atkType(u, ranged), el: P && P.strike && !ranged ? P.strike : null};
+  S._dt = {phys: B.atkType(u, ranged), el: ranged ? (B.rangedEl ? B.rangedEl(u) : null) : (P && P.strike ? P.strike : null)};
   try { return at0.apply(this, arguments); } finally { S._dt = keep; }
 };
 const cast0 = S_.cast;
@@ -27390,8 +27399,7 @@ B.takeHook = function (S, t, d, src, by) {
   if (!(d > 0)) return d;
   const P = prof(t); if (!P) return d;
   let ty = S._dt || null;
-  if (!ty && /яд|отрав/i.test(src || '')) ty = {el: 'poison'};
-  else if (!ty && /огон|ожог|пламя|горит/i.test(src || '')) ty = {el: 'fire'};
+  if (!ty) { const e = B.elemOf ? B.elemOf(S, src) : (/яд|отрав/i.test(src || '') ? 'poison' : /огон|ожог|пламя|горит/i.test(src || '') ? 'fire' : null); if (e) ty = {el: e}; } // тики яда, огня, кислоты, холода
   if (!ty) return d;
   const k = ty.el || ty.phys; if (!k) return d;
   let mult = P.mult[k];
@@ -27497,6 +27505,134 @@ B.resK = function (s, t) {
   if (el === 'poison' && B.venomProof && B.venomProof(t)) m = 0;
   const ck = S_.controlKind && s.kind.includes('control') ? S_.controlKind(s) : null;
   return {dmg: m, ctrl: ck && P.ctrl[ck] === 0 ? 0 : 1};
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+/* ---------- стихия входящего урона и врождённые удары тварей (27.10.2026) ----------
+   • B.elemOf(S, src) — одна точка, где решается, какой стихией пришёл урон: чары (S._dt.el), удар твари стихией, выстрел
+     («молния, 20 клеток», «разряд (Шок)», «кислотный плевок», «святой свет»), тик (огонь, кислота, яд, мор), ловушка.
+     По ней работают защиты героя: заклинания «Защита от …» (вдвое), «Защита от стихий» (на треть), вещи «Защита от …» (−2 за ступень).
+   • Дыхание: огненное у змеев, ледяное у зимних волков — из описания твари («конус/линия N клеток, XdY, Ловкость — половина»);
+     раз за бой (у многоглавого — три), вместо атак.
+   • Бесовской князь: при попадании d6 — холод, огонь, молния, яд, страх или неудача, как в описании.
+   • Василиск: при попадании 1–5 на d20 — Стойкость, провал — каменеет (скован, повтор каждый ход); «Защита от Превращения» не даёт.
+   • Болотник бьёт болотной гнилью (кислота); шаман орды знает «Сон» и «Возгорание», как в описании (foecast.js). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, S_ = B && B.Spells;
+if (!S_ || !C.resProfile) return;
+const SRC_EL = [[/кислот|едк|гнил/i, 'acid'], [/огон|огн|ожог|пламен|горит|жар|пожар/i, 'fire'], [/холод|мороз|л[её]д|ледян|стуж|иней|студ/i, 'ice'],
+  [/молни|разряд|гром|гроз|искр|(^|[^а-яё])шок/i, 'storm'], [/(^|[^а-яё])(яд|отрав)/i, 'poison'], [/(^|[^а-яё])мор($|[^а-яё])|тьм|навь/i, 'dark'], [/святой свет|гнев ока|свет звезды/i, 'holy']];
+const byName = {}; DATA.spells.forEach(s => { if (!byName[s.name]) byName[s.name] = s; });
+C.srcElem = function (src) { const t = String(src || ''); if (!t) return null; const s = byName[t]; if (s) return C.spellElem ? C.spellElem(s) : null; const f = SRC_EL.find(([re]) => re.test(t)); return f ? f[1] : null; };
+B.elemOf = function (S, src) {
+  if (S && S._venom) return 'poison';
+  if (S && S._dt) return S._dt.el || (S._dt.spell ? null : (S._dt.phys ? null : C.srcElem(src)));
+  return C.srcElem(src);
+};
+/* выстрел стихией: по имени дальней атаки */
+const RANGED_EL = [[/молни|разряд|шок|гром/i, 'storm'], [/кислот|плевок/i, 'acid'], [/огон|огн|пламен/i, 'fire'], [/л[её]д|ледян|холод|мороз/i, 'ice'], [/святой свет|гнев ока/i, 'holy']];
+B.rangedEl = function (u) { if (!u || u.kind !== 'monster' || !u.ranged) return null; const n = String(u.ranged.name || ''); const f = RANGED_EL.find(([re]) => re.test(n)); return f ? f[1] : null; };
+/* удар стихией там, где имя атаки о ней молчит */
+C.STRIKE_EL = Object.assign(C.STRIKE_EL || {}, {bolotnik: {el: 'acid', name: /болотник/i}}); // болотная гниль; водяной из той же заготовки — нет
+/* названия защит выпитых зелий для подсказок (зелье от страха и оцепенения, от обращения) */
+Object.assign(C.DT_RU, {mind: 'страх и очарование', held: 'оцепенение', petrify: 'превращение и окаменение'});
+
+/* ---------- спасбросок против власти над телом и волей вне чар: те же обереги, что и против чар ---------- */
+const fxSum = (u, k) => Object.values(u.fx || {}).reduce((a, f) => a + (f[k] || 0), 0);
+B.ctrlImmune = function (t, ck) {
+  if (!t) return false; const f = t.fx || {};
+  if (['fear', 'sleep', 'charm'].includes(ck) && f.mindImm) return true;
+  if (ck === 'fear' && f.noFear) return true;
+  if (ck === 'petrify' && f.formWard) return true;
+  if (t.kind === 'monster') { const P = C.resProfile(t.ref); if (P && P.ctrl && P.ctrl[ck] === 0) return true; }
+  return false;
+};
+B.ctrlSaveDc = function (t, ck, dc) {
+  let b = 0; if (['fear', 'charm'].includes(ck)) b += t.mindSave || 0;
+  if (t.ctrlSave && t.ctrlSave[ck]) b += t.ctrlSave[ck];
+  if ((t.fx && (t.fx.antiEvil || t.fx.mindBlock)) && ['fear', 'charm', 'sleep', 'held', 'petrify'].includes(ck)) b += fxSum(t, 'mind');
+  if (ck === 'petrify' && t.elemSave && t.elemSave.petrify) b += t.elemSave.petrify;
+  return dc - b;
+};
+const dcOfMon = u => 10 + Math.floor((u.level || 1) / 2);
+const EL_WORD = {fire: 'огнём', ice: 'холодом', storm: 'молнией', acid: 'кислотой', poison: 'ядом'};
+const EL_FX = {fire: 'fire', ice: 'ice', storm: 'storm', acid: 'poison', poison: 'poison'};
+const hitEl = (S, u, t, d, el, what) => { const keep = S._dt; S._dt = {el, innate: 1}; try { B.damage(S, t, d, what, u); } finally { S._dt = keep; } };
+
+/* ---------- дыхание ---------- */
+B.breathOf = function (u) {
+  if (!u || u.kind !== 'monster' || !u.ref) return null;
+  if (u._breath !== undefined) return u._breath;
+  const sp = (u.ref.specials || []).join('; ').toLowerCase(); let b = null;
+  const m = /(огненное|ледяное) дыхание:\s*(конус|линия)\s*(\d+)\s*клет\S*,\s*(\d+d\d+)/.exec(sp);
+  if (m) b = {el: m[1] === 'огненное' ? 'fire' : 'ice', shape: m[2] === 'конус' ? 'cone' : 'line', len: +m[3], dice: m[4], uses: /три дыхания за бой/.test(sp) ? 3 : 1, dc: dcOfMon(u),
+    word: m[1] === 'огненное' ? 'огненное' : 'ледяное'};
+  u._breath = b; return b;
+};
+const lineHits = (S, u, t) => S.units.filter(x => x !== u && !x.dead && !x.gone && B.dist(u, x) <= B.dist(u, t) && B.dist(u, x) + B.dist(x, t) === B.dist(u, t));
+const breathHits = (S, u, b, t) => b.shape === 'cone' ? S_.areaTargets(S, u, {area: {shape: 'cone', size: b.len}}, t) : lineHits(S, u, t);
+B.breath = function (S, u, t) {
+  const b = B.breathOf(u); if (!b || !t) return false;
+  const hit = breathHits(S, u, b, t); if (!hit.length) return false;
+  b.used = (b.used || 0) + 1; u._breathUsed = b.used; S.acted = true; S.attacked = true; u.pose = 'atk'; B.faceTo(u, t);
+  B.fx(S, {kind: 'cast', el: EL_FX[b.el] || 'fire', from: {c: u.c, r: u.r}, to: {c: t.c, r: t.r}, shape: b.shape === 'cone' ? 'cone' : null, size: b.len});
+  B.log(S, `${u.name} выдыхает ${b.word === 'огненное' ? 'пламя' : 'стужу'}!`, 'spell', `${b.word} дыхание: ${b.shape === 'cone' ? 'конус' : 'линия'} ${b.len} клеток, ${b.dice} ${EL_WORD[b.el]}, Ловкость против ${b.dc} — половина`);
+  hit.forEach(x => {
+    let d = R.dice(b.dice); const sv = B.saveRoll(x, 'Ловкость', b.dc - ((x.elemSave && x.elemSave[b.el]) || 0));
+    if (sv) d = Math.floor(d / 2);
+    B.log(S, `${x.name}: ${d} ${EL_WORD[b.el]}${sv ? ' (увернулся наполовину)' : ''}.`, 'hit');
+    if (d > 0) hitEl(S, u, x, d, b.el, b.word === 'огненное' ? 'огненное дыхание' : 'ледяное дыхание');
+  });
+  return true;
+};
+/* ИИ: дышит, если накрывает хоть одного врага и никого из своих; иначе — как обычно */
+const ai0 = B.ai;
+B.ai = function (S, u) {
+  try {
+    const b = u && u.kind === 'monster' && !u.conds.fear && !u.conds.charm && !u._berserk && B.breathOf(u);
+    if (b && (b.used || 0) < b.uses && !S.acted && !(u.fx && u.fx.silence)) {
+      const en = B.visibleEnemies(S, u).filter(x => B.dist(u, x) <= b.len);
+      let best = null, bn = 0;
+      en.forEach(t => { const xs = breathHits(S, u, b, t); if (xs.some(x => x.side === u.side)) return; const n = xs.filter(x => x.side !== u.side && B.active(x)).length; if (n > bn) { bn = n; best = t; } });
+      if (best && (bn >= 2 || (S.round || 1) >= 2 || b.uses > 1)) { if (B.breath(S, u, best)) return; }
+    }
+  } catch (e) {}
+  return ai0.apply(this, arguments);
+};
+/* дыхание у волка записано как одна из атак — атак у него на одну меньше, дыхание — отдельно */
+const fm0 = B.fromMonster;
+B.fromMonster = function (m, side, extra) {
+  const u = fm0.apply(this, arguments);
+  try { const n = (m.attacks || []).filter(a => /дыхание/i.test(a.name || '')).length; if (n && B.breathOf(u) && u.nAtt > 1) u.nAtt = Math.max(1, u.nAtt - n); } catch (e) {}
+  return u;
+};
+
+/* ---------- при попадании: князь бесов, василиск ---------- */
+B.hitElOf = function (u) { if (!u || u.kind !== 'monster' || !u.ref) return []; const sp = (u.ref.specials || []).join('; ').toLowerCase(); return /при попадании d6: 1 холод/.test(sp) ? ['ice', 'fire', 'storm', 'poison', 'fear'] : /окаменение: при попадании/.test(sp) ? ['petrify'] : []; };
+const at0 = B.attack;
+B.attack = function (S, u, t, ranged) {
+  const hp0 = t && t.hp, r = at0.apply(this, arguments);
+  try {
+    if (!u || u.kind !== 'monster' || !t || t.dead || t.down || !(t.hp < hp0) || u.summonLeft != null && u.side === 'party') return r;
+    const sp = (u.ref.specials || []).join('; ').toLowerCase();
+    if (/при попадании d6: 1 холод/.test(sp) && !ranged) {
+      const k = R.d(6), L = u.level || 1, dc = dcOfMon(u);
+      if (k === 1) hitEl(S, u, t, R.dice('1d6'), 'ice', 'бесовский холод');
+      else if (k === 2) hitEl(S, u, t, R.dice('2d4'), 'fire', 'бесовский огонь');
+      else if (k === 3) hitEl(S, u, t, R.dice('1d10'), 'storm', 'бесовская молния');
+      else if (k === 4) { S._venom = true; try { B.damage(S, t, R.dice('1d4'), 'бесовский яд', u); } finally { S._venom = false; } }
+      else if (k === 5) { if (B.ctrlImmune(t, 'fear')) B.log(S, `${t.name}: бесовский ужас не берёт.`, ''); else if (!B.saveRoll(t, 'Воля', B.ctrlSaveDc(t, 'fear', dc))) { t.conds.fear = {n: 2, each: true, save: 'Воля', dc}; B.log(S, `${t.name}: от когтей князя бесов душу сводит ужасом.`, 'ctrl', `страх: Воля против ${dc} — провал, повтор каждый ход`); } }
+      else if (k === 6) { t.fx = t.fx || {}; t.fx.besLuck = {n: 99, save: -3}; B.log(S, `${t.name}: на нём бесовская неудача — −3 к спасброскам до конца боя.`, 'ctrl'); }
+      if (k <= 3 && !t.dead) B.log(S, `${t.name}: удар князя бесов несёт ${['', 'стужу', 'огонь', 'молнию'][k]}.`, '', `при попадании d6 = ${k}`);
+    }
+    if (/окаменение: при попадании/.test(sp) && !ranged && !t.dead && !t.down && R.d(20) <= 5) {
+      const dc = dcOfMon(u);
+      if (B.ctrlImmune(t, 'petrify')) B.log(S, `${t.name}: взгляд василиска скользит — облик под защитой.`, '');
+      else if (!B.saveRoll(t, 'Стойкость', B.ctrlSaveDc(t, 'petrify', dc))) { t.conds.held = {n: 3, each: true, save: 'Стойкость', dc}; B.log(S, `${t.name} каменеет под взглядом василиска.`, 'ctrl', `окаменение: Стойкость против ${dc} — провал; скован, повтор каждый ход`); }
+      else B.log(S, `${t.name}: кожа на миг серая, как камень, — и отпускает.`, '', `окаменение: Стойкость против ${dc} — выдержал`);
+    }
+  } catch (e) {}
+  return r;
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -30506,8 +30642,10 @@ C.AILS.otrava = {name: 'Отравление', dc: 12, self: 0.75, grow: 0.15, v
 C.venomOut = function (g, h, lvl, o) {
   o = o || {}; if (!h || h.dead) return {ok: true, text: ''};
   const L = Math.max(1, lvl || 1), dc = (o.dc || 11 + Math.floor(L / 2)), soft = T(h, 'soprot');
-  if (saveFort(h, dc, soft)) return {ok: true, saved: true, text: `${h.name} ${v(h, 'перемог', 'перемогла')} яд: замутило и отпустило.`};
-  const n = Math.max(1, R.d(4) + Math.floor(L / 2) - (soft >= 2 ? 2 : 0)); h.hp = Math.max(1, (h.hp || 1) - n);
+  // вещи «Защита от яда» (+2 к спасброску и −2 урона за ступень) и выпитое «Зелье от яда» (+4) — и вне боя: ловушки, беды
+  const zy = C.sumProp ? C.sumProp(h, 'zashch_yad') : 0, pot = (h.buffs || []).some(b => b.res && String(b.res).split('+').includes('poison')) ? 4 : 0;
+  if (saveFort(h, dc, soft + 2 * zy + pot)) return {ok: true, saved: true, text: `${h.name} ${v(h, 'перемог', 'перемогла')} яд: замутило и отпустило.`};
+  const n = Math.max(1, R.d(4) + Math.floor(L / 2) - (soft >= 2 ? 2 : 0) - 2 * zy); h.hp = Math.max(1, (h.hp || 1) - n);
   const sev = Math.max(1, Math.min(3, (o.sev || 1) + (L >= 9 ? 1 : 0) - (soft >= 2 ? 1 : 0)));
   if (h.kind !== 'merc') C.ailAdd(g, h, 'otrava', sev, true); else h.hp = Math.max(1, h.hp - R.d(3));
   return {ok: false, n, text: `${h.name}: яд в крови (−${n} хитов), ${h.kind !== 'merc' ? 'до отдыха и лекаря будет мутить' : 'пару дней ходить серым'}.`};
@@ -33372,7 +33510,13 @@ C.chance = function (g, stat, skill, dc) {
 };
 
 /* ---------- удержание чар ---------- */
-C.needsHold = s => { const k = s.kind || []; if (k.includes('summon') || k.includes('move')) return false; return k.includes('buff') || k.includes('protection') || k.includes('control'); };
+/* защиты от стихий («Защита от Огня/Холода/Молнии», «Защита от яда», «Защита от стихий» — у всех школ и богов) удерживать не нужно:
+   на одного можно повесить две разные защиты, один заклинатель держит их на разных людях и при этом удерживает другие чары (решение Ника, 27.10.2026) */
+C.ELEM_WARD_RE = /_(zaschita_ot_(ognya|holoda|molnii|yada|stihiy)|zashchita_ot_yada)$/;
+C.isElemWard = s => !!s && C.ELEM_WARD_RE.test(s.id || '');
+C.needsHold = s => { const k = s.kind || []; if (k.includes('summon') || k.includes('move') || C.isElemWard(s)) return false; return k.includes('buff') || k.includes('protection') || k.includes('control'); };
+/* в описании заклинания — что удерживать не нужно */
+DATA.spells.filter(C.isElemWard).forEach(s => { if (!/Удерживать не нужно/.test(s.effect || '')) s.effect = (s.effect || '').replace(/\s*$/, '') + ' Удерживать не нужно: держится вместе с другими чарами; та же защита повторно не складывается — продлевается.'; });
 const snapAll = S => S.units.map(x => ({x, fx: Object.assign({}, x.fx || {}), c: Object.assign({}, x.conds || {})}));
 function release(S, u, why) {
   const h = u.hold; if (!h) return; u.hold = null;
@@ -35839,7 +35983,7 @@ const FOE_CAST = {
   polkan_mudrets: [6, ['astro_paduchaya_zvezda', 'astro_slepota', 'astro_udacha']],
   polkan_ognennyy_volhv: [8, ['white_vyzvat_ogon', 'white_goryaschie_ruki']],
   vozhd_ordy: [6, ['black_sglaz', 'alchem_usilenie']],
-  shaman_ordy: [8, ['alchem_kislota', 'alchem_oglushenie', 'alchem_razmytie']],
+  shaman_ordy: [8, ['alchem_kislota', 'alchem_oglushenie', 'alchem_razmytie', 'alchem_son', 'alchem_vozgoranie']], // по описанию: «Кислотный плевок, Сон, Возгорание»
   dvuglavyy_volot: [10, ['black_proklyatie', 'black_sglaz', 'black_groza']],
   lesnoy_charodey: [8, ['white_magicheskaya_strela', 'white_udar_holoda', 'white_shok']],
   staryy_vedun: [12, ['druid_perunova_strela', 'druid_svyazat_travami', 'druid_otravlenie', 'druid_lechenie_travami', 'druid_otvar_geroya']],
@@ -37706,7 +37850,7 @@ FX.alchem_edkiy_tuman = (S, u, s, c) => { const dc = dcOf(s, u); foes(S, u, c, 2
   t.conds.dot = {dice: sv ? '1d6' : '2d6', n: 3, src: 'кислота'}; say(S, `${t.name}: едкий туман — −2 к Защите, кислота ${sv ? '1d6' : '2d6'} 3 хода.`, 'ctrl'); }); };
 FX.alchem_prevrashchenie_ploti = (S, u, s, t) => { if (!t || t.side === u.side) return; if (undead(t) || golem(t)) { say(S, `${t.name}: мёртвое и каменное глиной не станет.`, ''); return; } const dc = dcOf(s, u);
   if (B.saveRoll(t, 'Стойкость', dc)) { say(S, `${t.name} выдерживает — плоть не поддаётся.`, ''); return; } t.conds.held = {n: 3, each: true, save: 'Стойкость', dc}; say(S, `${t.name} застывает глиняным истуканом.`, 'ctrl', 'скован 3 хода, Стойкость каждый ход'); };
-FX.alchem_zashchita_ot_yada = (S, u, s, t) => { const x = t && t.side === u.side ? t : u; delete x.conds.dot; add(x, 'res_poison', 10); add(x, 'res_acid', 10, {saveF: 2}); say(S, `${x.name}: защита от яда — яд и кислота вдвое слабее, +2 к Стойкости, 10 ходов.`); };
+FX.alchem_zashchita_ot_yada = (S, u, s, t) => { const x = t && t.side === u.side ? t : u; delete x.conds.dot; const keep = k => Math.max(10, (x.fx && x.fx[k] && x.fx[k].n) || 0); add(x, 'res_poison', keep('res_poison')); add(x, 'res_acid', keep('res_acid'), {saveF: 2}); say(S, `${x.name}: защита от яда — яд и кислота вдвое слабее, +2 к Стойкости, 10 ходов.`); };
 /* ---------- Некромантия ---------- */
 FX.necro_kostyanoy_shchit = (S, u) => { add(u, 'boneShield', 10, {left: 3}); say(S, `${u.name}: вокруг кружат кости — три удара будут слабее на 5.`); };
 FX.necro_mor = (S, u, s, c) => { const dc = dcOf(s, u); foes(S, u, c, 3).forEach(t => { if (undead(t) || golem(t)) return; if (B.saveRoll(t, 'Стойкость', dc)) return; add(t, 'mor', 4, {atk: -2, save: -2}); say(S, `${t.name}: мор — −2 к атаке и спасброскам, 4 хода.`, 'ctrl'); }); };
@@ -38039,7 +38183,7 @@ FX.svarog_zakalit = (S, u, s, t) => { const x = ally1(u, t); add(x, 'tempered', 
 FX.svarog_zhar_gorna = (S, u, s) => { const L = u.level || 1; allies(S, u, u, 3).forEach(x => { const v = R.dice('2d8') + L; x.thp = Math.max(x.thp || 0, v); say(S, `${x.name}: жар горна — ${v} временных хитов.`, 'heal'); }); };
 FX.svarog_mech = (S, u, s) => { add(u, 'svarogSword', dur(s, u) + 5, {atk: 3, dmgDice: '2d6'}); say(S, `${u.name}: в руке огненный меч Сварога — +3 к атаке, +2d6 огнём.`); };
 FX.stribog_svist = (S, u, s, t) => { const x = ally1(u, t); add(x, 'whistle', 2, {steps: 2}); say(S, `${x.name}: свист ветра — +2 шага.`); };
-FX.stribog_zaschita_ot_stihiy = (S, u, s) => allies(S, u, u, 2).forEach(x => { add(x, 'elemWard', 10); say(S, `${x.name}: защита от стихий — огонь, холод и молния на треть слабее.`); });
+FX.stribog_zaschita_ot_stihiy = (S, u, s) => allies(S, u, u, 2).forEach(x => { add(x, 'elemWard', Math.max(10, (fx(x, 'elemWard') || {}).n || 0)); say(S, `${x.name}: защита от стихий — огонь, холод и молния на треть слабее.`); });
 FX.stribog_veshniy_veter = (S, u, s) => { const L = u.level || 1; allies(S, u, u, 3).forEach(x => heal(S, x, R.dice('2d6') + L, 'вешний ветер')); };
 FX.stribog_vdohnut_duh = (S, u, s, t) => { if (u.duhUsed) { say(S, 'Дух вдыхают лишь раз за бой.', ''); return; }
   const x = t && t.side === u.side && (t.down || t.dead) && !t.gone ? t : S.units.filter(y => y.side === u.side && (y.down || y.dead) && !y.gone && B.dist(y, u) <= 1)[0];
@@ -38067,9 +38211,8 @@ const sr0 = B.saveRoll; B.saveRoll = function (u, kind, dc) { if (fx(u, 'guided'
 const am0 = B.atkMod; B.atkMod = function (S, u, t, ranged) { let m = am0.apply(this, arguments); if (t && fx(t, 'dodgeOnce')) m -= 30; return m; };
 const at0 = B.attack; B.attack = function (S, u, t) { const had = fx(u, 'sureHit'), dodge = t && fx(t, 'dodgeOnce'); const r = at0.apply(this, arguments);
   if (had && u.fx) delete u.fx.sureHit; if (dodge && t.fx && t.fx.dodgeOnce) { delete t.fx.dodgeOnce; B.log(S, `${t.name}: удар уходит мимо — нить отвела.`, ''); } return r; };
-const ELEM_RE = /огн|пламен|жар|холод|мороз|лёд|лед|стуж|молни|гром|искр/i;
 const th0 = B.takeHook; B.takeHook = function (S, t, d, src, by) { d = th0 ? th0.apply(this, arguments) : d;
-  if (d > 1 && fx(t, 'elemWard') && (['fire', 'ice', 'storm'].includes(S && S._dt && S._dt.el) || ELEM_RE.test(String(src || '')))) d = d - Math.floor(d / 3);
+  /* «Защита от стихий» (elemWard) теперь считается в spellfx.js вместе с прочими защитами от стихии — по B.elemOf (раньше «огонь» тика не узнавался) */
   if (d > 0 && by && !S_._cur && fx(t, 'gornShield') && B.dist(by, t) <= 1 && live(by)) { const f = R.dice('1d6'); B.log(S, `Огненный оберег: ${by.name} обжигается (${f}).`, 'hit'); by.hp -= f; if (by.hp <= 0 && !by.down) B.damage(S, by, 0, 'огненный оберег', t); }
   return d; };
 const st0 = B.startTurn; B.startTurn = function (S, u) { try {
@@ -38281,7 +38424,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvpw6gvp"></script><script>
+</script><script src="world.js?v=mvqdyf0w"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -41575,13 +41718,13 @@ const FX_LABEL = {sharp: 'наточен', res_fire: 'от огня', res_ice: '
   fateOnce: 'нить судьбы', sureHit: 'верный удар', dolya: 'доля', dodgeOnce: 'заслон пряжи', gornShield: 'огненный оберег', svarogPr: 'молитва Сварогу', gornBlade: 'клинок горит',
   fireRing: 'огненное кольцо', gornAll: 'небесный горн', anvil: 'как кованый', windShield: 'щит ветра', stribogPr: 'молитва Стрибогу', windArrow: 'попутная стрела', windWall: 'вихревой заслон',
   tailwind: 'попутный ветер', storm: 'в буре', darkVeil: 'тёмный покров', noFear: 'страх не берёт', blackPr: 'чёрная молитва', darkness: 'во тьме', cmor: 'чёрный мор', guided: 'наставлен',
-  tempered: 'закалённое оружие', svarogSword: 'меч Сварога', whistle: 'свист ветра', elemWard: 'от стихий', evilEye: 'дурной глаз', scythe: 'коса смерти', stars: 'под звёздами',
+  tempered: 'закалённое оружие', svarogSword: 'меч Сварога', whistle: 'свист ветра', elemWard: 'от стихий', evilEye: 'дурной глаз', besLuck: 'бесовская неудача', scythe: 'коса смерти', stars: 'под звёздами',
   starsSeer: 'читает звёзды', hexBless: 'заклятое оружие', hexed: 'сглажен', sulfur: 'в серном дыму', stealSpell: 'перехват чар', reflect: 'отражение', reborn: 'перерождён',
   sigil: 'печать на чарах', noInnate: 'без врождённой силы', snake: 'змеиная быстрота', formWard: 'облик под защитой', daze: 'разум в тумане', perun: 'гроза Перуна', freedom: 'свобода',
   starVeil: 'звёздный покров', clearSight: 'ясный взор', krepost: 'крепость', res_poison: 'от яда', res_acid: 'от кислоты', boneShield: 'костяной щит', mor: 'мор', blackMark: 'чёрная метка',
   rodPorcha: 'порча на род', chill: 'коченеет'};
 /* что из долгих чар — во вред тому, на ком висит (красным в карточке, первым в подписи у врага) */
-const FX_BAD = new Set(['silence', 'vuln', 'drained', 'aged', 'weak', 'hail', 'curse', 'saveDown', 'prayerFoe', 'gate', 'navChill', 'tangled', 'storm', 'blackPr', 'cmor', 'evilEye',
+const FX_BAD = new Set(['besLuck', 'silence', 'vuln', 'drained', 'aged', 'weak', 'hail', 'curse', 'saveDown', 'prayerFoe', 'gate', 'navChill', 'tangled', 'storm', 'blackPr', 'cmor', 'evilEye',
   'hexed', 'sulfur', 'noInnate', 'daze', 'mor', 'blackMark', 'rodPorcha', 'chill']);
 /* что видно на фигурке: ключ чар или состояния → вид ауры. Новое чародейство — одной строкой сюда.
    Виды: fire — языки у ног, burn — горит, ember — искры с оружия, stone — каменный ободок, bone — кости кружат,
@@ -41598,7 +41741,7 @@ const AURA_OF = {
   tangled: 'bind', daze: 'daze',
   bless: 'holy', prayer: 'holy', saints: 'holy', faith: 'holy', antiEvil: 'holy', navWard: 'holy', mokoshWard: 'holy', velesCircle: 'holy', deathWard: 'holy', starVeil: 'holy', stars: 'holy',
   velesPr: 'holy', svarogPr: 'holy', stribogPr: 'holy', dolya: 'holy', fateOnce: 'holy',
-  cmor: 'rot', mor: 'rot', rodPorcha: 'rot', hexed: 'rot', curse: 'hex', blackMark: 'hex', blackPr: 'hex', evilEye: 'hex', saveDown: 'hex', vuln: 'hex',
+  cmor: 'rot', mor: 'rot', rodPorcha: 'rot', hexed: 'rot', curse: 'hex', blackMark: 'hex', blackPr: 'hex', evilEye: 'hex', besLuck: 'hex', saveDown: 'hex', vuln: 'hex',
   mirror: 'glint', reflect: 'glint', chill: 'frost', invis: 'sly', blur: 'sly'};
 const AURA_COND = {held: 'bind', rooted: 'bind', sleep: 'sleep', fear: 'fear', charm: 'charm', confused: 'daze', stun: 'daze', hidden: 'sly'};
 /* какие виды рисовать первыми, если их много: управление телом — первым, дальше то, что опасно, потом защиты */
