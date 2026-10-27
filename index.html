@@ -1654,7 +1654,7 @@ B.attack = function (S, u, t, ranged) {
   B.fx(S, {kind: ranged ? 'shot' : 'slash', from: {c: u.c, r: u.r}, to: {c: t.c, r: t.r}, uid: u.id, tid: t.id, bolt: !!(u.ranged && /самостр|арбалет/i.test(u.ranged.name || ''))});
   const fromHiding = !!u.conds.hidden; if (fromHiding) { delete u.conds.hidden; }
   if (u.look && (ranged ? u.look.wr : u.look.wm)) u.look.weapon = ranged ? u.look.wr : u.look.wm;
-  const sneaky = !!u.sneak && (fromHiding || (!ranged && (t.conds.surprised || t.conds.held || t.conds.sleep || S.units.some(x => x !== u && x.side === u.side && B.active(x) && B.dist(x, t) === 1))));
+  const sneaky = !!u.sneak && (fromHiding || (!ranged && (t.conds.surprised || t.conds.held || (t.conds.sleep && !t.conds.sleep.venomNap) || S.units.some(x => x !== u && x.side === u.side && B.active(x) && B.dist(x, t) === 1))));
   const up0 = B.active(t); // стоял — упал: остальные удары пропадают
   for (let i = 0; i < hits; i++) {
     if (!B.active(t) && !(t.down && !t.dead)) break;
@@ -27635,6 +27635,81 @@ B.attack = function (S, u, t, ranged) {
   return r;
 };
 })(typeof window !== 'undefined' ? window : globalThis);
+/* ---------- мягкие врождённые чары тварей (решение Ника, 27.10.2026: «чтобы не сильно убойно») ----------
+   • Аура страха (мёртвые витязи, костяные змеи, навьи князья…): в начале хода героя в 2 клетках от твари — один раз за бой
+     Воля против 10 + ½ уровня твари (не выше 15). Провал — «оторопь» на 1 ход: помеха на удары, без бегства.
+     Прошёл — к этой ауре невосприимчив весь бой. Обетник, брат Ока, ярый в ярости — не боятся; обереги от страха работают.
+   • Оглушение волота: при попадании вплотную 1 из 4 — Стойкость; провал — «оглушён»: следующий ход полшага и без малого действия.
+     Одну цель — не чаще раза в 2 хода.
+   • Сон от яда ножей Подземья: только если яд вошёл (провал Стойкости) — ещё Стойкость; провал — засыпает до своего хода
+     (удар будит сразу), в свой ход просыпается, потратив малое действие. Раз за бой на героя; кого сон не берёт — не берёт. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, S_ = B && B.Spells;
+if (!S_ || !B.ctrlImmune) return;
+const spx = u => (u && u.kind === 'monster' && u.ref ? (u.ref.specials || []).join('; ').toLowerCase() : '');
+const dcSoft = u => Math.min(15, 10 + Math.floor((u.level || 1) / 2));
+const live = x => x && !x.dead && !x.gone && !x.down;
+const addFx = (t, k, n, o) => { t.fx = t.fx || {}; t.fx[k] = Object.assign({n}, o || {}); };
+B.fearAuraOf = u => /страх: (?:при появлении все )?враги в \d+ клет/.test(spx(u));
+B.stunOf = u => /удар оглушает/.test(spx(u)) && /волот/i.test((u.ref && u.ref.name) || u.name || '');
+B.sleepVenomOf = u => /яд: стойкость или сон/.test(spx(u));
+const fearless = t => ['obetnik', 'chernets'].includes(t.cls || (t.ref && t.ref.cls)) || !!(t.conds && t.conds.raging) || B.ctrlImmune(t, 'fear');
+/* оторопь и оглушение — в начале хода; сон от яда — проснуться за малое действие */
+const st0 = B.startTurn;
+B.startTurn = function (S, u) {
+  let napped = false;
+  if (u && u.conds && u.conds.sleep && u.conds.sleep.venomNap && !u.down) { delete u.conds.sleep; napped = true; }
+  const r = st0.apply(this, arguments);
+  try {
+    if (!r || !live(u)) return r;
+    if (napped) { S.bonus = true; B.log(S, `${u.name} продирает глаза — сонный яд отпускает.`, '', 'сон от яда: проснулся, малое действие потрачено'); }
+    if (u.fx && u.fx.dazed && u.fx.dazed.fresh) { delete u.fx.dazed.fresh; S.bonus = true; S.moved = (S.moved || 0) + Math.ceil(u.steps / 2); B.log(S, `${u.name} ещё не отошёл от удара: полшага, без малого действия.`, '', 'оглушение: 1 ход'); }
+    if (u.side === 'party' && !fearless(u)) {
+      const seen = u._auraSeen = u._auraSeen || {};
+      S.units.filter(x => x.side !== u.side && live(x) && B.dist(x, u) <= 2 && !seen[x.id] && B.fearAuraOf(x)).forEach(x => {
+        seen[x.id] = 1; const dc = dcSoft(x);
+        if (B.saveRoll(u, 'Воля', B.ctrlSaveDc(u, 'fear', dc))) { B.log(S, `${u.name} выдерживает мёртвый взгляд — ${x.name} его больше не пугает.`, '', `аура страха: Воля против ${dc} — выдержал, до конца боя не берёт`); return; }
+        addFx(u, 'dread', 1, {}); B.log(S, `${u.name}: от ${x.name} стынет кровь — руки не слушаются.`, 'ctrl', `аура страха: Воля против ${dc} — провал; оторопь 1 ход: помеха на удары`);
+      });
+    }
+  } catch (e) {}
+  return r;
+};
+const adv0 = B.advOf;
+B.advOf = function (S, u, t) { const o = adv0.apply(this, arguments);
+  // сонный яд — дремота, а не беспомощность: удар по задремавшему без преимущества (и без удара в спину), он и так проснётся
+  const nap = t && t.conds && t.conds.sleep && t.conds.sleep.venomNap; if (nap) { const i = o.A.indexOf('цель спит'); if (i >= 0) o.A.splice(i, 1); }
+  if (nap || (u && u.fx && u.fx.dread)) { if (u && u.fx && u.fx.dread) o.D.push('оторопь'); o.a = o.A.length && !o.D.length ? 1 : o.D.length && !o.A.length ? -1 : 0; o.why = o.a > 0 ? 'преимущество: ' + o.A.join(', ') : o.a < 0 ? 'помеха: ' + o.D.join(', ') : (o.A.length && o.D.length ? `преимущество и помеха гасят друг друга (${o.A.concat(o.D).join(', ')})` : ''); }
+  return o; };
+/* оглушение волота */
+const at0 = B.attack;
+B.attack = function (S, u, t, ranged) {
+  const hp0 = t && t.hp, r = at0.apply(this, arguments);
+  try {
+    if (ranged || !u || !t || !(t.hp < hp0) || !live(t) || !B.stunOf(u)) return r;
+    if (t._stunR != null && (S.round || 0) - t._stunR < 2) return r;
+    if (R.rand() >= 0.25) return r;
+    t._stunR = S.round || 0; const dc = dcSoft(u);
+    if (B.saveRoll(t, 'Стойкость', dc)) { B.log(S, `${t.name} мотает головой, но устоял после удара ${u.name}.`, '', `оглушение: Стойкость против ${dc} — выдержал`); return r; }
+    addFx(t, 'dazed', 2, {fresh: 1}); B.log(S, `Удар ${u.name} оглушает ${t.name}.`, 'ctrl', `оглушение: Стойкость против ${dc} — провал; следующий ход полшага и без малого действия`);
+  } catch (e) {}
+  return r;
+};
+/* сон от яда ножей */
+const vh0 = B.venomHit;
+B.venomHit = function (S, u, t, ranged) {
+  const had = t && t.conds && t.conds.dot, r = vh0.apply(this, arguments);
+  try {
+    const now = t && t.conds && t.conds.dot;
+    if (!now || now === had || !now.venom || !B.sleepVenomOf(u) || !live(t) || t._sleepVen || B.ctrlImmune(t, 'sleep')) return r;
+    t._sleepVen = 1; const dc = dcSoft(u);
+    if (B.saveRoll(t, 'Стойкость', B.ctrlSaveDc(t, 'sleep', dc))) { B.log(S, `${t.name}: веки тяжелеют, но сон не берёт.`, '', `сон от яда: Стойкость против ${dc} — выдержал`); return r; }
+    t.conds.sleep = {n: 1, each: false, venomNap: 1}; B.log(S, `${t.name} оседает: яд на клинке сонный.`, 'ctrl', `сон от яда: Стойкость против ${dc} — провал; спит до своего хода, удар будит`);
+  } catch (e) {}
+  return r;
+};
+})(typeof window !== 'undefined' ? window : globalThis);
 
 /* camp_life.js */
 /* Колдовство — жизнь в пути: готовая еда и продукты, стряпня, охота, рыбалка, усталость и ночной лагерь. Без DOM.
@@ -38424,7 +38499,7 @@ Object.values(C.CAMPS || {}).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvqdyf0w"></script><script>
+</script><script src="world.js?v=mvqf6hz6"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -41718,13 +41793,13 @@ const FX_LABEL = {sharp: 'наточен', res_fire: 'от огня', res_ice: '
   fateOnce: 'нить судьбы', sureHit: 'верный удар', dolya: 'доля', dodgeOnce: 'заслон пряжи', gornShield: 'огненный оберег', svarogPr: 'молитва Сварогу', gornBlade: 'клинок горит',
   fireRing: 'огненное кольцо', gornAll: 'небесный горн', anvil: 'как кованый', windShield: 'щит ветра', stribogPr: 'молитва Стрибогу', windArrow: 'попутная стрела', windWall: 'вихревой заслон',
   tailwind: 'попутный ветер', storm: 'в буре', darkVeil: 'тёмный покров', noFear: 'страх не берёт', blackPr: 'чёрная молитва', darkness: 'во тьме', cmor: 'чёрный мор', guided: 'наставлен',
-  tempered: 'закалённое оружие', svarogSword: 'меч Сварога', whistle: 'свист ветра', elemWard: 'от стихий', evilEye: 'дурной глаз', besLuck: 'бесовская неудача', scythe: 'коса смерти', stars: 'под звёздами',
+  tempered: 'закалённое оружие', svarogSword: 'меч Сварога', whistle: 'свист ветра', elemWard: 'от стихий', evilEye: 'дурной глаз', besLuck: 'бесовская неудача', dread: 'оторопь', dazed: 'оглушён', scythe: 'коса смерти', stars: 'под звёздами',
   starsSeer: 'читает звёзды', hexBless: 'заклятое оружие', hexed: 'сглажен', sulfur: 'в серном дыму', stealSpell: 'перехват чар', reflect: 'отражение', reborn: 'перерождён',
   sigil: 'печать на чарах', noInnate: 'без врождённой силы', snake: 'змеиная быстрота', formWard: 'облик под защитой', daze: 'разум в тумане', perun: 'гроза Перуна', freedom: 'свобода',
   starVeil: 'звёздный покров', clearSight: 'ясный взор', krepost: 'крепость', res_poison: 'от яда', res_acid: 'от кислоты', boneShield: 'костяной щит', mor: 'мор', blackMark: 'чёрная метка',
   rodPorcha: 'порча на род', chill: 'коченеет'};
 /* что из долгих чар — во вред тому, на ком висит (красным в карточке, первым в подписи у врага) */
-const FX_BAD = new Set(['besLuck', 'silence', 'vuln', 'drained', 'aged', 'weak', 'hail', 'curse', 'saveDown', 'prayerFoe', 'gate', 'navChill', 'tangled', 'storm', 'blackPr', 'cmor', 'evilEye',
+const FX_BAD = new Set(['besLuck', 'dread', 'dazed', 'silence', 'vuln', 'drained', 'aged', 'weak', 'hail', 'curse', 'saveDown', 'prayerFoe', 'gate', 'navChill', 'tangled', 'storm', 'blackPr', 'cmor', 'evilEye',
   'hexed', 'sulfur', 'noInnate', 'daze', 'mor', 'blackMark', 'rodPorcha', 'chill']);
 /* что видно на фигурке: ключ чар или состояния → вид ауры. Новое чародейство — одной строкой сюда.
    Виды: fire — языки у ног, burn — горит, ember — искры с оружия, stone — каменный ободок, bone — кости кружат,
@@ -41741,7 +41816,7 @@ const AURA_OF = {
   tangled: 'bind', daze: 'daze',
   bless: 'holy', prayer: 'holy', saints: 'holy', faith: 'holy', antiEvil: 'holy', navWard: 'holy', mokoshWard: 'holy', velesCircle: 'holy', deathWard: 'holy', starVeil: 'holy', stars: 'holy',
   velesPr: 'holy', svarogPr: 'holy', stribogPr: 'holy', dolya: 'holy', fateOnce: 'holy',
-  cmor: 'rot', mor: 'rot', rodPorcha: 'rot', hexed: 'rot', curse: 'hex', blackMark: 'hex', blackPr: 'hex', evilEye: 'hex', besLuck: 'hex', saveDown: 'hex', vuln: 'hex',
+  cmor: 'rot', mor: 'rot', rodPorcha: 'rot', hexed: 'rot', curse: 'hex', blackMark: 'hex', blackPr: 'hex', evilEye: 'hex', besLuck: 'hex', dread: 'hex', dazed: 'hex', saveDown: 'hex', vuln: 'hex',
   mirror: 'glint', reflect: 'glint', chill: 'frost', invis: 'sly', blur: 'sly'};
 const AURA_COND = {held: 'bind', rooted: 'bind', sleep: 'sleep', fear: 'fear', charm: 'charm', confused: 'daze', stun: 'daze', hidden: 'sly'};
 /* какие виды рисовать первыми, если их много: управление телом — первым, дальше то, что опасно, потом защиты */
