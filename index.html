@@ -23915,7 +23915,7 @@ const enter0 = C.enter;
 C.enter = function (g, id) {
   const camp = C.CAMPS[g.camp], nodes = (camp && camp.map && camp.map.nodes) || {};
   if (id !== 'esc_arrive') {
-    const k = Object.keys(nodes).find(x => nodes[x].scene === id);
+    const ks = Object.keys(nodes).filter(x => nodes[x].scene === id), k = nodes[g.loc] && nodes[g.loc].scene === id ? g.loc : ks.length === 1 ? ks[0] : null; // общая сцена (Вечный мир: все сёла — одна сцена) — место не трогаем
     if (k && k !== g.loc && (!nodes[k].if || nodes[k].if(g, C.ctx(g)))) g.loc = k; // сцена места — отряд там (W.pos переставит фишку)
     if (k && k === g.loc && !g.escArrive) { const e = C.escorts(g).find(x => C.ESCORT[x.id].to === k); if (e) { g.escArrive = e.id; g.escNext = id; return enter0(g, 'esc_arrive'); } }
   }
@@ -38701,7 +38701,7 @@ C.shopExtra = function (g, city) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvr89o6b"></script><script>
+</script><script src="world.js?v=mvr9ofua"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
