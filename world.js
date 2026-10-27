@@ -42153,8 +42153,10 @@ const fmtH = (t, h) => { const d = decl(h.name || '', h.sex); return sx(t, h.sex
 /* ---------- числа ---------- */
 C.AGE_YEAR = 360; C.AGE_CAP = 16; C.AGE_FLOOR = 6; C.AGE_LAST_DAYS = 90;
 C.AGE_CLS = {yaryi: 0, tat: 0, dushegub: 0, druzhinnik: 0, lovchiy: 2, guslyar: 2, vedmak: 2, obetnik: 2, charovnik: 3, chernets: 4, zhrets: 4, volhv: 4, knizhnik: 6};
-C.CAMP_YEAR = Object.assign({dead_water: -40, ashes: -38, edvin: -35, terak: -30, swamp: -20, sud: 0, free: 1, late_olsha: 7, late_terak: 9, late_dub: 10,
-  late_edvin: 12, late_navi: 12, late_boloto: 13, late2_podzem: 27, late2_moshchi: 33, late2_zakat: 40}, C.CAMP_YEAR || {});
+/* летопись (решение Ника 27.10.2026 — «сплющить»): сага идёт двадцать лет, между главами 2–5 лет; средний герой,
+   начавший в «Мёртвой воде» (старт ≈25), заканчивает «Суд» около 45 и дальше стареет в поздних сагах (к «Закату» ≈65) */
+C.CAMP_YEAR = Object.assign({dead_water: -20, ashes: -18, edvin: -15, terak: -10, swamp: -5, sud: 0, free: 1, late_olsha: 3, late_terak: 4, late_dub: 5,
+  late_edvin: 6, late_navi: 6, late_boloto: 7, late2_podzem: 13, late2_moshchi: 16, late2_zakat: 20}, C.CAMP_YEAR || {});
 /* в автотестах (без окна) зрелость решается сама; тест может выключить */
 if (C.AGE_AUTO == null) C.AGE_AUTO = typeof window === 'undefined';
 C.ageRand = () => R.rand();
@@ -43924,8 +43926,21 @@ const heroDied = function (g, key, s) {
 };
 
 /* ---------- кнопки в окне наёмника ---------- */
-const giftItems = (g, giver) => [...new Set(giver.inv || [])].filter(id => { const x = R.item(id); return x && x.price >= 50 && !Object.values(giver.eq || {}).includes(id); })
-  .map(id => ({id, x: R.item(id)})).sort((a, b) => b.x.price - a.x.price).slice(0, 2);
+/* подарок наёмнику: вещи уже переданы (окно «Подарить…» в ui.js или старая кнопка); дружба растёт, если давно не дарили
+   и подарок стоящий (от 50 медью) — дороже 300 вдвое. Ответ — словами наёмника; null — подарком это не считается. */
+C.mwGiftWhy = function (g, h) { const M = h && mercs(g).includes(h) ? C.mwOf(h) : null; if (!M) return 'нельзя';
+  return M.giftDay != null && (g.day || 1) - M.giftDay < K().GIFT ? 'недавно уже дарили' : ''; };
+C.mwGift = function (g, h, gv, ids) {
+  const M = h && mercs(g).includes(h) ? C.mwOf(h) : null; ids = (ids || []).filter(Boolean); if (!M || !gv || !ids.length || C.mwGiftWhy(g, h)) return null;
+  const xs = ids.map(id => R.item(id) || {name: id, price: 0}), best = xs.slice().sort((a, b) => (b.price || 0) - (a.price || 0))[0]; if ((best.price || 0) < 50) return null;
+  M.giftDay = g.day || 1;
+  const close = ['blizk', 'wed'].includes(M.tier) || (M.eye && M.eye === gv.id);
+  const words = say(g, h, gv, close ? 'Ты… ты не долж{hx}. Но спасибо. Буду беречь — как тебя' : M.tier === 'brat' ? 'От своего — возьму. Своё оно и есть своё' : 'Вот спасибо, {a}. Не за плату — от души, оно и дороже').replace('{hx}', gv.sex === 'f' ? 'на была' : 'ен был');
+  const names = [...new Set(xs.map(x => x.name.toLowerCase()))];
+  const t = `${h.name} принимает ${names.length > 1 ? 'подарки' : 'подарок'} — ${names.join(', ')}: «${words}». ${cap(C.compSay(g, h, '[он|она]'))} хранит то, что дали.`;
+  C.note(g, t); C.mwAdd(g, h, (best.price || 0) >= 300 ? 2 : 1);
+  return {text: t, words, from: h.name, face: h.portrait || '', sex: h.sex};
+};
 const giverOf = (g, M) => (M.who && alive(g, M.who)) || (M.eye && alive(g, M.eye)) || C.alive(g)[0] || null;
 const poolOf = (g, m, M) => { const who = M.who ? alive(g, M.who) : null;
   if (M.tier === 'wed' && who) { const F = famOf(g, M.key, who.id); return (F && F.preg && F.preg.mom === 'sp' ? LN.preg : []).concat(LN.wed[m.sex === 'f' ? 'f' : 'm']); }
@@ -43945,8 +43960,8 @@ if (ao0 && ab0) {
       const M = h && h.kind === 'merc' && mercs(g).includes(h) ? C.mwOf(h) : null; if (!M) return out;
       const day = g.day || 1, who = M.who ? alive(g, M.who) : null;
       out.push({t: 'Поговорить по душам', arg: 'mw_talk', why: M.talkDay === day ? 'сегодня уже говорили' : ''});
-      const gv = giverOf(g, M);
-      if (gv) giftItems(g, gv).forEach(o => out.push({t: `Подарить: ${o.x.name.toLowerCase()} (от ${dh(gv, 'g')})`, arg: 'mw_gift:' + o.id + ':' + gv.id, why: M.giftDay != null && day - M.giftDay < K().GIFT ? 'недавно уже дарили' : ''}));
+      // подарок — одной кнопкой: окно выбора вещи и дарителя (ui.js, showTrade в режиме подарка → C.mwGift)
+      out.push({t: 'Подарить…', arg: 'mw_giftpick', why: C.mwGiftWhy(g, h)});
       if (M.tier === 'drug' && M.eye) { const e = alive(g, M.eye); if (e && canLove(g, h, e)) out.push({t: `${e.name}: ответить на ${C.compSay(g, h, '[его|её]')} взгляды`, arg: 'mw_ans:' + e.id, why: ''}); }
       if (M.tier === 'drug' && M.pts >= K().BRAT) C.alive(g).filter(x => canBrat(g, h, x)).forEach(x => out.push({t: `${x.name}: ${h.sex === 'f' ? 'стать посестрами' : 'побрататься'}`, arg: 'mw_brat:' + x.id, why: ''}));
       if (M.tier === 'blizk' && who && M.pts >= K().WED) out.push({t: `${who.name}: сыграть свадьбу`, arg: 'mw_wed', why: C.compSay(g, h, C.mwWedWhy(g, h))});
@@ -43960,13 +43975,14 @@ if (ao0 && ab0) {
     const M = h && mercs(g).includes(h) ? C.mwOf(h) : null; if (!M) return {err: 'нельзя'};
     const day = g.day || 1, who = M.who ? alive(g, M.who) : null;
     if (arg === 'mw_talk') { if (M.talkDay === day) return {err: 'сегодня уже говорили'}; M.talkDay = day; const t = lineOf(g, h, M); C.note(g, t); C.mwAdd(g, h, 1);
-      if (M.tier === 'wed' && who && C.spiritAdd) C.spiritAdd(g, 1, `${h.name} — и на душе светлее.`, who); if (C.passH) C.passH(g, 0.5); return {ok: true, text: t}; }
-    if (/^mw_gift:/.test(arg)) { const [, id, gid] = arg.split(':'), gv = alive(g, gid) || giverOf(g, M); const k = gv ? (gv.inv || []).indexOf(id) : -1;
-      if (k < 0 || (M.giftDay != null && day - M.giftDay < K().GIFT) || Object.values(gv.eq || {}).includes(id)) return {err: 'нельзя'};
-      gv.inv.splice(k, 1); h.inv = h.inv || []; h.inv.push(id); M.giftDay = day; const x = R.item(id) || {name: id, price: 0};
-      const close = ['blizk', 'wed'].includes(M.tier) || (M.eye && M.eye === gv.id);
-      const t = `${h.name} принимает подарок — ${x.name.toLowerCase()}: «${say(g, h, gv, close ? 'Ты… ты не долж{hx}. Но спасибо. Буду беречь — как тебя.' : M.tier === 'brat' ? 'От своего — возьму. Своё оно и есть своё.' : 'Вот спасибо, {a}. Не за плату — от души, оно и дороже.').replace('{hx}', gv.sex === 'f' ? 'на была' : 'ен был')}». ${cap(C.compSay(g, h, '[он|она]'))} хранит то, что дали.`;
-      C.note(g, t); C.mwAdd(g, h, (x.price || 0) >= 300 ? 2 : 1); return {ok: true, text: t}; }
+      if (M.tier === 'wed' && who && C.spiritAdd) C.spiritAdd(g, 1, `${h.name} — и на душе светлее.`, who); if (C.passH) C.passH(g, 0.5);
+      const mm = /^[^:]*: «([\s\S]*)»$/.exec(t); return {ok: true, text: t, talk: {from: h.name, face: h.portrait || '', sex: h.sex, text: mm ? mm[1] : t, hero: 0}}; }
+    if (arg === 'mw_giftpick') return {err: C.mwGiftWhy(g, h) || 'выберите подарок'};
+    if (/^mw_gift:/.test(arg)) { // старая кнопка: вещь и даритель в строке (id вещи может сам содержать «:»)
+      const rest = arg.slice(8), j = rest.lastIndexOf(':'), id = j > 0 ? rest.slice(0, j) : rest, gid = j > 0 ? rest.slice(j + 1) : '', gv = alive(g, gid) || giverOf(g, M); const k = gv ? (gv.inv || []).indexOf(id) : -1;
+      if (k < 0) return {err: 'этой вещи у дарителя уже нет'}; if (C.mwGiftWhy(g, h)) return {err: C.mwGiftWhy(g, h)};
+      if ((gv.inv || []).filter(v => v === id).length <= Object.values(gv.eq || {}).filter(v => v === id).length) return {err: 'вещь надета — сперва снимите'};
+      gv.inv.splice(k, 1); h.inv = h.inv || []; h.inv.push(id); const r = C.mwGift(g, h, gv, [id]); return r ? {ok: true, text: r.text} : {err: 'нельзя'}; }
     if (/^mw_ans:/.test(arg)) { const e = alive(g, arg.split(':')[1]); if (M.tier !== 'drug' || !e || e.id !== M.eye || !canLove(g, h, e)) return {err: 'нельзя'};
       M.tier = 'blizk'; M.who = e.id; M.whoN = e.name; M.whoS = e.sex; M.eye = null; M.pts = Math.max(M.pts, K().EYE);
       const t = h.sex === 'f' ? `${h.name} вспыхивает и улыбается: «Я знала. Я так и знала»` : `${h.name} смеётся, будто гора с плеч: «Ну наконец-то. А я уж думал — показалось»`; C.note(g, t); return {ok: true, text: t}; }
@@ -44305,7 +44321,22 @@ const talkPush = (g, m, code, d, key) => {
   const text = say(g, m, t), N = (C.NRAV && C.NRAV[m.nrav]) || null, pp = (R.PEOPLES || {})[m.people] || null;
   const sub = [N ? (m.sex === 'f' ? N.f : N.n) : '', pp ? (m.sex === 'f' ? pp.f : pp.name).toLowerCase() : ''].filter(Boolean).join(', ');
   const s = S(g); s.talk.n++; m.nravSaid = g.day;
-  const item = {from: m.name, face: m.portrait || '', sex: m.sex, sub, text, up, day: g.day};
+  const item = {from: m.name, face: m.portrait || '', sex: m.sex, sub, text, up, day: g.day, code: (plain ? 'p' : up ? '+' : '-') + code};
+  g.compTalk = (g.compTalk || []).concat(item).slice(-4);
+  C.note(g, `${m.name}: «${text}»`);
+  return item;
+};
+/* готовая реплика наёмника в ту же очередь (w2_mercask: взяли/отказались от дела, просьба вещи). o: {up, code, force} — force: ответ на выбор игрока, мимо дневного предела */
+C.compTalkOk = (g, m) => !!(g && m) && talkOk(g, m);
+C.compTalkPush = function (g, m, raw, o) {
+  o = o || {}; if (!g || !m || !raw) return null;
+  if (!o.force && !talkOk(g, m)) return null;
+  if (!S(g).talk || S(g).talk.day !== g.day) S(g).talk = {day: g.day, n: 0};
+  const text = say(g, m, raw), N = (C.NRAV && C.NRAV[m.nrav]) || null, pp = (R.PEOPLES || {})[m.people] || null;
+  const sub = [N ? (m.sex === 'f' ? N.f : N.n) : '', pp ? (m.sex === 'f' ? pp.f : pp.name).toLowerCase() : ''].filter(Boolean).join(', ');
+  const s = S(g); s.talk.n++; m.nravSaid = g.day;
+  const up = o.up == null ? null : !!o.up;
+  const item = {from: m.name, face: m.portrait || '', sex: m.sex, sub, text, up, day: g.day, code: (up == null ? 'p' : up ? '+' : '-') + (o.code || 'x')};
   g.compTalk = (g.compTalk || []).concat(item).slice(-4);
   C.note(g, `${m.name}: «${text}»`);
   return item;
@@ -44387,6 +44418,7 @@ C.nravTagOf = function (g, sceneId, ch) {
   const lab = String(ch.label || (typeof ch.t === 'string' ? ch.t : '') || ''), b = baseLabel(lab);
   if (Object.prototype.hasOwnProperty.call(NRAV_LABELS, b)) return NRAV_LABELS[b];
   if (Object.prototype.hasOwnProperty.call(NRAV_LABELS, lab)) return NRAV_LABELS[lab];
+  if (/^(Раскусить|Распознать|Разоблачить|Уличить|Заметить|Почуять|Вывести на чистую воду)/.test(b)) return ''; // Обман тут — увидеть чужую ложь, а не солгать
   if (LIE_RX.test(lab)) return 'L';
   return '';
 };
@@ -44789,6 +44821,10 @@ const isMerc = h => !!h && h.kind === 'merc';
 const live = g => ((g && g.mercs) || []).filter(m => m && !m.dead && m.hp > 0);
 const heroes = g => (g && g.heroes ? C.alive(g).filter(h => !isMerc(h)) : []);
 const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n, sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+C.TALK_MEM = Object.assign({GAP: 4, OLD: 2, BATCH: 4}, C.TALK_MEM || {});
+const memOf = g => { const m = g.w2talkMem = (g.w2talkMem && typeof g.w2talkMem === 'object') ? g.w2talkMem : {}; return m; };
+const memRecent = (g, k) => { const v = memOf(g)[k]; return v != null && (g.day || 0) - v < C.TALK_MEM.GAP; };
+const memMark = (g, k) => { const m = memOf(g), d = g.day || 0; m[k] = d; if (Object.keys(m).length > 120) Object.keys(m).forEach(x => { if (d - m[x] >= C.TALK_MEM.GAP) delete m[x]; }); };
 const ST = g => { const s = g.w2ban = (g.w2ban && typeof g.w2ban === 'object') ? g.w2ban : {}; s.seen = s.seen || []; if (s.day !== g.day) { s.day = g.day; s.n = 0; } return s; };
 const tieOf = (g, m) => { const M = m && m.loyal && m.mw; if (!M || !M.who) return null; const h = heroes(g).find(x => x.id === M.who); if (!h) return null;
   const t = M.tier; return t === 'brat' ? {t: 'brat', h} : t === 'drug' ? {t: 'drug', h} : t === 'blizk' ? {t: 'blizk', h} : t === 'wed' ? {t: 'wed', h} : null; };
@@ -44839,6 +44875,8 @@ function choose(g, topic, salt) {
     if (s.ctxX && (pr.a.name === s.ctxX.name || pr.b.name === s.ctxX.name)) return;
     cand.push({T: T0, pr, w: T0.p ? 3 : 1}); }));
   if (!cand.length) return null;
+  // одна и та же беседа — не чаще раза в C.TALK_MEM.GAP дней (память g.w2talkMem); всё недавнее — лучше промолчать
+  const okC = cand.filter(c => !memRecent(g, 'b:' + c.T.id)); if (!okC.length) return null; cand.length = 0; okC.forEach(c => cand.push(c));
   const fresh = cand.filter(c => !s.seen.includes(c.T.id));
   let pool = fresh;
   if (!pool.length) { const age = id => { const i = s.seen.indexOf(id); return i < 0 ? 1e9 : i; }; const lo = Math.min(...cand.map(c => age(c.T.id))); pool = cand.filter(c => age(c.T.id) === lo); }
@@ -44866,7 +44904,7 @@ C.banterTry = function (g, topic, o) {
     const items = c.T.L.map((l, i) => { const who = l[0] === 'a' ? c.pr.a : c.pr.b, other = l[0] === 'a' ? c.pr.b : c.pr.a;
       const text = fill(g, l[1], who, other, P, salt + '|' + i);
       return {from: who.name, face: who.portrait || '', sex: who.sex, sub: subOf(who), text, up: null, day: g.day, ban: c.T.id, mid: i > 0, hero: who.kind !== 'merc'}; });
-    g.compBanter = (g.compBanter || []).concat(items);
+    g.compBanter = (g.compBanter || []).concat(items); memMark(g, 'b:' + c.T.id); if (topic === 'weather' || topic === 'winter') s.wxSaid = g.day;
     items.forEach(it => C.note(g, `${it.from}: «${it.text}»`));
     s.n++; s.last = g.day; s.cnt = (s.cnt || 0) + 1; s.total = (s.total || 0) + 1;
     s.seen = s.seen.filter(id => id !== c.T.id).concat(c.T.id).slice(-Math.max(20, Math.floor(C.BANTER_TALKS.length * 0.7)));
@@ -44874,23 +44912,46 @@ C.banterTry = function (g, topic, o) {
   } catch (e) { return null; }
 };
 
-/* очередь окна: беседа идёт целиком; реплики о поступках (g.compTalk) — между беседами */
-const stale = g => { const b = g.compBanter; if (!b || !b.length) return; while (b.length && !b[0].mid && b[0].day < (g.day || 0) - 1) { b.shift(); while (b.length && b[0].mid) b.shift(); } };
+/* очередь окна: беседа идёт целиком; реплики о поступках (g.compTalk) — между беседами.
+   Реплики ждут подходящего часа (карта, корчма, ночлег — решает ui.js), но не дольше C.TALK_MEM.OLD дней.
+   Память показанного (g.w2talkMem): одна и та же реплика и один и тот же повод (код поступка, беседа) — не чаще раза
+   в C.TALK_MEM.GAP дней на отряд; погодная беседа — раз на одну полосу непогоды (s.wxSaid / s.wxOff). */
+const stale = g => { const b = g.compBanter; if (!b || !b.length) return; while (b.length && !b[0].mid && b[0].day < (g.day || 0) - C.TALK_MEM.OLD) { b.shift(); while (b.length && b[0].mid) b.shift(); } };
+const tKey = it => 't:' + String((it && it.text) || '').toLowerCase().replace(/[^а-яёa-z]/g, '').slice(0, 80);
+const cKey = it => (it && it.code ? 'n:' + it.code : null);
+const cleanTalk = g => { if (!g || !g.compTalk || !g.compTalk.length) return; const d = g.day || 0;
+  g.compTalk = g.compTalk.filter(it => it && (it.day == null || it.day >= d - C.TALK_MEM.OLD) && !memRecent(g, tKey(it)) && !(cKey(it) && memRecent(g, cKey(it)))); };
+const shown = (g, it) => { if (!it || it.ban) return; memMark(g, tKey(it)); if (cKey(it)) memMark(g, cKey(it)); };
 const tn0 = C.compTalkNext, td0 = C.compTalkDone;
 const banterFirst = g => { const b = g && g.compBanter; if (!b || !b.length) return false; return b[0].mid || !((g.compTalk || []).length); };
-C.compTalkNext = function (g) { if (g) stale(g); if (banterFirst(g)) return g.compBanter[0]; return tn0 ? tn0.apply(this, arguments) : ((g && g.compTalk || [])[0] || null); };
-C.compTalkDone = function (g) { if (banterFirst(g)) { g.compBanter.shift(); return; } return td0 ? td0.apply(this, arguments) : (g && g.compTalk && g.compTalk.shift()); };
+C.compTalkNext = function (g) { if (g) { stale(g); cleanTalk(g); } if (banterFirst(g)) return g.compBanter[0]; return tn0 ? tn0.apply(this, arguments) : ((g && g.compTalk || [])[0] || null); };
+C.compTalkDone = function (g) { if (banterFirst(g)) { g.compBanter.shift(); return; } shown(g, (g && g.compTalk || [])[0]); return td0 ? td0.apply(this, arguments) : (g && g.compTalk && g.compTalk.shift()); };
+C.compTalkShown = (g, it) => shown(g, it); // реплику уже прочли в тексте сцены — окном её не повторять
+/* всё, что пора сказать, — одним окном: беседа целиком или до C.TALK_MEM.BATCH одиночных реплик подряд */
+C.compTalkBatch = function (g) {
+  if (!g) return []; stale(g); cleanTalk(g);
+  const out = [], b = g.compBanter || [];
+  if (banterFirst(g)) { out.push(b.shift()); while (b.length && b[0].mid) out.push(b.shift()); return out; }
+  const q = g.compTalk || [];
+  while (q.length && out.length < C.TALK_MEM.BATCH) { const it = q.shift(); if (!it || out.some(o => tKey(o) === tKey(it) || (cKey(o) && cKey(o) === cKey(it))) || memRecent(g, tKey(it))) continue; shown(g, it); out.push(it); }
+  return out;
+};
 
 /* ---------- поводы вне боя ---------- */
 const BAD_W = {rain: 'weather', downpour: 'weather', fog: 'weather', heat: 'weather', snow: 'winter', blizzard: 'winter'};
 if (W && W.nightCamp) { const nc0 = W.nightCamp; W.nightCamp = function (g) { const r = nc0.apply(this, arguments);
-  try { if (g && g.heroes && !(r && r.enc)) C.banterTry(g, 'camp'); } catch (e) {} return r; }; }
-if (C.lodge) { const lo0 = C.lodge; C.lodge = function (g) { const r = lo0.apply(this, arguments); try { if (g && g.heroes) C.banterTry(g, 'inn', {salt: 'lodge'}); } catch (e) {} return r; }; }
+  try { if (g && g.heroes && !(r && r.enc)) { g.w2rest = 1; C.banterTry(g, 'camp'); } } catch (e) {} return r; }; }
+if (C.lodge) { const lo0 = C.lodge; C.lodge = function (g) { const r = lo0.apply(this, arguments); try { if (g && g.heroes) { g.w2rest = 1; C.banterTry(g, 'inn', {salt: 'lodge'}); } } catch (e) {} return r; }; }
+/* привал отыгран — у костра можно и поговорить (g.w2rest: ui.js покажет окно реплик на следующем экране и снимет метку) */
+if (C.restRun) { const rr0 = C.restRun; C.restRun = function (g) { const r = rr0.apply(this, arguments); try { if (g && g.heroes && !(r && r.enc)) g.w2rest = 1; } catch (e) {} return r; }; }
 if (C.dailyMeal) { const dm0 = C.dailyMeal; C.dailyMeal = function (g) { const r = dm0.apply(this, arguments);
   try { if (g && g.heroes && live(g).length) {
     const hungry = live(g).some(m => (m.hunger || 0) > 0) || heroes(g).some(h => (h.hunger || 0) > 1);
     const wk = g.weather && g.weather.day === g.day ? BAD_W[g.weather.kind] : null, winter = C.seasonOf && C.seasonOf(g) === 'winter';
-    const topic = hungry ? 'hunger' : wk ? wk : winter && hsh(g.day + 'zw') % 3 === 0 ? 'winter' : g.dungeon ? 'dungeon' : 'road';
+    const s = ST(g); if (!wk) s.wxOff = g.day;
+    // о непогоде — раз на одну её полосу: пока ненастье не сменилось погожим днём, о нём уже сказано
+    const wkNew = wk && !(s.wxSaid != null && (s.wxOff == null || s.wxSaid > s.wxOff));
+    const topic = hungry ? 'hunger' : wkNew ? wk : winter && !wk && hsh(g.day + 'zw') % 3 === 0 && !(s.wxSaid != null && g.day - s.wxSaid < C.TALK_MEM.GAP) ? 'winter' : g.dungeon ? 'dungeon' : 'road';
     C.banterTry(g, topic, {salt: 'day'}); } } catch (e) {} return r; }; }
 /* бой окончен: победа, тяжёлый бой, гибель */
 if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S) {
@@ -45024,6 +45085,318 @@ if (B) {
   if (B.venomHit) { const vh0 = B.venomHit; B.venomHit = function (S, u, t) { const d0 = t && t.conds && t.conds.dot; const r = vh0.apply(this, arguments);
     try { if (isMercU(t) && t.conds.dot && t.conds.dot !== d0) C.banterShout(S, t, 'poison'); } catch (e) {} return r; }; }
 }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* w2_mercask.js */
+/* Колдовство — w2_mercask: наёмники о делах отряда и просьба вещи. Без DOM. И в Вечном мире, и в главах саг.
+   • Взялись за дело или отказались (сцена q_offer: доска в селе, встреча на дороге, сказания, просьбы людей):
+     у кого из наёмников есть мнение по нраву — примерно у половины, не у всех каждый раз — привязанность (C.compAdd)
+     чуть растёт или падает, а самый задетый говорит короткую реплику (очередь g.compTalk через C.compTalkPush из w2_nrav).
+     Честный — за помощь даром, против отказа бедным; жадный — за выгодное, ворчит на дармовое; лихой — за опасное,
+     против отказа от драки; трусоватый — против опасного, за осторожный отказ; набожный — за дела Ока;
+     старой веры — за дела капищ и нечисти по-доброму. Три отказа подряд — честные и лихие недовольны все, без броска.
+     Реплики не повторяются: память g.mercAsk.said.
+   • Просьба вещи: не чаще раза в 2–3 дня на отряд наёмник, у которого в слоте пусто или хуже, просит у героя вещь из сумы,
+     которую тот не носит (у героя в том же слоте надето не хуже) и которая не нужна никому из героев. Грамотка с выбором
+     (g.mail, m.acts → C.mailAct): «Отдать» — вещь переходит наёмнику и надевается (C.mercWear), привязанность +1,
+     благодарность по нраву; «Не отдавать» — обида (жадный сильнее, честный меньше). Наёмник вещь оставляет себе.
+     Только вне боя; в сетевой игре — только у героев хозяина стола.
+   • Числа: C.MERCASK. Наружу: C.mercJobKind, C.mercJobReact, C.mercAskFind, C.mercAskTry, C.mercAskAnswer. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!C || !C.CAMPS) return;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; return x >>> 0; };
+C.MERCASK = Object.assign({REACT_P: 0.5, GAP: 2, ASK_P: 0.6, NO_DAYS: 30, STREAK: 3, MEM: 40, off: false}, C.MERCASK || {});
+const K = () => C.MERCASK;
+const S = g => { const s = g.mercAsk = (g.mercAsk && typeof g.mercAsk === 'object') ? g.mercAsk : {}; s.said = s.said || []; s.no = s.no || {}; s.dec = s.dec || 0; return s; };
+const mercsOf = g => ((g && g.mercs) || []).filter(m => m && !m.dead && m.hp > 0);
+const hostHero = (g, h) => !(g && g.net && g.net.own) || g.net.own[h.id] === 'p0';
+const heroesOf = g => ((g && g.heroes) || []).filter(h => h && !h.dead && h.kind !== 'merc' && hostHero(g, h));
+const name = id => ((R.item(id) || {}).name || id);
+const lc = s => (s ? s[0].toLowerCase() + s.slice(1) : s);
+
+/* ---------- что за дело ---------- */
+C.mercJobKind = function (g, j) {
+  const o = {poor: false, rich: false, hard: false, oko: false, kap: false};
+  if (!j) return o;
+  const GV = (Q && Q.GIVER && Q.GIVER[j.giverId]) || {};
+  const base = Q && Q.pay ? Q.pay(g, 'mid', 1) : 900, pay = (j.ex && j.ex.noPay) ? 0 : (j.pay || 0);
+  o.omen = !!GV.omen;
+  o.poor = !GV.omen && pay <= base * 0.65;
+  o.rich = !GV.omen && pay >= base * 1.25;
+  o.hard = j.diff === 'hard';
+  const T = (C.TALES && j.tale && C.TALES[j.tale]) || null, side = GV.side || (T && T.side) || null;
+  o.oko = side === 'oko';
+  o.kap = side === 'kap' || (j.v && j.v.ttype === 'nechist' && ['haunt', 'ritual', 'cure'].includes(j.kind));
+  return o;
+};
+/* мнение нрава: [вес, что задело] — на взятое (take) и на отказ (decline) */
+const OPIN = {
+  chestny: {take: k => k.poor ? [0.5, 'poor'] : null, decline: k => k.poor ? [-0.5, 'poor'] : null},
+  zhadny: {take: k => k.rich ? [0.5, 'rich'] : k.poor ? [-0.5, 'poor'] : null, decline: k => k.rich ? [-0.5, 'rich'] : k.poor ? [0.25, 'poor'] : null},
+  lihoy: {take: k => k.hard ? [0.5, 'hard'] : null, decline: k => k.hard ? [-0.5, 'hard'] : null},
+  trus: {take: k => k.hard ? [-0.5, 'hard'] : null, decline: k => k.hard ? [0.5, 'hard'] : null},
+  nabozhny: {take: k => k.oko ? [0.5, 'oko'] : k.kap ? [-0.25, 'kap'] : null, decline: k => k.oko ? [-0.5, 'oko'] : null},
+  star: {take: k => k.kap ? [0.5, 'kap'] : k.oko ? [-0.25, 'oko'] : null, decline: k => k.kap ? [-0.5, 'kap'] : k.oko ? [0.25, 'oko'] : null},
+};
+const WHY = {poor: 'помощь тем, кому платить нечем', rich: 'выгодное дело', hard: 'опасное дело', oko: 'дело Ока', kap: 'дело капища', many: 'отказ за отказом'};
+/* реплики: нрав → act|что → [одобрение, укор]; {a} — обращение, [м|ж] — по полу говорящего */
+C.MERCASK_SAY = {
+  chestny: {
+    'take|poor': [['Платы с них — грош, а взялись. Вот за это я с вами и хожу, {a}.', 'Люди в беде, а серебра у них нет. Хорошо, что вы не стали торговаться, {a}.', 'По совести взялись, {a}. Такое дело дороже любой платы.'], []],
+    'decline|poor': [[], ['Им и заплатить-то нечем, а вы отвернулись, {a}. Нехорошо это.', 'Ушли от чужой беды, {a}. Я бы помог[|ла], будь моя воля.', 'Бедному отказать легко, {a}. Потом вспоминать тяжело.']],
+    'decline|many': [[], ['Который раз отказываемся, {a}. Люди просят, а мы мимо идём. Зачем тогда мы с оружием?', 'Опять «нет». Скоро про нас скажут, что мы только себе служим, {a}.']],
+  },
+  zhadny: {
+    'take|rich': [['Вот это плата так плата, {a}! За такое и в болото полезть не жалко.', 'Серебро хорошее, {a}. Глядишь, и мне в кошель что упадёт.', 'Наконец-то дело с толком. Беру назад всё, что ворчал[|а].'], []],
+    'take|poor': [[], ['Опять за спасибо работаем, {a}? Спасибо в кошель не положишь.', 'Даром, значит. Ну-ну. Мне-то вы, надеюсь, платите не спасибами?', 'Взялись за медяк. Я считать умею, {a}: мы на сапогах больше стопчем.']],
+    'decline|rich': [[], ['Такое серебро — и мимо! {a}, вы бы хоть меня спросили.', 'Отказаться от такой платы… Я ночь спать не буду, {a}.']],
+    'decline|poor': [['И правильно, {a}. Даром только птицы поют.', 'Нечего за медяк шею подставлять. Разумно, {a}.'], []],
+  },
+  lihoy: {
+    'take|hard': [['Вот это дело, {a}! Наконец-то будет за что меч из ножен тянуть.', 'Опасно, говорят? Тем лучше. Засиделся[|ась] я.', 'Крепкое дело. Люблю, когда не скучно, {a}.'], []],
+    'decline|hard': [[], ['Испугались, {a}? Я-то думал[|а], вы из тех, кто не пятится.', 'Там драка была бы что надо. А мы мимо…', 'Отказались от доброй драки, {a}. Рука чешется, а толку?']],
+    'decline|many': [[], ['Сколько можно сидеть, {a}? Меч ржавеет, а мы всё «нет» да «нет».', 'Опять отказ. Я в наёмники не за тем шёл[|ла], чтобы у печи греться.']],
+  },
+  trus: {
+    'take|hard': [[], ['Туда?! {a}, там же голову сложить проще, чем шапку снять…', 'Опасное дело, {a}. Я пойду, конечно. Только потом не говорите, что я не предупреждал[|а].', 'Ох, не нравится мне это. Совсем не нравится.']],
+    'decline|hard': [['И хорошо, {a}. Целее будем.', 'Мудро отказались. Не всякая плата стоит головы.', 'Хорошо, что не взялись, {a}. Мне ещё пожить охота.'], []],
+  },
+  nabozhny: {
+    'take|oko': [['Дело для Ока — святое дело, {a}. Я помолюсь, чтобы оно сладилось.', 'Око видит, кто ему служит. Хорошо взялись, {a}.'], []],
+    'take|kap': [[], ['Дела капищ, {a}… Око такого не любит. Ну да вам решать.', 'Не по-божески это — идолам служить, {a}. Пойду, но молиться буду за нас обоих.']],
+    'decline|oko': [[], ['Отказать братьям Ока, {a}? Око это запомнит.', 'Нехорошо вышло. Храм просил — а мы мимо.']],
+  },
+  star: {
+    'take|kap': [['Старым силам помочь — доброе дело, {a}. Чур нас не забудет.', 'По-доброму с лесными — так и надо, {a}. Деды бы похвалили.', 'Хорошее дело. Земля такое помнит.'], []],
+    'take|oko': [[], ['На Око работаем, {a}… Ладно. Только капищ я жечь не стану, так и знайте.', 'Звезде служить взялись. Деды бы не поняли.']],
+    'decline|kap': [[], ['Капище просило, {a}, а мы отвернулись. Нехорошо.', 'Лесные к людям не часто приходят. Зря отказали, {a}.']],
+    'decline|oko': [['И правильно, {a}. Пусть Око само свои дела делает.', 'Не наше это дело — звёзды на шеи вешать. Верно отказали.'], []],
+  },
+};
+const pickLine = (g, m, key, up) => {
+  const P = (C.MERCASK_SAY[m.nrav] || {})[key]; const pool = P ? P[up ? 0 : 1] : null; if (!pool || !pool.length) return null;
+  const s = S(g), base = m.nrav + '|' + key + '|' + (up ? 1 : 0) + '|';
+  const fresh = pool.map((t, i) => i).filter(i => !s.said.includes(base + i));
+  const ix = fresh.length ? fresh : pool.map((t, i) => i);
+  const i = ix[hsh(m.id + key + (g.day || 0)) % ix.length];
+  s.said = s.said.filter(x => x !== base + i).concat(base + i).slice(-K().MEM);
+  return {t: pool[i], code: 'job' + (up ? 'u' : 'd') + key.replace('|', '') + i};
+};
+/* взялись (act='take') или отказались (act='decline') */
+C.mercJobReact = function (g, j, act) {
+  if (!g || !j || K().off || !mercsOf(g).length) return [];
+  const s = S(g), k = C.mercJobKind(g, j), out = [];
+  if (act === 'take') s.dec = 0; else s.dec = (s.dec || 0) + 1;
+  const many = act === 'decline' && s.dec >= K().STREAK;
+  let best = null;
+  mercsOf(g).forEach(m => {
+    if (C.compInit) C.compInit(m);
+    const f = OPIN[m.nrav] && OPIN[m.nrav][act]; let op = f ? f(k) : null;
+    if (many && (m.nrav === 'chestny' || m.nrav === 'lihoy')) op = [op && op[0] < 0 ? op[0] - 0.25 : -0.5, 'many'];
+    else if (!op || R.rand() >= K().REACT_P) return;
+    const [d, what] = op;
+    if (C.compAdd) C.compAdd(g, m, d, WHY[what]);
+    out.push({m, d, what});
+    if (!best || Math.abs(d) > Math.abs(best.d)) best = {m, d, what};
+  });
+  if (many) s.dec = 0; // высказались — счёт заново
+  if (best && C.compTalkPush) { const L = pickLine(g, best.m, act + '|' + best.what, best.d > 0); if (L) C.compTalkPush(g, best.m, L.t, {up: best.d > 0, code: L.code}); }
+  return out;
+};
+/* q_offer: до выбора — какое дело на руках; после — взялись или отказались */
+const ch0 = C.choose;
+C.choose = function (g, sceneId, idx) {
+  let j0 = null, st0 = null;
+  try { if (g && g.heroes && sceneId === 'q_offer' && Q && Q.offerJob) { j0 = Q.offerJob(g); st0 = j0 && j0.status; } } catch (e) {}
+  const res = ch0.apply(this, arguments);
+  try { if (j0 && st0 !== 'open') {
+    if (j0.status === 'open') C.mercJobReact(g, j0, 'take');
+    else if (!g.jobOffer) C.mercJobReact(g, j0, 'decline'); } } catch (e) {}
+  return res;
+};
+
+/* ---------- просьба вещи ---------- */
+const RNG = ['лук', 'самострел', 'праща', 'метательное'];
+const slotOf = x => !x ? null : R.isWeapon(x) ? (RNG.includes(x.group) ? 'ranged' : 'weapon') : R.isArmor(x) ? (x.slot === 'тело' ? 'body' : x.slot === 'щит' ? 'shield' : x.slot === 'голова' ? 'head' : null) : null;
+const SC = {weapon: x => R.avgDice(x.dmg || '1d2') * (x.hands === 2 ? 1.25 : 1) + (x.atkBonus || 0) + (x.dmgPlus || 0), ranged: x => R.avgDice(x.dmg || '1d2') + (x.atkBonus || 0) + (x.dmgPlus || 0),
+  body: x => x.def || 0, shield: x => x.def || 0, head: x => (x.def || 0) * 10 + (x.price || 0) / 1e4};
+const score = (k, id) => { const x = id && R.item(id); return x ? SC[k](x) : -1; };
+const can = (h, x) => !C.canEquip || !C.canEquip(h, x);
+const spare = (h, id) => (h.inv || []).filter(v => v === id).length > Object.values(h.eq || {}).filter(v => v === id).length;
+/* герою вещь нужна: в том слоте у него хуже (или пусто) и надеть её он может */
+const heroWants = (h, id, k) => { const x = R.item(id); if (!can(h, x)) return false; if (k === 'shield' && h.eq && h.eq.weapon && (R.item(h.eq.weapon) || {}).hands === 2) return false; return score(k, h.eq && h.eq[k]) < SC[k](x); };
+const mercWants = (m, id, k) => { const x = R.item(id); if (!can(m, x)) return false; if (k === 'shield' && m.eq && m.eq.weapon && (R.item(m.eq.weapon) || {}).hands === 2) return false; return score(k, m.eq && m.eq[k]) < SC[k](x); };
+C.mercAskFind = function (g) {
+  if (!g || !g.heroes) return null;
+  const s = S(g), hs = heroesOf(g); let best = null;
+  mercsOf(g).forEach(m => { m.eq = m.eq || {};
+    hs.forEach(h => { (h.inv || []).forEach(id => {
+      const x = R.item(id), k = slotOf(x); if (!k || !spare(h, id)) return;
+      if (!h.eq || !h.eq[k] || score(k, h.eq[k]) < SC[k](x)) return;      // сам герой этим не пользуется только если носит не хуже
+      if (hs.some(o => heroWants(o, id, k))) return;                      // кому-то из героев она нужнее
+      if (!mercWants(m, id, k)) return;
+      const nk = m.id + '|' + id; if (s.no[nk] != null && (g.day || 0) - s.no[nk] < K().NO_DAYS) return;
+      const gain = SC[k](x) - Math.max(0, score(k, m.eq[k]));
+      if (!best || gain > best.gain) best = {m, h, id, k, gain};
+    }); }); });
+  return best;
+};
+const ASK_T = {
+  chestny: ['У вас в суме {item} лежит без дела, {a}. Мне бы пригодилось — {why}. Отдадите — век не забуду.', 'Прямо скажу, {a}: {item} вам ни к чему, а мне в бою — подспорье. {why}.'],
+  zhadny: ['{a}, а {item} у вас так и будет в суме пылиться? Отдали бы мне — {why}. Не продам, клянусь. Почти.', 'Вещь хорошая, {item}, а лежит без толку. Мне бы её, {a}: {why}.'],
+  nabozhny: ['Прошу не ради корысти, {a}: {item} лежит у вас без дела, а мне бы в бою помогло. {why}. Око видит.', 'Не сочтите за дерзость, {a}. {item} у вас лишнее, а мне бы впору. {why}.'],
+  star: ['{a}, {item} у вас в суме спит. Отдайте мне — пусть вещь служит, а не лежит. {why}.', 'Вещь без дела — что конь без дороги. {item} мне бы сгодилось, {a}: {why}.'],
+  lihoy: ['{a}, отдайте мне {item}! Всё равно лежит, а я с ним в драке — ого. {why}.', 'Чего ему в суме киснуть, {item}-то? Мне бы, {a}: {why}.'],
+  trus: ['{a}, можно мне {item}? У вас оно лишнее, а мне бы шкуру поберечь. {why}.', 'Не откажите, {a}: {item} лежит без дела, а мне бы целее быть. {why}.'],
+};
+const WHY_SLOT = {weapon: (m, cur) => cur ? `мой ${lc(name(cur))} против него — щепка` : 'а то хожу почти с голыми руками',
+  ranged: (m, cur) => cur ? `${lc(name(cur))} у меня бьёт слабее` : 'а мне и стрельнуть не из чего',
+  body: (m, cur) => cur ? `${lc(name(cur))} на мне уже не спасает` : 'а то хожу без брони, как на гулянье',
+  shield: (m, cur) => cur ? `мой щит против этого — решето` : 'а щита у меня нет вовсе',
+  head: (m, cur) => cur ? `${lc(name(cur))} — разве это защита?` : 'а голова у меня одна, и та без шапки'};
+const THANK = {
+  chestny: ['Спасибо, {a}. Не подведу — ни этой вещью, ни словом.', 'Доброе дело сделали, {a}. Я такое помню.'],
+  zhadny: ['Вот это по-нашему, {a}! Не забуду. Ну, по крайней мере до следующей платы.', 'Хорошая вещь. Моя теперь. Спасибо, {a}, правда спасибо.'],
+  nabozhny: ['Око вам воздаст, {a}. И я, чем смогу.', 'Благослови вас Око, {a}. За вас нынче помолюсь.'],
+  star: ['Спасибо, {a}. Деды говорили: кто делится, у того не убудет.', 'Добрая вещь в добрые руки. Чур вас храни, {a}.'],
+  lihoy: ['Ха! Вот теперь пусть сунутся, {a}! Спасибо!', 'Ну, {a}, теперь держитесь, враги. Спасибо!'],
+  trus: ['Ох, спасибо, {a}. С ней мне и спать спокойней.', 'Спасибо, {a}. Теперь, глядишь, и уцелею.'],
+};
+const HURT = {
+  chestny: ['Ваше добро — вам и решать, {a}. Только лежать ему без дела обидно.', 'Ну, нет так нет. Я спросил[|а] честно, вы ответили честно.'],
+  zhadny: ['Жалко, значит? Мне — жалко, а в суме пусть гниёт. Запомню, {a}.', 'Вот как. Своего не отдадите, даже лишнего. А я-то думал[|а]…'],
+  nabozhny: ['Око учит не держаться за вещи, {a}. Ну, да вам виднее.', 'Что ж. Помолюсь, чтобы и без неё обошлось.'],
+  star: ['Вещь, что лежит без дела, ржавеет, {a}. Как и дружба.', 'Ладно. Только деды бы так не поступили.'],
+  lihoy: ['Тьфу. В драке потом не жалуйтесь, {a}, что я с голыми руками.', 'Жмётесь, {a}? Ну-ну.'],
+  trus: ['Ну и ладно… Значит, мне первым под удар идти без неё. Ладно.', 'Нет так нет, {a}. Только страшно мне, вот что.'],
+};
+const HURT_W = {zhadny: -1, chestny: -0.25};
+const fmtA = (t, it, why) => t.replace(/\{item\}/g, lc(name(it))).replace(/\{why\}/g, why ? why[0].toUpperCase() + why.slice(1) : '');
+C.mercAskTry = function (g, force) {
+  if (!g || !g.heroes || K().off || g.pendingBattle || !mercsOf(g).length) return null;
+  const s = S(g);
+  if ((g.mail || []).some(x => x.mercAsk)) return null;                 // одна просьба за раз
+  const gap = K().GAP + (hsh('ask' + (g.seed || 0) + (s.n || 0)) % 2);  // 2–3 дня на отряд
+  if (!force && s.last != null && (g.day || 0) - s.last < gap) return null;
+  const f = C.mercAskFind(g); if (!f) return null;
+  if (!force && R.rand() >= K().ASK_P) return null;
+  const {m, h, id, k} = f, cur = m.eq[k];
+  const raw = fmtA((ASK_T[m.nrav] || ASK_T.chestny)[hsh(m.id + id + (g.day || 0)) % 2], id, WHY_SLOT[k](m, cur));
+  const text = '«' + (C.compSay ? C.compSay(g, m, raw) : raw) + '»';
+  const N = (C.NRAV && C.NRAV[m.nrav]) || null, pp = (R.PEOPLES || {})[m.people] || null;
+  const sub = ['наёмни' + (m.sex === 'f' ? 'ца' : 'к'), N ? (m.sex === 'f' ? N.f : N.n) : '', pp ? (m.sex === 'f' ? pp.f : pp.name).toLowerCase() : ''].filter(Boolean).join(', ');
+  const it = name(id);
+  g.mail = (g.mail || []).concat({from: m.name, t: sub, face: m.portrait || '', sex: m.sex, kind: 'merc', to: h.name, text, gift: null, day: g.day || 0,
+    mercAsk: {m: m.id, h: h.id, item: id},
+    acts: [{id: 'send', t: `Отдать: ${lc(it)}`}, {id: 'no', t: 'Не отдавать'}]}).slice(-6);
+  s.last = g.day || 0; s.n = (s.n || 0) + 1;
+  C.note(g, `${m.name} просит у ${h.name}: ${lc(it)} — лежит в суме без дела.`);
+  return g.mail[g.mail.length - 1];
+};
+C.mercAskAnswer = function (g, mail, give) {
+  const A = mail && mail.mercAsk; if (!g || !A) return null;
+  const m = mercsOf(g).find(x => x.id === A.m), h = ((g.heroes || []).filter(x => !x.dead)).find(x => x.id === A.h);
+  g.mail = (g.mail || []).filter(x => x !== mail);
+  if (!m || !h) { C.note(g, 'Просить уже некому и не у кого.'); return 'gone'; }
+  if (C.compInit) C.compInit(m);
+  const s = S(g), id = A.item;
+  if (give) {
+    if (!spare(h, id)) { C.note(g, `У ${h.name} уже нет лишнего: ${lc(name(id))}.`); return 'gone'; }
+    if (C.spoilGive) C.spoilGive(g, h, m, id);
+    const i = h.inv.indexOf(id); h.inv.splice(i, 1);
+    m.inv = m.inv || []; m.inv.push(id);
+    const worn = C.mercWear ? C.mercWear(m, [id]) : [];
+    C.note(g, `${h.name} → ${m.name}: ${name(id)}${worn.length ? '; надел' + (m.sex === 'f' ? 'а' : '') + ' сразу' : ''}.`);
+    if (C.compAdd) C.compAdd(g, m, 1, 'подарок по просьбе');
+    const P = THANK[m.nrav] || THANK.chestny;
+    if (C.compTalkPush) C.compTalkPush(g, m, P[hsh(m.id + id) % P.length], {up: true, code: 'askgive', force: true});
+    return 'given';
+  }
+  s.no[m.id + '|' + id] = g.day || 0;
+  if (C.compAdd) C.compAdd(g, m, HURT_W[m.nrav] != null ? HURT_W[m.nrav] : -0.5, 'отказ в просьбе');
+  const P = HURT[m.nrav] || HURT.chestny;
+  if (C.compTalkPush) C.compTalkPush(g, m, P[hsh(m.id + id) % P.length], {up: false, code: 'askno', force: true});
+  return 'refused';
+};
+const ma0 = C.mailAct;
+C.mailAct = function (g, m, id) {
+  if (m && m.mercAsk) return C.mercAskAnswer(g, m, id === 'send');
+  return ma0 ? ma0.apply(this, arguments) : null;
+};
+/* ход времени: новый день — может, кто и попросит */
+const p0 = C.pass;
+C.pass = function (g) { const d0 = g && g.day; const r = p0.apply(this, arguments); if (g && g.day !== d0) try { C.mercAskTry(g); } catch (e) {} return r; };
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* w2_famsnap.js */
+/* Колдовство — w2_famsnap: семья едет с героем и через «Мои герои». Без DOM.
+   Глава закрывается — семью укладывают в дорогу обёртки C.closeCampaign (spouseSync, famPack, kidsPack, mwPack, хозяйство w2_hearth).
+   Герой уходит в другой сценарий копией из «Моих героев» без закрытия главы — укладывать некому, и дети терялись.
+   • C.famSnap(g, copy) — НЕ трогая живую игру и живого героя, дописывает в КОПИЮ героя то же, что положили бы при закрытии главы:
+     spouse.kids (дети, их годы, ожидание ребёнка), spouse.chest (сундук дома), spouse.hearth (деньги и покупки хозяйства),
+     spouse.mwPack (жена-наёмница / муж-наёмник), mwKin.pack (дом с родственницей у вдовца), а если брак старый и spouse не записан — и сам spouse.
+     Работает на копии игры: пакующие функции пишут только в копию героя. Метка copy.famSnap = {camp, seed, day}.
+   • Копию вернули в ту же игру (та же глава и то же сохранение — семья и так живёт здесь): метку и упаковку снимает обёртка C.addHero
+     до переезда, чтобы старый снимок не лёг поверх живой семьи (kidsUnpack/restore зовутся и при «переезде» в ту же главу).
+   • Копию взяли в другое сохранение той же главы (новый Вечный мир): край супруга помечается прежним («free~»), и семья переезжает, как в новую главу.
+   • C.famSnapSig(g, h) — короткая подпись семьи (дети, ожидание, сундук, хозяйство): если она поменялась, запись в «Моих героях» пора обновить. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C || !C.CAMPS) return;
+const PACK_SP = ['kids', 'chest', 'hearth', 'mwPack'];
+const clone = x => JSON.parse(JSON.stringify(x));
+
+C.famSnap = function (g, copy) {
+  if (!g || !copy || !copy.id || copy.kind === 'merc') return copy;
+  try {
+    const gS = clone(Object.assign({}, g, {journal: [], mail: []}));
+    gS.heroes = (gS.heroes || []).map(h => (h && h.id === copy.id ? copy : h));
+    if (!gS.heroes.includes(copy)) gS.heroes.push(copy);
+    if (copy.dead) return copy;
+    if (copy.spouse) PACK_SP.forEach(k => { delete copy.spouse[k]; });
+    if (copy.mwKin) delete copy.mwKin.pack;
+    if (C.spouseSync) C.spouseSync(gS);
+    if (C.famPack) C.famPack(gS);
+    // хозяйство (w2_hearth): то же, что кладёт его обёртка closeCampaign
+    const s = copy.spouse;
+    if (s && s.role) { const H = (gS.w2hearth || {})[s.role + '@' + s.at]; if (H) s.hearth = {coin: H.coin || 0, buy: (H.buy || []).slice()}; }
+    if (C.kidsPack) C.kidsPack(gS);
+    if (C.mwPack) C.mwPack(gS);
+    if (copy.spouse || copy.mwKin) copy.famSnap = {camp: g.camp, seed: g.seed || 0, day: g.day || 1};
+  } catch (e) {}
+  return copy;
+};
+/* подпись семьи: дети, ожидание, сундук, хозяйство — поменялась, значит, запись героя пора переписать */
+C.famSnapSig = function (g, h) {
+  if (!g || !h) return '';
+  try { const F = (C.kidsFams ? C.kidsFams(g) : []).filter(f => f.hero === h.id && !f.gone);
+    const s = h.spouse, H = s && s.role ? (g.w2hearth || {})[s.role + '@' + s.at] : null, Hm = s && s.role && g.w2home ? g.w2home[s.role + '@' + s.at] : null;
+    return [F.map(f => (f.kids || []).length + ':' + (f.preg ? 1 : 0)).join(','), Hm ? (Hm.chest || []).length : 0, H ? (H.coin || 0) + '/' + (H.buy || []).length : 0, s ? s.camp + '@' + s.at : ''].join('|');
+  } catch (e) { return ''; }
+};
+/* вернули в ту же игру: снимок не нужен — семья живая, здесь же */
+const sameSave = (g, h) => !!(h && h.famSnap && h.famSnap.camp === g.camp && (h.famSnap.seed || 0) === (g.seed || 0));
+const strip = h => { if (h.spouse) PACK_SP.forEach(k => { delete h.spouse[k]; }); if (h.mwKin && h.mwKin.pack && h.mwKin.pack.from === h.famSnap.camp) delete h.mwKin.pack; delete h.famSnap; };
+/* другое сохранение той же главы (новый Вечный мир): семья переезжает, как в новую главу — помечаем её край «прежним» */
+const away = (g, h) => { const c = h.famSnap.camp; if (c === g.camp) { if (h.spouse && h.spouse.camp === c) h.spouse.camp = c + '~'; if (h.mwKin && h.mwKin.pack && h.mwKin.pack.from === c) h.mwKin.pack.from = c + '~'; } delete h.famSnap; };
+const ah0 = C.addHero;
+C.addHero = function (g, h) {
+  try { if (g && h && h.famSnap) { if (sameSave(g, h)) strip(h); else away(g, h); } } catch (e) {}
+  return ah0.apply(this, arguments);
+};
+/* в главу переходят через летопись (carryHeroes): метку снимаем, упаковка разойдётся обычным порядком */
+const ch0 = C.carryHeroes;
+if (ch0) C.carryHeroes = function (g) {
+  try { ((g && g.chron && g.chron.heroes) || []).forEach(h => { if (h && h.famSnap) { if (sameSave(g, h)) strip(h); else away(g, h); } }); } catch (e) {}
+  return ch0.apply(this, arguments);
+};
+
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -45233,13 +45606,13 @@ const PRICE = {
 };
 C.FAIL_CONS = CONS; C.FAIL_TURN = TURN; C.FAIL_PRICE = PRICE;
 
-/* выбор строки без повтора подряд */
+/* выбор строки без повтора: последние N сказанных (до трёх, но не весь список) не возвращаются */
 const pickNew = (g, key, list) => {
   if (!list || !list.length) return '';
-  const s = S(g), last = s.last[key];
-  let i = Math.floor(R.rand() * list.length);
-  if (list.length > 1 && i === last) i = (i + 1 + Math.floor(R.rand() * (list.length - 1))) % list.length;
-  s.last[key] = i; return list[i];
+  const s = S(g), n = Math.min(3, list.length - 1), prev = s.last[key], recent = (Array.isArray(prev) ? prev : prev != null ? [prev] : []).filter(x => x < list.length).slice(-n);
+  const free = list.map((_, i) => i).filter(i => !recent.includes(i)), pool = free.length ? free : list.map((_, i) => i);
+  const i = pool[Math.floor(R.rand() * pool.length)];
+  s.last[key] = n ? recent.concat(i).slice(-n) : [i]; return list[i];
 };
 /* голос мастера: строка по навыку, степени, герою и месту */
 C.failSay = function (g, h, skill, deg, place) {
