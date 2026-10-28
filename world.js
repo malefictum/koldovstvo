@@ -43110,6 +43110,8 @@ function homeScene(g, sc) {
   C.kidsEnsure(g);
   const S = st(g), fams = C.kidsFams(g).filter(F => F.key === key), kids = C.kidsOf(g, key);
   if (!fams.length && !r.widow) return sc;
+  // семья живёт с тем героем, что в ней (или с наследником); другой герой за столом — гость в чужом доме: детских дел и строк ему нет
+  if (!r.widow && !fams.some(F => alive(g, F.hero) || (F.heir && alive(g, F.heir)))) return sc;
   let p = null; try { p = C.folkPerson(g, role, at); } catch (e) {} if (!p) return sc;
   const lines = (sc.lines || []).slice(), add = [], salt = g.day + ':' + g.time;
   if (r.widow && !r.bond) { const d = decl(r.widow.n, r.widow.sex), pool = WIDOW[p.sex === 'f' ? 'f' : 'm'];
