@@ -45402,6 +45402,274 @@ if (ch0) C.carryHeroes = function (g) {
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* w2_move.js */
+/* Колдовство — w2_move: семья переезжает в другое поселение. Только Вечный мир (g.camp === 'free'). Без DOM.
+   • В доме жены (мужа) — а у наследника в доме матери (отца) — кнопка «Перевезти семью…»: выбор места из тех, где отряд бывал
+     (село, город, подворье — там, где живут мастера), кроме нынешнего. Не чаще раза в сезон (C.W2MOVE.SEASON).
+   • Дом на новом месте покупают: село и подворье — C.W2MOVE.VILLAGE, город — C.W2MOVE.TOWN. Старый дом продают за полцены:
+     выручка сперва гасит долг лавочнику (w2_hearth), остаток — в кошель отряда; не покрыла — долг остаётся. Платит кошель отряда;
+     не хватает — кнопка неактивна с подсказкой.
+   • Дорога: семья идёт сама — столько дней, сколько отряду идти обычным шагом (W.path, 24 единицы пути — день). Пока в пути, дома
+     никого: сердечка на карте нет, в дом не зайти (ночь дома, сундук, хозяйство), сборов в дорогу и недельного содержания нет —
+     семья живёт с выручки за дом. По прибытии — грамотка «Мы на месте» (g.mail) или, если отряд там, — встреча.
+   • Переезжает всё, что лежит под ключом семьи role@at: узы (g.folkRel), «свой дом» (g.homeSp), дети (g.w2kids.fam, play, give),
+     сундук и сплетни (g.w2home), хозяйство (g.w2hearth), просьбы о деньгах (g.mail hk), запись героя h.spouse, жена-наёмница
+     (homeSp.mw, ключ у наёмника m.mw.key), родственница вдовца (h.mwKin.key), наследник (F.heir, hh.kinOf, hh.origin).
+     Старые записи удаляются. На новом месте супруг(а) — «свой дом» (sp_<ремесло>); если там уже есть мастер того же ремесла
+     или ремесло занято другой семьёй — под другим (швея / охотник, дальше по списку).
+   • Жена-мастерица, вышедшая замуж в своём селе, уезжает — на её место в мастерской приходит новый человек (C.folkPerson по
+     g.w2move.left[role@at]).
+   • Сеть: только хозяин стола и только для своих героев. Состояние: g.w2move = {been: {node: 1}, road: [{key, at0, at, hero, day0, arrive}], left: {key: n}};
+     r.w2moveDay — когда переезжали. Наружу: C.W2MOVE, C.moveBeen, C.movePlaces, C.moveQuote, C.moveFamily, C.moveOnRoad, C.moveTick. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W;
+if (!C || !R || !C.CAMPS || !C.CAMPS.free || !C.FOLK || !C.relOf) return;
+const FC = C.CAMPS.free, NODES = FC.map.nodes;
+const ZM = 100;
+C.W2MOVE = Object.assign({VILLAGE: 150 * ZM, TOWN: 400 * ZM, SELL: 0.5, SEASON: (C.KIDS && C.KIDS.SEASON) || 90, KINDS: ['село', 'город', 'подворье'], DAY: 24}, C.W2MOVE || {});
+const K = () => C.W2MOVE;
+const isFree = g => !!(g && g.camp === 'free');
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n, sex) : {n, g: n, d: n, a: n, i: n, p: n});
+const alive = (g, id) => (g && g.heroes ? C.alive(g).find(h => h.id === id) : null) || null;
+const baseOf = r => String(r || '').replace(/^sp_/, '');
+const placeOf = at => (NODES[at] || {}).name || 'дом';
+const st = g => { g.w2move = g.w2move && typeof g.w2move === 'object' ? g.w2move : {}; const S = g.w2move; S.been = S.been || {}; S.road = S.road || []; S.left = S.left || {}; return S; };
+const famRel = (g, r) => !!(r && (r.bond === 'wed' || r.bond === 'kin') && alive(g, r.who));
+const hostHero = (g, h) => !(g && g.net && g.net.own) || !g.net.own[h.id] || g.net.own[h.id] === 'p0';
+const nextI = chs => Math.max(0, ...chs.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+const popBack = ch => (ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null);
+
+/* ---------- где отряд бывал ---------- */
+const mark = g => { try { if (isFree(g) && g.loc && NODES[g.loc]) st(g).been[g.loc] = 1; } catch (e) {} };
+C.moveBeen = function (g) {
+  const out = new Set(Object.keys(st(g).been));
+  if (g.loc && NODES[g.loc]) out.add(g.loc); if (FC.start) out.add(FC.start);
+  Object.keys(g.folkRel || {}).forEach(k => { const at = k.split('@')[1]; if (NODES[at]) out.add(at); }); // говорили с мастером — значит, бывали (старые сохранения)
+  (g.estate || []).forEach(e => { if (e && NODES[e.node]) out.add(e.node); });
+  Object.values(g.homeSp || {}).forEach(s => { if (s && NODES[s.at]) out.add(s.at); });
+  return [...out];
+};
+if (W && W.step) { const ws0 = W.step; W.step = function (g) { const r = ws0.apply(this, arguments); if (isFree(g) && g.posNode === g.loc) mark(g); return r; }; }
+
+/* ---------- дорога ---------- */
+const cellOf = (w, at) => (w.nodeAt && w.nodeAt[at]) || (w.cells && w.cells[at]) || null;
+C.moveDays = function (g, at0, at1) {
+  try { const w = W.world(g), a = cellOf(w, at0), b = cellOf(w, at1); if (!a || !b) return null; if (a === b) return 0;
+    const p = W.path(w, a, b, {g}); if (!p || !p.length) return null;
+    const cost = p.reduce((s, x) => s + W.cost(x), 0) * ((W.MARCH && W.MARCH.normal && W.MARCH.normal.cost) || 1);
+    return Math.max(1, Math.ceil(cost / K().DAY)); } catch (e) { return null; }
+};
+C.moveOnRoad = (g, key) => (g && g.w2move && g.w2move.road ? g.w2move.road.find(x => x.key === key) : null) || null;
+const roadAt = (g, at) => (g && g.w2move && g.w2move.road ? g.w2move.road.filter(x => x.at === at) : []);
+
+/* ---------- цены ---------- */
+const kindOf = at => (NODES[at] || {}).kind || 'село';
+C.moveHousePrice = at => (kindOf(at) === 'город' ? K().TOWN : K().VILLAGE);
+const debtOf = (g, key) => { const H = (g.w2hearth || {})[key]; return H && (H.coin || 0) < 0 ? -H.coin : 0; };
+C.moveQuote = function (g, key, at1) {
+  const at0 = key.split('@')[1], price = C.moveHousePrice(at1), sale = Math.round(C.moveHousePrice(at0) * K().SELL / 10) * 10, debt = debtOf(g, key);
+  const pay = Math.min(debt, sale), rest = sale - pay, need = Math.max(0, price - rest);
+  return {price, sale, debt, pay, rest, left: debt - pay, need, ok: (g.purse || 0) >= need};
+};
+
+/* ---------- ремесло на новом месте ---------- */
+const BASES = ['weave', 'hunt', 'herb', 'forge', 'war', 'song', 'book', 'charm', 'trade', 'jewel', 'thief'];
+const TT = {war: ['дружинник', 'поляница дружинного двора'], hunt: ['охотник', 'охотница'], herb: ['знахарь', 'знахарка'], book: ['книжник', 'книжница'], song: ['гусляр', 'гуслярка'],
+  trade: ['купец', 'купчиха'], thief: ['из тихих людей', 'из тихих людей'], forge: ['кузнец', 'кузнечиха'], weave: ['портной', 'швея'], charm: ['резчик-чародей', 'резчица-чародейка'], jewel: ['ювелир', 'мастерица-ювелир']};
+const titleOf = (b, sex) => (TT[b] ? TT[b][sex === 'f' ? 1 : 0] : (C.FOLK[b] || {}).t || 'мастер');
+const nativeAt = (b, at) => { const F = C.FOLK[b], n = NODES[at]; return !!(F && n && (F.kinds || []).includes(n.kind)); };
+const pickRole = (g, role0, at1, sex, key0) => {
+  const b0 = baseOf(role0), list = [b0, sex === 'f' ? 'weave' : 'hunt'].concat(BASES).filter((b, i, a) => b && a.indexOf(b) === i && C.FOLK['sp_' + b]);
+  for (const b of list) { const role = 'sp_' + b, s = (g.homeSp || {})[role];
+    if (s && !(role === role0 && key0 === role0 + '@' + s.at)) continue; // «свой дом» этого ремесла уже у другой семьи
+    if (nativeAt(b, at1)) continue; // на новом месте свой мастер этого ремесла
+    const r = (g.folkRel || {})[role + '@' + at1]; if (r && r.bond) continue;
+    return role; }
+  return null;
+};
+
+/* ---------- куда можно ---------- */
+C.movePlaces = function (g, key) {
+  const at0 = key.split('@')[1], been = C.moveBeen(g), r = (g.folkRel || {})[key]; if (!r) return [];
+  let sex = 'f'; try { sex = C.folkPerson(g, key.split('@')[0], at0).sex; } catch (e) {}
+  return been.filter(at => at !== at0 && NODES[at] && K().KINDS.includes(NODES[at].kind)).map(at => {
+    const days = C.moveDays(g, at0, at); if (days == null) return null;
+    const role = pickRole(g, key.split('@')[0], at, sex, key); if (!role) return null;
+    return {at, name: NODES[at].name, kind: NODES[at].kind, days, role, q: C.moveQuote(g, key, at)};
+  }).filter(Boolean).sort((a, b) => a.days - b.days || a.name.localeCompare(b.name));
+};
+const coolLeft = (g, r) => (r && r.w2moveDay != null ? Math.max(0, K().SEASON - ((g.day || 1) - r.w2moveDay)) : 0);
+/* почему нельзя (пустая строка — можно) */
+C.moveWhy = function (g, key) {
+  if (!isFree(g)) return 'только в Вечном мире';
+  const r = (g.folkRel || {})[key]; if (!famRel(g, r)) return 'дома нет семьи';
+  if (!hostHero(g, alive(g, r.who))) return 'это дело хозяина героя';
+  if (C.moveOnRoad(g, key)) return 'семья уже в дороге';
+  const c = coolLeft(g, r); if (c > 0) return `недавно переезжали — не раньше, чем через ${c} дн.`;
+  return '';
+};
+
+/* ---------- переезд ---------- */
+const moveKey = (obj, k0, k1) => { if (!obj || !(k0 in obj)) return; if (obj[k1] == null) obj[k1] = obj[k0]; delete obj[k0]; };
+C.moveFamily = function (g, key, at1, o) {
+  o = o || {};
+  const why = C.moveWhy(g, key); if (why) return {err: why};
+  const [role0, at0] = key.split('@'), r = g.folkRel[key], h = alive(g, r.who);
+  if (!NODES[at1] || at1 === at0) return {err: 'туда нельзя'};
+  const days = C.moveDays(g, at0, at1); if (days == null) return {err: 'туда дороги нет'};
+  const q = C.moveQuote(g, key, at1); if (!q.ok) return {err: `в кошеле не хватает: нужно ${R.priceText(q.need)}`};
+  let p = null; try { p = C.folkPerson(g, role0, at0); } catch (e) {} if (!p) return {err: 'нельзя'};
+  const role1 = pickRole(g, role0, at1, p.sex, key); if (!role1) return {err: 'там негде поселиться'};
+  const k1 = role1 + '@' + at1, day = g.day || 1, b1 = baseOf(role1), craftNew = b1 !== baseOf(role0);
+  g.homeSp = g.homeSp || {};
+  // «свой дом»: запись переносится; мастерица из своего села — становится «своим домом», в мастерскую приходит новый человек
+  let rec = /^sp_/.test(role0) && g.homeSp[role0] && g.homeSp[role0].at === at0 ? g.homeSp[role0] : null;
+  if (rec) { if (role1 !== role0) delete g.homeSp[role0]; }
+  else { rec = {hero: r.who, n: p.n, t: p.t, sex: p.sex, face: p.face, ppl: p.ppl || 'nolgrim'}; const S = st(g); S.left[key] = (S.left[key] || 0) + 1; }
+  rec.at = at1; if (craftNew) { if (!rec.mw) rec.t = titleOf(b1, rec.sex); rec.craft0 = rec.craft0 || baseOf(role0); } // жена-наёмница: звание «жена такого-то» — остаётся
+  delete rec.from;
+  g.homeSp[role1] = rec;
+  // узы
+  const r1 = Object.assign({}, r, {camp: g.camp, w2moveDay: day}); delete r1.visitN; delete r1.nightDay;
+  delete g.folkRel[key]; g.folkRel[k1] = r1;
+  // дети
+  const KS = g.w2kids; if (KS && KS.fam) {
+    Object.values(KS.fam).filter(F => F.key === key).forEach(F => { const id0 = F.id, id1 = k1 + '|' + F.hero;
+      Object.assign(F, {id: id1, key: k1, at: at1, role: role1}); (F.kids || []).forEach(k => { k.fam = id1; });
+      delete KS.fam[id0]; KS.fam[id1] = F;
+      (g.ageHeirs || []).forEach(x => { if (x.fam === id0) x.fam = id1; });
+      (g.heroes || []).concat(g.mercs || []).forEach(x => { if (x && x.kinOf === id0) x.kinOf = id1; if (x && x.origin === 'rod:' + id0) x.origin = 'rod:' + id1; }); });
+    ['play', 'give'].forEach(n => moveKey(KS[n], key, k1)); }
+  // сундук, сплетни
+  if (g.w2home && g.w2home[key]) { const H0 = g.w2home[key]; delete g.w2home[key]; H0.camp = g.camp;
+    if (g.w2home[k1]) { g.w2home[k1].chest = (g.w2home[k1].chest || []).concat(H0.chest || []); } else g.w2home[k1] = H0; }
+  // хозяйство: долг — из выручки за старый дом
+  g.purse = (g.purse || 0) - q.need;
+  const H = (g.w2hearth || {})[key];
+  if (H) { delete g.w2hearth[key]; H.coin = (H.coin || 0) + q.pay; H.pack = 0; H.seen = 0; H.care = 0; g.w2hearth[k1] = H; }
+  // просьбы о деньгах
+  (g.mail || []).forEach(m => { if (m && m.hk === key) m.hk = k1; });
+  // запись о супруге у героя, жена-наёмница, родственница вдовца
+  (g.heroes || []).forEach(x => { const s = x.spouse; if (s && s.role === role0 && s.at === at0) Object.assign(s, {role: role1, at: at1, camp: g.camp, n: s.n || rec.n, face: s.face || rec.face, t: s.t || rec.t, sex: s.sex || rec.sex, ppl: s.ppl || rec.ppl});
+    if (x.mwKin && x.mwKin.key === key) x.mwKin.key = k1; });
+  if (rec.mw) { (g.mercs || []).forEach(m => { if (m && m.mw && m.mw.key === key) m.mw.key = k1; }); if (rec.mw.merc && rec.mw.merc.mw) rec.mw.merc.mw.key = k1; }
+  // разговор окончен: в старом доме никого
+  if (g.folkRole === role0 && (g.folkAt || g.loc) === at0) { g.folkRole = null; g.folkAt = null; }
+  if (g.homeVisitKey) g.homeVisitKey = null;
+  const S = st(g); S.road = S.road.filter(x => x.key !== key && x.key !== k1).concat({key: k1, at0, at: at1, hero: r1.who, day0: day, arrive: day + days, n: rec.n, sex: rec.sex});
+  const she = rec.sex === 'f', kids = C.kidsOf ? C.kidsOf(g, k1).length : 0;
+  const money = `Дом — ${placeOf(at1)} — куплен за ${R.priceText(q.price)}; старый ушёл за ${R.priceText(q.sale)}${q.pay ? `, из них ${R.priceText(q.pay)} — лавочнику в уплату долга${q.left ? ` (ещё ${R.priceText(q.left)} долга осталось)` : ''}` : ''}.`;
+  const t = `${rec.n} ${she ? 'увязала' : 'увязал'} узлы, ${kids ? (she ? 'усадила' : 'усадил') + ' на телегу детей, ' : ''}${she ? 'простилась' : 'простился'} с соседями — и в путь: ${placeOf(at0)} → ${placeOf(at1)}, ${days} дн. дороги. ${money}${craftNew ? ` Своё ремесло там уже занято — на новом месте ${rec.n} — ${titleOf(b1, rec.sex)}.` : ''}`;
+  C.note(g, t);
+  return {ok: true, key: k1, role: role1, days, text: t, q};
+};
+
+/* ---------- прибытие ---------- */
+const HERE = {f: ['«{h}, мы на месте. Дом крепкий, печь добрая, соседи — люди как люди. Дети здоровы. Приезжай, когда дорога позволит: ждём»',
+    '«Доехали, {h}. Изба тёплая, вещи разобрала, сундук поставила в угол — всё как было. Только тебя не хватает»',
+    '«Мы на месте. Дорога была долгая, но все целы. Двери не запираю — приходите, как сможете»'],
+  m: ['«{h}, мы на месте. Изба крепкая, двор просторный, с соседями поладил. Приезжай — печь натоплена»',
+    '«Доехали, {h}. Разгрузился, сундук в углу, всё цело. Без тебя дом пустой — заходи, как будешь рядом»',
+    '«Мы на месте. Дорога была долгая, но все целы. Ворота не запираю — приходите, как сможете»']};
+const arrive = (g, x) => {
+  const r = (g.folkRel || {})[x.key]; if (!r) return;
+  const H = (g.w2hearth || {})[x.key]; if (H) H.week = g.day || 1; // в дороге семья жила с выручки за дом
+  const [role, at] = x.key.split('@'); let p = null; try { p = C.folkPerson(g, role, at); } catch (e) {} if (!p) return;
+  const h = alive(g, r.who);
+  if (g.loc === at && !g.folkAt) { C.note(g, `${p.n} ${p.sex === 'f' ? 'приехала' : 'приехал'} — ${placeOf(at)}: телега у новых ворот, ${C.kidsOf && C.kidsOf(g, x.key).length ? 'дети бегают по двору, ' : ''}а в избе уже пахнет дымом. Дом обжит.`); return; }
+  if (!h) return;
+  const text = HERE[p.sex === 'f' ? 'f' : 'm'][hsh(x.key + (g.day || 1)) % 3].replace(/\{h\}/g, h.name);
+  g.mail = (g.mail || []).concat({from: p.n, t: p.t, face: p.face, sex: p.sex, kind: r.bond === 'kin' ? 'kin' : 'wed', to: h.name, text, gift: null, day: g.day, hk: x.key, moved: 1}).slice(-6);
+  C.note(g, `Гонец догоняет отряд: грамотка от ${decl(p.n, p.sex).g} — ${decl(h.name, h.sex).d}. ${text}`);
+};
+C.moveTick = function (g) {
+  if (!g || !g.w2move || !(g.w2move.road || []).length) return;
+  const S = st(g), day = g.day || 1, done = S.road.filter(x => day >= x.arrive);
+  S.road = S.road.filter(x => day < x.arrive || !(g.folkRel || {})[x.key]).filter(x => !done.includes(x));
+  done.forEach(x => { try { arrive(g, x); } catch (e) {} });
+};
+{ const ps0 = C.pass; C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments); if (g && g.day !== d0) { try { C.moveTick(g); } catch (e) {} mark(g); } return r; }; }
+
+/* ---------- пока в пути — дома никого ---------- */
+const roadKeys = g => new Set(((g && g.w2move && g.w2move.road) || []).map(x => x.key));
+if (C.folkHere) { const fh0 = C.folkHere; C.folkHere = function (g) { const out = fh0.apply(this, arguments);
+  try { const RK = roadKeys(g); if (RK.size) return out.filter(role => !RK.has(role + '@' + g.loc)); } catch (e) {} return out; }; }
+if (C.homeNodes) { const hn0 = C.homeNodes; C.homeNodes = function (g) { const out = hn0.apply(this, arguments);
+  try { const RK = roadKeys(g); if (!RK.size) return out;
+    return out.filter(at => !roadAt(g, at).length || Object.entries(g.folkRel || {}).some(([k, r]) => k.split('@')[1] === at && !RK.has(k) && famRel(g, r) && !(C.mwHidden && C.mwHidden(g, k)))); } catch (e) { return out; } }; }
+/* в дороге: ни содержания, ни сборов, ни поручительства */
+const unRoad = fn => function (g) { const tmp = []; try { roadKeys(g).forEach(k => { const r = (g.folkRel || {})[k]; if (r && r.bond) { tmp.push([r, r.bond]); r.bond = null; } }); } catch (e) {}
+  try { return fn.apply(this, arguments); } finally { tmp.forEach(([r, b]) => { r.bond = b; }); } };
+if (C.hearthUpkeep) C.hearthUpkeep = unRoad(C.hearthUpkeep);
+if (C.hearthPack) C.hearthPack = unRoad(C.hearthPack);
+if (C.famSurety) C.famSurety = unRoad(C.famSurety);
+/* мастерица уехала из своего села — в мастерской новый человек */
+{ const fp0 = C.folkPerson; C.folkPerson = function (g, role, at) {
+  try { const n = g && g.w2move && g.w2move.left && !/^sp_/.test(role) ? g.w2move.left[role + '@' + at] : 0; if (n) { const a = arguments; a[2] = at + '~' + n; return fp0.apply(this, a); } } catch (e) {}
+  return fp0.apply(this, arguments); }; }
+
+/* ---------- сцены ---------- */
+const homeKey = g => (g.folkRole ? g.folkRole + '@' + (g.folkAt || g.loc) : null);
+const fmt = (g, x) => `${x.name}, ${x.kind} — дом ${R.priceText(x.q.price)}, ${x.days} дн. пути`;
+const SC = {};
+const back = {t: 'Назад', free: 1, do: g2 => { g2.w2mv = null; return 'folk'; }};
+SC.w2_move = g => {
+  const key = (g.w2mv && g.w2mv.key) || homeKey(g), r = key ? (g.folkRel || {})[key] : null;
+  if (!key || !famRel(g, r)) return {title: 'Переезд', bg: 'village', lines: [['n', 'Дома никого.']], choices: [back]};
+  const [role, at] = key.split('@'), p = C.folkPerson(g, role, at), F = C.FOLK[role] || {};
+  const lines = [['n', `${p.n} обводит взглядом избу: «Куда же нам? Говори — я соберусь. Только дом на новом месте придётся купить, а этот — продать»`]];
+  const D = debtOf(g, key); if (D) lines.push(['n', `Долг лавочнику — ${R.priceText(D)}: его отдадут из того, что выручат за этот дом.`]);
+  const list = C.movePlaces(g, key);
+  if (!list.length) lines.push(['n', 'Других сёл и городов, где отряд бывал и где можно поселиться, пока нет.']);
+  else lines.push(['n', `Село и подворье — ${R.priceText(K().VILLAGE)}, город — ${R.priceText(K().TOWN)}; этот дом уйдёт за ${R.priceText(Math.round(C.moveHousePrice(at) * K().SELL / 10) * 10)}. Семья пойдёт сама.`]);
+  const ch = list.slice(0, 20).map(x => ({t: fmt(g, x), mvTo: x.at, dis: x.q.ok ? null : `в кошеле не хватает: нужно ${R.priceText(x.q.need)}`, do: g2 => { g2.w2mv = {key, to: x.at}; return 'w2_move_ok'; }}));
+  ch.push(back);
+  return {title: 'Перевезти семью', bg: F.bg || 'hut', art: F.art || 'hut', lines, choices: ch};
+};
+SC.w2_move_ok = g => {
+  const M = g.w2mv || {}, key = M.key, r = key ? (g.folkRel || {})[key] : null;
+  if (!key || !famRel(g, r) || !NODES[M.to]) return {title: 'Переезд', bg: 'village', lines: [['n', 'Дома никого.']], choices: [back]};
+  const [role, at] = key.split('@'), p = C.folkPerson(g, role, at), F = C.FOLK[role] || {}, q = C.moveQuote(g, key, M.to), days = C.moveDays(g, at, M.to);
+  const role1 = pickRole(g, role, M.to, p.sex, key), kids = C.kidsOf ? C.kidsOf(g, key).length : 0, H = (g.w2hearth || {})[key], ch0 = ((g.w2home || {})[key] || {}).chest || [];
+  const lines = [['n', `${placeOf(M.to)} (${kindOf(M.to)}): дом — ${R.priceText(q.price)}. Старый дом уйдёт за ${R.priceText(q.sale)}${q.debt ? `; из них ${R.priceText(q.pay)} — лавочнику${q.left ? `, и ещё ${R.priceText(q.left)} долга останется` : ''}` : ''}. Из кошеля — ${R.priceText(q.need)}.`],
+    ['n', `Дорога — ${days} дн.: ${p.n} ${p.sex === 'f' ? 'поедет' : 'поедет'} сам${p.sex === 'f' ? 'а' : ''}${kids ? ', с детьми' : ''}. Пока семья в пути, дома никого; доедут — пришлют грамотку.`],
+    ['n', `С собой — всё: ${[kids ? 'дети' : null, ch0.length ? 'сундук' : null, H && (H.buy || []).length ? 'утварь' : null, H && (H.coin || 0) > 0 ? 'деньги на хозяйство' : null].filter(Boolean).join(', ') || 'нехитрый скарб'}.`]];
+  if (role1 && baseOf(role1) !== baseOf(role)) lines.push(['n', `Это ремесло там уже занято — на новом месте ${p.n} — ${titleOf(baseOf(role1), p.sex)}.`]);
+  const why = C.moveWhy(g, key) || (!q.ok ? `в кошеле не хватает: нужно ${R.priceText(q.need)}` : '') || (days == null ? 'туда дороги нет' : '') || (!role1 ? 'там негде поселиться' : '');
+  const h = alive(g, r.who);
+  return {title: 'Перевезти семью', bg: F.bg || 'hut', art: F.art || 'hut', lines, choices: [
+    {t: `Перевезти семью: ${placeOf(M.to)}`, own: h ? h.id : undefined, dis: why || null, do: g2 => { const M2 = g2.w2mv || {}; const res = C.moveFamily(g2, M2.key, M2.to); g2.w2mv = null;
+      if (res && res.ok) { const n = NODES[g2.loc]; return n ? n.scene : 'map'; } g2.folkLast = res && res.err ? `Не вышло: ${res.err}.` : null; return 'folk'; }},
+    {t: 'Выбрать другое место', free: 1, do: g2 => { if (g2.w2mv) g2.w2mv.to = null; return 'w2_move'; }},
+    back]};
+};
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+Object.entries(SC).forEach(([id, sc]) => { FC.scenes[id] = sc; });
+
+/* кнопка в доме — перед «Назад»; дом семьи в дороге — пуст */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  if (g && id === 'folk' && g.folkRole && isFree(g)) { const k = homeKey(g); if (C.moveOnRoad(g, k)) { const x = C.moveOnRoad(g, k);
+    return {title: 'Дом', bg: 'village', lines: [['n', `Дома никого: ${x.n || 'семья'} в дороге — ${placeOf(x.at)}.`]], choices: [{i: 1, t: 'Назад', label: 'Назад', free: 1, do: g2 => { g2.folkRole = null; g2.folkAt = null; const n = NODES[g2.loc]; return n ? n.scene : 'map'; }}]}; } }
+  const sc = so0.apply(this, arguments);
+  try {
+    if (id === 'free_place') mark(g);
+    if (!sc || id !== 'folk' || !isFree(g) || !g.folkRole || !sc.choices) return sc;
+    const key = homeKey(g), r = (g.folkRel || {})[key]; if (!famRel(g, r)) return sc;
+    if (C.mwHidden && C.mwHidden(g, key)) return sc;
+    const h = alive(g, r.who); if (!h || !hostHero(g, h)) return sc;
+    const ch = sc.choices.slice(), bk = popBack(ch), why = C.moveWhy(g, key);
+    ch.push({i: nextI(sc.choices), label: 'Перевезти семью…', t: 'Перевезти семью…', own: h.id, dis: why || null, do: g2 => { g2.w2mv = {key: homeKey(g2)}; return 'w2_move'; }});
+    if (bk) ch.push(bk);
+    return Object.assign({}, sc, {choices: ch});
+  } catch (e) { return sc; }
+};
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* w2_fail.js */
 /* Колдовство — голос мастера на неудачах. Без DOM. И в Вечном мире, и в главах саг.
    Неудача — не «ничего не произошло», а развилка: осложнение, цена или поворот.
@@ -45935,5 +46203,1189 @@ if (C.buyPrice && C._bpW2base) { const bp0 = C.buyPrice, base = C._bpW2base; C.b
     const hol = C.holidayPriceMul ? C.holidayPriceMul(g, x) : 1, k = p / (b * hol), kk = Math.max(P().priceMin, Math.min(P().priceMax, k));
     return Math.abs(kk - k) < 1e-9 ? p : Math.max(1, Math.round(b * hol * kk)); } catch (e) { return p; } }; }
 C.w2priceSpan = () => [P().priceMin, P().priceMax];
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* w2_voice.js */
+/* Колдовство — w2_voice: в разговоре говорят обе стороны. Без DOM. И в главах саг, и в Вечном мире.
+   • ГОЛОС ГЕРОЯ. Выбор-разговор (проверка Дипломатии, Обмана, Запугивания, Проницательности, Торговли; «Спросить…»,
+     «Расспросить…», «Сказать…», «Ответить…», «Уговорить…», «Прийти к X и спросить…», переговоры) — после нажатия первой
+     строкой исхода идёт реплика героя с его лицом и именем, потом исход и ответ людей. Реплика: поле выбора say (строка,
+     функция (g, h) → строка или объект вариантов по нраву {chest, hit, sur, mil, any}), иначе таблица C.VOICE_SAY
+     (ключ «глава:сцена|начало подписи» или «сцена|начало подписи»), иначе генератор по подписи, навыку, нраву (C.nravOf),
+     народу и званию героя. Удача и неудача на сказанное не влияют: герой говорит до броска. Говорит тот, кто бросает
+     проверку (C.bestCheck выбирает, «беру на себя» учитывается), иначе герой того, кто нажал, иначе ведущий.
+   • НАЁМНИК В РАЗГОВОРЕ. В сцене с людьми (строки говорящих не 'n') наёмник иногда вставляет слово — по нраву и народу:
+     подначивает, предостерегает, шутит, сомневается, узнаёт земляка. Не чаще 1 сцены из 4, не два раза подряд, без повторов
+     строк. Изредка (≈1 из 3 таких) — доп. выбор «Пусть говорит <Имя>»: та же проверка, что у ближайшего разговорного
+     выбора сцены, бросает наёмник своим навыком, исход — тот же do/go.
+   • ТОН. У уговоров с одной проверкой Дипломатии — ещё два способа сказать: «с нажимом» (Запугивание, чуть легче, но нрав
+     пишется суровый, а человек помнит угрозу) и «хитростью» (Обман, нрав — ложь; раскрытая ложь тоже помнится). У каждого —
+     своя проверка, своя реплика героя и свой отклик человека на тон до исхода. Где навыки уже разведены по разным выборам
+     или способ уже назван в подписи («по-теракски», «как брат по вере») — не трогается.
+   • ПАМЯТЬ ЛЮДЕЙ. Раскрытая ложь, угроза, брошенное дело, помощь и милость — g.npcMem[ключ] = [{kind, day, scene}]; при
+     следующей встрече (через день и позже) человек одной строкой своим голосом это поминает. Не чаще раза в 3 дня.
+   • Новые выборы получают i = max по всем выборам сцены + 1…, «Назад»/«Уйти» остаётся последней. Броски частоты — от хеша,
+     ГСЧ игры не трогается. Состояние: g.w2voice, g.npcMem, g.lastVoice (что показать первой строкой исхода — ui.js).
+   • Наружу: C.W2VOICE (настройки), C.VOICE_SAY, C.voiceLine(g, sceneId, ch, h), C.voiceTone(h), C.voiceNpc(who),
+     C.npcMemAdd(g, key, kind, scene), C.npcMemKey(who), C.VOICE_GEN, C.VOICE_MERC, C.VOICE_TONE_RE, C.VOICE_MEM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!C || !C.CAMPS) return;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; x = Math.imul(x, 2246822507); x ^= x >>> 13; return x >>> 0; };
+const pickH = (a, key) => a[hsh(key) % a.length];
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const lc = s => (!s ? s : /^(Око|Оку|Ока|Оком|Святобор|Перун|Велес|Мокош|Свет)/.test(s) ? s : s[0].toLowerCase() + s.slice(1));
+const alive = g => (g && g.heroes ? C.alive(g) : []);
+const mercsOf = g => ((g && g.mercs) || []).filter(m => m && !m.dead && m.hp > 0);
+C.W2VOICE = Object.assign({off: false, MERC_GAP: 4, MERC_P: 60, MERC_EXTRA: 3, MEM_GAP: 3, MEM_KEEP: 6, TONE: true}, C.W2VOICE || {});
+const K = () => C.W2VOICE;
+const ST = g => { const s = g.w2voice = (g.w2voice && typeof g.w2voice === 'object') ? g.w2voice : {};
+  s.op = s.op || []; s.seen = s.seen || []; s.tr = s.tr || []; s.n = s.n || 0; s.memSaid = s.memSaid || {}; s.once = s.once || []; return s; };
+const wd = w => `(?<![а-яё])${w}(?![а-яё])`;
+
+/* ---------- кто говорит: люди сцены ---------- */
+const GENERIC = new Set(['Старший', 'Старшая', 'Человек', 'Голос', 'Пленный', 'Родня', 'Теракский', 'Привратник', 'Советник', 'Сотник', 'Десятник', 'Слепой', 'Мёртвый',
+  'Леший', 'Водяной', 'Сторож', 'Старик', 'Бледный', 'Верховная', 'Старейшина', 'Мать,', 'Дознаватель', 'Ловчий', 'Стражник', 'Писарь', 'Купец', 'Корабельщик', 'Мытник']);
+const T_KEEP = {Брат: 'брат', Сестра: 'сестра', Дед: 'дед', Бабка: 'бабушка', Мать: 'мать', Мастер: 'мастер', Ярл: 'ярл'};
+const T_ONLY = {Князь: 'княже', Княжич: 'княжич', Боярин: 'боярин', Владыка: 'владыка', Епископ: 'владыка', Прецептор: 'прецептор', Воевода: 'воевода'};
+const T_DROP = new Set(['Староста', 'Старостиха', 'Корчмарь', 'Знахарка', 'Знахарь', 'Мельник', 'Хозяйка', 'Хозяин', 'Ведунья', 'Кузнец', 'Гусляр', 'Скальд', 'Лекарь', 'Могильщик', 'Перевозчик', 'Купчиха']);
+const FEM_END = /(а|я)$/;
+const MASC_A = new Set(['Ратша', 'Гостята', 'Добрыня', 'Твердята', 'Путята', 'Чурила', 'Никита', 'Сысоя', 'Лука', 'Векша', 'Дедко', 'Ратша', 'Илья', 'Фома', 'Кузьма']);
+const nameOf = who => { const S = C.SPEAKERS && C.SPEAKERS[who]; return S ? String(S[0] || '').split(',')[0].trim() : ''; };
+/* тип собеседника: простой люд, Око, книжник (Империя, Пар-Насс, писари), северянин, нечисть */
+const TYPE_NECH = /(Голос из|Голос из-под|Леший|Водяной|Домов|Дедко|Мавк|Сторож Гиблого|Сторож болота|Мёртв|мертвец|Безлик|Бледный|Полоз|Кикимор|Навь|навий|Хозяин руд)/;
+const TYPE_OKO = /(^Брат |^Сестра |дознавател|ловчий|Ловчий|Ока(?![а-яё])|обетник|Обетник|прецептор|Прецептор|Епископ|епископ|иерарх|Владыка|владыка|собиратель|Палат|магистр|Десятник Ока|служитель)/;
+const TYPE_KNIZH = /(книжни|писар|Писар|учён|лекар|Лекар|хранительниц|Советник|посол|Человек в сером|Старик в сером|звездочёт|летопис|переписчик|Аллекса|Мирак|Гордей)/;
+const TYPE_SEVER = /(Ярл|ярл|хирд|теракск|Теракск|скальд|гридень|Гудрун|Сигрид|Кетиль|Хрольф|Хрольв|Ингрид|Гаути|Ульда|горц)/;
+const npcCache = {};
+C.voiceNpc = function (who) {
+  const S = C.SPEAKERS && C.SPEAKERS[who]; if (!S) return null;
+  const full = String(S[0] || ''), k = who + '|' + full; if (npcCache[k]) return npcCache[k];
+  const nm = nameOf(who), ppl = S[2] || '', face = S[1] || '';
+  const type = /knyaz$/.test(who) || TYPE_NECH.test(full) ? 'nech' : TYPE_OKO.test(full) ? 'oko' : TYPE_SEVER.test(full) || ppl === 'terak' || ppl === 'gorets' ? 'sever'
+    : TYPE_KNIZH.test(full) || ppl === 'parnass' || ppl === 'imperets' ? 'knizh' : 'prost';
+  const ws = nm.split(/\s+/).filter(Boolean); let addr = '', short = '';
+  if (ws.length) {
+    const w0 = ws[0], rest = ws.slice(1).find(w => /^[А-ЯЁ]/.test(w));
+    if (T_KEEP[w0] && rest) { addr = T_KEEP[w0] + ' ' + rest; short = rest; }
+    else if (T_ONLY[w0]) { addr = T_ONLY[w0]; short = rest || ''; if (w0 === 'Князь' || w0 === 'Княжич') short = rest || ''; }
+    else if ((T_DROP.has(w0) || /(ник|ница|иха|ец|арь|ка|чий|чая|ый|ий|ая)$/.test(w0)) && rest && ws[1] === rest) { addr = rest; short = rest; }
+    else if (/^[А-ЯЁ]/.test(w0) && !GENERIC.has(w0) && !/^(Теракский|Старший|Старшая|Пленный)$/.test(w0)) { addr = w0; short = w0; }
+  }
+  if (/knyaz$/.test(who) || /Голос из(-под)? (провала|кургана)/.test(full)) { addr = 'княже'; short = ''; }
+  const fem = (C.PORTRAITS_F || []).includes(face) || /^(Знахарка|Хозяйка|Ведунья|Сестра|Мать|Бабка|Старостиха|Верховная|Купчиха|Вдова)/.test(nm) || /(хозяйка|ведунья|вдова|знахарка|жрица|старостиха|хранительница|книжница|лекарка|мать |внучка|дочь)/.test(full)
+    || (short && FEM_END.test(short) && !MASC_A.has(short));
+  const v = {who, full, name: nm, short, addr, ppl, face, type, sex: fem ? 'f' : 'm'};
+  npcCache[k] = v; return v;
+};
+const isMercSpk = (g, who) => { if (/^v[mhf]_/.test(who)) return true; const n = nameOf(who); return !!n && (g.mercs || []).some(m => m && m.name && n.startsWith(m.name)); };
+/* главный собеседник сцены: тот, к кому обращён выбор, иначе первый говорящий не рассказчик и не наёмник */
+const mainNpc = (g, sc, ch) => {
+  if (ch && ch.who && C.SPEAKERS && C.SPEAKERS[ch.who] && !isMercSpk(g, ch.who)) return ch.who;
+  const ls = (sc && sc.lines) || [];
+  const lab = String((ch && (ch.label || ch.t)) || ''); // к кому обращён выбор по подписи («Попросить Любаву…»)
+  if (lab) { const ws = ls.map(l => l && l[0]).concat((sc && sc.people) || []).filter((w, i, a) => w && w !== 'n' && a.indexOf(w) === i && C.SPEAKERS && C.SPEAKERS[w] && !isMercSpk(g, w));
+    for (const w of ws) { const n = C.voiceNpc(w); const sh = n && n.short; if (sh && sh.length >= 4 && new RegExp('(?<![а-яё])' + sh.slice(0, -1)).test(lab)) return w; } }
+  for (const l of ls) if (l && l[0] && l[0] !== 'n' && C.SPEAKERS && C.SPEAKERS[l[0]] && !isMercSpk(g, l[0])) return l[0];
+  return null;
+};
+/* ключ памяти — id говорящего из C.SPEAKERS (имя в SPEAKERS другие файлы переписывают); мастер — 'folk:<роль>@<место>' */
+C.npcMemKey = who => String(who || '');
+
+/* ---------- нрав героя: тон речи ---------- */
+const MERC_TONE = {chestny: 'chest', zhadny: 'hit', nabozhny: 'mil', star: 'chest', lihoy: 'sur', trus: 'plain'};
+const CLS_TONE = {tat: 'hit', dushegub: 'sur', charovnik: 'hit', yaryi: 'sur', druzhinnik: 'sur', obetnik: 'chest', chernets: 'mil', volhv: 'chest', zhrets: 'mil', guslyar: 'hit', knizhnik: 'plain', lovchiy: 'plain', vedmak: 'chest'};
+C.voiceTone = function (h) {
+  if (!h) return 'plain';
+  if (h.kind === 'merc') { if (C.compInit) C.compInit(h); return MERC_TONE[h.nrav] || 'plain'; }
+  const n = C.nravOf ? C.nravOf(h) : {slovo: 0, ruka: 0};
+  const st = (ax) => (C.nravStep ? C.nravStep(h, ax) : 0), s = st('slovo'), r = st('ruka');
+  if (s || r) { if (Math.abs(n.slovo || 0) >= Math.abs(n.ruka || 0) && s) return s > 0 ? 'chest' : 'hit'; if (r) return r > 0 ? 'mil' : 'sur'; return s > 0 ? 'chest' : 'hit'; }
+  // нрав ещё не сложился: говорит, как велит звание (и то не всегда — у иных пока ровный голос)
+  const ct = CLS_TONE[h.cls]; return ct && hsh(h.id + '|' + (h.name || '')) % 3 !== 0 ? ct : 'plain';
+};
+const TONE_FALL = {chest: ['chest', 'mil', 'any', 'sur', 'hit'], mil: ['mil', 'chest', 'any', 'sur', 'hit'], sur: ['sur', 'hit', 'any', 'chest', 'mil'], hit: ['hit', 'sur', 'any', 'chest', 'mil'], plain: ['any']};
+
+/* ---------- подстановки ---------- */
+/* [м|ж] — по полу говорящего героя, <м|ж> — по полу собеседника, {a} — обращение к собеседнику, {N} — его имя */
+const sexFill = (t, hs, ns) => String(t).replace(/\[([^|\]]*)\|([^\]]*)\]/g, (_, m, f) => (hs === 'f' ? f : m)).replace(/<([^|>]*)\|([^>]*)>/g, (_, m, f) => (ns === 'f' ? f : m));
+const ADDR_PPL = {nolgrim: ['мил человек', 'хозяюшка'], imperets: ['добрый человек', 'добрая женщина'], terak: ['хозяин', 'хозяйка'], yuzhnober: ['друг мой', 'голубушка'],
+  loss: ['добрый человек', 'добрая женщина'], gorets: ['брат по огню', 'сестра по огню'], stepnyak: ['брат', 'сестра'], parnass: ['уважаемый', 'уважаемая']};
+const addrTo = (h, npc) => {
+  if (npc && npc.addr) return npc.addr;
+  const f = npc && npc.sex === 'f' ? 1 : 0;
+  if (npc && npc.type === 'oko') return f ? 'сестра' : 'брат';
+  if (npc && npc.type === 'nech') return f ? 'хозяйка' : 'хозяин';
+  return (ADDR_PPL[(h && h.people) || 'nolgrim'] || ADDR_PPL.nolgrim)[f];
+};
+const fill = (t, h, npc, extra) => {
+  let s = sexFill(t, h && h.sex, npc && npc.sex);
+  const a = addrTo(h, npc);
+  s = s.replace(/^\{a\}/, cap(a)).replace(/([.!?…]\s+)\{a\}/g, (_, p) => p + cap(a)).replace(/\{a\}/g, a);
+  s = s.replace(/\{N\}/g, (npc && npc.short) || (npc && npc.sex === 'f' ? 'она' : 'он'));
+  if (extra) Object.keys(extra).forEach(k => { s = s.split('{' + k + '}').join(extra[k]); });
+  return s.replace(/\s+([,.!?…])/g, '$1').replace(/\s{2,}/g, ' ').trim();
+};
+const endP = s => (/[.!?…»]$/.test(s) ? s : s + '.');
+
+/* ---------- что за выбор ---------- */
+const baseLabel = t => String(t || '').replace(/\s*\([^()]*\)\s*$/, '').replace(/\s*\([^()]*\)\s*$/, '').trim();
+const SOC = ['Дипломатия', 'Обман', 'Запугивание', 'Проницательность', 'Торговля'];
+const TONE_SK = ['Дипломатия', 'Обман', 'Запугивание'];
+const SRC = new Map();
+/* проверки, что выбор бросает (по тексту его do): [{stat, skill, dc}] */
+const srcInfo = ch => {
+  if (!ch || typeof ch.do !== 'function') return null;
+  const s = String(ch.do); if (SRC.has(s)) return SRC.get(s);
+  const re = /'(str|dex|con|int|wis|cha)'\s*,\s*'([А-ЯЁ][а-яё ]+)'\s*(?:,\s*(\d+))?/g; let m; const list = [];
+  while ((m = re.exec(s))) list.push({stat: m[1], skill: m[2], dc: m[3] ? +m[3] : null});
+  const v = list.length ? list : null; if (SRC.size > 4000) SRC.clear(); SRC.set(s, v); return v;
+};
+const socOf = ch => { const inf = srcInfo(ch); return inf ? inf.filter(x => SOC.includes(x.skill)) : []; };
+const TALK_RE = /^(Спросить|Расспросить|Переспросить|Выспросить|Выведать|Разузнать|Разговорить|Поговорить|Говорить|Заговорить|Договорить|Сказать|Ответить|Отвечать|Рассказать|Открыться|Признаться|Уговорить|Уговориться|Убедить|Отговорить|Упросить|Попросить|Просить|Выпросить|Потребовать|Требовать|Пригрозить|Припугнуть|Устрашить|Прижать|Выбить правду|Солгать|Соврать|Наврать|Обмануть|Сказаться|Назваться|Предложить|Поторговаться|Сторговаться|Выторговать|Договориться|Окликнуть|Поручиться|Сослаться|Напомнить|Назвать (предателя|мёртвого|князя|ему|ей)|Обещать|Пообещать|Поклясться|Успокоить|Утешить|Ободрить|Подкупить|Выйти к костру|Прийти к [^,]* и (спросить|поговорить|сказать)|Угостить [^,]* и (расспросить|разговорить)|Положить на стол доказательства|Показать (Нечаю|серым|Агнии)|Рассудить)/;
+const NOT_TALK = /^(Пройти|Вспомнить|Петь|Спеть|Запеть|[А-ЯЁ][а-яё]+ (берёт|говорит|скажет|споёт)|Выспросить у кухарки|Спросить о другом|Хватит|Заговорить (воду|ключ|жилу|кровь|рану|оберег|запруду)|Говорить с дубом|Спросить мёртвых|Попросить (у )?старых богов|Сказать слова печатей|Ответить на загадку|Назвать отзыв|Сказать с Милавой)/;
+const LEAVE = /^(Назад|Уйти|На дорогу|Дальше|Отойти|Вернуться|Проститься|Прощай|Выйти|На карту|Позже|Отказаться|Не сейчас)(?![а-яё])/;
+const isTalk = ch => {
+  if (!ch || ch.dis) return false;
+  if (ch.say || ch._vtone || ch._vm) return true;
+  if (ch._dwq === false) return false;
+  const b = baseLabel(ch.label || (typeof ch.t === 'string' ? ch.t : ''));
+  if (!b || NOT_TALK.test(b) || LEAVE.test(b) || /…$/.test(b)) return false; // «Расспросить X…» — вход в хаб расспросов, а не слово
+  if (TALK_RE.test(b)) return true;
+  return socOf(ch).length > 0;
+};
+C.voiceIsTalk = isTalk;
+
+/* ---------- реплика героя ---------- */
+const pickVar = (o, tone, key) => {
+  if (!o) return null;
+  if (typeof o === 'string') return o;
+  if (Array.isArray(o)) return o.length ? pickH(o, key) : null;
+  const keys = Object.keys(o).filter(k => o[k]); if (!keys.length) return null;
+  if (tone === 'plain') return pickVar(o[pickH(keys, key + '|pl')], tone, key);
+  for (const t of TONE_FALL[tone] || ['any']) if (o[t]) return pickVar(o[t], tone, key);
+  return pickVar(o[keys[0]], tone, key);
+};
+const sayTable = (g, sid, b) => {
+  const T = C.VOICE_SAY || {}, lists = [T[g.camp + ':' + sid], T[sid]].filter(Boolean);
+  for (const L of lists) { let best = null; for (const k of Object.keys(L)) if (b.startsWith(k) && (!best || k.length > best.length)) best = k; if (best) return L[best]; }
+  return null;
+};
+/* выдержки из подписи: прямая речь в «», речь после двоеточия, косвенный вопрос, «о чём» */
+const VERB_ASK = /^(Спросить|Расспросить|Переспросить|Выспросить|Выведать|Разузнать|Прийти к [^,]* и спросить)/;
+const VERB_SAY = /^(Сказать|Ответить|Соврать|Наврать|Солгать|Пригрозить|Обещать|Пообещать|Поклясться|Крикнуть|Окликнуть|Напомнить|Откупиться|Сказаться|Назваться)/;
+const WH = /^(кто|что|где|куда|откуда|как|зачем|почему|отчего|когда|чей|чья|чьё|чьи|сколько|какой|какая|какое|какие|каким|кому|кого|чем|о чём|о ком|ли)(?![а-яё])/;
+const toYou = s => s.replace(new RegExp(wd('(ему|ей)'), 'g'), 'тебе');
+const youToWe = s => s.replace(new RegExp(wd('вы'), 'g'), 'мы').replace(new RegExp(wd('вас'), 'g'), 'нас').replace(new RegExp(wd('вам'), 'g'), 'нам').replace(new RegExp(wd('ваш(а|е|и|его|ей|ему|их|им)?'), 'g'), (m, e) => 'наш' + (e || ''));
+const content = b => {
+  const q = /«([^»]+)»/.exec(b); if (q && !/^(В|На|К|У) «/.test(b)) return {k: 'speech', t: q[1]};
+  const col = /^([^:]{2,60}):\s*(.+)$/.exec(b);
+  if (col) { const v = col[1], rest = col[2].trim();
+    if (VERB_ASK.test(v)) return {k: 'q', t: toYou(rest.replace(/\?$/, ''))};
+    if (VERB_SAY.test(v) && !/^(как|что|кто)\s/.test(rest)) return {k: 'speech', t: youToWe(rest)}; }
+  const ask = /^(?:Спросить|Расспросить|Переспросить|Выспросить|Выведать|Разузнать|Поговорить|Прийти к [^,]* и спросить)[^,]*,\s*(.+)$/.exec(b);
+  if (ask && WH.test(ask[1])) { let t = ask[1]; t = t.replace(new RegExp('\\s' + wd('(ему|ей)') + '$'), ' тебе'); return {k: 'q', t}; }
+  const ab = /^(?:Спросить|Расспросить|Выспросить|Разузнать)(?:\s[А-ЯЁ][а-яё]+)?\s((?:о|об|обо|про)\s.+)$/.exec(b);
+  if (ab) return {k: 'about', t: ab[1]};
+  const tell = /^(?:Сказать|Рассказать|Признаться|Ответить)(?:\s[^,]*)?,\s*(что|будто)\s(.+)$/.exec(b);
+  if (tell) return {k: 'speech', t: youToWe(tell[2])};
+  const tellWh = /^(?:Рассказать|Сказать|Назвать)(?:\s[^,]*)?,\s*(.+)$/.exec(b);
+  if (tellWh && WH.test(tellWh[1]) && !/^как было/.test(tellWh[1])) return {k: 'know', t: tellWh[1]};
+  return null;
+};
+const INTENTS = [
+  ['bribe', /^(Подкупить|Сунуть|Дать на лапу)/, []],
+  ['judge', /^(Рассудить|Созвать суд)/, []],
+  ['buy', /^(Выкупить|Выменять|Купить|Заплатить|Положить на стол кошель)/, []],
+  ['haggle', /^(Поторговаться|Сторговаться|Выторговать|Сбить цену)/, ['Торговля']],
+  ['answer', /^(Ответить|Отвечать)/, []],
+  ['threat', /^(Пригрозить|Припугнуть|Устрашить|Прижать|Выбить правду|Запугать|Надавить|Бросить к его ногам|Показать грамоту)/, ['Запугивание']],
+  ['lie', /^(Соврать|Наврать|Солгать|Обмануть|Сказаться|Назваться|Заговорить (им )?зубы|Откупиться|Промолчать и скормить)/, ['Обман']],
+  ['insight', /^(Раскусить|Распознать|Уличить|Разоблачить|Приглядеться)/, ['Проницательность']],
+  ['promise', /^(Обещать|Пообещать|Поклясться|Дать слово)/, []],
+  ['demand', /^(Потребовать|Требовать)/, []],
+  ['vouch', /^(Поручиться|Ручаться)/, []],
+  ['remind', /^(Напомнить)/, []],
+  ['tell', /^(Назвать|Рассказать|Открыться|Признаться|Положить на стол|Показать)/, []],
+  ['calm', /^(Успокоить|Утешить|Ободрить|Разбудить)/, []],
+  ['plead', /^(Попросить|Упросить|Просить|Выпросить)/, []],
+  ['persuade', /^(Уговорить|Убедить|Отговорить|Уговориться|Договориться|Предложить|Созвать|Позвать|Поднять)/, ['Дипломатия']],
+  ['ask', /^(Спросить|Расспросить|Переспросить|Выспросить|Выведать|Разузнать|Разговорить|Угостить|Прийти к)/, []],
+  ['greet', /^(Поговорить|Говорить|Заговорить|Договорить|Выйти к костру|Окликнуть)/, []],
+];
+const intentOf = (b, skill) => { for (const [k, re] of INTENTS) if (re.test(b)) return k; for (const [k, , sk] of INTENTS) if (skill && sk.includes(skill)) return k; return 'greet'; };
+const opener = t => String(t).split(/[\s,.!?…:]+/).filter(Boolean).slice(0, 2).join(' ').toLowerCase();
+/* генератор: банк по замыслу × нраву, иногда — свой говор народа; зачины не повторяются подряд */
+const gen = (g, sid, ch, h, skill, npc) => {
+  const GEN = C.VOICE_GEN, b = baseLabel(ch.label || ch.t || ''), cn = content(b);
+  const tone = C.voiceTone(h), key = sid + '|' + b + '|' + (h && h.id) + '|' + (g.day || 0), s = ST(g);
+  const it = intentOf(b, skill);
+  if (cn && cn.k === 'speech') { const sp = endP(cap(cn.t.trim()));
+    const P = GEN.say_pre[tone] || GEN.say_pre.plain; const pre = hsh(key + 'sp') % 100 < 30 ? pickH(P, key + 'spp') : '{C}';
+    return fill(pre, h, npc, {C: sp, c: lc(sp)}); }
+  let bank = GEN[it] || GEN.greet, extra = {};
+  if (cn && cn.k === 'q') { bank = GEN.ask_q; extra = {q: lc(cn.t), Q: cap(cn.t)}; }
+  else if (cn && cn.k === 'about') { bank = GEN.ask_about; extra = {about: cn.t}; }
+  else if (cn && cn.k === 'know') { bank = GEN.tell_know; extra = {q: lc(cn.t)}; }
+  let pool = [];
+  const ppl = bank.ppl && h && bank.ppl[h.people];
+  const cls = bank.cls && h && bank.cls[h.cls];
+  const tl = bank[tone] || (tone === 'plain' ? null : bank.plain) || bank.plain || [];
+  pool = tl.slice();
+  if (tone === 'plain') pool = pool.concat(bank.chest || [], bank.mil || []);
+  if (ppl && hsh(key + 'ppl') % 100 < 45) pool = ppl.slice();
+  else if (cls && hsh(key + 'cls') % 100 < 30) pool = cls.slice();
+  if (!pool.length) pool = (bank.plain || GEN.greet.plain).slice();
+  const fresh = pool.filter(t => !s.op.includes(opener(fill(t, h, npc, extra))));
+  const t = fill(pickH(fresh.length ? fresh : pool, key), h, npc, extra);
+  s.op = s.op.concat(opener(t)).slice(-6);
+  return t;
+};
+/* реплика героя для выбора: say → таблица → генератор */
+C.voiceLine = function (g, sid, ch, h, skill, npcWho) {
+  if (!g || !ch || !h) return null;
+  if (/(в корчме|у огня|на постоялом|земляков|корабельщиков|у кухарки|деревенских|паломников|сход)/.test(String(ch.label || ch.t || ''))) npcWho = null; // говорят с людьми вокруг, а не с тем, кто в сцене
+  const npc = npcWho ? C.voiceNpc(npcWho) : null, tone = C.voiceTone(h), b = baseLabel(ch.label || ch.t || ''), key = sid + '|' + b + '|' + h.id;
+  let raw = null;
+  if (!ch._vm) {
+    if (ch.say) raw = typeof ch.say === 'function' ? ch.say(g, h) : pickVar(ch.say, tone, key);
+    if (!raw && !ch._vtone) raw = pickVar(sayTable(g, sid, b), tone, key);
+  }
+  if (raw) { const t = fill(raw, h, npc); ST(g).op = ST(g).op.concat(opener(t)).slice(-6); return t; }
+  if (ch._vtone) { const T = C.VOICE_GEN['tone_' + ch._vtone]; if (T) { const pool = (T[tone] || T.plain || []).concat(T.plain || []); const fresh = pool.filter(x => !ST(g).op.includes(opener(fill(x, h, npc))));
+    const t = fill(pickH(fresh.length ? fresh : pool, key + '|t'), h, npc); ST(g).op = ST(g).op.concat(opener(t)).slice(-6); return t; } }
+  return gen(g, sid, ch, h, skill, npc);
+};
+
+/* ---------- памятка людей ---------- */
+C.npcMemAdd = function (g, key, kind, scene, h) {
+  if (!g || !key || !kind) return;
+  const M = g.npcMem = (g.npcMem && typeof g.npcMem === 'object') ? g.npcMem : {};
+  const a = M[key] = Array.isArray(M[key]) ? M[key] : [];
+  if (a.some(r => r.kind === kind && r.day === g.day)) return;
+  a.push({kind, day: g.day || 1, scene: scene || '', h: h ? h.id : undefined});
+  if (a.length > K().MEM_KEEP) a.splice(0, a.length - K().MEM_KEEP);
+};
+const memText = (g, who, rec, npc) => {
+  const M = C.VOICE_MEM[rec.kind]; if (!M) return null;
+  const pool = M[npc.type] || M.prost; if (!pool || !pool.length) return null;
+  const h = alive(g).find(x => x.id === rec.h) || alive(g)[0] || {sex: 'm', people: 'nolgrim'};
+  const V = C.VOICE && C.VOICE[npc.ppl], a = V && V.addr ? V.addr(h) : (h.sex === 'f' ? 'девица' : 'мил человек');
+  const t = pickH(pool, who + '|' + rec.kind + '|' + rec.day + '|' + g.day);
+  return sexFill(t, h.sex, npc.sex).replace(/\{a\}/g, a);
+};
+
+/* ---------- наёмник в разговоре: слово ---------- */
+const mercSub = m => { const N = C.NRAV && C.NRAV[m.nrav]; const pp = (R.PEOPLES || {})[m.people]; return [m.name, N ? (m.sex === 'f' ? N.f : N.n) : '', pp ? (m.sex === 'f' ? pp.f : pp.name).toLowerCase() : ''].filter(Boolean).join(', '); };
+const regMerc = m => { if (C.SPEAKERS) C.SPEAKERS['vm_' + m.id] = [mercSub(m), m.portrait || '', m.people || 'nolgrim']; };
+const mercFill = (g, m, raw, npc) => { const lead = alive(g)[0] || {sex: 'm'}; let t = C.compSay ? C.compSay(g, m, raw) : String(raw).replace(/\{a\}/g, 'хозяин');
+  t = sexFill(t, m.sex, npc && npc.sex); t = t.replace(/\{N\}/g, (npc && npc.short) || (npc && npc.sex === 'f' ? 'она' : 'он')); void lead; return cap(t.replace(/\s{2,}/g, ' ').trim()); };
+const mercLine = (g, m, npc, kind) => {
+  const MV = C.VOICE_MERC, s = ST(g), out = [];
+  const add = (arr, tag) => (arr || []).forEach((t, i) => { if (/\{N\}/.test(t) && !(npc && npc.short)) return; out.push({id: tag + i, t}); });
+  if (kind === 'offer') { add((MV.offer || {})[m.nrav], 'o' + m.nrav); if (npc && m.people === npc.ppl) add(MV.offer.zem, 'oz'); }
+  else if (kind === 'zem') add((MV.zem || {})[m.people], 'z' + m.people);
+  else { add(MV[m.nrav], m.nrav); if (npc) add(((MV.type || {})[npc.type] || {})[m.nrav], 't' + npc.type + m.nrav); }
+  if (!out.length) return null;
+  let fresh = out.filter(x => !s.seen.includes(x.id));
+  if (!fresh.length) { s.seen = s.seen.filter(id => !out.some(x => x.id === id)); fresh = out; }
+  const x = pickH(fresh, g.seed + '|vm|' + s.n + '|' + m.id);
+  s.seen = s.seen.concat(x.id).slice(-160);
+  return mercFill(g, m, x.t, npc);
+};
+
+/* ---------- обёртка входа в сцену: решаем, кто вставит слово и кто что вспомнит ---------- */
+let PV = 0, CAPV = null, BUSY = 0;
+const npcWhos = sc => { const seen = []; ((sc && sc.lines) || []).forEach(l => { if (l && l[0] && l[0] !== 'n' && C.SPEAKERS && C.SPEAKERS[l[0]] && !seen.includes(l[0])) seen.push(l[0]); }); return seen; };
+const baseTalkCh = sc => (sc.choices || []).find(c => !c.dis && !c._vm && !c._vtone && !LEAVE.test(c.label || '') && isTalk(c) && socOf(c).length && !/^(Поторговаться|Сторговаться|Выкупить|Купить|Выменять)/.test(baseLabel(c.label)));
+const decide = (g, id, sc) => {
+  if (!sc || !g || !g.heroes || K().off || PV) return;
+  const s = ST(g), v = (g.visited || {})[id] || 0;
+  if (id === 'fail_fork' || id === 'map' || /^carry_dead|^dungeon$|^dw_ask|^hire_|^epilogue|^ending/.test(id)) return; // в хабах расспросов (dw_ask.js) — вопросы, а не переговоры
+  const whos = npcWhos(sc).filter(w => !isMercSpk(g, w));
+  /* память: кто-то из говорящих (или мастер на своём дворе) помнит отряд */
+  if (!(s.mem && s.mem.sid === id && s.mem.v === v)) s.mem = null; // вход мог прийти дважды (обёртки) — сказанное не теряем
+  const fk = id === 'folk' && g.folkRole ? 'folk:' + g.folkRole + '@' + (g.folkAt || g.loc) : null;
+  const cands = whos.map(w => ({who: w, key: C.npcMemKey(w)})).concat(fk ? [{who: 'vf_' + g.folkRole, key: fk}] : []);
+  for (const c of (s.mem ? [] : cands)) { const recs = (g.npcMem || {})[c.key]; if (!recs || !recs.length) continue;
+    if ((s.memSaid[c.key] || -99) > g.day - K().MEM_GAP) continue;
+    const r = recs.slice().reverse().find(x => !x.said && x.day < g.day); if (!r) continue;
+    if (c.who.startsWith('vf_')) regFolk(g);
+    const npc = C.voiceNpc(c.who); if (!npc) continue;
+    const t = memText(g, c.key, r, npc); if (!t) continue;
+    r.said = g.day; s.memSaid[c.key] = g.day; s.mem = {sid: id, v, who: c.who, text: t}; break; }
+  /* наёмник: сцена с людьми, наёмник жив */
+  const ms = mercsOf(g); if (!ms.length || !whos.length) return;
+  if (s.cur && s.cur.sid === id && s.cur.v === v) return;
+  if (s.lastSid === id && s.lastDay === g.day) return; // вернулись в ту же сцену тем же днём — та же сцена
+  s.lastSid = id; s.lastDay = g.day; s.n++;
+  if (s.n - (s.lastM == null ? -99 : s.lastM) < K().MERC_GAP) { s.cur = null; return; }
+  if (hsh(g.seed + '|vmp|' + s.n + '|' + id) % 100 >= K().MERC_P) { s.cur = null; return; }
+  const after = whos[0], npc = C.voiceNpc(after);
+  ms.forEach(m => { if (C.compInit) C.compInit(m); });
+  const zemLeft = m => ((C.VOICE_MERC.zem || {})[m.people] || []).some((t, i) => !s.seen.includes('z' + m.people + i));
+  const zemM = ms.find(m => npc && npc.type !== 'nech' && m.people === npc.ppl && zemLeft(m) && !(s.zem || []).includes(C.npcMemKey(after)));
+  let m = zemM && hsh(g.seed + '|vz|' + s.n) % 2 === 0 ? zemM : pickH(ms.length > 1 ? ms.filter(x => x.id !== s.lastMerc) : ms, g.seed + '|vmm|' + s.n);
+  let kind = m === zemM ? 'zem' : 'say';
+  const base = baseTalkCh(sc);
+  let ext = null;
+  if (base && hsh(g.seed + '|vx|' + s.n + '|' + id) % K().MERC_EXTRA === 0) { kind = 'offer'; ext = {i: base.i, label: base.label}; }
+  const text = mercLine(g, m, npc, kind); if (!text) { s.cur = null; return; }
+  if (kind === 'zem') s.zem = (s.zem || []).concat(C.npcMemKey(after)).slice(-40);
+  s.lastM = s.n; s.lastMerc = m.id;
+  s.cur = {sid: id, v, mid: m.id, who: 'vm_' + m.id, after, text, ext};
+};
+const regFolk = g => { try { if (!C.folkPerson || !g.folkRole) return; const p = C.folkPerson(g, g.folkRole, g.folkAt || g.loc); if (p && C.SPEAKERS) C.SPEAKERS['vf_' + g.folkRole] = [p.n + (p.t ? ', ' + p.t : ''), p.face || '', p.ppl || 'nolgrim']; } catch (e) {} };
+const en0 = C.enter;
+C.enter = function (g, id) {
+  const sc = en0.apply(this, arguments);
+  try { if (sc && g && g.heroes && !PV) { decide(g, sc.id || id, sc); inject(g, sc.id || id, sc); } } catch (e) { if (typeof console !== 'undefined' && G.VOICE_DEBUG) console.error(e); }
+  return sc;
+};
+
+/* ---------- тон: «мягко», «с нажимом», «хитростью» ---------- */
+const TONE_DEF = {
+  soft: {skill: 'Дипломатия', dc: 1, word: 'по-доброму', nrav: '', mem: null},
+  press: {skill: 'Запугивание', dc: -1, word: 'с нажимом', nrav: 'h', mem: 'threat'},
+  trick: {skill: 'Обман', dc: 0, word: 'хитростью', nrav: 'L', mem: null},
+};
+const TONE_OK_LABEL = /^(Уговорить|Убедить|Упросить|Попросить|Просить|Выпросить|Разговорить|Расспросить|Спросить|Договориться|Договорить|Говорить с|Поговорить|Отговорить|Выторговать|Потребовать|Прийти к [^,]* и спросить|Угостить [^,]* и (расспросить|разговорить)|Выйти к костру|Уговориться)/;
+const TONE_NO_LABEL = /(по-теракски|по-имперски|по-лесному|на велесском|на старом|как свой|как родич|как брат|как учёный|саном|словом Влада|именем|по старому|по-старому|песн|петь|запеть|зубы|Соврать|Назваться|Сказаться|под видом|ложн|Откупиться|Пройти|даром — ради)/;
+const toneSet = (g, sc) => {
+  if (!K().TONE) return null;
+  const all = (sc.choices || []);
+  if (all.some(c => c._vtone || c.tone)) return null;
+  const used = new Set(); all.forEach(c => socOf(c).forEach(x => { if (TONE_SK.includes(x.skill)) used.add(x.skill); }));
+  if (used.size !== 1) return null; // навыки уже разведены по разным выборам (или разговорных проверок нет)
+  const out = [];
+  all.forEach(c => { if (c.dis || c.need || c.card || c.own || c.inn || c._vm) return; const inf = socOf(c); if (inf.length !== 1) return;
+    const x = inf[0]; if (x.skill !== 'Дипломатия' || x.stat !== 'cha') return;
+    const b = baseLabel(c.label); if (!TONE_OK_LABEL.test(b) || TONE_NO_LABEL.test(b)) return;
+    out.push({c, x}); });
+  return out.length ? out : null;
+};
+const toneDo = (orig, T, k) => function (g2) {
+  const keep = C.bestCheck; let used = false;
+  C.bestCheck = function (gg, stat, skill, dc) { if (!used && TONE_SK.includes(skill)) { used = true; return keep.call(this, gg, stat, T.skill, dc + T.dc); } return keep.apply(this, arguments); };
+  try { const r = orig.do ? orig.do.apply(this, arguments) : null; return r == null && orig.go ? (typeof orig.go === 'function' ? orig.go.apply(this, arguments) : orig.go) : r; } finally { C.bestCheck = keep; }
+};
+/* «Пусть говорит»: бросает наёмник своим навыком, исход — тот же */
+const mercDo = (orig, mid) => function (g2) {
+  const keep = C.bestCheck; let used = false;
+  C.bestCheck = function (gg, stat, skill, dc) {
+    if (PV || used) return keep.apply(this, arguments);
+    const m = mercsOf(gg).find(x => x.id === mid); if (!m) return keep.apply(this, arguments);
+    used = true; const r = R.check(m, stat, skill, dc); r.hero = m; return r; };
+  try { const r = orig.do ? orig.do.apply(this, arguments) : null; return r == null && orig.go ? (typeof orig.go === 'function' ? orig.go.apply(this, arguments) : orig.go) : r; } finally { C.bestCheck = keep; }
+};
+const maxI = sc => { let m = -1; (sc.choices || []).forEach(c => { if (typeof c.i === 'number' && c.i > m) m = c.i; }); const rc = sc.raw && Array.isArray(sc.raw.choices) ? sc.raw.choices.length - 1 : -1; return Math.max(m, rc); };
+const insertBeforeLeave = (sc, items, afterC) => {
+  const cs = sc.choices; let at = afterC ? cs.indexOf(afterC) + 1 : -1;
+  if (at <= 0) { at = cs.length; while (at > 0 && LEAVE.test(cs[at - 1].label || '')) at--; }
+  cs.splice(at, 0, ...items);
+};
+const LASTVM = {};
+const inject = (g, id, sc) => {
+  if (!sc || !Array.isArray(sc.lines) || !Array.isArray(sc.choices)) return;
+  const s = ST(g), v = (g.visited || {})[id] || 0, hub = sc.people && sc.people.length > 1;
+  /* память */
+  if (s.mem && s.mem.sid === id && s.mem.v === v && !sc.lines.some(l => l && l._vmem)) {
+    if (s.mem.who.startsWith('vf_')) regFolk(g);
+    const li = sc.lines.findIndex(l => l && l[0] === s.mem.who); const ln = [s.mem.who, s.mem.text]; if (hub && li >= 0) ln[2] = s.mem.who; ln._vmem = 1;
+    sc.lines.splice(li >= 0 ? li + 1 : Math.min(1, sc.lines.length), 0, ln); }
+  /* тон (не в хабах расспросов) */
+  const ts = /^dw_ask|^find_/.test(id) ? null : toneSet(g, sc); // находки на дороге — короткие сцены, им хватит одного способа
+  if (ts) { let ni = maxI(sc) + 1;
+    ts.forEach(({c}) => { const b = baseLabel(c.label), tail = (/\(([^()]*)\)\s*$/.exec(c.label) || [])[1] || '';
+      const mk = (k) => { const T = TONE_DEF[k]; const stat = 'cha'; void stat;
+        return Object.assign({}, c, {i: ni++, t: `${b} — ${T.word}`, label: `${b} — ${T.word}${tail ? ` (Очарование, ${T.skill})` : ''}`, _vtone: k, _vbase: c.i, nrav: T.nrav || undefined, tag: undefined, do: toneDo(c, T, k), go: undefined}); };
+          insertBeforeLeave(sc, [mk('press'), mk('trick')], c); });
+  }
+  /* слово наёмника */
+  const cur = s.cur;
+  if (cur && cur.sid === id && cur.v === v) {
+    const m = mercsOf(g).find(x => x.id === cur.mid);
+    if (m && !sc.lines.some(l => l && l._vm)) { regMerc(m);
+      let li = -1; sc.lines.forEach((l, i) => { if (l && l[0] === cur.after) li = i; });
+      const ln = [cur.who, cur.text]; if (hub) ln[2] = cur.after; ln._vm = 1;
+      sc.lines.splice(li >= 0 ? li + 1 : sc.lines.length, 0, ln); }
+    if (m && cur.ext && !cur.used) { const base = sc.choices.find(c => c.i === cur.ext.i && c.label === cur.ext.label && !c.dis);
+      if (base) { const ni = maxI(sc) + 1;
+        const it = Object.assign({}, base, {i: ni, t: `Пусть говорит ${m.name}`, label: `Пусть говорит ${m.name}`, _vm: m.id, _vbase: base.i, tag: undefined, nrav: base.nrav, do: mercDo(base, m.id), go: undefined, xp: base.xp});
+        insertBeforeLeave(sc, [it], base); LASTVM[id] = {i: ni, mid: m.id}; } }
+  }
+};
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try { if (sc && g && g.heroes && !K().off) inject(g, sc.id || id, sc); } catch (e) { if (typeof console !== 'undefined' && G.VOICE_DEBUG) console.error(e); }
+  if (CAPV && CAPV.id === id && !CAPV.sc) CAPV.sc = sc;
+  return sc;
+};
+/* предпросмотр: «Пусть говорит» — шанс наёмника */
+if (C.checkPreview) { const cp0 = C.checkPreview;
+  C.checkPreview = function (g, sceneId, idx) { PV++; let got; try { got = cp0.apply(this, arguments); } finally { PV--; }
+    try { const L = LASTVM[sceneId]; if (got && L && L.i === idx) { const m = mercsOf(g).find(x => x.id === L.mid); if (m) { const bonus = R.mod(m.stats[got.stat]) + R.skill(m, got.skill);
+      let ok = 1; for (let r = 2; r <= 19; r++) if (r + bonus >= got.dc) ok++; got.chance = ok / 20; got.hero = m.id; got.who = m.name; got.bonus = bonus; } } } catch (e) {}
+    return got; }; }
+
+/* ---------- выбор: голос, отклик на тон, нрав, память ---------- */
+const actorHero = g => { const hs = alive(g); if (g.net && g._actorPid && g.net.own) { const h = hs.find(x => g.net.own[x.id] === g._actorPid); if (h) return h; } return hs[0] || null; };
+const toneReact = (g, who, tone, key) => {
+  const npc = C.voiceNpc(who); if (!npc) return null;
+  const T = (C.VOICE_TONE_RE[tone] || {})[npc.type] || (C.VOICE_TONE_RE[tone] || {}).prost; if (!T) return null;
+  const s = ST(g); const fresh = T.filter(t => !s.tr.includes(t.slice(0, 24)));
+  const t = pickH(fresh.length ? fresh : T, key); s.tr = s.tr.concat(t.slice(0, 24)).slice(-30);
+  const h = actorHero(g) || {sex: 'm'}; return sexFill(t, h.sex, npc.sex);
+};
+const ch0 = C.choose;
+C.choose = function (g, sceneId, idx) {
+  if (!g || !g.heroes || BUSY || K().off) return ch0.apply(this, arguments);
+  BUSY++; g.lastVoice = null;
+  const prev = CAPV, cap0 = {id: sceneId, sc: null}; CAPV = cap0;
+  const bc = C.bestCheck; let got = null;
+  C.bestCheck = function (gg, stat, skill, dc) { const r = bc.apply(this, arguments); if (!got && r && r.hero && gg === g) got = {r, stat, skill, dc}; return r; };
+  let res;
+  try { res = ch0.apply(this, arguments); } finally { C.bestCheck = bc; CAPV = prev; BUSY--; }
+  try {
+    const sc = cap0.sc, ch = sc && sc.choices && (sc.choices.find(c => c.i === idx) || null);
+    if (ch && !ch.dis && isTalk(ch) && !(/^dw_ask/.test(sceneId) && !ch.say)) {
+      const npcW = mainNpc(g, sc, ch), sk = got ? got.skill : (socOf(ch)[0] || {}).skill;
+      let h = got && got.r.hero && (alive(g).includes(got.r.hero) || mercsOf(g).includes(got.r.hero)) ? got.r.hero : null;
+      if (ch._vm) h = mercsOf(g).find(m => m.id === ch._vm) || h;
+      if (!h) h = actorHero(g);
+      const text = h ? C.voiceLine(g, sceneId, ch, h, sk, npcW) : null;
+      const out = [];
+      if (text) { const isM = h.kind === 'merc'; out.push(isM ? {k: 'm', id: h.id, name: h.name, face: h.portrait || '', text} : {k: 'h', id: h.id, name: h.name, text}); }
+      if (ch._vtone && npcW) { const t = toneReact(g, npcW, ch._vtone, sceneId + '|' + g.day + '|' + ch._vtone + '|' + idx); if (t) out.push({k: 'n', who: npcW, text: t}); }
+      if (out.length) g.lastVoice = out;
+      /* нрав за тон (кнопки тона в nrav-таблицах не видны — пишем сами) */
+      const s = ST(g), okey = sceneId + '|' + baseLabel(ch.label) + '|' + g.day;
+      if (ch._vtone && C.nravDeed && !s.once.includes(okey)) { s.once = s.once.concat(okey).slice(-60);
+        const T = TONE_DEF[ch._vtone]; if (T.nrav) C.nravDeed(g, T.nrav, {key: okey});
+        if (ch._vtone === 'trick' && got && got.r && got.r.ok === false && !got.r._priced) C.nravDeed(g, 'C', {key: okey + '|c'}); }
+      if (ch._vtone === 'press' && sceneId === 'folk' && C.relAdd && g.folkRole) C.relAdd(g, g.folkRole, g.folkAt || g.loc, -3, 'надавили');
+      /* память */
+      const mk = npcW ? C.npcMemKey(npcW) : (sceneId === 'folk' && g.folkRole ? 'folk:' + g.folkRole + '@' + (g.folkAt || g.loc) : null);
+      if (mk) { const r = got && got.r, b = baseLabel(ch.label);
+        if ((sk === 'Обман' || ch._vtone === 'trick') && r && r.ok === false && !r._priced && !/^(Раскусить|Распознать|Уличить|Разоблачить)/.test(b)) C.npcMemAdd(g, mk, 'lie', sceneId, h);
+        if (sk === 'Запугивание' || ch._vtone === 'press' || /^(Пригрозить|Припугнуть|Устрашить|Прижать|Выбить правду)/.test(b)) C.npcMemAdd(g, mk, 'threat', sceneId, h); }
+      if (s.cur && s.cur.ext && ch._vm) s.cur.used = 1;
+    }
+    /* помощь и милость — тоже память, если рядом был человек */
+    if (ch && !ch.dis && C.nravTagOf) { const codes = String(ch.nrav || C.nravTagOf(g, sceneId, ch) || ''); if (/[MU]/.test(codes)) { const npcW = mainNpc(g, sc, ch); if (npcW) C.npcMemAdd(g, C.npcMemKey(npcW), 'help', sceneId, actorHero(g)); } }
+  } catch (e) { if (typeof console !== 'undefined' && G.VOICE_DEBUG) console.error(e); }
+  return res;
+};
+/* дела мастеров: сделали — помнят добро, бросили — помнят слово */
+if (Q) {
+  const keyJ = j => 'folk:' + j.folk + '@' + j.folkAt;
+  const paid = (g, j) => { try { if (g && j && j.folk && j.folkAt && j.status === 'paid') C.npcMemAdd(g, keyJ(j), 'help', 'folk'); } catch (e) {} };
+  if (Q.report) { const r0 = Q.report; Q.report = function (g, j) { const r = r0.apply(this, arguments); paid(g, j); return r; }; }
+  if (Q.finish) { const f0 = Q.finish; Q.finish = function (g, j) { const r = f0.apply(this, arguments); paid(g, j); return r; }; }
+  if (Q.tick) { const t0 = Q.tick; Q.tick = function (g) { const before = new Set(((g && g.jobs) || []).filter(j => j.status === 'open').map(j => j.id)); const r = t0.apply(this, arguments);
+    try { (g.jobs || []).forEach(j => { if (before.has(j.id) && j.status === 'late' && j.folk && j.folkAt) C.npcMemAdd(g, keyJ(j), 'promise', 'folk'); }); } catch (e) {} return r; }; }
+}
+
+/* =====================================================================================================================
+   ТЕКСТЫ
+   ===================================================================================================================== */
+/* Разметка: {a} — обращение к собеседнику (имя или «мил человек» по народу героя), [м|ж] — по полу героя, <м|ж> — по полу
+   собеседника, {q} — вопрос из подписи (косвенный), {Q} — он же с заглавной, {about} — «о чём», {C}/{c} — речь из подписи.
+   Нрав: chest — честный, hit — хитрый, sur — суровый, mil — милостивый, plain — нрав ещё не сложился.
+   ppl — свой говор народа (берётся примерно в каждом втором случае), cls — по званию. */
+C.VOICE_GEN = {
+  say_pre: {
+    chest: ['Скажу прямо, {a}: {c}', 'Врать не стану, {a}. {C}'],
+    hit: ['Ты только послушай, {a}: {c}', 'А дело, {a}, вот какое: {c}'],
+    sur: ['{C} Повторять не буду.', 'Слушай, {a}. {C}'],
+    mil: ['Послушай меня, {a}. {C}', 'Не тревожься, {a}. {C}'],
+    plain: ['{C}', 'Слушай, {a}: {c}'],
+  },
+  ask_q: {
+    chest: ['Спрошу прямо, {a}, и ответа жду такого же: {q}?', 'Не стану ходить кругами, {a}. Скажи как есть, {q}.', 'Ответь по совести, {a}: {q}? Нам это не для пересудов.'],
+    hit: ['Ты ведь всё здесь знаешь, {a}, мимо тебя муха не пролетит. Подскажи-ка, {q}?', 'Слыхал[|а] я краем уха одно, да верить не спешу. Может, ты знаешь, {q}?', 'Любопытство меня гложет, {a}. Скажи, {q}, а я в долгу не останусь.'],
+    sur: ['Говори толком, {a}: {q}? Время дорого.', 'Мне недосуг слушать сказки, {a}. {Q}?', 'Отвечай без увёрток, {a}: {q}?'],
+    mil: ['Не бойся, {a}, мы худого не сделаем. Расскажи, {q}.', 'Никто тебя не выдаст, {a}, не тревожься. Только скажи, {q}.', 'Посиди с нами, {a}, не торопись. Скажи, {q}?'],
+    plain: ['Подскажи, {a}, {q}?', 'Скажи-ка, {a}, {q}?', 'Хотел[|а] спросить, {a}: {q}?'],
+    ppl: {
+      nolgrim: ['Ить, {a}, скажи ты нам по-простому: {q}?', 'Ты уж не таись, {a}, скажи, {q}. Мы люди свои.'],
+      imperets: ['Позволь узнать, {a}: {q}?', 'Изволь разъяснить, {a}: {q}?'],
+      terak: ['Скажи, {a}: {q}? Мне нужен ответ, а не песня.'],
+      yuzhnober: ['Один вопрос, {a}, и я твой должник: {q}?'],
+      loss: ['Лес любит тихие вопросы, {a}. Вот мой: {q}?'],
+      gorets: ['Скажи, {a}, как у огня говорят, без дыма: {q}?'],
+      stepnyak: ['Небо слышит, {a}, — значит, ответишь правду. {Q}?'],
+      parnass: ['Позволю себе вопрос, {a}: {q}?'],
+    },
+  },
+  ask_about: {
+    chest: ['Расскажи нам {about}, {a}. Что знаешь — всё пригодится.', 'Мы пришли спросить {about}, {a}. Скажи, что знаешь, без утайки.'],
+    hit: ['Говорят, ты кое-что знаешь {about}, {a}. Поделишься?', 'А что, {a}, правду ли бают {about}? Ты-то уж точно знаешь.'],
+    sur: ['Что знаешь {about}, {a}? Выкладывай.', 'Говори {about}, {a}. Коротко и по делу.'],
+    mil: ['Не откажи, {a}, расскажи {about}. Мы не торопим.', 'Расскажи {about}, {a}, сделай милость. Мы послушаем.'],
+    plain: ['Что скажешь {about}, {a}?', 'Расскажи-ка {about}, {a}.'],
+    ppl: { nolgrim: ['А вот скажи, {a}, {about} что слыхать? Ты, чай, лучше нашего знаешь.'], imperets: ['Позволь расспросить тебя {about}, {a}. Это важно.'], parnass: ['Позволю себе спросить {about}, {a}. Любая подробность ценна.'] },
+  },
+  tell_know: {
+    chest: ['Слушай, {a}: я знаю, {q}. Скажу всё, как есть.', 'Мы выяснили, {a}, {q}. Тебе надо это знать.'],
+    hit: ['А ведь я знаю, {a}, {q}. Хочешь услышать?', 'Есть у меня для тебя весть, {a}: я знаю, {q}.'],
+    sur: ['Слушай и запоминай, {a}: я знаю, {q}.'],
+    mil: ['Не пугайся, {a}, но тебе стоит это знать. Я знаю, {q}.'],
+    plain: ['Слушай, {a}, я знаю, {q}.'],
+  },
+  ask: {
+    chest: ['Мы не из праздного любопытства спрашиваем, {a}. Расскажи, что тут творится, — может, и поможем.', 'Скажи по совести, {a}: что здесь неладно? Мы за этим и пришли.'],
+    hit: ['Ты ведь всё здесь видишь, {a}, и то, о чём другие молчат. Неужто не шепнёшь пары слов?', 'Слух ходит, {a}, будто тут неспокойно. Расскажешь — я не забуду, кто помог.'],
+    sur: ['Говори, {a}, что знаешь. Всё, без утайки.', 'Не тяни, {a}. Что здесь стряслось?'],
+    mil: ['Присядь, {a}, отдышись. А потом расскажи, что у вас стряслось, — не торопись.', 'Мы не со злом пришли, {a}. Расскажи, что тебя тревожит.'],
+    plain: ['Расскажи, {a}, что тут у вас слышно?', 'Что тут творится, {a}? Мы люди приезжие, нам бы знать.'],
+    ppl: {
+      nolgrim: ['Ну, {a}, рассказывай, что у вас тут деется. Мы послушаем, нам не к спеху.', 'Ты, {a}, не серчай, что пристаём. Растолкуй, что за беда у вас приключилась.'],
+      imperets: ['Изволь рассказать, {a}, что здесь происходит. Мы слушаем со всем вниманием.'],
+      terak: ['Рассказывай, {a}. Коротко, но всё.'],
+      yuzhnober: ['Вести, {a}, — лучший товар. Чем поделишься?'],
+      loss: ['Что слышно в здешнем лесу, {a}? Ты, верно, знаешь больше нашего.'],
+      gorets: ['Что говорят у вашего огня, {a}?'],
+      stepnyak: ['Какие вести носит здешний ветер, {a}?'],
+      parnass: ['Позволю себе спросить, {a}: что здесь нынче происходит? Любая мелочь будет полезна.'],
+    },
+  },
+  greet: {
+    chest: ['Мир тебе, {a}. Мы пришли поговорить открыто, без камня за пазухой.', 'Есть разговор, {a}, и разговор честный. Выслушаешь?'],
+    hit: ['Доброго здоровья, {a}! Не уделишь ли пару слов? Разговор, глядишь, выйдет выгодный.', 'Вот и свиделись, {a}. Давно хотел[|а] с тобой потолковать — да всё случая не было.'],
+    sur: ['Есть разговор, {a}. Найди время.', 'Поговорим, {a}. Без лишних слов.'],
+    mil: ['Не пугайся, {a}, мы с миром. Поговорим?', 'Здравствуй, {a}. Мы тебя не обидим — нам бы только поговорить.'],
+    plain: ['Можно тебя на пару слов, {a}?', 'Поговорим, {a}?'],
+    ppl: {
+      nolgrim: ['Здорово живёшь, {a}! Потолкуем малость?'],
+      imperets: ['Приветствую, {a}. Позволь отнять у тебя немного времени.'],
+      terak: ['Хорошего огня, {a}. Разговор есть.'],
+      yuzhnober: ['День добрый, {a}! Разговор к тебе — и, может, выгодный.'],
+      loss: ['Тихой тебе тропы, {a}. Поговорим?'],
+      gorets: ['Тёплого огня, {a}. Найдётся место у очага для разговора?'],
+      stepnyak: ['Мир твоему дому, {a}. Поговорим, как говорят в степи, — без спешки.'],
+      parnass: ['Приветствую, {a}. Позволите беседу?'],
+    },
+    cls: { obetnik: ['Мир тебе, {a}, и свет Ока над твоим домом. Поговорим?'], chernets: ['Свет Ока с тобой, {a}. Не уделишь ли время для слова?'], volhv: ['Перун свидетель, {a}, мы с добром. Поговорим?'], guslyar: ['Здравствуй, {a}! Песню потом, а сперва — разговор.'] },
+  },
+  persuade: {
+    chest: ['Скажу как есть, {a}: без тебя нам не справиться, а с тобой — справимся. За свои слова я отвечаю.', 'Не стану тебя улещать, {a}. Дело правое, и ты это знаешь не хуже меня.'],
+    hit: ['Подумай, {a}, кому выгоднее, чтобы ты упирал<ся|ась>: тебе или тем, кто за этим стоит? Нам с тобой делить нечего.', 'Да ты пойми, {a}: согласишься — и всем станет легче, а тебе первому. Разве я худое предлагаю?'],
+    sur: ['Хватит препираться, {a}. Выслушай меня до конца — и решай, только недолго.', 'Я дважды просить не привык[|ла], {a}. Но раз уж прошу — подумай хорошенько.'],
+    mil: ['Я понимаю, тебе страшно, {a}, и не виню. Но послушай меня — худого не посоветую.', 'Не держи сердца, {a}. Мы пришли не отнимать, а помочь, — дай нам эту возможность.'],
+    plain: ['Послушай, {a}, давай по-доброму. Нам это нужно, да и тебе, думаю, не во вред.', 'Рассуди сам<|а>, {a}: так всем будет лучше.'],
+    ppl: {
+      nolgrim: ['Ты, {a}, рассуди по-людски: мы ж не для себя стараемся. Подсоби — а мы уж в долгу не останемся.', 'Ить, {a}, сколько можно рядиться? Дело общее, а беда у всех одна.'],
+      imperets: ['Позволь привести довод, {a}: то, о чём мы просим, служит и твоей пользе. Взвесь его без спешки.'],
+      terak: ['Слушай, {a}. Я скажу один раз и коротко: это нужно и нам, и тебе.'],
+      yuzhnober: ['Посчитай сам<|а>, {a}: убытку тебе никакого, а прибыль — общая. Хорошая же сделка!'],
+      loss: ['Лес не торопит, {a}, но и не ждёт вечно. Решайся.'],
+      gorets: ['У нас говорят: одно полено не горит, два горят. Встань рядом, {a}.'],
+      stepnyak: ['Вдвоём и в степи не страшно, {a}. Пойдём одной дорогой.'],
+      parnass: ['Позволю себе довод, {a}: если взвесить всё, иного разумного выхода нет.'],
+    },
+    cls: { obetnik: ['Око видит, {a}, кто помогает в правом деле. Не отступайся.'], volhv: ['Боги любят тех, кто встаёт за правду, {a}. Встань и ты.'], knizhnik: ['Рассуди здраво, {a}: все доводы — за то, о чём мы просим.'] },
+  },
+  plead: {
+    chest: ['Прошу тебя, {a}, и прошу не для себя. Помоги, и я этого не забуду.', 'Скажу честно, {a}: нам больше не к кому идти. Не откажи.'],
+    hit: ['Знаю, {a}, просьба моя не из лёгких. Но ты ведь не из тех, кто людям отказывает, верно?', 'Тебе это почти ничего не стоит, {a}, а нам — дороже золота. Ну что, уважишь?'],
+    sur: ['Прошу один раз, {a}, по-хорошему. Не откажи.'],
+    mil: ['Не откажи, {a}, сделай доброе дело. Мы отплатим, чем сможем.', 'Сделай милость, {a}. Я понимаю, как это нелегко.'],
+    plain: ['Сделай милость, {a}, помоги нам.', 'Об одном прошу, {a}: не откажи.'],
+    ppl: {
+      nolgrim: ['Будь ласков<|а>, {a}, не откажи. Мы в долгу не останемся, вот те слово.'],
+      imperets: ['Смиренно прошу тебя, {a}: снизойди к нашей нужде.'],
+      terak: ['Мне нужна твоя помощь, {a}. Проси взамен, чего хочешь.'],
+      yuzhnober: ['Окажи услугу, {a}, а уж я её не забуду.'],
+      parnass: ['Позволь обратиться с просьбой, {a}. Она невелика, а для нас бесценна.'],
+    },
+  },
+  threat: {
+    chest: ['Не люблю грозить, {a}, но скажу прямо: смолчишь — пожалеешь.', 'Я с тобой по-честному, {a}, и тебе советую так же. Не то разговор будет другой.'],
+    hit: ['Я ведь могу и иначе спросить, {a}. Ты уж выбери, как тебе больше нравится.', 'Жаль будет, {a}, если с тобой что приключится. Дороги нынче опасные, а люди злые.'],
+    sur: ['Говорю один раз, {a}: упрёшься — будет не по-хорошему.', 'Ты меня не зли, {a}. Терплю я долго, да жалею недолго.'],
+    mil: ['Не доводи до худого, {a}. Мне и самому не хочется, а придётся.'],
+    plain: ['Лучше скажи по-хорошему, {a}. По-плохому — хуже будет.'],
+    ppl: {
+      nolgrim: ['Ты, {a}, до греха не доводи. Я пока по-хорошему говорю.'],
+      imperets: ['Советую подумать, {a}. Второго предупреждения не будет.'],
+      terak: ['Ещё одно лживое слово, {a}, и говорить будет железо.'],
+      yuzhnober: ['Посчитай, {a}, во что тебе обойдётся упрямство. Я уже посчитал[|а].'],
+      loss: ['Лес тих, {a}, пока его не злят. Я тоже.'],
+      gorets: ['В горах за такое сбрасывают со скалы, {a}. Мы не в горах — пока.'],
+      stepnyak: ['В степи за такое волочат на аркане, {a}. Думай.'],
+      parnass: ['Позволю себе напомнить, {a}: моё терпение не бесконечно, и край его близок.'],
+    },
+  },
+  lie: {
+    chest: ['Э… Мы, {a}, по своему делу идём. Худого не замышляем, вот те слово.', 'Мы… люди мирные, {a}. Пропусти, а?'],
+    hit: ['Да мы люди мирные, {a}, идём своей дорогой. Чего нас держать?', 'Ты нас с кем-то путаешь, {a}. Мы тут проездом, по торговому делу.', 'Ох, {a}, знал[|а] бы ты, от кого мы идём, — сам<|а> бы дорогу показал<|а>. Да нельзя говорить, уж не обессудь.'],
+    sur: ['Не твоё это дело, {a}, а раз спрашиваешь — по торговой части мы. И хватит.'],
+    mil: ['Мы, {a}, люди простые, ищем, где переночевать. Не гони нас.'],
+    plain: ['Мы просто путники, {a}. Идём, куда шли.'],
+    ppl: { nolgrim: ['Да мы, {a}, ить к родне идём, на поминки. Какие из нас лихие люди?'], yuzhnober: ['Мы купцы, {a}, — вот, приценивались к местному товару. Ничего более.'], imperets: ['Мы следуем по делу, {a}, о котором не принято говорить вслух. Надеюсь, ты понимаешь.'] },
+  },
+  haggle: {
+    chest: ['Скажу честно, {a}: столько у нас нет. Уступи — а мы за это не забудем.', 'Цена твоя, {a}, — по совести ли? Скажи прямо, и мы поймём.'],
+    hit: ['Цена-то у тебя, {a}, кусачая. Я слыхал[|а], у соседей вдвое дешевле — да уж ладно, давай договоримся.', 'Товар хорош, слов нет. Только цена, {a}, будто ты его из-за моря вёз. Сбавь — и возьмём не глядя.'],
+    sur: ['Ты цену не задирай, {a}. Назови честную — и разойдёмся довольные.', 'Половину от этого, {a}. Больше не дам.'],
+    mil: ['Мы не жадничаем, {a}, просто дорога долгая. Сбавь хоть немного.'],
+    plain: ['Уступи, {a}, — возьмём сразу.', 'Давай сторгуемся, {a}. Цена-то высоковата.'],
+    ppl: {
+      nolgrim: ['Да побойся богов, {a}! За такую цену у нас корову купить можно, ещё и на подойник останется.'],
+      yuzhnober: ['Я и сам[|а] торговал[|а], {a}, — меня ценой не напугать. Давай по-честному.'],
+      imperets: ['Цена твоя, {a}, несоразмерна товару. Предлагаю иную.'],
+      terak: ['Половину. И долго со мной не торгуйся, {a}, — не люблю.'],
+      stepnyak: ['В степи за такую цену коня дают, {a}, и седло в придачу.'],
+      parnass: ['Позволю себе заметить, {a}: цена завышена ровно вдвое. Я считал[|а].'],
+      gorets: ['Горец за такую цену и молотка не продаст, {a}. Сбавь.'],
+      loss: ['Лес даёт даром, {a}, а ты просишь втрое. Уступи.'],
+    },
+  },
+  bribe: {
+    chest: ['Не люблю я так, {a}, да деваться некуда. Возьми и пропусти.'],
+    hit: ['Держи, {a}, это тебе на пиво. А ты нас не видел<|а>.', 'Служба у тебя тяжёлая, {a}, а платят мало, верно? Вот, возьми — за беспокойство.'],
+    sur: ['Бери серебро и отвернись, {a}. Так всем будет проще.'],
+    mil: ['Возьми, {a}, детям на гостинцы. А нас пропусти тихонько.'],
+    plain: ['Возьми, {a}, за труды. И будто нас тут не было.'],
+  },
+  judge: {
+    chest: ['Рассудим по правде, {a}: кто прав — тот прав, а виноватому держать ответ.', 'Слушайте все. Судить буду по совести, без оглядки на род и кошель.'],
+    hit: ['Давайте так, {a}: каждый своё получит, и никто не уйдёт обиженным. Слушайте.'],
+    sur: ['Хватит спорить. Я скажу, как будет, — а кто не согласен, пусть говорит сейчас.'],
+    mil: ['Не держите зла друг на друга. Рассудим так, чтобы обоим было не обидно.'],
+    plain: ['Рассудим, {a}. Говорите по очереди.'],
+  },
+  buy: {
+    chest: ['Вот серебро, {a}, всё по-честному. Отдай нам, что просим.', 'Плата при нас, {a}. Считай — не обсчитали.'],
+    hit: ['Слышишь, как серебро звенит, {a}? Приятный звук. Отдай, и разойдёмся друзьями.'],
+    sur: ['Вот плата, {a}. Бери и не торгуйся.'],
+    mil: ['Возьми, {a}, сколько уговорено. И отпусти с миром.'],
+    plain: ['Вот плата, {a}.', 'Держи, {a}, как сговорились.'],
+  },
+  answer: {
+    chest: ['Изволь, {a}, отвечу прямо: мне скрывать нечего.'],
+    hit: ['Ответ у меня есть, {a}, и, думаю, он тебе понравится больше, чем ты ждёшь.'],
+    sur: ['Слушай мой ответ, {a}, и не перебивай.'],
+    mil: ['Не держи зла, {a}. Выслушай мой ответ спокойно.'],
+    plain: ['Отвечу, {a}, как есть.'],
+  },
+  insight: {
+    chest: ['Погоди-ка, {a}. Что-то ты недоговариваешь — я это вижу.'],
+    hit: ['Складно говоришь, {a}. Даже слишком складно.'],
+    sur: ['Глаза у тебя бегают, {a}. Говори правду.'],
+    mil: ['Тебя что-то тревожит, {a}, — по лицу видно. Скажи, что на самом деле.'],
+    plain: ['Постой, {a}. Тут что-то не сходится.'],
+  },
+  promise: {
+    chest: ['Даю слово, {a}: сделаем.', 'Обещаю, {a}. А слово своё я держу.'],
+    hit: ['Обещаю, {a}. Как сговорились, так и будет — не сомневайся.', 'Не изволь беспокоиться, {a}: сделаем в лучшем виде.'],
+    sur: ['Сделаем. Я дважды не обещаю.', 'Слово дано, {a}. Больше говорить не о чем.'],
+    mil: ['Не тревожься, {a}, обещаю — всё будет как надо.', 'Обещаю, {a}. Отдыхай и не думай о худом.'],
+    plain: ['Хорошо, {a}. Обещаю.'],
+    ppl: { terak: ['Слово дано, {a}. У очага за такое отвечают головой.'], nolgrim: ['Вот те слово, {a}: сделаем, не сумлевайся.'], imperets: ['Даю тебе слово, {a}, и пусть оно будет порукой.'] },
+  },
+  demand: {
+    chest: ['Мы требуем по праву, {a}, а не из прихоти.'],
+    hit: ['Не заставляй меня требовать громче, {a}: тебе же хуже будет, если об этом узнают наверху.'],
+    sur: ['Требую, {a}. И повторять не стану.'],
+    mil: ['Я прошу по праву, {a}. Не вынуждай требовать.'],
+    plain: ['Мы в своём праве, {a}. Будь добр<|а>, исполни.'],
+    ppl: { imperets: ['По Закону, {a}, мы в своём праве и требуем исполнить.'] },
+  },
+  vouch: {
+    chest: ['Ручаюсь, {a}, своим словом и своей головой.'],
+    hit: ['Я за это ручаюсь, {a}, а моё слово здесь кое-чего стоит.'],
+    sur: ['Моё слово — порука, {a}. Другой не будет.'],
+    mil: ['Поверь мне, {a}. Я ручаюсь, и отвечать буду я.'],
+    plain: ['Я поручусь, {a}.'],
+  },
+  remind: {
+    chest: ['Вспомни, {a}, что было. Я лишь напоминаю, а судить тебе.'],
+    hit: ['Не забыл<|а> ли ты, {a}, кое-что? А я вот помню.'],
+    sur: ['Вспомни, {a}, — и подумай, прежде чем отвечать.'],
+    mil: ['Вспомни, {a}, как оно было. Я не корю — просто вспомни.'],
+    plain: ['Помнишь ли, {a}?'],
+  },
+  tell: {
+    chest: ['Слушай, {a}, расскажу, как было, — ничего не утаю и не прибавлю.', 'Скрывать мне нечего, {a}. Вот как всё было.'],
+    hit: ['Расскажу, {a}, только выслушай до конца, а потом суди.'],
+    sur: ['Слушай и не перебивай, {a}. Было так.'],
+    mil: ['Тяжело это говорить, {a}, но ты имеешь право знать. Слушай.'],
+    plain: ['Расскажу, {a}, как оно было.'],
+  },
+  calm: {
+    chest: ['Всё, {a}, всё. Худое позади, слышишь?'],
+    hit: ['Ну-ну, {a}, тише. Сейчас всё уладим.'],
+    sur: ['Соберись, {a}. Слезами делу не поможешь.'],
+    mil: ['Тише, {a}, тише. Мы рядом, и никто тебя не тронет.', 'Не плачь, {a}. Всё ещё можно поправить.'],
+    plain: ['Успокойся, {a}. Мы здесь.'],
+  },
+  /* голос по тону — когда игрок выбрал способ сказать (выборы «с нажимом», «хитростью», «по-доброму») */
+  tone_press: {
+    chest: ['Буду говорить прямо, {a}, и строго: дело не терпит. Не вынуждай меня на худое.', 'Хватит, {a}. Я спрашиваю всерьёз — и жду ответа всерьёз.'],
+    hit: ['Ты, {a}, верно, думаешь, что мы пошутим и уйдём. Напрасно думаешь.', 'Я ведь могу и по-другому, {a}. Только тебе это не понравится.'],
+    sur: ['Довольно, {a}. Либо ты соглашаешься сейчас, либо пожалеешь, что спорил<|а>.', 'Я не уговаривать приш[ёл|ла], {a}. Я приш[ёл|ла] за ответом.'],
+    mil: ['Не хочу тебе грозить, {a}, но ты не оставляешь мне выбора. Подумай ещё раз.'],
+    plain: ['Слушай внимательно, {a}: по-хорошему прошу в последний раз.', 'Не испытывай моё терпение, {a}.'],
+  },
+  tone_trick: {
+    chest: ['Я… скажу так, {a}: нам это выгодно обоим. Поверь уж.', 'Сказать по правде, {a}… впрочем, не всю правду сразу. Но тебе это пойдёт на пользу.'],
+    hit: ['А ведь мне говорили, {a}, что ты человек сметливый. Неужто упустишь такой случай?', 'Между нами, {a}: тут уже всё решено, и не в твою пользу. Если только ты не поможешь нам — тогда другое дело.', 'Слыхал<|а>, {a}, что про тебя говорят наверху? Нет? Ну и хорошо. Помоги нам — и не услышишь.'],
+    sur: ['Нас послали люди, {a}, с которыми не спорят. Сам<|а> понимаешь.'],
+    mil: ['Мы ведь тебе добра желаем, {a}. Сделаешь, как просим, — и всё обернётся к лучшему, вот увидишь.'],
+    plain: ['Тут вот какое дело, {a}: если согласишься, никто внакладе не останется. Уж поверь.', 'Сказать тебе по секрету, {a}? Мы тут не сами по себе — за нами стоят люди поважнее.'],
+  },
+};
+/* Наёмник вставляет слово: {a} — обращение к ведущему герою (по народу наёмника), [м|ж] — по полу наёмника,
+   <м|ж> — по полу собеседника, {N} — имя собеседника (строка с {N} берётся, только если имя известно). */
+C.VOICE_MERC = {
+  chestny: ['Выслушай до конца, {a}, не перебивай. По лицу видно: <ему|ей> давно не с кем было поговорить по душам.',
+    'Не всё <он|она> договаривает, {a}. Да только честного человека торопить — спугнуть.',
+    'Осторожней со словами, {a}. Пообещать тут легко, а держать потом будем все вместе.',
+    'Кто правду говорит, тому и рядиться незачем. Посмотрим, кто тут какой.',
+    '{N} дело говорит, {a}. Я бы к <нему|ней> прислушался[|ась].',
+    'Ты, {a}, только за меня не обещай. Своё слово я сам[|а] даю — и сам[|а] держу.',
+    'Я бы на твоём месте, {a}, сперва спросил[|а], чего <он|она> сам<|а> хочет. Люди охотней говорят, когда их слушают.',
+    'Мне скрывать нечего, {a}, так что скажу: <он|она> мне по нраву. Говорит без вывертов.',
+    'Ты не дави, {a}. Кого правдой не убедишь, того криком и подавно.',
+    'Обещанного, говорят, три года ждут. Так ты, {a}, лучше меньше обещай, да больше делай.'],
+  zhadny: ['Слышь, {a}, а про плату-то ни слова. Спроси, пока <он|она> добр<|а>.',
+    'Ты погоди соглашаться, {a}. Тут, по всему видать, есть с чего взять — грех упускать.',
+    'Красиво говорит {N}. Только красивыми словами кошель не набьёшь.',
+    'Мне-то что, я человек служилый. Но даром работать — себя не уважать, {a}, запомни.',
+    'Чую, {a}, задаром нас в какое-то дело втягивают. Ты уж поторгуйся, а то я сам[|а] начну.',
+    'Добрые слова — дело хорошее, а серебро ещё лучше. Я так, к слову.',
+    'Ты гляди, {a}, у <него|неё> пояс-то с серебряной пряжкой. Значит, есть чем платить, пусть не прибедняется.',
+    'Слова — дело дешёвое, {a}. Пусть <он|она> сперва покажет, что за ними стоит.',
+    'Я так скажу: кто долго жалуется, у того в погребе припрятано. Ты спроси, {a}, спроси.',
+    'Ох, чую я, {a}, работа будет тяжёлая, а плата лёгкая. Не продешеви.'],
+  nabozhny: ['Око видит этого человека насквозь, {a}. Дай <ему|ей> сказать, а судить успеем.',
+    'Не горячись, {a}. Кротким словом больше узнаешь, чем криком, — так старшие братья учат.',
+    'Помолюсь, чтобы <он|она> сказал<|а> правду. А там уж как Око рассудит.',
+    'Смотри, {a}, не дай втянуть себя в недоброе. Ложь — она липкая, не отмоешься.',
+    'Скорбь у <него|неё> на лице, {a}. Будь помягче: Око милость любит.',
+    'Если тут колдовство замешано, {a}, я бы держался[|ась] подальше. Говорю как есть.',
+    'Терпение, {a}. Око ждёт долго — и нам велит.',
+    'По глазам видно, {a}: <он|она> не злой человек, а напуганный. С такими — тише.',
+    'Не клянись тут ничем, {a}. Клятва — тяжесть, а нам и так нести немало.',
+    'Пусть <он|она> выскажется, {a}. Иному человеку и выговориться — уже облегчение.'],
+  star: ['Деды учили: в чужом доме сперва слушай, потом говори. Послушаем, {a}.',
+    'Чур меня, не нравится мне это место, {a}. Разговор разговором, а оберег держи под рукой.',
+    'Духи здешние неспокойны — и человек вместе с ними. Не торопи <его|её>, {a}.',
+    'Я бы спросил[|а], кому <он|она> кланяется — старым богам или новой звезде. От этого многое зависит.',
+    'Слово — что межевой камень, {a}: поставил — не двигай. Смотри, что обещаешь.',
+    '{N} говорит, будто сказку сказывает. А в сказках, {a}, правды бывает больше, чем в грамотах.',
+    'Слышишь, {a}, как ветер стих? Это к важному разговору. Деды бы сказали — не шути тут.',
+    'Ты <ему|ей> поклонись, {a}, по обычаю. Поклон шеи не ломит.',
+    'Говорят, у кого в доме печь холодная, у того и слово холодное. Погляди-ка, {a}, тепло ли тут.',
+    'Я бы, {a}, хлеба с <ним|ней> преломил[|а], прежде чем о деле говорить. Так встарь заведено.'],
+  lihoy: ['Чего рядиться, {a}? Одно слово — и я <его|её> сам[|а] разговорю.',
+    'Скучно мне от таких разговоров, {a}. Давай ближе к делу, а то уснём тут.',
+    'Ещё немного — и мы тут до ночи проговорим, {a}. А дело-то ждёт!',
+    'Ха! {N} на нас, гляжу, косится. Ничего, и не таких разговаривали.',
+    'Слова словами, {a}, а я бы сразу спросил[|а]: где драка и кого бить?',
+    'Мягко стелешь, {a}. Смотри только, как бы нам потом не пришлось жёстко спать.',
+    'Ну что, {a}, будем рядиться или сразу за дело? Я-то за дело.',
+    'Эх, не люблю я долгих разговоров, {a}. От них у меня рука сама к ножу тянется.',
+    'Скажи <ему|ей>, {a}, что мы не из пугливых. Пусть знает, с кем говорит.',
+    'Чую, {a}, драка в этом деле будет. Ну и ладно — заскучал[|а] я.'],
+  trus: ['Ой, {a}, не нравится мне это. Может, ну его, а? Пошли отсюда, пока целы.',
+    'Только не зли <его|её>, {a}, прошу. Мне ещё пожить охота.',
+    'Я постою в сторонке, ладно? Но если что — ты уж меня не забудь, {a}.',
+    'А вдруг это ловушка, {a}? Мы ж <его|её> первый раз видим.',
+    'Говори ты, {a}, у тебя лучше выходит. У меня от таких разговоров язык к нёбу липнет.',
+    'Странно {N} на нас смотрит, {a}. Будто прикидывает, сколько за нас дадут.',
+    'Ты только не обещай за всех, {a}, а то потом нам расхлёбывать.',
+    'Тише, {a}, тише… А вдруг за стеной кто слушает?',
+    'Может, заплатим да пойдём, {a}? Целее будем.',
+    'Я, {a}, в разговоры не лезу. Моё дело маленькое — за спиной стоять.'],
+  type: {
+    oko: { nabozhny: ['Брат по вере — уже полдела, {a}. Только не лги <ему|ей>: Око видит.'], star: ['С Оком говори осторожно, {a}. Они каждое слово в книгу пишут.'],
+      zhadny: ['У Ока серебро водится, {a}. Это я так, к сведению.'], trus: ['Дознаватели… Давай я помолчу, {a}, а ты говори.'],
+      lihoy: ['Облачение-то чистенькое. Небось, в драке ни разу не бывал<|а>.'], chestny: ['Око Оком, а человек человеком, {a}. Говори с <ним|ней> прямо.'] },
+    nech: { star: ['Поклонись, {a}: с этими без поклона нельзя, деды так учили.'], trus: ['Это ж нечисть, {a}! Ты с ней поосторожней, а я тут у порога постою.'],
+      nabozhny: ['Око, оборони… С навью беседу вести — последнее дело, {a}.'], lihoy: ['Нечисть, а говорит, как человек. Ну-ну. Посмотрим, как запоёт, коли что.'],
+      zhadny: ['У таких клады бывают, {a}. Спроси невзначай.'], chestny: ['Нечисть не нечисть, а уговор держит крепче иного человека. Говори честно, {a}.'] },
+    sever: { lihoy: ['Северяне уважают тех, кто не мнётся, {a}. Говори коротко.'], trus: ['У северян рука быстрее языка, {a}. Ты уж повежливей.'], chestny: ['С таким людом — только прямо, {a}. Кривое слово тут не простят.'] },
+    knizh: { lihoy: ['Опять книжные речи… Растолкуй <ему|ей> попроще, {a}, а то до вечера не кончим.'], zhadny: ['Учёный человек, а кошель, гляжу, тощий. Плату с <него|неё> вперёд бери, {a}.'], star: ['Книжники всё в буквы перекладывают, {a}. А что в буквы не легло — того для них и нет.'] },
+  },
+  zem: {
+    nolgrim: ['Земляки мы с <ним|ней>, {a}, по говору слышно. Свой своего, хочется верить, не обманет.', 'Ить, наш человек, нолгримский! Дай-ка я с земляком словом перемолвлюсь, {a}.'],
+    imperets: ['Слышу родной выговор, {a}: человек из Империи. Таких учат говорить гладко, а думать — молча.', 'Имперская речь, {a}. С нашими надо по чину, иначе и слушать не станут.'],
+    terak: ['Из наших, северян, {a}. Говорит мало — значит, думает много.', 'По выговору — с наших гор, {a}. С такими говорить надо прямо, кругами не ходить.'],
+    yuzhnober: ['Ба, да это наш, южнобережный, {a}! С таким торговаться — одно удовольствие.', 'Земляк, {a}, по выговору слышу. У нас так: сперва цена, потом дружба.'],
+    loss: ['Из наших <он|она>, {a}, из лесных людей. С такими говорят тихо, без резких слов.'],
+    gorets: ['Горская кровь, {a}, по рукам видно — кузнечные. Горцы чтут прямое слово.'],
+    stepnyak: ['Степной человек, {a}, наш. Степь учит: гостю — правду, врагу — стрелу.'],
+    parnass: ['Пар-насский выговор, {a}. Позволь заметить: таких не убедить чувством, только доводом.'],
+  },
+  offer: {
+    chestny: ['Дай мне сказать, {a}. Я скажу прямо, без выкрутас, — <ему|ей> такие слова, видно, нужнее.', 'Позволь, я сам[|а] с <ним|ней> поговорю, {a}. Мне, глядишь, поверят.'],
+    zhadny: ['Дай-ка я потолкую, {a}. Где торг — там я как рыба в воде.', 'Пусти меня, {a}. Я людей насквозь вижу: кто сколько стоит и что хочет.'],
+    nabozhny: ['Позволь мне, {a}. Со смирением да с добрым словом иной раз дальше пройдёшь, чем с мечом.', 'Дай я скажу, {a}. Кроткое слово и камень точит.'],
+    star: ['Дай я скажу, {a}, по-старому, как деды говорили. Такие слова <он|она> поймёт.', 'Пусти меня, {a}. Я знаю, как с таким людом говорят.'],
+    lihoy: ['Пусти меня, {a}. Я с <ним|ней> живо договорюсь — по-своему.', 'Чего тянуть, {a}? Дай я скажу — коротко и ясно.'],
+    trus: ['Ну… если хочешь, {a}, я попробую. Только ты рядом стой, ладно?', 'Я-то могу и сказать, {a}, — тихо, без шума. Может, так даже лучше выйдет.'],
+    zem: ['Пусти меня, {a}: земляк земляку скорей поверит.'],
+  },
+};
+/* отклик человека на тон — до исхода, без удачи и неудачи; [м|ж] — по полу героя, <м|ж> — по полу говорящего */
+C.VOICE_TONE_RE = {
+  soft: {
+    prost: ['Ну, коли по-доброму, отчего ж не поговорить.', 'Ласковое слово и кошке приятно. Говори, слушаю.', 'Давно со мной так-то не говорили… Ладно, слушаю.'],
+    oko: ['Кротость — добродетель, и Око её видит. Говорите.', 'Вы говорите учтиво. Это редкость в наше время. Слушаю.', 'Мягкое слово открывает и запертые двери. Продолжайте.'],
+    knizh: ['Что ж, вы говорите разумно. Это располагает.', 'Учтивость — признак ума. Я вас слушаю.', 'Хорошо. С вежливым собеседником и спорить приятнее.'],
+    sever: ['Говоришь по-людски. Ладно, слушаю.', 'Мягко стелешь, чужак. Но слушать буду.', 'Добрые слова у нас не в ходу. Но ты говори.'],
+    nech: ['Ласково говоришь, человек… Давно так с нами не говорили.', 'Хорошо… тихо… Так и говори.', 'Учтивый. Таких наверху мало осталось.'],
+  },
+  press: {
+    prost: ['Ты голос-то на меня не подымай, не у себя дома! …Ну, чего тебе?', 'Ох ты ж… Не шуми, не шуми, люди услышат.', 'Пуганые мы, криком нас не возьмёшь. Хотя… говори уж.'],
+    oko: ['Вы угрожаете служителю Ока? Смело. Или глупо. Посмотрим.', 'Не советую повышать голос в этих стенах. Но я выслушаю.', 'Гнев — дурной советчик. Однако продолжайте: я запомню каждое слово.'],
+    knizh: ['Угрозы — довод слабых. Впрочем, иногда и действенный.', 'Не стоит так. Я пугаюсь, но думать от этого не перестаю.', 'Вы повышаете голос. Значит, доводов у вас немного.'],
+    sever: ['Грозишь? У нас за такое зовут на хольмганг. Ну, говори, пока я терплю.', 'Ха. Голос у тебя есть. Посмотрим, есть ли за ним рука.', 'Не люблю, когда мне грозят. Но уважаю, когда не мнутся.'],
+    nech: ['Ты грозишь мне?.. Смешно. Но смелых мы помним.', 'Тише, тише… Не шуми в чужом месте.', 'Шумный человек… Ну, говори, коли пришёл[|ла].'],
+  },
+  trick: {
+    prost: ['Хитро плетёшь, да я тоже не вчера родил<ся|ась>.', 'Ишь, как складно выходит… Ну-ну, дальше.', 'На язык ты, гляжу, боек. Ну, договаривай.'],
+    oko: ['Вы говорите гладко. Слишком гладко для честного человека.', 'Око видит ложь, даже когда её прячут в правду. Продолжайте.', 'Любопытная история. Посмотрим, сойдётся ли она с тем, что знаю я.'],
+    knizh: ['Изящно. Но я читал<|а> книги и похитрее.', 'Любопытный ход. Посмотрим, куда он ведёт.', 'Вы недоговариваете, и мы оба это знаем. Продолжайте.'],
+    sever: ['Кружишь, как лис у курятника. Говори прямо.', 'Скользкие слова. У нас таких не любят.', 'Хитришь, чужак, я это слышу. Договаривай.'],
+    nech: ['Хитрые слова… Мы таких много слышали, человек.', 'Кружишь, как вода у омута. Мы это любим.', 'Обмануть хочешь? Попробуй.'],
+  },
+};
+/* человек помнит отряд: {a} — как он обращается к герою (по своему народу), [м|ж] — по полу того героя, <м|ж> — по полу говорящего */
+C.VOICE_MEM = {
+  lie: {
+    prost: ['А, это вы… В тот раз ты мне наплёл[|а] с три короба, {a}. Нынче уж говори по правде, а то и слушать не стану.', 'Помню тебя, {a}. Соврал[|а] ты мне тогда и глазом не моргнул[|а]. Ну, чего на этот раз?'],
+    oko: ['Мы встречались. Вы тогда солгали мне, и я это записал<|а>. Сегодня я буду слушать внимательнее.', 'Помню вас. Ложь, сказанная служителю Ока, не стирается — ни из книги, ни из памяти.'],
+    knizh: ['А, старые знакомые. В прошлый раз ваш рассказ не сошёлся с правдой. Надеюсь, нынешний сойдётся.', 'Я помню вашу прошлую сказку. Хорошо сложена была, жаль — выдумана.'],
+    sever: ['Ты мне лгал[|а], чужак. Я помню. Второй раз не прощу.', 'Это ты, тот, что врал. Говори, но на слово я тебе больше не верю.'],
+    nech: ['Ты обманул[|а] меня, человек… Мы такое помним дольше, чем вы живёте.', 'А, обманщи[к|ца] вернул[ся|ась]… Ну, говори. Только я теперь слушаю вполуха.'],
+  },
+  threat: {
+    prost: ['Опять вы… Ты мне в прошлый раз грозил[|а], {a}. Я не забыл<|а>, хоть и молчу.', 'А, это ты, что пугал[|а] меня тогда. Ну, проходи, коли приш[ёл|ла]… Только не кричи больше.'],
+    oko: ['Вы угрожали мне в прошлый раз. Я помолил<ся|ась> за вас. Это не значит, что я забыл<|а>.', 'В прошлую встречу вы грозили. Око терпеливо, но память у него долгая.'],
+    knizh: ['А, вы… Помню ваши угрозы. Говорите тише: у меня от них до сих пор руки дрожат.', 'В прошлый раз вы предпочли угрозы доводам. Надеюсь, сегодня вы подготовились лучше.'],
+    sever: ['Ты грозил[|а] мне, чужак. Здесь это помнят. Но и смелость помнят тоже.', 'А, тот, кто на меня голос поднимал. Ладно. Говори, но рук не распускай.'],
+    nech: ['Ты грозил[|а] мне… Мы помним каждую угрозу. И каждого, кто грозил.', 'Шумный человек вернулся… Не пугай больше, а то пожалеешь.'],
+  },
+  promise: {
+    prost: ['Ты обещал[|а], {a}, да так и не сделал[|а]. Я ждал<|а>, а потом ждать перестал<|а>.', 'Пришли, значит… А уговор-то наш так и лежит. Нехорошо это, {a}, не по-людски.'],
+    oko: ['Вы дали слово и не сдержали его. Око это запомнило, и я тоже.', 'Обещанное вами так и не исполнено. Подумайте об этом, прежде чем обещать снова.'],
+    knizh: ['Вы брались за дело и бросили его. Я это записал<|а> — не со зла, по привычке.', 'В прошлый раз вы обещали. Признаюсь, я до сих пор жду.'],
+    sever: ['Ты дал[|а] слово и не сдержал[|а]. У нас за такое из-за стола выгоняют.', 'Уговор был, чужак, а ты его не исполнил[|а]. Помни это, когда снова будешь клясться.'],
+    nech: ['Ты обещал[|а] и не приш[ёл|ла]… Мы ждём долго, человек, но помним ещё дольше.'],
+  },
+  help: {
+    prost: ['Ой, это вы! Не забыл<|а> я, как вы тогда за меня встали, {a}. Век помнить буду.', 'Родимые! Проходите, садитесь. За то, что вы тогда сделали, я вам по гроб должн<ик|а>.'],
+    oko: ['Вы помогли мне тогда. Я молил<ся|ась> за вас — и, кажется, не напрасно.', 'Я помню, что вы сделали. Око видит добрые дела так же ясно, как и худые.'],
+    knizh: ['А, мои спасители. Признаться, я рад<|а> вас видеть больше, чем умею показать.', 'Я помню вашу помощь. И, поверьте, умею быть благодарн<ым|ой>.'],
+    sever: ['Ты помог[|ла] мне, чужак. У нас такое не забывают. Садись ближе к огню.', 'Помню, что ты сделал[|а]. Мой очаг — твой очаг.'],
+    nech: ['Ты помог[|ла] нам, человек… Мы помним добро. Его мало, потому и помним.', 'А, это ты… добр[ый|ая]. Проходи, тебя не тронут.'],
+  },
+};
+/* Сказанное руками — для самых важных разговоров глав. Ключ: «глава:сцена» (или просто «сцена» — для общих сцен) →
+   начало подписи выбора → варианты по нраву героя {chest, hit, sur, mil, any}. Исходные сцены не меняются. */
+const SAY = C.VOICE_SAY = C.VOICE_SAY || {};
+const say = (sc, o) => { SAY[sc] = Object.assign(SAY[sc] || {}, o); };
+/* общие сцены дороги — во всех главах */
+say('find_gonets2', {'Обещать доставить': {chest: 'Довезём, даю слово. Храм получит твоё письмо из наших рук.', sur: 'Давай сюда. Доставим, не потеряем.', mil: 'Не тревожься, донесём в целости. Отдыхай, тебе ещё ногу лечить.'}});
+say('find_dozor', {'Заговорить зубы': {hit: 'Да что вы, ребята, мы простые путники! Гляньте: котомки, посохи да мозоли. Какие из нас разбойники?', sur: 'Мы по своему делу едем. Задерживать нас — себе дороже: нас ждут, и ждут люди непростые.', chest: 'Мы… мы идём своей дорогой. Ничего худого, ей-ей.'}});
+say('oko_visit', {'Отвечать': {chest: 'Спрашивайте, брат. Отвечу как есть, нам скрывать нечего.', hit: 'Спрашивайте, брат, спрашивайте. Мы люди простые: что знаем — скажем, чего не знаем — уж не взыщите.', sur: 'Спрашивай. Отвечу, что сочту нужным.'}});
+say('r_rumor', {'Угостить старика': {chest: 'Угощайся, отец, от души. А заодно расскажи, что в округе делается.', hit: 'Выпей с нами, дед, за здоровье. Небось, много чего повидал, а слышал и того больше?', mil: 'Садись к нам, отец, погрейся. Кружка за нами, а ты, коли не в тягость, расскажи, что слыхать.'}});
+say('find_kuznets', {'Расспросить о здешних краях': {chest: 'Доброго огня, мастер. Скажи, где тут дорога спокойная, а где лучше не соваться?', hit: 'Мастер, у кузни всякий люд бывает, и всякое говорят. Что нынче слышно в округе?', sur: 'Нам дальше идти, мастер. Что впереди — говори как есть.'}});
+say('find_torgovets', {'Поторговаться': {hit: 'Товар хорош, слов нет. Только цена у тебя, друг, будто ты его из-за моря вёз. Сбавь — и возьмём не глядя.', chest: 'Цена-то честная? Скажи по совести, мы поймём.', sur: 'Половину от этой цены. Больше не дам.'}});
+say('find_bezhentsy', {'Расспросить, кто их сжёг': {mil: 'Не бойтесь, мы не те, кто вас жёг. Скажите, кто пришёл к вашим дворам?', sur: 'Кто вас сжёг? Скажите — и мы их найдём.', chest: 'Мы не обидим. Расскажите, кто сжёг ваше село: нам надо знать, кто ходит по этой дороге.'}});
+say('q_offer', {'Поторговаться': {hit: 'Дело, конечно, нужное. Только и мы не задаром шею подставляем — накинь, и возьмёмся хоть сейчас.', chest: 'Скажу прямо: за такую плату нам туда соваться невыгодно. Добавь немного — и по рукам.', sur: 'Мало. Добавь, или ищи других.', mil: 'Мы бы и так помогли, да дорога дальняя, а есть что-то надо. Прибавь, сколько сможешь.'}});
+
+/* Мёртвая вода */
+say('dead_water:zhdan', {
+  'Уговорить сход': {chest: 'Люди добрые, дел за нами немного, врать не стану. Но мёртвые встают не у соседей, а у вас. Пойдёте с нами к кургану — отобьёмся, а нет — придут к каждому порогу.', sur: 'Хватит судить да рядить. Мёртвые не станут ждать, пока сход наговорится. Кому свой двор дорог — бери вилы и становись в круг.', mil: 'Я знаю, вам страшно, и никто вас за это не винит. Но если встанем вместе, страшно будет им, а не нам. Дайте нам одну эту ночь.'},
+  'Созвать сход': {chest: 'Созывай людей, Ждан. Мы своё дело сделали — теперь просим, чтобы и село за нас встало.', mil: 'Собери народ, Ждан. Скажем им по-людски: одних у кургана мы их не оставим, пусть и они нас не оставят.'},
+});
+say('dead_water:bezhentsy', {
+  'Уговорить Ждана даром': {chest: 'Ждан, ты сам сказал: не кормить — не по-людски. Они без крыши, а зима не спросит, чьи они. Приюти, а мы твоего добра не забудем.', hit: 'Подумай, Ждан: погорельцы зиму перезимуют, а по весне у тебя лишние руки на пахоту. Разве ж это убыток?', mil: 'Погляди на их детей, Ждан. Неужто село не найдёт им угла до весны?'},
+  'Уговорить Ждана приютить': {chest: 'Вот на хлеб, Ждан, сколько можем. Остальное — за селом. Приюти их, не дай пропасть.', mil: 'Возьми на хлеб, Ждан. Не для себя прошу — для них.'},
+});
+say('dead_water:veta', {
+  'Попросить Вету отпоить': {chest: 'Вета, дед Пахом плох, а кроме тебя его никто не выходит. Посиди с ним ночь, мы заплатим, чем скажешь.', mil: 'Помоги деду Пахому, Вета. Он своё отстрадал, а нам без него под курган дороги не найти.'},
+  'Поручиться саном': {chest: 'Я ручаюсь саном: травы эти не бесовские. Кто хочет спросить — пусть спрашивает с меня.', mil: 'Око не карает тех, кто лечит. Я за неё ручаюсь — своим саном и своей душой.'},
+});
+say('dead_water:pahom', {'Расспросить деда': {chest: 'Дед, ты погост всю жизнь стережёшь. Скажи, как под курган пройти: нам туда надо, хоть и страшно.', mil: 'Не торопись, дед, вспоминай. Как под курган ходят — может, отец тебе сказывал?'}});
+say('dead_water:brod', {'Ответить Торвальду': {chest: 'Мы не хватаемся за железо, Торвальд. Говори, чего хочешь, на своём языке, раз так проще.', sur: 'Говори коротко, теракец. Кто за тобой идёт и зачем ты нам?'}});
+say('dead_water:brod_kurier', {'Соврать': {hit: 'Товар в лесу, у старой вырубки: не повезём же мы его к броду среди бела дня. Деньги вперёд, и к вечеру всё будет на телеге.', sur: 'Товар в лесу. Деньги вперёд — или поищи других дураков.', chest: 'Т-товар… в лесу. Да, в лесу. Деньги вперёд, так у нас заведено.'}});
+say('dead_water:kapishche', {'Расспросить Добрыню': {chest: 'Добрыня, ты этот лес знаешь лучше всех. Что лежит под курганом у бора и кто его стережёт?', mil: 'Скажи, хранитель, что за курган под бором? Мы не тревожить его пришли, а понять.'}});
+say('dead_water:taren', {
+  'Спросить Мирона': {hit: 'Мирон, ты ж человек ушлый, всё видишь. Куда кум Сысой мертвецов возил? Я в долгу не останусь.', sur: 'Говори, Мирон, куда Сысой возил мертвецов. Не скажешь ты — скажет другой, а тебе это припомнят.'},
+  'Расспросить про лекаря': {chest: 'Ищем лекаря, у которого имя на «Г.». Кто в Таррене подходит?', hit: 'Говорят, есть тут лекарь на «Г.», хороший, мол, лекарь. Где б его найти, а?'},
+});
+say('dead_water:lyubava', {'Упросить спеть даром': {chest: 'Любава, денег у нас мало, а песня нужна. Спой, что люди забыли, — мы потом за тебя всюду доброе слово скажем.', hit: 'Говорят, лучшие песни поют не за серебро, а для благодарного слушателя. Спой нам, Любава, — слушатели мы благодарные.', mil: 'Спой нам, Любава, сделай милость. Забытое имя, может, ещё живых спасёт.'}});
+say('dead_water:seryi', {
+  'Спросить прямо': {chest: 'Скажу прямо: зачем тебе бочки с чёрной водой? Я хочу знать, во что мы ввязываемся.', sur: 'Хватит про сбитень. Зачем тебе бочки?', hit: 'Сбитень и впрямь недурён. А вот бочки ваши — любопытная вещь. Для чего они, если не секрет?'},
+  'Сказать сотнику': {chest: 'Сотник, человек в сером связан с мертвецами. Я сам[|а] видел[|а], как увозят бочки.', sur: 'Сотник, вяжи серого. Это он стоит за мертвецами, ручаюсь.'},
+});
+say('dead_water:gordey_house', {'Разговорить сторожей': {hit: 'Холодно у вас тут, ребята, а хозяин небось в тепле? Расскажите, за что он вас на мороз выставил.', chest: 'Мы не за дракой пришли. Скажите, что ваш хозяин делает в подвале, — может, и драться не придётся.', mil: 'Мир вам. Вижу, служба у вас невесёлая. Посидим, поговорим?'}});
+say('dead_water:kurgan', {
+  'Выйти к костру открыто': {chest: 'Не стреляйте! Мы пришли открыто, без засады. Поговорим у огня, как люди.', mil: 'Мы с миром, слышите? Опустите оружие — поговорим, а там видно будет.', sur: 'Стоять. Мы пришли говорить, а не резать, — пока.'},
+  'Расспросить Ермолая': {chest: 'Ермолай, ты при Гордее давно. Скажи, что он держит под курганом?', sur: 'Говори, Ермолай, что знаешь. Хозяин твой далеко, а мы близко.'},
+});
+say('dead_water:kurgan_hall', {
+  'Уговорить его сдаться': {chest: 'Гордей, мы знаем про дыру и знаем, что ты её держишь. Сдайся, и мы удержим её вместе: одному тебе не выстоять.', hit: 'Подумай, Гордей: убьёшь нас — кто тогда встанет у дыры, когда ты упадёшь? Сдайся, тебе ещё пригодятся живые руки.', mil: 'Хватит, Гордей. Ты сделал всё, что мог, один. Положи посох — мы не дадим этой дыре раскрыться.'},
+  'Заговорить с ним на велесском': {chest: 'Твои записи мы прочли, Гордей, и прочли на твоём языке. Ты не поднимаешь мёртвых — ты затыкаешь ими дыру. Так?', hit: 'Велесская вязь, Гордей, — язык неблизкий. Но мы его знаем. Поговорим о том, что ты писал по ночам?'},
+});
+say('dead_water:kurgan_knyaz', {'Назвать мёртвого князя': {chest: 'Святобор Велемирович, княже! Мы помним твоё имя. Мы пришли не будить тебя, а закрыть то, что открыли без нас.', mil: 'Святобор Велемирович, спи спокойно, княже. Имя твоё не забыто — его поют.'}});
+
+/* Пепел списков */
+say('ashes:taren2', {'Сторговаться о железе': {hit: 'Ставр, друг мой, железо ваше, без спору, лучшее в Таррене. Только и мы покупатели не последние: возьмём много — уступи.', chest: 'Нам нужно железо, Ставр, и много. Назови цену, за которую не стыдно, и сговоримся.', sur: 'Цена у тебя грабительская, Ставр. Сбавь треть, или пойдём к другим.'}});
+say('ashes:zastava', {
+  'Сторговаться': {hit: 'Пять золотых с головы? Да мы и вдесятером столько не заработали! Возьми по одному — и никто не узнает, какой ты добрый.', chest: 'Столько у нас нет, мытник. Возьми, сколько можем, и пропусти.', sur: 'Пять с головы — это грабёж, а не побор. Назови цену поменьше.'},
+  'Заговорить с мытником по-теракски': {chest: 'Говорю на твоём языке, мытник, чтобы ты понял: мы наместнику не враги. Пропусти.', hit: 'Слышишь родную речь, мытник? Свои мы, считай. Своих-то не обирают?'},
+  'Говорить с Бьярни': {chest: 'Бьярни, род твой знают как честный. Неужто честь велит держать людей в яме за чужие грехи?', sur: 'Ты воин, Бьярни, а не тюремщик. Яма — не место для воинской чести.'},
+  'Уговорить сотника': {chest: 'Сотник, мы не идём против твоего короля. Пропусти — и никто не скажет, что ты нарушил приказ.', hit: 'Сотник, если мы застрянем здесь, с тебя спросят: почему застава держит людей, которых ждут в Коровине? Подумай, кому это нужно.'},
+});
+say('ashes:vorony', {
+  'Расспросить Ведану': {hit: 'Ведана, ты тут всех слышишь. Кто в Коровине платит доносчикам? Шепни — никто не узнает.', chest: 'Скажи по совести, Ведана: кто платит доносчикам? Мы против них, а не с ними.'},
+  'Угостить писаря': {hit: 'Писарь, выпей с нами! Работа у тебя важная, а платят, небось, мало. Расскажи, кого нынче в списки вписывают?', mil: 'Садись, писарь, отдохни. Тяжело, поди, каждый день чужие имена писать?'},
+});
+say('ashes:vedana_talk', {'Спросить, что видно ей': {chest: 'Ведана, ты за стойкой всё видишь. Что тебе самой видно — кто у нас продаёт людей?', hit: 'Ты ж умная женщина, Ведана, тебе видней, чем любому. Скажи, что сама думаешь?'}});
+say('ashes:miron_dopros', {'Выбить правду': {sur: 'Хватит юлить, Мирон. Кто на нас доносит? Говори, пока зубы целы.', hit: 'У меня, Мирон, рука тяжёлая, а память короткая. Скажешь сейчас — забуду, что ты вообще рот открывал.'}});
+say('ashes:yaropolk', {'Назвать предателя': {chest: 'Княжич, предатель среди твоих. Это боярин Путята, твой дядя.', mil: 'Тяжело тебе будет это слышать, княжич, но молчать нельзя. Путята продал твоего отца.'}});
+say('ashes:izba_oka', {'Попросить травник': {mil: 'Брат, мы с тобой одной веры. Дай травник — он пойдёт людям на пользу, а не во зло.', chest: 'Как брат по вере прошу: дай травник. Я за него отвечу перед Оком.'}});
+say('ashes:torvald2', {'Обещать': {chest: 'Обещаю, Торвальд. Кто прошёл с нами через брод, того мы не бросим.', sur: 'Сделаем. Ты своё слово держишь — и мы своё сдержим.'}});
+say('ashes:rodnya', {'Рассказать, как было': {chest: 'Расскажу, как было, ничего не прибавлю. Он пал как воин, и мы были рядом.', mil: 'Сядьте. Расскажу всё, как было. Он не мучился, и он был не один.'}});
+say('ashes:kuznya', {'Расспросить подмастерья': {hit: 'Слышь, малый, а кто это у вас бересту с письменами носит? Кузнец, небось, и не знает?', chest: 'Скажи, парень, что за береста у вас ходит? Нам знать надо, мы не донесём.'}});
+say('ashes:skhod', {
+  'Говорить о вольной земле': {chest: 'Люди коровинские! Эта земля была вашей при князьях и будет вашей, если вы за неё встанете. Не Хродгар здесь хозяин — вы.', mil: 'Посмотрите друг на друга: у каждого кто-то висел на торгу или сгинул в яме. Хватит. Вольная земля — это вы сами.'},
+  'Напомнить, кто висит': {sur: 'Помните, кто висит на торгу? Завтра там будет ваш сосед, а послезавтра — вы. Решайте.', chest: 'Не стану кривить душой: на торгу висят ваши. И будут висеть, пока вы молчите.'},
+});
+say('ashes:pogoreltsy', {'Позвать их': {mil: 'Пойдёмте с нами в ночь на торг. Огонь, что спалил ваши дома, нынче повернётся против тех, кто его зажёг.', chest: 'Вас сожгли — так встаньте же. Ночь на торгу будет вашей, обещаю.'}});
+say('ashes:skudelnya', {'Пригрозить могильщику': {sur: 'Ты, Сыч, роешь, кого велят. Так вот я велю: показывай, где лежит Мстислав. Иначе рядом ляжешь.', hit: 'Ты ведь знаешь, Сыч, что бывает с теми, кто слишком много роет? Покажи могилу — и забудем.'}});
+say('ashes:hutor', {'Разбудить в старике воеводу': {chest: 'Ратибор! Ты был воеводой у Мстислава. Его сын жив и зовёт тебя — неужто овцы тебе дороже присяги?', mil: 'Никто тебя не винит, воевода, что ты выжил. Но княжичу нужен старый меч. Вспомни, каким ты был.'}});
+say('ashes:putyata', {'Промолчать и скормить': {hit: 'Ночью идём через северные ворота, боярин: там стража реже. Только никому ни слова, ты один знаешь.', sur: 'Штурм на рассвете, с северной стороны. Держи язык за зубами.'}});
+say('ashes:cena', {
+  'Отдать списки': {chest: 'Списки и книги берите. Но мёртвых похороним по-людски — с солью и железом, как деды завещали.', mil: 'Возьмите бумаги, нам они ни к чему. А мёртвым дайте лечь в землю по-человечески.'},
+  'Уговорить Велемира': {chest: 'Велемир, боги приняли бы белого быка. Людская кровь нужна не им — она нужна тем, кто за ними прячется.', mil: 'Пощади людей, волхв. Перун любит правду, а правда в том, что эти люди ни в чём не виноваты. Возьми быка.'},
+  'Предложить божий суд': {sur: 'Пусть боги рассудят. Выставляй лучших бойцов, Скегги, — выйдем в круг.', chest: 'Мы предлагаем божий суд, по-честному. Кто победит, за тем и правда.'},
+});
+say('ashes:ev_patrul', {'Заговорить зубы': {hit: 'Сотник, ты нас за кого принимаешь? Мы к родне в Коровино идём, на поминки. Пропусти — помянем и тебя добрым словом.', sur: 'Мы идём по своим делам, сотник. Нас ждут, и ждут не те, с кем ты захочешь ссориться.'}});
+
+/* И даже мёртвое может умереть */
+say('edvin:vorota', {
+  'Назваться паломниками': {hit: 'Мы паломники, брат, идём к Главному храму поклониться. Неужто Око закроет двери перед теми, кто ищет света?', chest: 'Мы… паломники. К Главному храму идём.'},
+  'Уговорить': {chest: 'Брат привратник, в городе мор, а мы можем помочь. Пропусти — спросят с нас, а не с тебя.', hit: 'Брат, подумай: узнают в городе, что ты не пустил людей, пришедших помочь, — с кого спросят?', mil: 'Пропусти нас, брат. Мы несём не заразу, а руки, а руки там нужны.'},
+});
+say('edvin:ploshchad', {
+  'Выпросить старшую': {mil: 'Пощадите старую, братья. Она уже никому не опасна — отдайте её нам.', chest: 'Отдайте нам старшую из ведуний. Мы уведём её из города, и Око больше её не увидит.'},
+  'Потребовать суда': {chest: 'Мы требуем суда по Закону! Костёр без суда — не правосудие, а расправа.', sur: 'По Закону сперва суд, потом приговор. Кто зажжёт костёр без суда, ответит сам.'},
+});
+say('edvin:bashnya', {
+  'Поручиться за Мирака': {chest: 'Брат Конрад, за Мирака ручается Влад, обетник. Его слово в Эдвине чего-то стоит.', hit: 'Брат, вы ведь знаете Влада? Он ручается за Мирака. Спорить с ним при всех я бы не стал[|а].'},
+  'Потребовать для Мирака': {chest: 'Брат Конрад, Мирака надлежит судить по Закону. Держать его без суда вы не вправе.', sur: 'Мирака — на суд, а не в подвал. Таков Закон, и вы знаете его лучше нас.', hit: 'Брат, представьте, как это прозвучит на совете: пар-насского лекаря держат без суда, пока город умирает от мора. Не лучше ли суд?'},
+});
+say('edvin:verkh', {'Сказать хранителю': {mil: 'Хранитель… твой брат лежит под солью. Мы его нашли. Он упокоен.', chest: 'Твой брат лежит под солью, хранитель. Мы видели сами.'}});
+say('edvin:sovet', {'Положить на стол доказательства': {chest: 'Вот, прецептор, смотрите сами. Книгу вынула канцелярия — потому и встали мёртвые.', sur: 'Хватит слов. Вот доказательства. Читайте.', hit: 'Прецептор, мы пришли не спорить, а показать. Вот что нашлось у канцелярии — решайте сами, кому теперь верить.'}});
+say('edvin:seryy', {'Говорить с Иеронимом': {chest: 'Брат Иероним, нам нужно поговорить о книге, что лежала под головой святого.', hit: 'Брат Иероним, у вас тут, гляжу, много книг. А одной, кажется, не хватает?'}});
+say('edvin:ieronim', {'Пригрозить именем магистра Одо': {sur: 'Магистр Одо узнает, что ты болтаешь лишнее, Иероним. Если только не расскажешь всё нам — и быстро.', hit: 'Ты ведь понимаешь, брат, что магистр Одо не любит, когда его книжники ошибаются? Помоги нам — и ему незачем будет об этом знать.'}});
+say('edvin:pogost', {'Расспросить Мартина': {chest: 'Мартин, ты поднимаешь мертвецов и кладёшь обратно. Расскажи, зачем и как.', hit: 'Солью да железом, говоришь? Расскажи-ка подробнее, Мартин, нам это пригодится.'}});
+
+/* Терак-князь */
+say('terak:stavka', {'Говорить с воеводой Торвальдом': {chest: 'Торвальд, нужно поговорить — с глазу на глаз.', sur: 'Воевода, дело есть. Не для чужих ушей.'}});
+say('terak:gridni', {'Сказаться перебежчиками': {hit: 'Мы перебежчики из имперского стана. Вот фляга — такие пьют только у них. Сведи нас к королю, он захочет знать, что мы видели.', sur: 'Мы ушли от имперцев. Фляга их. Веди к королю.'}});
+say('terak:bashnya', {
+  'Говорить с ними по-имперски': {chest: 'Мы говорим на вашем языке, десятник, потому что пришли не с войной. Выслушайте.', hit: 'Марк, ты ведь из Империи? Я тоже знаю, как там служат: приказ сверху, смерть снизу. Поговорим как свои.'},
+  'Предложить переговоры': {chest: 'Опустим оружие, десятник, — и вы, и мы. Поговорим без стрел.', mil: 'Хватит крови, Марк. Положим мечи на землю и поговорим.'},
+});
+say('terak:torvald_t', {'Рассказать воеводе о сделке': {chest: 'Воевода, король заключил сделку — не с людьми, а с теми, кто под водой. Вода, что пьёт войско, не от богов.', sur: 'Слушай, Торвальд. Король продал вас пирамиде. Хочешь доказательств — они есть.'}});
+say('terak:pastbishche', {
+  'Сослаться на горское право': {chest: 'Ярл, по горскому праву такие споры решают у межи, а не мечом. Пусть скажет право.', hit: 'Ярл, горское право старше и меча, и твоего соседа. Неужто ты пойдёшь против дедов?'},
+  'Созвать суд старейшин': {chest: 'Пусть рассудят старейшины, ярл. Двое суток — не так долго, чтобы проливать из-за них кровь.', mil: 'Подождём суда, ярл. Старики рассудят — и никто не ляжет у межи.'},
+});
+say('terak:kurgan', {
+  'Заплатить скальду': {hit: 'Эйнар, вот серебро, а вот и слово: в песне о короле должно быть и наше имя. Скальд, что поёт правду, в обиде не останется.', chest: 'Возьми серебро, Эйнар, — не за ложь, за правду. Спой, как было.'},
+  'Рассказать сагу своего рода': {chest: 'Слушай, Эйнар, сагу моего рода. Королей в ней нет, зато нет и трусов.', hit: 'Эйнар, ты знаешь много саг. А такой ещё не слыхал — про мой род. Послушай, может, пригодится для песни.'},
+});
+say('terak:mest', {
+  'Говорить со Скегги как родич': {chest: 'Скегги, мы одной крови. Не веди сотню за перевал: там тебя ждёт не месть, а могила.', sur: 'Слушай родича, Скегги. Месть не стоит сотни жизней.'},
+  'Уговорить Скегги': {chest: 'Ярл, твои люди погибнут за чужую войну. Повешенных не вернёшь, а живых ещё можно сберечь.', sur: 'Скегги, за перевалом тебя ждут не нолгримские щенки, а засеки. Уводи людей, пока они живы.', hit: 'Подумай, ярл: кому выгодно, чтобы твоя сотня легла за перевалом? Не тебе и не королю.'},
+});
+say('terak:sovetnik_maska', {'Обещать послу меч': {hit: 'Наш меч — ваш, посол. Если, конечно, цена сойдётся.', sur: 'Меч будет. Говори, что нужно.'}});
+say('terak:podvorye', {'Расспросить хозяйку': {chest: 'Гудрун, вот монета. Что говорят в горах?', hit: 'Хозяйка, у тебя тут всякий люд бывает. О чём нынче в горах шепчутся?'}});
+
+/* Гиблое болото */
+say('swamp:veta_cep', {'Обещать ей свободу': {chest: 'Вета, даю слово: как дело сделаем, снимем цепь, и пойдёшь куда захочешь.', mil: 'Потерпи ещё немного, Вета. Свобода твоя за нами, клянусь.'}});
+say('swamp:bereg', {'Расспросить корабельщиков': {chest: 'Скажите, корабельщики, что вы видели на здешних берегах?', hit: 'Вы, моряки, много где бываете. Что говорят про этот берег там, где нас нет?'}});
+say('swamp:griva', {'Расспросить Ракиту': {chest: 'Ракита, расскажи про болото. Что тут у вас творится и откуда хворь?', mil: 'Не бойся, Ракита, мы не с худом. Расскажи, чего боятся в Гриве.'}});
+say('swamp:seryi', {'Заговорить им зубы': {hit: 'Тетрадь, брат? Так её, верно, лихие люди унесли — мы и сами её ищем. А кто вас послал, если не секрет? Может, нам по пути?', sur: 'Тетради у нас нет. А вот кто вас прислал — это мне любопытно.'}});
+say('swamp:posad', {
+  'Говорить с Нечаем': {chest: 'Нечай, мы пришли поговорить. Не воевать с вашими богами — понять, что здесь творится.', mil: 'Мир тебе, Нечай. Мы не тронем ни ваших домов, ни ваших богов. Поговорим?'},
+  'Открыться Нечаю': {chest: 'Скажу как есть, Нечай: мы идём к пирамиде. Не грабить — остановить то, что она пьёт.', mil: 'Мы не враги посаду, Нечай. Хочешь знать, кто мы и зачем, — слушай.'},
+  'Назваться паломниками': {hit: 'Мы паломники, Нечай. Идём к Безликим поклониться тем, кто под водой.', chest: 'Мы… паломники. Идём к вашему храму.'},
+  'Устрашить стражу': {sur: 'Прочь с дороги. Мы идём в храм, и вы нас не остановите.', hit: 'Посторонитесь, ребята. Нам не нужна ваша кровь, но если очень попросите — прольём.'},
+});
+say('swamp:posad_soyuz', {
+  'Обещать хлеб и соль': {chest: 'Будет вам хлеб и соль сверху, Нечай, — слово даю.', hit: 'Хлеб, соль, а там и торг, Нечай. Наверху про вас вспомнят, мы уж позаботимся.'},
+  'Показать Нечаю': {chest: 'Смотри, Нечай: вот кому ваша жрица продаёт огонь. Не богам — серым.', sur: 'Гляди сам, Нечай. Твою веру продают, и платят за неё серебром.'},
+});
+say('swamp:hram', {'Попросить жрицу прочесть': {hit: 'Прочти нам таблицу, жрица. Мы паломники, грамоте не обучены, а хотим знать имена тех, кому кланяемся.'}});
+say('swamp:obryad', {'Уговорить Луку записать': {chest: 'Лука, запиши всё, что видишь, и молчи до суда. Правда сама скажет, когда придёт время.', hit: 'Брат Лука, бумага всё стерпит, а суд всё прочтёт. Запиши и подожди — так вернее.'}});
+say('swamp:bashnya', {
+  'Предложить союз': {chest: 'Мирак, мы ищем одно и то же. Пойдём вместе — так будет вернее.', hit: 'Мирак, у тебя карты, у нас руки. Не глупо ли тянуть одну верёвку порознь?'},
+  'Говорить с ним как учёный': {chest: 'Мирак, давай как учёный с учёным: что ты знаешь о жилах под болотом?', hit: 'Позволь, Мирак, задать вопрос, достойный твоих карт: куда текут жилы под болотом?'},
+  'Попросить Мирака найти имя': {chest: 'Мирак, твои карты — лучшие в краю. Найди нам имя, мы в долгу не останемся.', mil: 'Помоги нам, Мирак. Имя нужно, чтобы спасти, а не чтобы убить.'},
+});
+
+/* Суд над капищами */
+say('sud:kanc', {'Потребовать архив': {sur: 'Именем великого дознавателя — архив. Немедля.', hit: 'Великий дознаватель будет недоволен, если узнает, что архив от нас прятали. Открывайте.'}});
+say('sud:ep_sani', {'Прийти к епископу': {chest: 'Владыка, спрошу прямо: за что судят капища — за колдовство или за то, что они ещё стоят?', sur: 'Владыка, без обиняков: кто на самом деле правит этим судом?'}});
+['zh_lada', 'zh_stribog', 'zh_zhiva'].forEach(id => say('sud:' + id, {'Поднять деревенских': {chest: 'Люди, это ваш родник и ваш огонь. Встаньте у него — серые не посмеют тронуть то, что бережёт всё село.', mil: 'Не бойтесь. Встаньте у своего огня, все вместе, — мы будем рядом.'}}));
+say('sud:perun', {'Убедить Влада словом': {chest: 'Влад, ты держал стену против мёртвых. Неужто теперь пойдёшь против живых, что молятся по-старому?', mil: 'Влад, ты всю жизнь защищал людей. Защити и этих — они тоже люди.'}});
+say('sud:r_niko_dosmotr', {'Показать серым': {hit: 'Купеческий груз, братья: соль да сукно. Вот печать торгового дома Панштадта — проверяйте, коли охота.'}});
+say('sud:korovino', {
+  'Просить оставить лесные капища': {chest: 'Княже, оставь лесные капища у застав. Пусть люди ходят к своим богам тихо, никого не тревожа.', mil: 'Не руби всего разом, княже. Оставь людям лесные капища — и они не станут тебе врагами.'},
+  'Напомнить князю торг': {sur: 'Помнишь торг двадцатилетней давности, княже? Тогда за тебя встали капища. Не забывай, кому обязан столом.', chest: 'Двадцать лет назад, княже, на торгу за тебя стояли волхвы. Я лишь напоминаю.'},
+});
+say('sud:sud', {'Просить суд о милости': {mil: 'Владыки, явите милость. Капища — не враги, это старики, что помнят, как молились их деды.', chest: 'Просим суд о милости — не для колдунов, а для простых людей, что ходили к своим богам.'}});
+say('sud:ev_lyubava', {'Рассказать ей': {mil: 'Сядь, Любава. Расскажу, как было, — для твоей песни.', chest: 'Слушай, Любава, как было на самом деле. Ты споёшь лучше нас.'}});
+
+/* Последняя вода */
+say('late_olsha:miroslav', {'Уговорить сход': {chest: 'Люди, дел за нами пока немного, но мёртвая вода мелеет, ждать нельзя. Пойдёмте к кургану, пока не поздно.', mil: 'Знаю, вам страшно. Но курган ваш, и Святобор лежит там ради вас. Встаньте с нами.'}});
+say('late_olsha:milava', {
+  'Спросить, где взять живую воду': {chest: 'Милава, нам нужна живая вода. Где её взять — ты, верно, знаешь лучше всех.', mil: 'Мы ненадолго, Милава, не помешаем хворой. Скажи только, где взять живой воды?'},
+  'Спросить про лесных людей': {chest: 'Милава, а лесные люди, Добрынины, где они теперь?', mil: 'Расскажи про лесных людей, Милава. Живы ли?'},
+});
+say('late_olsha:brod', {'Поговорить с перевозчиком': {chest: 'Хрольв, разговор есть. Про бочки, что ты возишь.', hit: 'Мы не из ратуши, Хрольв, не бойся. Нам бы переправиться — и, может, перекинуться парой слов о твоём грузе.'}});
+say('late_olsha:torvald', {'Заговорить с Хрольвом по-теракски': {chest: 'Хрольв, говорю по-нашему, чтобы чужие уши не поняли. Кто платит за бочки?', hit: 'Земляк, по-нашему оно честнее выходит. Кому идёт вторая половина бочек?'}});
+say('late_olsha:luka_first', {
+  'Обещать передать Ермолаю': {chest: 'Передадим Ермолаю волю Ока, брат Лука. Слово в слово.', hit: 'Передадим, брат. А как он её примет — уже не наша забота.'},
+  'Назваться братом по вере': {chest: 'Брат Лука, я одной с тобой веры. Скажи прямо, как брат брату: что станет с мёртвыми?', mil: 'Брат, мы оба служим Оку. Не таи от меня, что ждёт мёртвых под курганом.'},
+});
+say('late_olsha:luka', {'Рассказать Луке': {chest: 'Лоренцо стоит на смолокурне, брат Лука. Туда возят половину бочек.', hit: 'Брат Лука, тот, кого ты ищешь, сидит на смолокурне и называет себя купцом.'}});
+say('late_olsha:kurgan', {'Выйти к костру открыто': {chest: 'Мы выходим открыто! Не стреляйте — поговорим у огня.', mil: 'Тише, тише. Мы не враги, мы пришли говорить.'}});
+say('late_olsha:ermolay', {
+  'Выторговать ход Ермолая': {hit: 'Кипяток у тебя пустой, Ермолай, а у нас найдётся кое-что получше. Покажи ход — и не пожалеешь.', chest: 'Скажу прямо, Ермолай: нам нужен твой ход. Что хочешь за него?'},
+  'Сказать Ермолаю': {chest: 'Ермолай, последнюю чашу тебе не отдадут. Лучше знать это сейчас.', mil: 'Прости, Ермолай, но последняя чаша не твоя. Я не хочу, чтобы ты узнал это слишком поздно.'},
+});
+say('late_olsha:kapishche', {'Уговорить десятника уйти': {hit: 'Какой идол, десятник? Тут пень трухлявый да ленты от старух. Неужто ради этого стоило тащиться в лес?'}});
+say('late_olsha:smolokurnya', {'Поговорить с Лоренцо': {hit: 'Лоренцо, друг мой, мы не из ратуши. Хотим поговорить о торговле — о той, что кончается.', chest: 'Лоренцо, разговор о мёртвой воде. Честный разговор.'}});
+say('late_olsha:lorenzo', {'Уговорить Лоренцо': {chest: 'Лоренцо, мёртвая вода держит курган. Возьмёшь последнее — мёртвые встанут. Уходи, пока не поздно.', hit: 'Друг мой, посчитай: алхимики заплатят раз, а Око спросит с тебя всю жизнь. Хорошая ли это торговля?'}});
+say('late_olsha:hall', {'Уговорить Ермолая встать рядом': {chest: 'Ермолай, встань с нами. Князь держит воду, а мы будем держать князя.', mil: 'Ты ждал у порога, Ермолай, — значит, не хочешь, чтобы всё кончилось худо. Встань рядом.'}});
+say('late_olsha:knyaz', {'Назвать князя': {chest: 'Святобор Велемирович! Мы стоим между тобой и водой не врагами, а сторожами.', mil: 'Княже Святобор Велемирович, мы пришли не тревожить твой сон. Спи, мы постоим.'}});
+say('late_olsha:ev_lo_patrol', {
+  'Назваться братом по вере': {chest: 'Брат десятник, я твоей веры. Мы идём по делам Ока, задерживать нас не надо.'},
+  'Заговорить зубы': {hit: 'Травы? Только от кашля, десятник: вон у товарища моего грудь заложило. Книг не держим, грамоте не обучены.'},
+});
+
+/* Срубленный дуб */
+say('late_dub:hram', {'Говорить с Ипатием': {chest: 'Брат Ипатий, мы с тобой одной веры. Тишина в Коляду нужна и нам — давай искать её вместе, а не на костре.'}});
+say('late_dub:vorony', {'Упросить Любаву спеть князю': {chest: 'Любава, спой князю в глаза — про дуб, про клятву. Он должен это услышать.', mil: 'Спой ему, Любава. Старик забыл, каким был, — напомни.'}});
+say('late_dub:kuznya', {'Уговорить Тихона': {chest: 'Тихон, дед твой говорил: железо всё одно, чья рука. Но закалка — не железо, она от дуба. Отпусти её.', hit: 'Князь велит рубить дуб, Тихон, а твоей закалке без дуба грош цена. Отпусти её — пусть сделает доброе дело.'}});
+say('late_dub:terem', {
+  'Напомнить князю его клятву': {chest: 'Княже, ты клялся под этим дубом. Твои слова, не мои, — неужто забыл?', sur: 'Вспомни свою клятву, княже. Ты давал её под дубом, и Перун её слышал.'},
+  'Уговорить князя прийти к дубу': {chest: 'Приди к дубу сам, княже. Посмотри на него — и тогда решай.', mil: 'Пойдём к дубу, княже. Не ради нас — ради того юноши, что клялся под ним.'},
+});
+say('late_dub:dub', {'Говорить с артелью': {chest: 'Мужики, поговорим у огня. Мы не за топорами пришли.', mil: 'Посидим с вами, мужики, погреемся. Разговор есть.'}});
+say('late_dub:artel_dub', {'Сказать: идите домой': {chest: 'Идите домой, мужики. Плата не стоит того, что вы тут видели.', mil: 'Ступайте по домам, к детям. Зиму переживёте, а с дубом на душе не переживёте.'}});
+say('late_dub:bogumil', {'Выйти к ловцам': {hit: 'Эй, ловцы! Старик ваш к болоту побёг, вон туда, мы сами видели. Поспешите, а то уйдёт!'}});
+say('late_dub:hutor', {'Говорить с мертвецом': {mil: 'Воевода… стяг цел, его сберегли. Княжич жив. Ты можешь уйти.', chest: 'Слушай, мёртвый воевода: стяг твой найден, а княжич давно князь.'}});
+say('late_dub:olshanka', {'Попросить у Милавы уголь': {mil: 'Милава, дай нам уголь Мокоши. Он нужен для доброго дела.', chest: 'Милава, нам нужен уголь Мокоши. Скажу, на что, — и ты сама решишь.'}});
+say('late_dub:lipki', {'Убедить Ипатия': {hit: 'Брат Ипатий, это простой камень: гроза, видно, оплавила. Мало ли таких в поле?'}});
+say('late_dub:vyselki', {'Уговорить артель не ходить': {chest: 'Будимир, вы двоих у дуба оставили. Хотите оставить ещё? Не ходите.', mil: 'Не ходите к дубу, Будимир. Плату вернёте, а живых не вернёшь.'}});
+say('late_dub:anselm', {'Разговорить старика': {chest: 'Скажи, отец, куда пойдёт сердце дуба? Мы не отнимем — мы проводим.', hit: 'Ты ведь знаешь, отец, куда пойдёт сердце дуба. Мы бы и сами догадались — да хочется услышать от тебя.'}});
+
+/* Крышка колодца */
+say('late_edvin:le_pesnya', {'Рассказать, как было': {chest: 'Любава, всё было не так. Свет не укладывал мёртвых: их уложили люди, и мы знаем кто.', mil: 'Песня у тебя красивая, Любава, да неправдивая. Послушай, как было, — и спой заново.'}});
+say('late_edvin:le_ieronim', {'Обещать': {chest: 'Обещаю, Иероним. Твоя тайна уйдёт с нами.', mil: 'Не бойся, отец. Обещаю: никто не узнает, от кого мы это слышали.'}});
+say('late_edvin:skriptoriy', {'Попросить начертить': {chest: 'Аллекса, начерти нам боковой ход. Ты знаешь хроники лучше всех.', hit: 'Хранительница, хроники говорят только тем, кто умеет их читать. Покажи нам ход — на бумаге.'}});
+say('late_edvin:le_ulf', {'Уговорить его оставить один замок': {hit: 'Мастер Ульф, двенадцать замков — работа большая. Кто заметит, если в одном будет крохотный изъян? А ты спать будешь спокойно.', chest: 'Ульф, оставь один замок с изъяном. То, что положат в ковчег, не должно остаться там навечно.'}});
+say('late_edvin:bashnya', {'Потребовать для неё суда': {chest: 'Её надлежит судить по Закону. Без суда держать её вы не вправе.', sur: 'Суд — и никак иначе. Мы проследим.'}});
+say('late_edvin:stan', {'Попросить живой воды': {mil: 'Милава, дай нам живой воды из ключа. Немного — сколько не жалко.', chest: 'Нам нужна живая вода, Милава. Скажи, что за это хочет лес.'}});
+say('late_edvin:pogost', {'Расспросить Якова': {chest: 'Яков, дед твой учил: соль в рот, железо в руку. А что теперь не держит?', mil: 'Расскажи, Яков, что тут у вас стряслось. Дед бы твой, верно, знал, что делать.'}});
+
+/* Тихие горы */
+say('late_terak:podvorye', {'Расспросить Сигрид': {chest: 'Сигрид, вот монета. Что говорят в горах?', hit: 'Хозяйка, у очага многое слышно. О чём нынче шепчутся в горах?'}});
+say('late_terak:stefan', {'Говорить с ним как свой': {hit: 'Стефан, друг мой, поговорим как люди дела. Какая доля тебе, какая ярлу — и сколько остаётся горе?'}});
+say('late_terak:rudnik', {'Уговорить обе стороны': {chest: 'Опустите оружие, обе стороны! Гора уходит, а вы режете друг друга за её остатки.', mil: 'Гудмунд, ярл — хватит крови. Положите оружие, поговорим.'}});
+say('late_terak:rudnik_dozor', {'Рассказать дозору': {chest: 'Слушайте, дозорные: ярл продаёт вашу руду чужакам. Вы бьётесь за его кошель.', sur: 'Ваш ярл торгует вашей кровью, дозорные. Хотите знать кому — спросите у скупщика.'}});
+say('late_terak:stavka', {'Сказать на тинге': {chest: 'Люди тинга! Рода режут друг друга не из-за пастбищ. Гора уходит, и каждый тянет к себе последнее.', sur: 'Слушайте все. Не сосед ваш враг — враг в том, что гора умирает. Режьте друг друга, если хотите, но знайте, за что.'}});
+say('late_terak:zakon', {'Договорить': {chest: 'Ярл Хрольф, дай договорить. Сосед рубит тебя оттого, что гора уходит из-под вас обоих.', sur: 'Выслушай до конца, ярл, а потом руби, если захочешь.'}});
+say('late_terak:vrata', {
+  'Обещать сердце горы Оку': {hit: 'Сердце горы — Оку, брат Ивор. Давай опись.', chest: 'Обещаю, брат: сердце горы получит Око. Давай опись.'},
+  'Попросить отдать горцам': {mil: 'Брат Ивор, отдай горцам маленького истукана. Им он дорог, а Оку — лишь камень.', hit: 'Брат, Око не обеднеет без одного камешка. А горцы тебе это запомнят — по-доброму.'},
+});
+say('late_terak:brod', {'Уговорить стариков': {chest: 'Гаути, ваши рода ждут вас. Вернитесь к своим, пока есть к кому.', mil: 'Хватит, старики. Пятнадцать лет вы жили как люди — так и доживите.'}});
+say('late_terak:mezha', {'Рассудить старые межи': {chest: 'Рассудим межи заново, по совести. Гора ушла, и старые камни больше не держат.'}});
+say('late_terak:kurgan', {'Заплатить скальду': {chest: 'Эйнар, вот серебро — и вот слово: в последней песне о горе пусть будет правда.', hit: 'Возьми серебро, скальд. А за правдивую песню мы добавим и слово — оно у нас дороже.'}});
+
+/* Девятая грань */
+say('late_boloto:griva', {'Расспросить о старых ходах': {chest: 'Ракита, ты помнишь старые ходы под болото? Нам туда надо.', mil: 'Ракита, вспомни, если можешь: где ходили под болото в старину?'}});
+say('late_boloto:lb_molelnya', {'Показать Агнии клеймо': {chest: 'Сестра Агния, смотри: клеймо каменотёсов и следы резца с колодца. Хворь не от ведьмы — от камня.', mil: 'Ты лечишь полгода и не вылечиваешь, сестра. Посмотри вот на это — может, поймёшь почему.'}});
+say('late_boloto:lb_mat', {'Спросить, что ещё слышала': {mil: 'Дарёна, что ещё слышала твоя дочь? Не бойся, говори.', chest: 'Дарёна, это важно: что ещё слышала Белянка? Каждое слово.'}});
+say('late_boloto:lb_istok', {'Уговорить её уйти': {mil: 'Ярина, уходи в топь, туда, где Око тебя не найдёт. Ты ещё нужна живой.', chest: 'Ярина, тут тебя сожгут. Уходи в топь — это не трусость, это разум.'}});
+say('late_boloto:lb_vrata', {'Договориться': {chest: 'Грань пусть берёт Око, но люди должны остаться живы. Таков уговор.', hit: 'Нам грань ни к чему, а вам ни к чему лишние костры. Грань — Оку, люди — живы. По рукам?'}});
+say('late_boloto:lb_posad', {
+  'Говорить с Векшей': {chest: 'Векша, мы не за огнём. Поговорить пришли.', mil: 'Здравствуй, Векша. Ничего не возьмём — ни огня, ни хлеба. Поговорим?'},
+  'Назваться паломниками': {hit: 'Мы паломники, Векша, к Безликим идём.'},
+  'Напомнить посаду': {chest: 'Помните слово, данное двенадцать лет назад? Мы его не забыли — не забывайте и вы.', sur: 'Двенадцать лет назад посад дал слово. Пора держать.'},
+});
+say('late_boloto:lb_hram', {'Спросить, как её зовут': {mil: 'Скажи, как её зовут — ту, что внутри? У каждой должно быть имя.', chest: 'Как её имя? Мы не уйдём, пока не узнаем.'}});
+say('late_boloto:lb_storozh', {'Обещать отпустить': {chest: 'Сторож, обещаю: когда всё кончится, тебя отпустят.', mil: 'Тринадцать лет — довольно. Обещаю, сторож: ты уйдёшь на покой.'}});
+
+/* Последние колдуны */
+say('late_navi:tarren', {'Сказать ловчему': {hit: 'Брат Феликс, мальчишка — пустышка, тень на нём наша. Мы её сами навели, уж простите.'}});
+say('late_navi:feliks', {
+  'Попросить показать Ковчег': {chest: 'Брат Феликс, покажи нам Ковчег. Хочу видеть, куда уходит то, что вы ловите.', hit: 'Говорят, брат, Ковчег — чудо из чудес. Позволь хоть одним глазом взглянуть.'},
+  'Предложить выкуп': {hit: 'Брат, Око ведь держит людей не ради людей? Вот выкуп за одного — и пусть идёт.', chest: 'Вот выкуп, брат Феликс. Отпусти одного из троих.'},
+});
+say('late_navi:kurgan', {'Отговорить его будить': {chest: 'Гордей, двадцать пять лет ты загонял их обратно. Не буди теперь — не порть того, что сам держал.', mil: 'Оставь их, Гордей, пусть спят. Ты заслужил покой — и они тоже.'}});
+say('late_navi:griva', {'Рассказать сторожу': {chest: 'Сторож, слушай, что творится наверху: Око ловит всех, в ком есть Сила.', mil: 'Ты тут давно один, сторож. Наверху многое переменилось — послушай.'}});
+say('late_navi:kanc', {'Потребовать список': {sur: 'Список. Именем Ока. Сейчас же.', hit: 'Нас прислали за списком, брат. Ты же не хочешь объяснять старшим, почему мы ушли ни с чем?'}});
+say('late_navi:lipki', {'Уговорить писаря': {chest: 'Прокл, ты писал первые списки. Расскажи нам о них правду — даром, ради тех, кто в них попал.', hit: 'Такую память, как твоя, Прокл, грех уносить с собой в землю. Расскажи нам — и самому станет легче.'}});
+say('late_navi:sobor', {
+  'Спросить прямо': {chest: 'Брат Лука, как брат брата спрашиваю: куда уходит то, что ловят в Ковчег?'},
+  'Уговорить его рассказать': {mil: 'Брат Лука, ты видишь Ковчег каждый день. Расскажи, что видишь. Тебе станет легче.', chest: 'Ты при храме доживаешь, брат, а правда при тебе умирает. Расскажи её.'},
+});
+say('late_navi:olshanka', {'Сказать ловцам': {hit: 'Тут только бабьи травы, братья: ромашка да мята. Какая в них навья Сила?'}});
+say('late_navi:korovino', {'Просить князя закрыть': {chest: 'Княже, закрой Коровино для ловцов в Дедову ночь. Ты сам сказал: колдуны тебе вреда не делали.', mil: 'Пожалей своих, княже. В Дедову ночь закрой ворота — пусть хоть мёртвых помянут спокойно.'}});
+say('late_navi:port', {'Уговорить взять даром': {chest: 'Тео, ради старой дружбы с твоим отцом — возьми их даром. Нико бы взял.', mil: 'Им нечем платить, Тео. Возьми их ради отца — он бы не отказал.'}});
+say('late_navi:kanun', {'Встать между': {chest: 'Пусть колдуны решат сами, без сетей. Мы встанем между вами.', sur: 'Ни шагу дальше. Колдуны решат сами — а сети пока уберите.'}});
+
+/* Подземье встаёт */
+say('late2_podzem:pz_ting', {'Договорить': {chest: 'Кетиль, дай договорить. Держать будут все рода, по очереди, а смотреть не будет никто.', sur: 'Слушай до конца, Кетиль. Потом решай.'}});
+say('late2_podzem:pz_pereval', {'Бросить к его ногам': {sur: 'Вот, ярл, смотри. Это медь из скорлупы Деда. Хочешь, чтобы твоих людей раскололо так же?'}});
+say('late2_podzem:pz_vrata', {
+  'Обещать Палате': {hit: 'Что поднимется — Палате, брат Север. Давай чертёж.', chest: 'Даю слово, брат Север: что поднимется, получит Палата.'},
+  'Уговориться с Палатой': {chest: 'Брат Север, поставьте латников у провалов. Если снизу полезет, встретим вместе.'},
+});
+
+/* Мощи */
+say('late2_moshchi:lager', {'Увести паломников': {mil: 'Люди добрые, отойдите от края стана. Тут опасно — идёмте, идёмте.', sur: 'Все от края, живо! Не стойте, не на что тут глядеть.'}});
+say('late2_moshchi:lm_lozh', {'Прижать торговца': {sur: 'Ансельм, слеза святого — из колодца, щепа — из твоего забора. Говори правду, или я расскажу её всем.', hit: 'Хороший товар, Ансельм. Палата, думаю, захочет узнать, где ты его берёшь. Или договоримся?'}});
+say('late2_moshchi:skriptoriy', {'Попросить её вспомнить': {mil: 'Аллекса, вспомни опись. Ты записывала, а память тебя не подводит.', chest: 'Нам нужна опись, Аллекса. Ты одна её помнишь.'}});
+say('late2_moshchi:verkh', {'Попросить собрать стариков': {chest: 'Влад, собери стариков-обетников. Стена ещё нужна — не против мёртвых, а против живых.'}});
+say('late2_moshchi:lm_teni', {'Убедить Ярину': {chest: 'Ярина, Палата ищет таких, как ты. Пойдём с нами — мы не отдадим.', mil: 'Мы не враги твоим теням, Ярина. Поверь нам.'}});
+say('late2_moshchi:pogost', {'Расспросить могильщика': {chest: 'Петер, расскажи, как они встали этой весной. Всё, что видел.', mil: 'Тяжко тебе, Петер, понимаю. Расскажи, как это было, — не спеши.'}});
+say('late2_moshchi:mednyy', {'Разбудить её': {mil: 'Агния… Агния, слышишь? Мама здесь. Вернись к ней.', chest: 'Агния, проснись. Тебя ждут — не Рака, а мать.'}});
+say('late2_moshchi:khram', {'Поговорить с плачущей': {mil: 'Что с тобой, сестра? Отчего плачешь?', chest: 'Скажи, отчего плачешь? Может, мы чем поможем.'}});
+
+/* Закат */
+say('late2_zakat:tarren', {'Заговорить собирателям': {hit: 'Братья собиратели! Слыхали, в Липках кто-то ларец продаёт — краденый? Не ваш ли?'}});
+say('late2_zakat:veles', {'Уговорить старшего порубщиков': {chest: 'Старшой, руби в другом лесу. Этот — Велесов, он и так уходит. Дай ему уйти спокойно.', hit: 'Старшой, тут дубы гнилые изнутри, сам погляди. За такой лес тебе никто не заплатит. Ступай в соседний.'}});
+say('late2_zakat:lipki', {'Пообещать Дедку': {chest: 'Дедко, в Купалу решим вместе — вы и мы. Слово даю.', mil: 'Потерпите до Купалы, Дедко. Решим вместе, никого не бросим.'}});
+say('late2_zakat:ting', {'Сказать горам': {chest: 'Горы, слушайте старую клятву Хальвдана — её помнят ваши камни.'}});
+say('late2_zakat:kanc', {'Показать грамоту': {sur: 'Грамота Совета Ока. Книгу — сюда.', hit: 'Видишь печать? Вот и славно. А теперь книгу, и мы уйдём.'}});
+say('late2_zakat:sobor', {'Спросить владыку Ока': {chest: 'Владыка, спрошу прямо: кто правит Советом Ока?', hit: 'Владыка, нас тревожит один вопрос, сущая мелочь: кто на самом деле правит Советом?'}});
+say('late2_zakat:knyaz', {
+  'Рассказать князю о Безликом': {chest: 'Княже, Советом правит не Око. Им правит человек без лица.'},
+  'Просить князя не давать дружину': {chest: 'Княже, не давай дружину Совету в Купалу. Им нужна не твоя рука, а твоя земля.', mil: 'Пожалей своих людей, княже. В Купалу им лучше быть дома, чем у ларцов Совета.'},
+});
+say('late2_zakat:port', {'Уговорить таможенника': {hit: 'Таможенник, корабль чистый: бумаги в порядке, груз описан. Неужто станешь держать старого Тео из-за пустяка?', chest: 'Отпусти корабль, таможенник. На нём люди, которым некуда больше бежать.'}});
+say('late2_zakat:perun', {'Уговорить Ратмира': {chest: 'Ратмир, отдай огонь, пока не поздно. Богумил велел беречь, а беречь теперь — значит отдать.', mil: 'Ты берёг, Ратмир, и уберёг. Теперь отпусти — так будет правильно.'}});
+say('late2_zakat:gorn', {'Попросить огня': {chest: 'Старейшина, мы встанем за ваш огонь против латников. Дайте нам его частицу — по старой дружбе.'}});
+
+C.VOICE_SAY_COUNT = () => Object.values(SAY).reduce((a, o) => a + Object.keys(o).length, 0);
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);

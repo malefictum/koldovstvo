@@ -6399,6 +6399,302 @@ camp.goals = g => ({title: 'К кургану', need: 3, list: Object.keys(KEYS)
 C.register(camp);
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* dw_ask.js */
+/* Колдовство — dw_ask: расспросы в главе «Мёртвая вода» (пилот диалога-развилки). Без DOM.
+   Три человека главы: брат Евстафий (дознаватель Ока), Ульяна из Липовки (знает колыбельную), Гордей (колдун нави, перед судом).
+   • У каждого в «своей» сцене кнопка «Расспросить <имя>…» — ведёт в сцену-хаб dw_ask_<кто>.
+     Хаб: 5–6 вопросов (кто, зачем, что видел, о другом человеке главы, о месте, «что недоговариваешь» с проверкой
+     Мудрости на Проницательность). Ответ — его голосом, 1–3 предложения. После ответа: «Спросить о другом» (к списку) и «Хватит» (назад).
+   • Ответ зависит от стадии главы и её флагов; если отряд человеку лгал, угрожал или связал его — холоднее
+     (флаги главы и, если есть, g.npcMem). Повтор того же ответа — короче, вопрос помечен «уже спрашивали».
+     Если с прошлого раза стадия или флаги сменились и человек может сказать больше — вопрос снова свежий.
+   • Канон: никто не говорит прямо того, что закрыто (см. scratchpad/quests/CANON.md), и не выдаёт улик,
+     которые в главе открываются проверкой или делом, — только намёк, куда смотреть.
+   • Расспросы не трогают g.flags, стадию и ключи: всё своё — в g.dwAsk. Единственный след — по одной мягкой
+     строке в журнал за раскрытую тайну («обмолвился»).
+   • Поле say у вопроса — реплика героя (её подхватывает система «голос героя», если она есть).
+   • Кнопки в чужих сценах: i = max(i) + 1, место — перед последней «Уйти/Назад/На дорогу»; индексы главы не сдвигаются.
+   Наружу: C.DW_ASK (данные), C.dwAskState(g). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C || !C.CAMPS || !C.CAMPS.dead_water) return;
+const camp = C.CAMPS.dead_water, S = camp.scenes;
+const st = g => g.quests.main.stage;
+const knowsLock = g => st(g) >= 5 || !!g.flags.notes_read;
+const okoCredit = g => { const F = g.flags; return !!(F.oko_trust || F.ulyana === 'given' || F.notes_to_oko || F.seryi_proof) && !(F.oko_suspect && !F.seryi_proof && !F.notes_to_oko); };
+const okoHere = g => { const F = g.flags; return !!(F.oko_suspect || F.key_lyudi === 'oko' || F.oko_promise); };
+const knowsG = g => { const F = g.flags; return !!(F.knows_gordey || F.know_kozh || F.gordey_notes); };
+
+/* память человека из системы «память NPC» (если она есть): ложь, угроза, обида — холоднее */
+const memCold = (g, id) => { const M = g.npcMem; if (!M || typeof M !== 'object') return false;
+  const k = C.npcMemKey ? C.npcMemKey(id) : id; // формат w2_voice: g.npcMem[key] = [{kind: 'lie'|'threat'|'promise'|'help', day, scene, h}]
+  return [M[k], M[id]].some(L => Array.isArray(L) && L.some(r => r && (r.kind === 'lie' || r.kind === 'threat' || r.kind === 'promise'))); };
+
+const COLD = {
+  evstafiy: g => memCold(g, 'evstafiy') || !!g.flags.luka_reported || (!!g.flags.oko_suspect && !g.flags.seryi_proof && !g.flags.notes_to_oko),
+  ulyana: g => memCold(g, 'ulyana') || g.flags.ulyana === 'vedut',
+  gordey: g => memCold(g, 'gordey') || g.flags.gordey_beaten === 'beaten',
+};
+
+/* ---------- листы знаний: факт → флаг, с которого человек его знает (варианты ответов строятся от фактов) ----------
+   Евстафий (в главе: S.evstafiy, S.veta, S.final, эпилог):
+     перстень без герба — evst_ring (ему о нём сказал отряд; в тот день «не слыхал, опишите»; ответ из ратуши —
+       только с другого дня: день, когда он впервые услышал, помнит g.dwAsk.ringDay);
+     колдун-пар-нассец с записями — gordey_notes (отряд показал/рассказал) или notes_to_oko (сам прочёл);
+       до этого на стадии 4+ курган для него «старое языческое место»;
+     содержание записей (камень на колодец, имя — замок) — только notes_to_oko;
+     чёрная вода в липовском колодце — lipovka_look или evst_doubt (спор: гробы изнутри, колодец);
+     колыбельная Ульяны — ulyana === 'given' (она поёт под стражей);
+     письмо «в колодцы по сёлам» — seryi_proof;
+     тайна (списки пишут в Таррене, пометки о земле) — открывается после evst_argue или со стадии 4;
+       в холодном состоянии (Око подозревает отряд, донос Луки) — не выдаёт вовсе.
+   Ульяна (S.ulyana, эскорты, эпилог):
+     вода в колодце почернела за седмицу до дознавателей, мать: «Курган проснулся. Князь беспокоится» — всегда;
+     «пока поют — спит» — стадия 5+ или notes_read (отряд понял, что имя — замок, и спрашивает об этом);
+     князя назвали — hole_named; где Вета — veta (given / hidden / veta_fled) и сама ли она у Добрыни (ulyana === 'les');
+     чужой с серебром за песенку — помнит всегда, но связывает с серым, только если отряд знает серого
+       (knows_gordey или seryi_met); Гордея, мёртвую воду, гривну не знает вовсе.
+   Гордей (S.kurgan_hall, S.kurgan_knyaz, S.final, S.gordey_cellar — записи):
+     гривну-печать с груди князя сорвал серый (Ермолай: «спустился с фонарём и снял печать») — знает всегда;
+     у отряда гривна — pechat; письмо серого — seryi_proof; князя уложили именем — knyaz === 'named', мечом — 'beaten';
+     имя: «записанное имя теряет силу» (записи) — вслух его не подаёт, его поют;
+     Ульяна — ulyana_seen / ulyana === 'given'; рядом дознаватель — okoHere (тогда о тайне только шёпотом).
+   Правило повторов: короткий повтор ничего нового не несёт. Фирменные обороты — не больше двух на человека за расспрос. */
+
+/* Вопрос: id, t (кнопка), say (реплика героя), if (когда уместен), v(g) → [ключ варианта, полный ответ, короткий повтор].
+   Тайна (secret): if — когда спросить можно; block(g) → [ответ, повтор], если сейчас не выдаст ни при какой проверке;
+   иначе проверка Мудрости (Проницательность), dc(g); ok / fail — тексты; note — мягкая строка в журнал. */
+const DW_ASK = {
+  evstafiy: {
+    who: 'evstafiy', acc: 'Евстафия', title: 'Брат Евстафий', bg: 'village', art: 'ashes_izba_oka', back: 'evstafiy',
+    host: [{scene: 'evstafiy', if: g => !!g.flags.dozn_here && st(g) < 7}],
+    sig: /(?<![а-яё])сие(?![а-яё])/gi,
+    intro: g => COLD.evstafiy(g) ? 'Вы хотите расспрашивать дознавателя? Обычно бывает иначе. Спрашивайте, но знайте: вопросы я запоминаю не хуже ответов.'
+      : okoCredit(g) ? 'Спрашивайте. Око не прячет лица от тех, кто служит порядку, а вы, как я вижу, служите.'
+      : 'Говорите, только недолго. У меня списки, а списки, в отличие от людей, не ждут.',
+    qs: [
+      {id: 'kto', t: 'Кто ты, брат, и откуда?', say: 'Брат Евстафий, ты сам-то откуда к нам?',
+        v: g => COLD.evstafiy(g) ? ['cold', 'Дознаватель Ока, и этого вам довольно. Прочее записано там, где вам читать не положено.', 'Имя вы слышали.']
+          : ['base', 'Евстафий, дознаватель Ока, из Эдвина. В мор я стоял у дверей храма и видел, как мёртвые поднимались прямо с носилок. С тех пор я езжу по краю и ищу, откуда идёт это семя.', 'Я уже назвался. Повторять своё имя — занятие для глашатаев.']},
+      {id: 'zachem', t: 'Зачем Око приехало в Ольшанку?', say: 'Что Оку понадобилось в нашей глуши?',
+        v: g => { const F = g.flags;
+          if (COLD.evstafiy(g)) return ['cold', 'Око приезжает туда, где в нём нуждаются, и дозволения не спрашивает. Вам бы следовало это знать.', 'Я ответил.'];
+          if (F.gordey_notes || F.notes_to_oko) return ['koldun', 'Теперь — за колдуном. Пар-нассец с Кожевенной, лекарь, что скупал мертвецов: это дело Ока, и я доведу его до суда, а не до костра на околице.', 'Я уже сказал, за кем.'];
+          if (F.evst_doubt) return ['doubt', 'Приехал за ведьмой, не скрою. Но вы показали мне гробы, проломленные изнутри, и теперь я ищу того, кто знает, отчего они встают. Ведьма портит, а здесь, сдаётся мне, кто-то знает.', 'Я уже сказал, кого ищу.'];
+          return ['vedma', 'Где мёртвые встают дважды, там кто-то колдует. В Липовке мы сожгли ведьму, но порча не ушла с дымом, значит, осталось её семя. Я ищу его, пока оно не проросло по всему краю.', 'Я уже ответил.']; }},
+      {id: 'lipovka', t: 'Что ты видел в Липовке?', say: 'Ты ведь был в Липовке, когда её жгли?',
+        v: g => { const F = g.flags;
+          if (COLD.evstafiy(g)) return ['cold', 'Я видел, как исполняется приговор. Подробности — для суда, а не для беседы на завалинке.', 'Подробности — для суда.'];
+          if (F.lipovka_look || F.evst_doubt) return ['kolodets', 'Если в липовском колодце вода и впрямь чёрная, то пришла она не из ведьминой книжицы: книжица под землёй не течёт. Я запишу и это. И, признаюсь, мне это не нравится.', 'Больше добавить нечего.'];
+          return ['base', 'Видел избу, полную трав, и книжицу на велесском, языке колдовских книг. Видел, как горит, и молился, чтобы с огнём ушло и семя. Говорят, у них и вода с тех пор дурная, но к ведьминому колодцу я не подходил.', 'Остальное я вам сказал.']; }},
+      {id: 'ulyana', t: 'Зачем тебе Ульяна из Липовки?', say: 'На что тебе сдалась липовская девчонка?',
+        v: g => { const F = g.flags;
+          if (F.ulyana === 'given') return ['given', 'Она под стражей, в Таррене, и всё поёт одну старую колыбельную про князя на воде. Это не молитва, но и не заговор. Пусть посидит в темноте и подумает: сознается — и порча уйдёт с признанием.', 'Она под стражей. Я сказал довольно.'];
+          if (COLD.evstafiy(g)) return ['cold', 'Не делайте вид, будто не знаете, где она. Око терпеливо, а терпение Ока длиннее девичьих пряток.', 'Об этом я с вами говорить не стану.'];
+          if ((F.gordey_notes || F.notes_to_oko) && (F.notes_read || F.notes_to_oko)) return ['svidetel', 'Девчонка мне теперь не нить, а свидетель. Но лучше бы ей не попадаться ни мне, ни тем, кто вписывает имена.', 'Я сказал: свидетель. И пусть не попадается.'];
+          if (F.evst_doubt) return ['doubt', 'Если липовская ведьма была ни при чём, то и дочь её, быть может, тоже. Пусть придёт сама, и я её выслушаю. Пришедшего Око судит мягче, чем пойманного.', 'Пусть придёт сама.'];
+          return ['base', 'Порча живёт в крови, а мать её мертва. Дочь — последняя нить, и пока она на воле, мёртвые будут вставать. Так бывает всегда.', 'Я уже говорил.']; }},
+      {id: 'seryi', t: 'Что ты знаешь о человеке в сером, с перстнем без герба?', say: 'Видал ты в Таррене одного, в сером, с гладким перстнем?', if: g => !!(g.flags.knows_gordey || g.flags.seryi_met),
+        v: g => { const F = g.flags;
+          if (COLD.evstafiy(g)) return ['cold', 'Я не обсуждаю проезжих с теми, чьи имена я сам вписал.', 'Не обсуждаю.'];
+          if (F.seryi_proof) return ['pismo', '«Остаток — в колодцы по сёлам»... Если сие правда, то это не ведовство, это хуже: кто-то делает страх нарочно, чтобы мы приходили жечь. Берегите письмо и не показывайте его в Таррене кому попало.', 'Я сказал: берегите письмо.'];
+          const s = C.dwAskState(g); if (!F.evst_ring || s.ringDay == null || s.ringDay >= g.day) return ['neslyhal', 'Не слыхал о таком. Опишите — я запишу и спрошу в ратуше.', 'Я сказал: опишите.'];
+          return ['base', 'Перстень без герба... Я спрашивал в тарренской ратуше: такой печати в Палате нет, и никто не помнит, чтобы была. Кто ездит с печатью, которой нет, тот либо безумец, либо служит тому, о ком не пишут.', 'Мне нечего добавить.']; }},
+      {id: 'kurgan', t: 'Что ты знаешь о кургане под бором?', say: 'А курган под бором — что Око о нём думает?',
+        v: g => { const F = g.flags;
+          if (COLD.evstafiy(g)) return ['cold', 'Курган — не ваша забота и не моя беседа. Держитесь от него подальше, а от меня — тем более.', 'Я сказал: подальше.'];
+          if (F.notes_to_oko) return ['zapisi', 'Я прочёл записи колдуна. Он пишет, что под курганом лежит некто, положенный на дыру, как камень на колодец, и что имя его — замок. Язычество, но язычество, которое кто-то принимает всерьёз, а такое опаснее любой ведьмы.', 'Что прочёл, я сказал.'];
+          if (F.notes_read) return ['znayut', 'Вы, сдаётся мне, знаете о кургане больше моего, а я не люблю, когда знают больше меня. Скажу одно: в одиночку туда не ходят.', 'Я сказал, что думаю.'];
+          if (F.gordey_notes) return ['koldun', 'Колдун ушёл к кургану, да ещё с велесскими записями? Сие меняет дело. Что лежит под той землёй, мне неведомо, а колдуну, видно, ведомо.', 'Я сказал, что знаю.'];
+          return ['base', 'Старое языческое место, каких в краю много. Мужики говорят, в мор оттуда выло. Мужики много чего говорят, а держаться от таких мест подальше — совет полезный.', 'Держитесь подальше.']; }},
+    ],
+    secret: {id: 'taina', t: g => DW_ASK.evstafiy.secret.block(g) ? 'Что ты недоговариваешь, брат?' : `Что ты недоговариваешь, брат? (Мудрость, сложность ${DW_ASK.evstafiy.secret.dc(g)})`, say: 'Ты, брат, что-то держишь при себе. Скажи уж.',
+      if: g => !!g.flags.evst_argue || st(g) >= 4,
+      block: g => COLD.evstafiy(g) ? ['Вы пытаетесь читать меня, как я читаю других? Это дерзость, и я её запомню.', 'Я сказал: запомню.'] : null,
+      dc: g => okoCredit(g) ? 12 : 13,
+      ok: 'Списки мне привозят из Таррена уже писанными, и я лишь скрепляю их своей рукой. Половину имён я не вписывал, а против иных стоит пометка: чья земля и кому отойдёт. А спрашивать, чья рука вписывает, мне не по чину.',
+      re: 'Про списки я сказал больше, чем следовало.',
+      fail: 'Дознаватель скрывает лишь то, что вам знать не положено. Ступайте. Око вас видит.',
+      note: 'Евстафий обмолвился: списки Ока ему привозят из Таррена уже писанными, и против иных имён стоят пометки о земле.'},
+  },
+
+  ulyana: {
+    who: 'ulyana', acc: 'Ульяну', title: 'Ульяна из Липовки', bg: 'hut', art: 'ashes_banya', back: 'ulyana',
+    host: [{scene: 'ulyana', if: g => !g.flags.ulyana, front: true},
+      {scene: 'olshanka', if: g => ['selo', 'vedut'].includes(g.flags.ulyana)},
+      {scene: 'kapishche', if: g => g.flags.ulyana === 'les' && !['razoreno', 'cerkov'].includes(g.flags.kapishche)},
+      {scene: 'lipovka', if: g => g.flags.ulyana === 'stay'}],
+    bgOf: g => ({selo: 'village', vedut: 'village', les: 'shrine'})[g.flags.ulyana] || 'hut',
+    sig: /(?<![а-яё])вишь(?![а-яё])/gi,
+    intro: g => { const u = g.flags.ulyana;
+      if (COLD.ulyana(g)) return 'Связали, а теперь спрашивать будете? Ну спрашивайте. Мне уж всё одно.';
+      if (u === 'selo') return 'Тут хорошо, хлебом пахнет. Спрашивайте, я скажу, что знаю. Немного я знаю, вишь.';
+      if (u === 'les') return 'Дед Добрыня говорит, лес меня спрячет. Спрашивайте, пока он не слышит: он не любит, когда много говорят.';
+      if (u === 'stay') return 'Опять вы. Никуда я отсюда не пойду, это ж мамкина банька.';
+      return 'Чего ещё? Спрашивайте, коли надо. Только тихо: тут далеко слыхать.'; },
+    qs: [
+      {id: 'kto', t: 'Ты чья будешь?', say: 'Ты чья будешь, девица?',
+        v: g => COLD.ulyana(g) ? ['cold', 'Ведьмина дочь, так ведь у вас записано. Чего ж спрашивать.', 'Слыхали уже.']
+          : ['base', 'Ульяна я, липовская, знахаркина дочка. Мамка травы варила, всё село у неё лечилось. А теперь вот я одна.', 'Я уж говорила.']},
+      {id: 'lipovka', t: 'Что случилось в Липовке?', say: 'Расскажи, что у вас в Липовке стряслось.',
+        v: g => { const F = g.flags;
+          if (COLD.ulyana(g)) return ['cold', 'Сожгли нас. Вам-то что? Вы со звездой заодно.', 'Сожгли. И всё.'];
+          if (st(g) >= 7) return ['davno', 'Сожгли нас, а виноватой мамку сделали, хоть вода в колодце сама почернела. Говорят, теперь у нас хоть горелые не ходят. И то ладно.', 'Не хочу опять про это.'];
+          if (F.lipovka_look) return ['kolodets', 'Видели колодец? Вода сама почернела, мамка тут ни при чём. А им всё одно: травы есть — значит, ведьма.', 'Я ж говорила.'];
+          return ['base', 'Сперва вода в колодце почернела, и мамка велела из него не пить. Через седмицу пришли со звездой, нашли книжицу да травы — и в огонь. Колодец-то и теперь стоит, кто не верит.', 'Не хочу опять про это.']; }},
+      {id: 'veta', t: 'Знаешь знахарку Вету из Ольшанки?', say: 'А Вету, ольшанскую знахарку, знаешь?',
+        v: g => { const F = g.flags;
+          if (COLD.ulyana(g)) return ['cold', 'Не скажу я вам про Вету. Вы и её свяжете.', 'Не скажу.'];
+          if (F.veta === 'given') return ['given', 'Вету увезли? Со звездой?.. Она у мамки травам училась, а не порче.', 'Увезли её. Чего ж ещё.'];
+          const inLes = F.veta === 'hidden' || (F.veta_fled && !F.veta);
+          if (inLes && F.ulyana === 'les') return ['tut', 'Вета тут, у деда. Ночью травы толчёт, как у мамки толкла, — я под это и сплю.', 'Тут она. Я ж сказала.'];
+          if (inLes) return ['les', 'Вета у деда Добрыни, в лесу? Ну и хорошо. Она добрая, она мамке травы толочь помогала.', 'Пусть в лесу сидит.'];
+          return ['base', 'Вета-то? Она у мамки училась, давно ещё, и травы знает лучше всех, окромя мамки. Вы её не трогайте.', 'Не трогайте её.']; }},
+      {id: 'kolybel', t: 'Что это за колыбельная про князя?', say: 'Спой хоть, что за песня такая про князя?',
+        v: g => { const F = g.flags;
+          if (COLD.ulyana(g)) return ['cold', 'Пела я вам уже. Больше не буду, пока руки связаны.', 'Не буду петь.'];
+          if (F.hole_named) return ['named', 'Вы его назвали, и он лёг? Значит, мамка правду пела. Я теперь каждый вечер петь буду, хоть одна, хоть в лесу.', 'Я сказала: буду петь.'];
+          if (knowsLock(g)) return ['lock', 'Мамка говорила: пока поют — спит. Я думала, это она про меня, чтоб я спала. А теперь вот думаю, может, и не про меня.', 'Так мамка говорила.'];
+          return ['base', 'Колыбельная как колыбельная. Мамка пела, чтоб я не боялась, когда ветер в трубе воет. Там про князя, что на воде лежит, а больше я и не думала.', 'Колыбельная это, не заговор.']; }},
+      {id: 'kurgan', t: 'Что мать говорила о кургане под бором?', say: 'А про курган под бором мамка твоя что сказывала?',
+        v: g => {
+          if (COLD.ulyana(g)) return ['cold', 'Ничего она не говорила. А и говорила бы — вам не скажу.', 'Не скажу.'];
+          if (st(g) >= 7) return ['tiho', 'Говорят, у кургана теперь тихо. Я смотреть не пойду. Пусть спит.', 'Пусть спит.'];
+          if (st(g) >= 5) return ['idut', 'Вы туда пойдёте? Вы ему спойте, если что. Мамка говорила, он песню любит больше железа.', 'Я уж сказала.'];
+          return ['base', 'Мамка туда не ходила и мне не велела. Говорила: там князь лежит, у него своё дело, лишь бы не будили. А как вода почернела, сказала: проснулся, беспокоится.', 'Не ходила мамка туда.']; }},
+    ],
+    secret: {id: 'taina', t: g => `Ты что-то недоговариваешь. Что? (Мудрость, сложность ${DW_ASK.ulyana.secret.dc(g)})`, say: 'Ульяна, ты ведь не всё сказала. Не бойся, говори.',
+      dc: g => COLD.ulyana(g) ? 14 : 12,
+      ok: g => (g.flags.knows_gordey || g.flags.seryi_met)
+        ? 'Последний куплет мамка только шёпотом пела и велела: наполовину не пой, беда будет; я его не помню, засыпала раньше. А летом к мамке чужой приходил и сулил серебро за эту песенку. Тоже говорил гладко, как вы про того сказываете, — мамка его прогнала.'
+        : 'Последний куплет мамка только шёпотом пела, в самое ухо, и велела: никому не пой и наполовину не пой, беда будет. А я всегда засыпала раньше, чем она допоёт. Я его не помню, правда не помню.',
+      re: 'Всё я вам сказала.',
+      fail: g => COLD.ulyana(g) ? 'Связали, а теперь ещё и выпытывают. Ничего не скажу.' : 'Ничего я не скрываю! Чего пристали?',
+      note: 'Ульяна призналась: последний куплет колыбельной мать пела ей только шёпотом и не велела петь песню наполовину. Сама Ульяна его не помнит.'},
+  },
+
+  gordey: {
+    who: 'gordey', acc: 'Гордея', title: 'Гордей', bg: 'kurgan', art: 'kurgan_hall', back: 'final',
+    host: [{scene: 'final', if: g => !g.flags.gordey_vedut && !g.ended, front: true},
+      {scene: 'kurgan', if: g => st(g) === 7 && !!g.flags.gordey_vedut}],
+    sig: /уважаем|учён/gi,
+    intro: g => { const F = g.flags;
+      if (F.gordey_vedut) return 'Дорога длинная, можно и поговорить. Спрашивайте.';
+      if (okoHere(g)) return 'При дознавателе я скажу не всё, вы понимаете. Но спрашивайте.';
+      if (COLD.gordey(g)) return 'Победитель расспрашивает побеждённого. Обычай древний. Спрашивайте, только не ждите, что я стану рассказывать с охотой.';
+      return 'Спрашивайте, пока есть время. Полезно, когда тебя расспрашивают перед судом: хоть кто-то запомнит, что ты знал.'; },
+    qs: [
+      {id: 'kto', t: 'Кто ты такой, Гордей?', say: 'Ну, Гордей, кто ты таков на самом деле?',
+        v: g => COLD.gordey(g) ? ['cold', 'Тот, кого вы побили, уважаемые. Для суда этого довольно, а для беседы и подавно.', 'Хватит с вас.']
+          : ['base', 'Учился в Пар-Нассе, читал то, что там читают только с дозволения, а здесь лечил кожевников от кашля. Око зовёт меня колдуном нави. Я бы сказал скромнее: сторож при дыре, которому не хватило сторожей.', 'Повторяться я не люблю.']},
+      {id: 'zachem', t: 'Зачем тебе были мертвецы?', say: 'На что тебе мертвецы-то сдались?',
+        v: g => COLD.gordey(g) ? ['cold', 'Затем же, зачем лекарю холстина на повязки: рана была, а холстины не было. Остальное услышите на суде, если захочется слушать.', 'Я сказал.']
+          : ['base', 'Дыра пьёт, а мёртвые закрывают её собой, как затычка бочку. Затычка дешёвая и плохая, но другой у меня не было. Живых я туда не клал ни одного, это можете записать.', 'Я сказал.']},
+      {id: 'voda', t: 'Что за вода в провале?', say: 'А вода там, внизу, — что она такое?',
+        v: g => COLD.gordey(g) ? ['cold', 'Мёртвая вода. Не пейте её и никому не продавайте — вот и весь мой совет победителям.', 'Я сказал.']
+          : g.flags.knyaz === 'named'
+          ? ['named', 'Мёртвая вода: всё в мире течёт вниз, а она поднималась снизу, будто её оттуда отдавали. Теперь, когда он лёг, легла и она. Не пейте её и никому не продавайте: я продавал, и вот где я.', 'Что знал, я сказал.']
+          : ['beaten', 'Мёртвая вода: всё в мире течёт вниз, а эта поднималась снизу. Вы повалили того, кто на ней лежал, и она притихла, но как зверь в норе, а не как спящий. Не пейте её и никому не продавайте: я продавал, и вот где я.', 'Что знал, я сказал.']},
+      {id: 'seryi', t: 'Кто такой человек в сером?', say: 'Тот, в сером, с перстнем, — кто он тебе?',
+        v: g => { const F = g.flags;
+          if (COLD.gordey(g)) return ['cold', 'Покупатель воды, а потом и вор. Подробности я оставлю суду.', 'Я сказал.'];
+          if (okoHere(g) && !F.gordey_vedut) return ['shepot', 'Тише... Покупатель, а потом и вор: спустился с фонарём и снял с князя гривну-печать. Остальное — не при дознавателе.', 'Не при дознавателе.'];
+          if (F.seryi_proof) return ['pismo', `Покупатель, а потом и вор: это он снял с князя гривну-печать${F.pechat ? ', а вы её у него отняли' : ''}. «Остаток — в колодцы по сёлам»... Ищите не его самого, а того, кому в этом краю нужен страх: тот и платит.`, 'Я сказал, что знаю.'];
+          return ['base', 'Покупатель. Учёному хватит склянки, а он брал воду бочками. А потом и вор: спустился с фонарём и снял с князя гривну, и с той ночи я держу дыру мертвецами.', 'Я сказал, что знаю.']; }},
+      {id: 'knyaz', t: 'Кто лежит под курганом?', say: 'А тот, кто из воды встал, — кто он?',
+        v: g => { const F = g.flags;
+          if (COLD.gordey(g)) return ['cold', 'Тот, кто лёг сюда раньше Таррена. Имени не ждите: его поют, а не подают победителям.', 'Я сказал.'];
+          if (!F.key_imya) return ['noname', 'Имени я не напишу и вслух вам не подам: записанное слабеет, а сказанное с чужого языка не держит. Его поют, а не говорят.', 'Я сказал: его поют.'];
+          if (F.knyaz === 'named') return ['named', 'Тот, кто лёг сюда сам, задолго до Таррена и до Ока. Вы назвали его, и он вам поклонился, а мне за три года не поклонился ни разу. Держит его не камень и не я, а имя, пока его поют.', 'Я сказал, что знаю.'];
+          return ['beaten', 'Тот, кто лёг сюда сам, задолго до Таррена и до Ока. Вы повалили его мечом, но мечом его не уложишь, только отложишь. Держит его не камень, а песня.', 'Я сказал, что знаю.']; }},
+      {id: 'pamyat', t: 'Кто ещё в краю помнит о князе?', say: 'Кроме тебя, кто про него ещё знает?',
+        v: g => { const F = g.flags;
+          if (COLD.gordey(g)) return ['cold', 'Ищите сами. Вы, как я погляжу, хорошо умеете находить.', 'Ищите сами.'];
+          if (F.ulyana === 'given') return ['given', 'Вы отдали Оку липовскую девчонку? Тогда в краю стало одной песней меньше, а песня держит крепче моих мертвецов. Это, увы, закономерно скажется.', 'Я сказал.'];
+          if (F.knyaz === 'named') return ['named', 'Теперь — вы: вы назвали его, и он лёг. Только имя держится, пока его поют, а не пока его помнят двое-трое; отдайте его гуслярам и тем, кто поёт детям.', 'Я сказал.'];
+          if (F.ulyana_seen) return ['ulyana', 'Девчонка из Липовки, если она поёт ту колыбельную, — берегите её пуще меня. Мои записи сжечь не жалко, а песню жалко.', 'Я сказал.'];
+          return ['base', 'Старые песни, старые бабки, старый лес. В Липовке, говорят, пели детям что-то про князя; найдите, кто это ещё помнит, пока не нашли другие.', 'Я сказал.']; }},
+    ],
+    secret: {id: 'taina', t: g => `Что ты недоговариваешь, Гордей? (Мудрость, сложность ${DW_ASK.gordey.secret.dc(g)})`, say: 'Ты ведь не всё сказал, Гордей. Договаривай.',
+      dc: g => (COLD.gordey(g) ? 15 : g.flags.gordey_beaten === 'surrender' ? 12 : 13) + (okoHere(g) && !g.flags.gordey_vedut ? 2 : 0),
+      ok: g => okoHere(g) && !g.flags.gordey_vedut
+        ? 'Шёпотом, раз уж рядом звезда: воды с каждым годом меньше, будто её пьёт кто-то прежде меня. Берегите тех, кто поёт старое.'
+        : 'Воды с каждым годом меньше. Я черпал её здесь, а снизу приходило всё скуднее, будто кто-то пьёт её прежде меня, ниже по жиле или выше по чину. И ещё: за старыми песнями охотятся не меньше, чем за водой, так что берегите тех, кто поёт.',
+      re: 'Я и так сказал больше, чем следовало.',
+      fail: g => okoHere(g) && !g.flags.gordey_vedut ? 'При дознавателе? Нет уж.' : COLD.gordey(g) ? 'Недоговариваю. Побеждённому больше нечем торговаться.' : 'Учёный недоговаривает всегда, уважаемые: иначе ему нечем было бы торговаться за свою жизнь.',
+      note: 'Гордей обмолвился: мёртвой воды с каждым годом меньше, будто её пьёт кто-то ещё, а за старыми песнями охотятся не меньше, чем за водой.'},
+  },
+};
+C.DW_ASK = DW_ASK;
+
+/* ---------- состояние: g.dwAsk = {said: {кто: {вопрос: ключ}}, last: {кто, q, text}, back: {кто: сцена}, try: {кто: день}, ok: {кто: 1}} ---------- */
+C.dwAskState = g => { const s = g.dwAsk = (g.dwAsk && typeof g.dwAsk === 'object') ? g.dwAsk : {};
+  ['said', 'back', 'try', 'ok', 'last'].forEach(k => { if (!s[k] || typeof s[k] !== 'object') s[k] = {}; }); return s; };
+const said = (g, who) => { const s = C.dwAskState(g); return s.said[who] = s.said[who] || {}; };
+const txt = (g, x) => typeof x === 'function' ? x(g) : x;
+const hubId = who => 'dw_ask_' + who;
+
+function answer(g, who, q) {
+  const A = DW_ASK[who], s = C.dwAskState(g), mem = said(g, who);
+  const [key, full, short] = q.v(g), old = mem[q.id] === key;
+  mem[q.id] = key; s.last = {who, q: q.id, text: old ? short : full};
+  return hubId(who);
+}
+function askSecret(g, who) {
+  const A = DW_ASK[who], T = A.secret, s = C.dwAskState(g), mem = said(g, who);
+  if (s.ok[who]) { s.last = {who, q: T.id, text: T.re}; return hubId(who); }
+  const bl = T.block && T.block(g);
+  if (bl) { const old = mem[T.id] === 'block'; mem[T.id] = 'block'; s.last = {who, q: T.id, text: old ? bl[1] : bl[0]}; return hubId(who); }
+  const r = C.bestCheck(g, 'wis', 'Проницательность', T.dc(g)); g.lastCheck = r;
+  s.try[who] = g.day; mem[T.id] = r.ok ? 'ok' : 'fail';
+  if (r.ok) { s.ok[who] = 1; s.last = {who, q: T.id, text: txt(g, T.ok)}; C.note(g, T.note); }
+  else s.last = {who, q: T.id, text: txt(g, T.fail)};
+  return hubId(who);
+}
+
+/* ---------- сцены-хабы ---------- */
+Object.keys(DW_ASK).forEach(who => {
+  const A = DW_ASK[who];
+  S[hubId(who)] = g => {
+    const s = C.dwAskState(g), last = s.last && s.last.who === who ? s.last : null, mem = said(g, who);
+    const lines = last ? [[A.who, last.text]] : [[A.who, A.intro(g)]];
+    const listMode = g2 => { const l = C.dwAskState(g2).last; return !(l && l.who === who); };
+    const qch = A.qs.map(q => ({
+      t: g2 => { const m = said(g2, who), k = q.v(g2)[0]; return m[q.id] === k ? `${q.t} (уже спрашивали)` : q.t; },
+      say: q.say, ask: who + ':' + q.id,
+      if: g2 => listMode(g2) && (!q.if || q.if(g2)),
+      do: g2 => answer(g2, who, q)}));
+    const T = A.secret;
+    qch.push({t: g2 => { const s2 = C.dwAskState(g2), bl = T.block && T.block(g2); return s2.ok[who] || (bl && said(g2, who)[T.id] === 'block') ? `${T.t(g2).replace(/\s*\([^)]*\)\s*$/, '')} (уже спрашивали)` : T.t(g2); }, say: T.say, ask: who + ':' + T.id,
+      if: g2 => { const s2 = C.dwAskState(g2); return listMode(g2) && (!T.if || T.if(g2)) && (s2.ok[who] || (T.block && T.block(g2)) || s2.try[who] !== g2.day); },
+      do: g2 => askSecret(g2, who)});
+    qch.push({t: 'Спросить о другом', if: g2 => !listMode(g2), do: g2 => { C.dwAskState(g2).last = {}; return hubId(who); }});
+    qch.push({t: 'Хватит', do: g2 => { const s2 = C.dwAskState(g2); s2.last = {}; return s2.back[who] || A.back; }});
+    return {title: `${A.title}: расспросы`, bg: A.bgOf ? A.bgOf(g) : A.bg, art: A.art, lines, choices: qch};
+  };
+});
+
+/* ---------- кнопки «Расспросить …» в сценах главы ---------- */
+const LEAVE = /^(Уйти|Назад|Выйти на дорогу|На дорогу|Отойти|Выйти на улицу)/;
+const HOSTS = {};
+Object.keys(DW_ASK).forEach(who => DW_ASK[who].host.forEach(h => { (HOSTS[h.scene] = HOSTS[h.scene] || []).push(Object.assign({who}, h)); }));
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  if (!sc || !g || g.camp !== 'dead_water' || !HOSTS[id] || C.DW_ASK_OFF) return sc;
+  HOSTS[id].forEach(h => { let on = false; try { on = !!h.if(g); } catch (e) { on = false; } if (!on) return;
+    const A = DW_ASK[h.who], i = sc.choices.length ? Math.max(...sc.choices.map(c => c.i)) + 1 : 0;
+    const ch = {i, label: `Расспросить ${A.acc}…`, t: `Расспросить ${A.acc}…`, dwAsk: h.who, who: sc.people && sc.people.includes(A.who) ? A.who : undefined,
+      do: g2 => { const s = C.dwAskState(g2); s.back[h.who] = id; s.last = {}; if (h.who === 'evstafiy' && g2.flags.evst_ring && s.ringDay == null) s.ringDay = g2.day; return hubId(h.who); }};
+    const k = sc.choices.length - 1;
+    if (h.front) sc.choices.unshift(ch);
+    else if (k >= 0 && LEAVE.test(sc.choices[k].label || '')) sc.choices.splice(k, 0, ch);
+    else sc.choices.push(ch); });
+  return sc;
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* camp_ashes.js */
 /* Кампания «Пепел списков» — стартовый уровень 2. Восемнадцатый год до Веры, Нолгрим под теракским наместником.
    Четыре входа по ведущей стороне летописи (Око / Капища / Навь / вольный), общий хребет — восстание в Коровине,
@@ -38701,7 +38997,7 @@ C.shopExtra = function (g, city) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvsjx4n0"></script><script>
+</script><script src="world.js?v=mvsqlkpj"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -40820,13 +41116,14 @@ function showScene(id, talk) {
   const chk = view ? SCR_IN.chk : g.lastCheck; if (!view) g.lastCheck = null;
   const ups = view ? SCR_IN.ups || [] : g.lastUps || []; if (!view) g.lastUps = []; if (ups.length) setTimeout(() => tip1('level'), 700);
   const nws = view ? SCR_IN.nws || [] : g.lastNews || []; if (!view) g.lastNews = null;
+  const vce = view ? SCR_IN.voice || [] : g.lastVoice || []; if (!view) g.lastVoice = null; // голос героя и отклик (w2_voice) — первой строкой исхода
   renderTop();
   // несколько человек на месте — сперва выбираешь, к кому подойти
   const hub = sc.people && sc.people.length > 1;
   let who = hub ? (talk !== undefined ? talk : (TALK && TALK.scene === id ? TALK.who : null)) : null;
   if (who && !sc.people.includes(who)) who = null;
   TALK = hub ? {scene: id, who} : null;
-  if (NETH()) { if (VOTE && (VOTE.sid !== id)) { clearTimeout(VOTE.timer); VOTE = null; } SCR = {k: 'scene', id, who, chk: chk && {hero: {name: chk.hero ? chk.hero.name : ''}, roll: chk.roll, total: chk.total, dc: chk.dc, ok: chk.ok, adv: chk.adv || 0, rolls: chk.rolls || null, advWhy: chk.advWhy || '', say: chk.say || ''}, ups, nws, shop: 0}; }
+  if (NETH()) { if (VOTE && (VOTE.sid !== id)) { clearTimeout(VOTE.timer); VOTE = null; } SCR = {k: 'scene', id, who, chk: chk && {hero: {name: chk.hero ? chk.hero.name : ''}, roll: chk.roll, total: chk.total, dc: chk.dc, ok: chk.ok, adv: chk.adv || 0, rolls: chk.rolls || null, advWhy: chk.advWhy || '', say: chk.say || ''}, ups, nws, voice: vce, shop: 0}; }
   save();
   let lines = sc.lines, choices = sc.choices, people = '';
   if (hub) {
@@ -40846,7 +41143,7 @@ function showScene(id, talk) {
   const lbox = !dmap && C.LEARN_SET && C.LEARN_SET[id] ? learnBox(id, sc) : '';
   if (lbox) lines = lines.filter(l => !/: очков профессий — |учится \(«/.test(l[1]));
   $('#main').innerHTML = `<div class="screen scene"><div class="bg${dmap ? ' dg' : ''}" style="background-image:${sceneBg(sc, bg)}">${dmap ? '<canvas class="dmap"></canvas>' : ''}<h2>${esc(sc.title)}</h2>${sface ? `<div class="sface">${faceHTML(sface.id, 'bigface').replace('width="96" height="96"', 'width="192" height="192"')}<div class="sfn"><b>${esc(sface.n || '')}</b>${sface.sub ? `<small>${esc(sface.sub)}</small>` : ''}</div></div>` : ''}</div>
-   <div class="body${lbox ? ' haslearn' : ''}"><div class="lines">${newsHTML(nws, lines, chk)}${lines.map(lineHTML).join('')}${people}
+   <div class="body${lbox ? ' haslearn' : ''}"><div class="lines">${voiceHTML(vce)}${newsHTML(nws, lines, chk)}${lines.map(lineHTML).join('')}${people}
    ${chk ? `<div class="check ${chk.ok ? '' : 'bad'}">${esc(chk.hero ? chk.hero.name : '')}: бросок ${chk.rolls ? `${chk.rolls.join(' и ')} — ${chk.adv > 0 ? 'с преимуществом' : 'с помехой'}${chk.advWhy ? ' (' + esc(chk.advWhy) + ')' : ''}, берётся ${chk.roll}` : chk.roll}, итог ${chk.total} против ${chk.dc} — ${chk.ok ? 'удача' : 'неудача'}.</div>${chk.say ? lineHTML(['n', chk.say]) : ''}` : ''}
    ${ups.map(u => `<div class="check">${esc(u.hero)} достигает ${u.level}-го уровня (+${u.hp} хитов${u.profPts ? `, +${u.profPts} очк. профессий` : ''})${u.lesson ? `. Можно выучить новое заклинание — ${esc(C.teacherWhere ? C.teacherWhere(u.cls) : 'у наставника')}` : ''}.</div>`).join('')}
    ${SAYS.filter(x => x.sid === id).slice(-8).map(x => x.html).join('')}</div>${lbox}<div class="choices${lbox ? ' lchoices' : ''}">${NET() ? `<div class="votebar" id="votebar"></div>${myHeroes().length ? `<label class="claim note">Проверку бросает: <select id="claimSel"><option value="">лучший в отряде</option>${myHeroes().map(h => `<option value="${h.id}" ${CLAIM === h.id ? 'selected' : ''}>${esc(h.name)} — беру на себя</option>`).join('')}</select></label>` : `<div class="hint">${C.alive(g).length ? 'У вас нет героя за этим столом — можно смотреть и говорить.' : 'Отряд пал. Посадите нового героя.'}</div>`}` : ''}${hub && !who ? sc.people.map(p => `<button class="btn ch" data-talk="${p}"><span class="ui-i i-chat"></span><span class="ct">Подойти: ${esc(shortName(p))}</span></button>`).join('') : ''}${choices.filter(c => c.who).map(c => choiceBtn(id, c)).join('')}${hub && who ? `<button class="btn ch" data-talk=""><span class="ui-i i-steps"></span><span class="ct">Отойти</span></button>` : ''}${menuHTML(id, choices.filter(c => !c.who && !(lbox && c.learn)))}</div></div></div>`;
@@ -40863,6 +41160,15 @@ function showScene(id, talk) {
     if (p && !sc.lines.some(l => l[0] === p || l[2] === p)) { const only = sc.choices.filter(c => c.who === p); if (only.length === 1) return choose(id, only[0].i); }
     showScene(id, p);
   });
+}
+/* голос героя (w2_voice): реплика того, кто говорил, с его лицом — и короткий отклик человека на тон */
+function voiceHTML(vs) {
+  if (!vs || !vs.length) return '';
+  return vs.map(v => { if (!v || !v.text) return '';
+    if (v.k === 'n') return C.SPEAKERS[v.who] ? lineHTML([v.who, v.text]) : `<div class="line n">${esc(v.text)}</div>`;
+    const h = v.k === 'h' ? heroById(v.id) : (g.mercs || []).find(m => m.id === v.id);
+    const face = v.k === 'h' && h ? heroFace(h, 'face') : faceHTML(v.face || (h && h.portrait) || '');
+    return `<div class="line pc vsay">${face}<div><div class="who">${esc(v.name)}</div><div>«${esc(v.text)}»</div></div></div>`; }).join('');
 }
 /* что изменилось — над текстом сцены: без того, что сцена и так скажет (исход, голос мастера), без повторов предложений;
    слово наёмника («Имя: «…»») — своим абзацем, и в окно реплик оно уже не пойдёт */
@@ -40904,6 +41210,7 @@ function choose(id, i) {
 function runChoose(id, i, pid) {
   let nw = [];
   const res = withPurse(pid, () => { const a = snap(), r = C.choose(g, id, i); nw = news(a); return r; }); save();
+  if (!res.scene && g.lastVoice && g.lastVoice.length) { nw = g.lastVoice.filter(v => v.k !== 'n').map(v => `${v.name}: «${v.text}»`).concat(nw); g.lastVoice = null; }
   if (nw.length) { if (res.scene) g.lastNews = nw; else toast(nw.join(' ')); }
   if (res.battle) return startBattle(res.battle);
   if (res.create) {
