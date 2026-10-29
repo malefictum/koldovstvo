@@ -46503,7 +46503,7 @@ const baseTalkCh = sc => (sc.choices || []).find(c => !c.dis && !c._vm && !c._vt
 const decide = (g, id, sc) => {
   if (!sc || !g || !g.heroes || K().off || PV) return;
   const s = ST(g), v = (g.visited || {})[id] || 0;
-  if (id === 'fail_fork' || id === 'map' || /^carry_dead|^dungeon$|^dw_ask|^hire_|^epilogue|^ending/.test(id)) return; // в хабах расспросов (dw_ask.js) — вопросы, а не переговоры
+  if (id === 'fail_fork' || id === 'map' || /^carry_dead|^dungeon$|^[a-z]+_ask_|^hire_|^epilogue|^ending/.test(id)) return; // в хабах расспросов (dw_ask.js) — вопросы, а не переговоры
   const whos = npcWhos(sc).filter(w => !isMercSpk(g, w));
   /* память: кто-то из говорящих (или мастер на своём дворе) помнит отряд */
   if (!(s.mem && s.mem.sid === id && s.mem.v === v)) s.mem = null; // вход мог прийти дважды (обёртки) — сказанное не теряем
@@ -46596,7 +46596,7 @@ const inject = (g, id, sc) => {
     const li = sc.lines.findIndex(l => l && l[0] === s.mem.who); const ln = [s.mem.who, s.mem.text]; if (hub && li >= 0) ln[2] = s.mem.who; ln._vmem = 1;
     sc.lines.splice(li >= 0 ? li + 1 : Math.min(1, sc.lines.length), 0, ln); }
   /* тон (не в хабах расспросов) */
-  const ts = /^dw_ask|^find_/.test(id) ? null : toneSet(g, sc); // находки на дороге — короткие сцены, им хватит одного способа
+  const ts = /^[a-z]+_ask_|^find_/.test(id) ? null : toneSet(g, sc); // находки на дороге — короткие сцены, им хватит одного способа
   if (ts) { let ni = maxI(sc) + 1;
     ts.forEach(({c}) => { const b = baseLabel(c.label), tail = (/\(([^()]*)\)\s*$/.exec(c.label) || [])[1] || '';
       const mk = (k) => { const T = TONE_DEF[k]; const stat = 'cha'; void stat;
@@ -46651,7 +46651,7 @@ C.choose = function (g, sceneId, idx) {
   try { res = ch0.apply(this, arguments); } finally { C.bestCheck = bc; CAPV = prev; BUSY--; }
   try {
     const sc = cap0.sc, ch = sc && sc.choices && (sc.choices.find(c => c.i === idx) || null);
-    if (ch && !ch.dis && isTalk(ch) && !(/^dw_ask/.test(sceneId) && !ch.say)) {
+    if (ch && !ch.dis && isTalk(ch) && !(/^[a-z]+_ask_/.test(sceneId) && !ch.say)) {
       const npcW = mainNpc(g, sc, ch), sk = got ? got.skill : (socOf(ch)[0] || {}).skill;
       let h = got && got.r.hero && (alive(g).includes(got.r.hero) || mercsOf(g).includes(got.r.hero)) ? got.r.hero : null;
       if (ch._vm) h = mercsOf(g).find(m => m.id === ch._vm) || h;
