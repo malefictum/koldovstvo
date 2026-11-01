@@ -36968,38 +36968,37 @@ C.heroStatus = function (g, h) {
   if (!C) return;
   const T = C.MUSIC_TRACKS = C.MUSIC_TRACKS || {};
 
-  /* 1. Карта, «Мёртвая вода» — Э. Григ, «Смерть Озе» («Пер Гюнт», соч. 46 № 2), си минор. Эмбиент: пульс с вибрато,
-     тихие арпеджио 12,5 %, треугольник на басу, шумовой ветер; в A' — эхо второй пульсой на октаву выше. */
+  /* 1. Карта, «Мёртвая вода» — Э. Григ, «Смерть Озе» («Пер Гюнт», соч. 46 № 2), си минор. Эмбиент: под всем — тягучий бурдон
+     (как прежний напев), сверху редкие растянутые обрывки темы мягким пульсом 50 % и треугольником, между ними пауза и ветер. */
   T.deadwater = {
-    title: 'Мёртвая вода', src: 'Э. Григ — «Смерть Озе», соч. 46 № 2', key: 'си минор', bpm: 60, div: 4, rev: 0.3, gain: 0.28,
+    title: 'Мёртвая вода', src: 'Э. Григ — «Смерть Озе», соч. 46 № 2', key: 'си минор', bpm: 40, div: 4, rev: 0.45, gain: 0.95,
     ch: {
-      p1: {w: 'pulse', duty: 1, vol: 0.17, env: 'pad', vib: [0.4, 14, 5], pan: -0.2},
-      p2: {w: 'pulse', duty: 0, vol: 0.075, env: 'org', arp: 0.5, pan: 0.3},
-      tr: {w: 'tri', vol: 0.3},
-      nz: {w: 'noise', vol: 0.09, pan: 0.1},
+      p1: {w: 'pulse', duty: 2, vol: 0.12, env: 'soft', vib: [0.7, 9, 4.5], pan: -0.15},
+      p2: {w: 'pulse', duty: 2, vol: 0.07, env: 'soft', pan: 0.35},
+      tr: {w: 'tri', vol: 0.24, env: 'soft'},
+      dr: {w: 'drone', vol: 0.075, lp: 380, a: 3, r: 3.5},
+      nz: {w: 'noise', vol: 0.06, pan: 0.1},
     },
     pat: {
       mA: 'f#3:4 b3:4 c#4:8 f#3:4 b3:4 c#4:8 d4:4 c#4:4 b3:4 c#4:2 d4:2 e4:4 d4:4 c#4:6 r:2 f#3:4 b3:4 c#4:8 f#3:4 b3:4 c#4:8 e4:4 d4:4 c#4:4 d4:2 e4:2 a#3:4 b3:8 r:4',
-      bA: '@g1 b1:4 d2:4 f#2:8 b1:4 d2:4 f#2:8 b1:4 c#2:2 d2:2 e2:4 d2:4 c#2:4 d2:2 e2:2 f#2:6 r:2 b1:4 d2:4 g2:8 b1:4 d2:4 g2:8 c#2:4 d2:2 e2:2 f#2:4 e2:4 d2:2 c#2:2 b1:8 r:4',
-      hA: '@v6 [d4 f#4 b4]:8 [f#4 a#4 c#5]:8 [d4 f#4 b4]:8 [f#4 a#4 c#5]:8 [d4 b4]:4 [e4 g4 b4]:4 [e4 g4 b4]:4 [d4 f#4 b4]:4 [e4 b4 c#5]:4 [d4 f#4 b4]:4 [f#4 a#4 c#5]:8 [d4 f#4 b4]:8 [f4 g4 b4 c#5]:8 [d4 f#4 b4]:8 [f4 g4 b4 c#5]:8 [e4 b4 c#5]:4 [d4 f#4 b4]:4 [f#4 a#4 c#5]:4 [d4 e4 g#4 b4]:4 [e4 f#4 a#4]:4 [d4 f#4 b4]:8 r:4',
       mB: 'c#4:4 f#4:4 g#4:8 c#4:4 f#4:4 g#4:8 a4:4 g#4:4 f#4:4 g#4:2 a4:2 b4:4 a4:4 g#4:6 r:2 c#4:4 f#4:4 g#4:8 c#4:4 f#4:4 g#4:8 b4:4 a4:4 g#4:4 a4:2 b4:2 f4:4 f#4:10 r:2',
-      bB: '@g1 f#2:4 a2:4 c#3:8 f#2:4 a2:4 c#3:8 f#2:4 g#2:2 a2:2 b2:4 a2:4 g#2:4 a2:2 b2:2 c#3:6 r:2 f#2:4 a2:4 d3:8 f#2:4 a2:4 d3:8 g#2:4 a2:2 b2:2 c#3:4 b2:4 a2:2 g#2:2 f#2:10 r:2',
-      hB: '@v6 [f#4 a4 c#5]:8 [f4 g#4 c#5]:8 [f#4 a4 c#5]:8 [f4 g#4 c#5]:8 [f#4 a4]:4 [b3 d4 f#4]:4 [d4 f#4 b4]:4 [f#4 a4 c#5]:4 [f#4 g#4 b4]:4 [f#4 a4 c#5]:4 [f4 g#4 c#5]:8 [f#4 a4 c#5]:8 [d4 f#4 g#4 c5]:8 [f#4 a4 c#5]:8 [d4 f#4 g#4 c5]:8 [f#4 g#4 b4]:4 [f#4 a4 c#5]:4 [f4 g#4 c#5]:4 [d#4 f#4 a4 b4]:4 [f4 b4 c#5]:4 [f#4 a4 c#5]:12',
       mC: 'b5:4 a#5:4 a5:8 b5:4 a#5:4 a5:8 b5:4 a#5:4 a5:8 a5:4 g5:4 f#5:6 r:2 e5:4 d#5:4 d5:8 e5:4 d#5:4 d5:8 e5:4 d#5:4 d5:8 d5:4 c#5:4 b4:6 r:2',
-      bC: '@g1 g4:8 d4:8 g4:8 d4:8 g4:8 d4:8 c#4:8 f#4:6 r:2 c4:8 g3:8 c4:8 g3:8 c4:8 g3:8 f#3:8 b3:6 r:2',
-      hC: '@v6 [f4 g4 b4]:4 [f4 g4 a#4 c#5]:4 [d4 f#4 a4]:8 [f4 g4 b4]:4 [f4 g4 a#4 c#5]:4 [d4 f#4 a4]:8 [f4 g4 b4]:4 [f4 g4 a#4 c#5]:4 [d4 f#4 a4]:4 [d4 f#4 a4]:4 [f4 a4 b4 c#5]:4 [f4 g4 b4 c#5]:4 [f#4 a#4 c#5]:8 [e4 a#4 c5]:4 [d#4 f#4 a#4 c5]:4 [d4 g4 b4]:8 [e4 a#4 c5]:4 [d#4 f#4 a#4 c5]:4 [d4 g4 b4]:8 [e4 a#4 c5]:4 [d#4 f#4 a#4 c5]:4 [d4 g4 b4]:4 [d4 g4 b4]:4 [d4 e4 f#4 a#4]:4 [e4 f#4 a#4 c#5]:4 [d4 f#4 b4]:8',
-      hI: '@v5 @env:sw [d4 f#4 b4]:16 [f#4 a#4 c#5]:16',
-      bI: 'b2:16 f#2:12 r:4',
-      wind: 'w24 .8 w20 .12', wI: 'w24 .8',
+      // бурдон под треком — звук прежнего напева sound.js
+      dBm: '[b1 f#2]:64',
+      dBm2: '[b1 f#2]:32 [e2 b2]:16 [f#1 c#2]:16',
+      dFm: '[f#1 c#2]:64',
+      dG: '[g1 d2]:64',
+      wind: 'w40 .24', windL: 'w28 .4 w24 .8',
     },
     sec: {
-      I: {p2: 'hI', tr: 'bI', nz: 'wI'},
-      A: {p1: 'mA^12', p2: 'hA', tr: 'bA^12', nz: 'wind'},
-      B: {p1: 'mB^12', p2: 'hB', tr: 'bB^12', nz: 'wind'},
-      A2: {p1: 'mA^12@d2', p2: '=p1/2/.45/12', tr: 'bA^12', nz: 'wind'},
-      C: {p1: 'mC^-12', p2: 'hC', tr: 'bC^-12', nz: 'wind'},
+      I: {dr: 'dBm', nz: 'wind'},
+      A: {p1: 'mA{0-6}^12 r32', p2: '=p1/6/.3', dr: 'dBm', nz: 'wind'},
+      B: {p1: 'mA{6-14}^12 r34', p2: '=p1/6/.3', dr: 'dBm2', nz: 'wind'},
+      C: {tr: 'mB{0-6}^-12 r32', dr: 'dFm', nz: 'windL'},
+      D: {p1: 'mC{0-6}^-12 r32', p2: '=p1/6/.3', dr: 'dG', nz: 'wind'},
+      E: {p1: 'mA{14-27}^12 r68', p2: '=p1/6/.3', dr: 'dBm*2', nz: 'wind'},
     },
-    intro: 'I', loop: 'A B A2 C',
+    intro: 'I', loop: 'A B C D E',
   };
 
   /* 2. Обычный бой — М. Мусоргский, «Ночь на Лысой горе» (Иванова ночь на Лысой горе), ре минор/ля.
@@ -37172,145 +37171,135 @@ C.heroStatus = function (g, h) {
   };
 
   /* 5. Корчма / село — «Калинка» (И. Ларионов, 1860, напев стал народным) и «Во поле берёза стояла» (народная).
-     Весело: пульс с вибрато, «умпа» треугольником, аккорды-арпеджио на слабую долю, лёгкие ударные; эхо в повторах. */
+     Тихо, по-вечернему: бурдон ре/ля, обрывки «Калинки» и «Берёзы» вдвое медленнее, мягкий пульс и треугольник, без ударных. */
   T.korchma = {
-    title: 'Корчма', src: '«Калинка» (И. Ларионов, 1860) и «Во поле берёза стояла» (народная)', key: 'ре минор / фа мажор', bpm: 126, div: 4, rev: 0.12, gain: 0.58,
+    title: 'Корчма', src: '«Калинка» (И. Ларионов, 1860) и «Во поле берёза стояла» (народная)', key: 'ре минор / фа мажор', bpm: 50, div: 4, rev: 0.4, gain: 0.95,
     ch: {
-      p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', vib: [0.14, 20, 6.5], pan: -0.2},
-      p2: {w: 'pulse', duty: 1, vol: 0.085, env: 'pl', arp: 0.5, pan: 0.3},
-      tr: {w: 'tri', vol: 0.32},
-      nz: {w: 'noise', vol: 0.12, pan: 0.15},
+      p1: {w: 'pulse', duty: 2, vol: 0.12, env: 'soft', vib: [0.7, 9, 4.5], pan: -0.15},
+      p2: {w: 'pulse', duty: 2, vol: 0.07, env: 'soft', pan: 0.35},
+      tr: {w: 'tri', vol: 0.24, env: 'soft'},
+      dr: {w: 'drone', vol: 0.075, lp: 420, a: 3, r: 3.5},
+      nz: {w: 'noise', vol: 0.06, pan: 0.1},
     },
     pat: {
       R: 'g4:4 e4:2 f4:2 g4:4 e4:2 f4:2 g4:4 f4:2 e4:2 d4:4 a4:2 a4:2 g4:3 f4:1 e4:2 f4:2 g4:4 e4:2 f4:2 g4:4 f4:2 e4:2 d4:4 a4:4',
       V: 'a4:2 c5:2 a#4:2 a4:1 g4:1 f4:4 c4:4 a4:2 c5:2 a#4:2 a4:1 g4:1 f4:4 c4:4 d4:4 d4:2 e4:2 g4:2 f4:2 e4:2 d4:2 c4:4 c4:4 c4:4 c5:4 ' +
          'a4:2 c5:2 g4:2 a4:2 f4:4 c4:4 a4:2 c5:2 g4:2 a4:2 f4:4 c4:4 d4:4 d4:2 e4:2 g4:2 f4:2 e4:2 d4:2 c5:4 a#4:4 a4:8',
       Bz: 'a4:2 a4:2 a4:2 a4:2 g4:4 f4:2 f4:2 e4:4 d4:4 a4:2 a4:2 c5:2 a4:2 g4:2 g4:2 f4:2 f4:2 e4:4 d4:4 e4:6 f4:2 g4:4 f4:2 f4:2 e4:4 d4:4 e4:6 f4:2 g4:2 a4:2 f4:2 f4:2 e4:4 d4:4',
-      iM: 'r:28 a4:4',
-      // бас «умпа»: целый такт — корень и квинта, полтакта — корень
-      oDm: '@g.5 d3:2 r:2 a2:2 r:2', oA7: '@g.5 a2:2 r:2 e2:2 r:2', oF: '@g.5 f2:2 r:2 c3:2 r:2', oBb: '@g.5 a#2:2 r:2 f2:2 r:2',
-      oG7: '@g.5 g2:2 r:2 d3:2 r:2', oC: '@g.5 c3:2 r:2 g2:2 r:2', oGm: '@g.5 g2:2 r:2 d3:2 r:2', oA: '@g.5 a2:2 r:2 e2:2 r:2',
-      hF: '@g.5 f2:2 r:2', hC7: '@g.5 c3:2 r:2', hC: '@g.5 c3:2 r:2', hGm: '@g.5 g2:2 r:2', hA: '@g.5 a2:2 r:2', hDm: '@g.5 d3:2 r:2',
-      // аккорды на слабую долю
-      sDm: 'r:2 [d4 f4 a4]:2 r:2 [d4 f4 a4]:2', sA7: 'r:2 [c#4 e4 g4]:2 r:2 [c#4 e4 g4]:2', sF: 'r:2 [c4 f4 a4]:2 r:2 [c4 f4 a4]:2', sBb: 'r:2 [d4 f4 a#4]:2 r:2 [d4 f4 a#4]:2',
-      sG7: 'r:2 [d4 f4 b4]:2 r:2 [d4 f4 b4]:2', sC: 'r:2 [c4 e4 g4]:2 r:2 [c4 e4 g4]:2', sA: 'r:2 [c#4 e4 a4]:2 r:2 [c#4 e4 a4]:2',
-      tF: 'r:2 [c4 f4 a4]:2', tC7: 'r:2 [e4 g4 a#4]:2', tC: 'r:2 [c4 e4 g4]:2', tGm: 'r:2 [d4 g4 a#4]:2', tA: 'r:2 [c#4 e4 a4]:2', tDm: 'r:2 [d4 f4 a4]:2',
-      d1: 'k2 h2 s2 h2', d2: 'k2 h2 s2 h1 h1 k2 k2 s2 o2', d0: 'k2 .2 s2 .2',
+      // бурдон под треком — звук прежнего напева sound.js
+      dDm: '[d2 a2]:64',
+      dA7: '[a1 g2]:64',
+      dFC: '[f1 c2]:32 [c2 g2]:32',
+      dEnd: '[d2 a2]:64 [a1 e2]:32 [d2 a2]:32',
+      wind: 'w40 .24', windL: 'w28 .4 w24 .8',
     },
     sec: {
-      I: {p1: 'iM', p2: 'sDm sDm sA7 sA7', tr: 'oDm oDm oA7 oA7', nz: 'd0*3 d1'},
-      R: {p1: 'R', p2: 'sA7 sA7 sA7 sDm sA7 sA7 sA7 sDm', tr: 'oA7 oA7 oA7 oDm oA7 oA7 oA7 oDm', nz: 'd1'},
-      R2: {p1: 'R@d1', p2: '=p1/3/.4/12', tr: 'oA7 oA7 oA7 oDm oA7 oA7 oA7 oDm', nz: 'd2'},
-      V: {p1: 'V', p2: 'tF tC7 sF tF tC7 sF sBb sG7 sC sC tF tC7 sF tF tC7 sF sBb sG7 tC tGm sA7',
-        tr: 'hF hC7 oF hF hC7 oF oBb oG7 oC oC hF hC7 oF hF hC7 oF oBb oG7 hC hGm oA7', nz: 'd1'},
-      Bz: {p1: 'Bz', p2: 'sDm sC tA tDm sDm sC tA tDm sA7 sC tA tDm sA7 sC tA tDm',
-        tr: 'oDm oC hA hDm oDm oC hA hDm oA7 oC hA hDm oA7 oC hA hDm', nz: 'd1'},
-      Bz2: {p1: 'Bz^12@d1', p2: 'Bz@v9', tr: 'oDm oC hA hDm oDm oC hA hDm oA7 oC hA hDm oA7 oC hA hDm', nz: 'd2'},
+      I: {dr: 'dDm', nz: 'wind'},
+      A: {p1: 'R{0-9}~2 r16', p2: '=p1/4/.3', dr: 'dA7', nz: 'wind'},
+      B: {tr: 'Bz{0-9}^-12~2 r16', dr: 'dDm', nz: 'windL'},
+      C: {p1: 'V{0-7}~2 r32', p2: '=p1/4/.3', dr: 'dFC', nz: 'wind'},
+      D: {p1: 'Bz{9-19}~2 r80', p2: '=p1/4/.3', dr: 'dEnd', nz: 'wind'},
     },
-    intro: 'I', loop: 'R R2 V R Bz Bz2 R',
+    intro: 'I', loop: 'A B C D',
   };
 
-  /* 6. Степь — А. Бородин, «Половецкие пляски» («Князь Игорь»): плавная пляска девушек («Улетай на крыльях ветра»)
-     и напев вступления. Простор: пульс 25 % с вибрато, арфа-арпеджио, педаль треугольника, ветер и бубен. */
+  /* 6. Степь — А. Бородин, «Половецкие пляски»: плавная пляска девушек («Улетай на крыльях ветра») и напев вступления.
+     Простор: бурдон на ля (педаль, как у Бородина) и фа-диез, обрывки темы вдвое медленнее, ветер; без ударных. */
   T.steppe = {
-    title: 'Степь', src: 'А. Бородин — «Половецкие пляски», плавная пляска девушек', key: 'си дорийский над педалью ля / фа-диез', bpm: 76, div: 4, rev: 0.26, gain: 0.5,
+    title: 'Степь', src: 'А. Бородин — «Половецкие пляски», плавная пляска девушек', key: 'си дорийский над педалью ля / фа-диез', bpm: 44, div: 4, rev: 0.45, gain: 0.95,
     ch: {
-      p1: {w: 'pulse', duty: 1, vol: 0.16, env: 'pl', vib: [0.22, 22, 5.5], pan: -0.15},
-      p2: {w: 'pulse', duty: 0, vol: 0.085, env: 'pl', arp: 0.5, pan: 0.3},
-      tr: {w: 'tri', vol: 0.3},
-      nz: {w: 'noise', vol: 0.1, pan: 0.2},
+      p1: {w: 'pulse', duty: 2, vol: 0.12, env: 'soft', vib: [0.7, 9, 4.5], pan: -0.15},
+      p2: {w: 'pulse', duty: 2, vol: 0.07, env: 'soft', pan: 0.35},
+      tr: {w: 'tri', vol: 0.24, env: 'soft'},
+      dr: {w: 'drone', vol: 0.075, lp: 420, a: 3, r: 3.5},
+      nz: {w: 'noise', vol: 0.06, pan: 0.1},
     },
     pat: {
       Th: 'b4:2 b4:2 f#5:6 e5:1 f#5:1 d5:2 c#5:1 b4:1 c#5:1 d5:1 e5:6 r:2 e5:1 f#5:1 c#5:2 b4:1 a4:1 f#4:2 f#4:2 r:4 b4:2 c#5:2 b4:2 a4:1 g#4:1 a4:1 g#4:1 f#4:6 f#4:2 g#4:2 a4:2 c#5:2',
       In: 'a5:4 g#5:4 b5:2 c#6:2 d6:4 f#6:1 e6:2 d6:1 c#6:4 d6:2 c#6:1 b5:1 a5:4 f5:4 e5:4 f#5:2 g#5:2 a5:4 c#6:1 b5:2 a5:1 g#5:4 a5:4 r:4 ' +
           'c5:4 b4:4 d5:2 e5:2 f5:4 a5:1 g5:2 f5:1 e5:4 f5:2 e5:1 d5:1 c5:4 r:8 f#4:2 g#4:2 a4:4 c#5:1 b4:2 a4:1 g#4:4 a4:8',
-      hT: '[b3 d4 f#4]:16 [a3 c#4 e4]:16 [b3 d4 f#4]:16 [a3 c#4 f#4]:16 [b3 d4 f#4]:16 [a3 c#4 f#4]:16 [b3 d4 f#4]:16 [a3 c#4 e4]:16',
-      bT: '@g.6 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 a2:4 r:4',
-      hIn: '@v7 [a3 e4]:16 [a3 c#4 e4]:16 [a3 d4 f#4]:16 [a3 c#4 e4]:16 [a3 c4 f4]:16 [a3 d4 f4]:16 [a3 c4 e4]:16 [a3 c#4 e4]:16',
-      bIn: '@g.6 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8',
-      dT: 'k4 .4 .4 h4 k4 .4 h2 h2 .4',
-      dT2: 'k4 h2 h2 s4 h4 k4 .2 k2 s4 h2 h2',
-      w: 'w28 .4 w24 .8', wI: 'w28 .4',
-      iP: '@env:sw @v5 [a3 e4]:32',
-      iB: 'a2:32',
+      // бурдон под треком — звук прежнего напева sound.js
+      dA: '[a1 e2]:64',
+      dFs: '[f#1 c#2]:64',
+      dAF: '[a1 e2]:64 [f#1 c#2]:64',
+      wind: 'w40 .24', windL: 'w28 .4 w24 .8',
     },
     sec: {
-      I: {p2: 'iP', tr: 'iB', nz: 'wI'},
-      A: {p1: 'Th Th', p2: 'hT', tr: 'bT', nz: 'dT'},
-      B: {p1: 'In^-12', p2: '=p1/3/.4/12', tr: 'bIn', nz: 'w'},
-      A2: {p1: 'Th@d2 Th^12@d1', p2: 'hT', tr: 'bT', nz: 'dT2'},
+      I: {dr: 'dA', nz: 'wind'},
+      A: {p1: 'Th{0-11}~2 r16', p2: '=p1/4/.3', dr: 'dA', nz: 'wind'},
+      B: {tr: 'Th{18-26}^-12~2 r32', dr: 'dFs', nz: 'windL'},
+      C: {p1: 'In{0-5}^-12~2 r32', p2: '=p1/4/.3', dr: 'dA', nz: 'wind'},
+      D: {p1: 'Th{0-18}~2 r56', p2: '=p1/4/.3', dr: 'dAF', nz: 'wind'},
     },
-    intro: 'I', loop: 'A B A2',
+    intro: 'I', loop: 'A B C D',
   };
 
   /* 7. Город, храм Ока — И. С. Бах, Ария из Оркестровой сюиты № 3, BWV 1068 («Air»), ре мажор.
-     Органно: ровная огибающая, вибрато, медленные арпеджио аккомпанемента, бас октавными шагами треугольником. */
+     Медленно и широко: органный бурдон, обрывки Арии вдвое медленнее (одна фраза — треугольником в нижнем регистре), много реверберации. */
   T.air = {
-    title: 'Храм Ока', src: 'И. С. Бах — Ария, Оркестровая сюита № 3, BWV 1068', key: 'ре мажор', bpm: 58, div: 8, rev: 0.34, gain: 0.3,
+    title: 'Храм Ока', src: 'И. С. Бах — Ария, Оркестровая сюита № 3, BWV 1068', key: 'ре мажор', bpm: 30, div: 8, rev: 0.5, gain: 0.95,
     ch: {
-      p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'org', vib: [0.3, 14, 5], pan: -0.15},
-      p2: {w: 'pulse', duty: 0, vol: 0.08, env: 'org', arp: 1, pan: 0.3},
-      tr: {w: 'tri', vol: 0.3},
+      p1: {w: 'pulse', duty: 2, vol: 0.12, env: 'soft', vib: [0.7, 9, 4.5], pan: -0.15},
+      p2: {w: 'pulse', duty: 2, vol: 0.07, env: 'soft', pan: 0.35},
+      tr: {w: 'tri', vol: 0.24, env: 'soft'},
+      dr: {w: 'drone', vol: 0.075, lp: 420, a: 3, r: 3.5},
     },
     pat: {
       A: 'f#5:36 b5:2 g5:1 f#5:1 e5:2 d5:2 c#5:2 d5:2 c#5:7 b4:1 a4:8 a5:18 f#5:2 c5:2 b4:2 e5:2 d#5:2 a5:2 g5:2 g5:18 e5:2 b4:2 a4:2 d5:2 c#5:2 g5:2 f#5:2 ' +
          'f#5:12 g#5:2 a5:2 d5:4 d5:1 e5:1 f#5:4 e5:2 e5:2 d5:2 c#5:2 b4:2 b4:1 c#5:1 d5:6 c#5:2 b4:2 a4:16',
-      bA: '@g.85 L4 d3 d4 c#3 c#4 b2 b3 a2 a3 g2 g3 g#2 g#3 a2 a3 g2 g3 f#2 f#3 e2 e3 d#3 d#4 b2 b3 e3 e4 d3 d4 c#3 c#4 a2 a3 d3 d4 c#3 c#4 b2 b3 g#2 e2 a2 d3 e3 e2 L2 a2 b2 c#3 d3 r:8',
-      hA: '[d4 f#4 a4]:8 [c#4 f#4 a4]:8 [d4 f#4 b4]:8 [d4 f#4 b4]:8 [d4 g4 b4]:8 [e4 g#4 b4]:8 [e4 a4 c#5]:8 [e4 g4 a4]:8 [d4 f#4 a4]:8 [e4 a4 c5]:8 [d#4 f#4 b4]:8 [d#4 f#4 b4]:8 ' +
-          '[e4 g4 b4]:8 [d4 e4 g#4]:8 [c#4 e4 a4]:8 [c#4 e4 a4]:8 [d4 f#4 a4]:8 [c#4 e4 a4]:8 [d4 f#4 b4]:8 [e4 g#4 b4]:8 [d4 f#4 a4]:8 [e4 g#4 b4]:8 [c#4 e4 a4]:16',
       B: 'c#5:10 d5:1 c#5:1 b4:1 c#5:1 a4:2 a5:12 c5:4 b4:4 b5:6 a5:2 g5:2 f#5:2 g5:9 f#5:1 e5:1 d5:1 c#5:2 b4:2 a#4:2 b4:2 c#5:6 d5:2 e5:6 f#5:2 ' +
          'g5:8 f#5:4 e5:2 d5:2 c#5:2 b4:2 c#5:2 d5:1 e5:1 d5:4 b4:16 d5:10 f#5:2 e5:2 d5:2 b5:12 a5:2 g#5:2 f#5:1 e5:1 a5:2 a4:4 b4:6 c#5:1 d5:1 c#5:6 b4:2 a4:8 ' +
          'd5:12 f#5:2 e5:2 e5:12 g5:2 f#5:2 f#5:12 a5:2 g5:2 g5:16 a4:10 c#5:2 e5:2 g5:2 g5:2 e5:2 f#5:10 g5:1 a5:1 d5:10 f#5:2 a5:2 c6:2 b5:12 d5:4 c#5:2 e5:2 ' +
          'g5:8 b4:4 a4:4 e5:2 f#5:1 g5:3 f#5:4 e5:2 d5:1 c#5:1 b4:4 c#5:2 d5:4 c#5:2 d5:2 d5:16',
-      bB: '@g.85 L4 a2 a3 g2 g3 f#2 f#3 e2 e3 d#3 d#4 f#2 b2 e3 e4 d3 d4 c#3 c#4 b2 b3 a#2 b2 c#3 a#2 b2 g2 e2 f#2 b2 b3 a2 a3 g#2 g#3 f#2 f#3 e2 e3 d3 d4 c#3 c#4 d3 e3 ' +
-          'a2 a3 g2 g3 f#2 f#3 g2 g3 g#2 g#3 a2 a3 a#2 a#3 b2 b3 e2 e3 d3 d4 c#3 c#4 a2 c#3 d3 d4 c3 c4 b2 b3 a2 a3 g2 g3 f#2 f#3 e2 e3 d3 d4 c#3 a2 d3 g2 a2 g2 a2 a2 d3:16',
-      hB: '[e4 a4 c#5]:8 [e4 g4 a4]:8 [d4 f#4 a4]:8 [f#4 a4 c#5]:8 [d#4 f#4 a4 b4]:8 [d#4 f#4 b4]:8 [e4 g4 b4]:8 [d4 e4 g#4 b4]:8 [c#4 f#4 a#4]:8 [e4 g4 b4]:8 [c#4 f#4]:8 [c#4 f#4 a#4]:8 ' +
-          '[d4 g4 b4]:8 [e4 b4]:8 [d4 f#4 b4]:8 [c#4 f#4 a4]:8 [e4 g#4 b4]:8 [c#4 f#4 a4]:8 [e4 g#4 b4]:8 [d4 e4 g#4 b4]:8 [c#4 e4 a4]:8 [d4 f#4 a4]:8 [c#4 e4 a4]:8 [e4 g4 c#5]:8 ' +
-          '[d4 f#4 a4]:8 [d4 g4 b4]:8 [d4 g#4 b4]:8 [c#4 e4 a4]:8 [e4 a#4 c#5]:8 [d#4 f#4 b4]:8 [e4 g4 b4]:8 [d4 e4 g#4 b4]:8 [c#4 e4 a4]:8 [c#4 e4 a4]:8 [d4 f#4 a4]:8 [d4 f#4 c5]:8 ' +
-          '[d4 g4 b4]:8 [d4 f#4 a4]:8 [d4 g4 b4]:8 [d4 f#4 a4]:8 [e4 g4 b4]:8 [d4 g4 b4]:8 [c#4 e4 a4]:8 [d4 a4]:8 [e4 g4 a4]:8 [e4 g4 a4]:8 [d4 f#4 a4]:16',
-      iP: '@env:sw [d4 f#4 a4]:32', iB: 'd3:32',
+      // бурдон под треком — звук прежнего напева sound.js
+      dD: '[d2 a2]:128',
+      dDA: '[d2 a2]:40 [a1 e2]:88',
+      dBE: '[a1 e2]:24 [e2 b2]:104',
+      dA: '[a1 e2]:128',
+      dBA: '[b1 f#2]:64 [a1 e2]:64',
+      wind: 'w40 .24', windL: 'w28 .4 w24 .8',
     },
     sec: {
-      I: {p2: 'iP', tr: 'iB'},
-      A: {p1: 'A', p2: 'hA', tr: 'bA'},
-      A2: {p1: 'A@d1', p2: '=p1/4/.4/-12', tr: 'bA'},
-      B: {p1: 'B', p2: 'hB', tr: 'bB'},
+      I: {dr: 'dD'},
+      A: {p1: 'A{0-11} r64', p2: '=p1/8/.3', dr: 'dDA'},
+      B: {tr: 'A{11-20}^-12 r78', dr: 'dBE'},
+      C: {p1: 'B{0-7} r100', p2: '=p1/8/.3', dr: 'dA'},
+      D: {p1: 'A{27-45} r64', p2: '=p1/8/.3', dr: 'dBA'},
     },
-    intro: 'I', loop: 'A A2 B',
+    intro: 'I', loop: 'A B C D',
   };
 
-  /* 8. Капище, волхвы — Н. Римский-Корсаков, «Садко», песня Садко; гусельный наигрыш вступления. Ля миксолидийский/ре мажор.
-     Гусли — быстрые арпеджио с щипковой огибающей, ритуальный бубен, ветер. */
+  /* 8. Капище, волхвы — Н. Римский-Корсаков, «Садко», песня Садко и гусельный наигрыш. Ми дорийский / ре мажор.
+     Обряд в тишине: бурдон ми/си, редкие растянутые обрывки наигрыша и песни, ветер; без ударных. */
   T.sadko = {
-    title: 'Капище', src: 'Н. Римский-Корсаков — «Садко», песня Садко', key: 'ре мажор / ми дорийский', bpm: 72, div: 4, rev: 0.28, gain: 0.48,
+    title: 'Капище', src: 'Н. Римский-Корсаков — «Садко», песня Садко', key: 'ре мажор / ми дорийский', bpm: 40, div: 4, rev: 0.45, gain: 0.95,
     ch: {
-      p1: {w: 'pulse', duty: 1, vol: 0.16, env: 'pl', vib: [0.2, 18, 5.5], pan: -0.2},
-      p2: {w: 'pulse', duty: 0, vol: 0.09, env: 'pl', arp: 0.5, pan: 0.3},
-      tr: {w: 'tri', vol: 0.3},
-      nz: {w: 'noise', vol: 0.1, pan: 0.15},
+      p1: {w: 'pulse', duty: 2, vol: 0.12, env: 'soft', vib: [0.7, 9, 4.5], pan: -0.15},
+      p2: {w: 'pulse', duty: 2, vol: 0.07, env: 'soft', pan: 0.35},
+      tr: {w: 'tri', vol: 0.24, env: 'soft'},
+      dr: {w: 'drone', vol: 0.075, lp: 400, a: 3, r: 3.5},
+      nz: {w: 'noise', vol: 0.06, pan: 0.1},
     },
     pat: {
-      IlM: 'd5:4 e5:2 f#5:2 g5:3 f#5:1 e5:2 b5:2 a5:2 b5:2 f#5:2 e5:2 r:4 e4:2 f#4:2 g4:3 f#4:1 e4:2 b4:2 a4:2 b4:2 f#4:2 e4:2 r:4 a5:2 b5:2 f#5:2 e5:2 r:4 a4:2 b4:2 f#4:2 e4:2',
       Fig: 'e5:2 f#5:2 g5:3 f#5:1 e5:2 b5:2 a5:2 b5:2 f#5:2 e5:2 r:4 e4:2 f#4:2 g4:3 f#4:1 e4:2 b4:2 a4:2 b4:2 f#4:2 e4:2 r:4 a5:2 b5:2 f#5:2 e5:2 r:4 a4:2 b4:2 f#4:2 e4:2',
       V: 'r:4 a4:2 f#5:2 e5:3 d5:1 c#5:2 b4:2 a4:2 b4:2 f#4:2 g4:2 a4:4 a4:2 f#5:2 e5:3 d5:1 c#5:2 b4:2 a4:2 b4:2 f#4:2 e4:2 a4:4 a4:2 b4:2 ' +
          'c5:3 b4:1 a4:2 e5:2 d5:2 e5:2 b4:2 a4:2 b4:4 b4:2 c#5:2 d5:3 c#5:1 b4:2 f#5:2 e5:2 f#5:2 c#5:2 b4:2 c#5:4 r:4 ' +
          'e5:3 f#5:1 g5:2 d5:2 c#5:4 b4:2 c#5:2 d5:4 r:4 e5:3 f#5:1 g5:2 d5:2 c#5:4 b4:2 c#5:2',
-      // гусли: аккорды по тактам 2/4
-      gD: '[d4 f#4 a4]:8', gEm: '[e4 g4 b4]:8', gA: '[c#4 e4 a4]:8', gAm: '[c4 e4 a4]:8', gG: '[d4 g4 b4]:8', gBm: '[d4 f#4 b4]:8', gE: '[e4 g#4 b4]:8', gDh: '[d4 f#4 a4]:4',
-      tD: '@g.6 d3:2 r:2 a2:2 r:2', tEm: '@g.6 e2:2 r:2 b2:2 r:2', tA: '@g.6 a2:2 r:2 e2:2 r:2', tAm: '@g.6 a2:2 r:2 e3:2 r:2', tG: '@g.6 g2:2 r:2 d3:2 r:2',
-      tBm: '@g.6 b2:2 r:2 f#2:2 r:2', tE: '@g.6 e2:2 r:2 b2:2 r:2', tDh: '@g.6 d3:2 r:2',
-      dV: 'k2 .2 h2 h2 t2 .2 h2 .2',
-      dI: 'k2 .6 h2 .2 h2 .2',
-      w: 'w30 .2', wI: 'w34 w34', wIl: 'w36 w36',
+      // бурдон под треком — звук прежнего напева sound.js
+      dEm: '[e2 b2]:64',
+      dD: '[d2 a2]:64',
+      dEA: '[e2 b2]:32 [a1 e2]:32',
+      dEnd: '[e2 b2]:64 [a1 e2]:32 [d2 a2]:32',
+      wind: 'w40 .24', windL: 'w28 .4 w24 .8',
     },
     sec: {
-      I: {p1: 'Fig@v9', p2: 'gEm gA gEm gA gEm gA gEm gA gDh', tr: 'tEm tA tEm tA tEm tA tEm tA tDh', nz: 'wI'},
-      V: {p1: 'V', p2: 'gD gD gD gD gD gEm gA gAm gD gG gBm gE gA gEm gA gD gEm gA', tr: 'tD tD tD tD tD tEm tA tAm tD tG tBm tE tA tEm tA tD tEm tA', nz: 'dV'},
-      Il: {p1: 'IlM', p2: 'gD gEm gA gEm gA gEm gA gEm gA', tr: 'tD tEm tA tEm tA tEm tA tEm tA', nz: 'wIl'},
-      V2: {p1: 'V@d2', p2: '=p1/3/.4/12', tr: 'tD tD tD tD tD tEm tA tAm tD tG tBm tE tA tEm tA tD tEm tA', nz: 'dV'},
-      Il2: {p1: 'IlM^-12@d2', p2: 'gD gEm gA gEm gA gEm gA gEm gA', tr: 'tD tEm tA tEm tA tEm tA tEm tA', nz: 'wIl'},
+      I: {dr: 'dEm', nz: 'wind'},
+      A: {p1: 'Fig{0-10}~2 r24', p2: '=p1/6/.3', dr: 'dEm', nz: 'wind'},
+      B: {p1: 'V{0-10}~2 r24', p2: '=p1/6/.3', dr: 'dD', nz: 'wind'},
+      C: {tr: 'Fig{10-20}^-12~2 r24', dr: 'dEA', nz: 'windL'},
+      D: {p1: 'V{44-52}~2 r88', p2: '=p1/6/.3', dr: 'dEnd', nz: 'wind'},
     },
-    intro: 'I', loop: 'V Il V2 Il2',
+    intro: 'I', loop: 'A B C D',
   };
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -37378,7 +37367,7 @@ C.heroStatus = function (g, h) {
     });
     return {len: t, ev};
   }
-  const KIND = v => v.w === 'noise' ? 'noise' : v.w === 'tri' ? 'tri' : 'pulse';
+  const KIND = v => v.w === 'noise' ? 'noise' : v.w === 'tri' ? 'tri' : v.w === 'drone' ? 'drone' : 'pulse';
   const cloneEv = (e, dt, f) => Object.assign({}, e, {t: e.t + dt}, f ? f(e) : null);
   function tr(m, k) { return Array.isArray(m) ? m.map(x => x + k) : m + k; }
 
@@ -37388,9 +37377,14 @@ C.heroStatus = function (g, h) {
     const voices = Object.keys(T.ch), pc = {};
     const pat = (name, v) => { const key = name + '|' + KIND(T.ch[v]); if (!pc[key]) { const s = T.pat[name]; if (s == null) throw new Error(id + ': нет паттерна ' + name); pc[key] = parsePat(s, KIND(T.ch[v]), id + '.' + name); } return pc[key]; };
     function ref(r, v) {
-      const m = /^([A-Za-z0-9_]+)((?:\^-?\d+|@[dv]\d+|\*\d+)*)$/.exec(r); if (!m) throw new Error(id + ': ссылка? ' + r);
-      const P = pat(m[1], v); let k = 0, vol = null, duty = null, rep = 1; const mods = m[2].match(/\^-?\d+|@[dv]\d+|\*\d+/g) || [];
-      mods.forEach(x => { if (x[0] === '^') k = +x.slice(1); else if (x[0] === '*') rep = +x.slice(1); else if (x[1] === 'v') vol = +x.slice(2); else duty = +x.slice(2); });
+      if (/^r\d+$/.test(r)) return {len: +r.slice(1), ev: []}; // пауза в разделе
+      const m = /^([A-Za-z0-9_]+)((?:\^-?\d+|@[dv]\d+|\*\d+|\{\d+-\d+\}|~[\d.]+)*)$/.exec(r); if (!m) throw new Error(id + ': ссылка? ' + r);
+      let P = pat(m[1], v); let k = 0, vol = null, duty = null, rep = 1, sl = null, st = 1; const mods = m[2].match(/\^-?\d+|@[dv]\d+|\*\d+|\{\d+-\d+\}|~[\d.]+/g) || [];
+      mods.forEach(x => { if (x[0] === '^') k = +x.slice(1); else if (x[0] === '*') rep = +x.slice(1); else if (x[0] === '{') sl = x.slice(1, -1).split('-').map(Number); else if (x[0] === '~') st = +x.slice(1); else if (x[1] === 'v') vol = +x.slice(2); else duty = +x.slice(2); });
+      // {a-b} — обрывок: ноты с a-й по (b−1)-ю; ~k — растянуть во времени в k раз
+      if (sl) { const es = P.ev.slice(sl[0], sl[1]); if (!es.length) throw new Error(id + ': пустой обрывок ' + r); const t0 = es[0].t, last = es[es.length - 1];
+        P = {len: last.t + last.d - t0, ev: es.map(e => cloneEv(e, -t0))}; }
+      if (st !== 1) P = {len: P.len * st, ev: P.ev.map(e => Object.assign({}, e, {t: e.t * st, d: e.d * st}))};
       const ev = [];
       for (let i = 0; i < rep; i++) P.ev.forEach(e => ev.push(cloneEv(e, i * P.len, e2 => ({m: e2.m != null ? tr(e2.m, k) : e2.m, v: vol != null ? Math.round(e2.v * vol / 12) : e2.v, duty: duty != null ? duty : e2.duty}))));
       return {len: P.len * rep, ev};
@@ -37399,10 +37393,10 @@ C.heroStatus = function (g, h) {
     function sect(name) {
       if (secs[name]) return secs[name];
       const S = T.sec[name]; if (!S) throw new Error(id + ': нет раздела ' + name);
-      const out = {len: 0, ev: {}, src: {}}, raw = {};
+      const out = {len: 0, ev: {}, src: {}, raw: {}}, raw = {};
       voices.forEach(v => { const s = S[v]; if (!s || s[0] === '=') return; let t = 0; const ev = [];
         s.trim().split(/\s+/).forEach(r => { const R = ref(r, v); R.ev.forEach(e => ev.push(cloneEv(e, t))); t += R.len; });
-        raw[v] = {len: t, ev}; out.len = Math.max(out.len, t); });
+        raw[v] = {len: t, ev}; out.raw[v] = t; out.len = Math.max(out.len, t); });
       voices.forEach(v => { const R = raw[v]; if (!R) return;
         if (R.len === out.len) { out.ev[v] = R.ev; return; }
         if (!R.len || out.len % R.len) throw new Error(`${id}.${name}.${v}: длина ${R.len} не укладывается в раздел ${out.len}`);
@@ -37425,7 +37419,7 @@ C.heroStatus = function (g, h) {
     voices.forEach(v => { loop.ev[v].forEach(e => { if (e.t >= loop.len) e.t -= loop.len; }); loop.ev[v].sort((a, b) => a.t - b.t); });
     const step = 60 / T.bpm / (T.div || 4);
     const merge = P => { const L = []; voices.forEach(v => P.ev[v].forEach(e => L.push(Object.assign({v: e.v, voice: v}, e, {voice: v})))); return L.sort((a, b) => a.t - b.t); };
-    const c = {id, T, voices, step, intro, loop, list: {intro: merge(intro), loop: merge(loop)}, secLen: Object.fromEntries(Object.keys(T.sec).map(n => [n, sect(n).len]))};
+    const c = {id, T, voices, step, intro, loop, list: {intro: merge(intro), loop: merge(loop)}, secLen: Object.fromEntries(Object.keys(T.sec).map(n => [n, sect(n).len])), secRaw: Object.fromEntries(Object.keys(T.sec).map(n => [n, sect(n).raw]))};
     Object.defineProperty(T, '_c', {value: c, enumerable: false, configurable: true});
     return c;
   }
@@ -37462,6 +37456,7 @@ C.heroStatus = function (g, h) {
     st: {a: 0.003, d: 0.07, s: 0, r: 0.03},      // капля: быстро гаснет
     sw: {a: 0.18, d: 0, s: 1, r: 0.25},          // мягкий наплыв
     pad: {a: 0.05, d: 0.9, s: 0.75, r: 0.14},    // напев: мягкая атака, лёгкий спад
+    soft: {a: 0.16, d: 1.6, s: 0.6, r: 0.9},     // эмбиент: медленно вплывает и долго тает
     tri: {a: 0.004, d: 0, s: 1, r: 0.02},        // треугольник громкости не знает — только вкл/выкл
   };
   // до первого события у AudioParam своё значение (у усиления — 1): обнуляем заранее, иначе на старте бывает выброс в один отсчёт
@@ -37493,6 +37488,7 @@ C.heroStatus = function (g, h) {
   function fire(P, e, t) {
     const V = P.T.ch[e.voice], c = P.c, kind = KIND(V), st = P.K.step;
     if (kind === 'noise') return drum(P, e, t);
+    if (kind === 'drone') return drone(P, e, t, V);
     const dur = Math.max(0.02, e.d * st * (e.gate != null ? e.gate : 0.92));
     // probe: вместо генератора — постоянный сигнал 1, слышна одна огибающая (для поиска щелчков)
     const o = P.probe ? c.createConstantSource() : c.createOscillator(), g = c.createGain();
@@ -37513,6 +37509,22 @@ C.heroStatus = function (g, h) {
     }
     o.start(t); o.stop(tStop);
     if (!P.offline) o.onended = () => { try { g.disconnect(); } catch (x) {} };
+  }
+  /* бурдон — как прежний напев sound.js: на каждый тон пара расстроенных генераторов (нижний — пила, прочие — треугольник)
+     через фильтр с медленно гуляющим срезом; атака и затухание по нескольку секунд */
+  function drone(P, e, t, V) {
+    const c = P.c, ms = Array.isArray(e.m) ? e.m : [e.m], dur = e.d * P.K.step, A = V.a || 2.5, Rr = V.r || 3;
+    const g = c.createGain(); g.gain.value = 0; g.connect(P.bus[e.voice]);
+    const peak = e.v / 15, end = t + Math.max(dur, A + 0.1);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(peak, t + A); g.gain.setTargetAtTime(0, end, Rr / 3);
+    const stop = end + Rr * 2.6;
+    let dest = g;
+    if (!P.probe) { const f = c.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = V.lp || 380; f.Q.value = 0.8; f.connect(g); dest = f;
+      const l = c.createOscillator(), lg = c.createGain(); lg.gain.value = 0; l.frequency.value = V.lfo || 0.05; lg.gain.setValueAtTime((V.lp || 380) * 0.35, t); l.connect(lg); lg.connect(f.frequency); l.start(t); l.stop(stop); }
+    if (P.probe) { const o = c.createConstantSource(); o.connect(g); o.start(t); o.stop(stop); return; }
+    ms.forEach((m, i) => [-4, 4].forEach(det => { const o = c.createOscillator(); o.type = i === 0 ? 'sawtooth' : 'triangle'; o.frequency.value = hz(m); o.detune.value = det;
+      const og = c.createGain(); og.gain.value = i === 0 ? 0.6 : 0.4; o.connect(og); og.connect(dest); o.start(t); o.stop(stop);
+      if (!P.offline) o.onended = () => { try { og.disconnect(); } catch (x) {} }; }));
   }
   function nbuf(P, k) { return P.B.noise[k]; }
   function nhit(P, t, bus, o) {
@@ -41880,7 +41892,7 @@ C.shopDailyText = function (g) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvxiqw38"></script><script>
+</script><script src="world.js?v=mvxjjsbl"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
