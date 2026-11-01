@@ -51704,19 +51704,27 @@ C.groupSay = function (k, n) {
 const failWord = (fs) => fs.length > 1 ? 'справились' : (fs[0] && fs[0].sex === 'f' ? 'справилась' : 'справился');
 const andList = L => L.length < 2 ? L.join('') : L.slice(0, -1).join(', ') + ' и ' + L[L.length - 1];
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
-/* все бросают; успех — не меньше половины. Возвращает бросок того, кто «виден» в исходе:
+/* все бросают; успех — не меньше половины (скрытность — больше половины); лучший первым, за ним — с преимуществом. Возвращает бросок того, кто «виден» в исходе:
    при удаче — лучший из прошедших, при неудаче — тот, кто справился хуже всех */
 C.groupCheck = function (g, stat, skill, dc, o) {
   o = o || {};
   const ms = C.helpParty(g);
   if (ms.length < 2) return null;
   if (g) g.claimHero = null;
-  const rs = ms.map(x => {
+  // первым бросает лучший; прошёл он — остальные идут по его следу с преимуществом (решение Ника)
+  const est = x => { try { return (R.skill(x, skill) || 0) + Math.floor((((x.stats || {})[stat] || 10) - 10) / 2); } catch (e) { return 0; } };
+  const order = ms.slice().sort((a, b) => est(b) - est(a));
+  let leadOk = false;
+  const rs = order.map((x, i) => {
     NOHELP++; let ad; try { ad = C.checkAdv(g, x, stat, skill) || {a: 0, why: ''}; } finally { NOHELP--; }
-    R._adv = ad.a; R._advWhy = ad.why; let r;
+    let a = ad.a, why = ad.why; if (i > 0 && leadOk) { a = Math.min(1, (a || 0) + 1); why = (why ? why + '; ' : '') + 'идёт следом за ' + (C.Q && C.Q.decl ? C.Q.decl(order[0].name, order[0].sex).i : order[0].name); }
+    R._adv = a; R._advWhy = why; let r;
     try { r = R.check(x, stat, skill, dc); } finally { R._adv = 0; R._advWhy = ''; }
+    if (i === 0) leadOk = !!r.ok;
     r.hero = x; return r; });
-  const pass = rs.filter(r => r.ok), fail = rs.filter(r => !r.ok), ok = pass.length * 2 >= rs.length;
+  // скрытность выдаёт любой — нужно больше половины; переправа, подъём, выносливость — хватает половины
+  const strict = /Скрытн/i.test(skill || '');
+  const pass = rs.filter(r => r.ok), fail = rs.filter(r => !r.ok), ok = strict ? pass.length * 2 > rs.length : pass.length * 2 >= rs.length;
   const rep = ok ? pass.slice().sort((a, b) => b.total - a.total)[0] : fail.slice().sort((a, b) => a.total - b.total)[0];
   const r = Object.assign({}, rep, {ok, hero: rep.hero});
   r.group = {n: rs.length, ok: pass.length, fail: fail.map(x => x.hero.name), skill};
