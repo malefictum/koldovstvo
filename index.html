@@ -36487,7 +36487,8 @@ C.heroStatus = function (g, h) {
 
 /* sound.js */
 /* ---------- звук: всё синтезируется на лету (Web Audio), файлов нет ----------
-   C.SFX.play(name, opts) — короткие звуки; C.SFX.music(mood) — фон ('map' | 'battle' | 'town' | null);
+   C.SFX.play(name, opts) — короткие звуки; C.SFX.music(mood) — фон ('map' | 'battle' | 'town' | null;
+   с music_nes.js ещё 'boss' | 'dungeon' | 'temple' | 'shrine', треки — в духе NES, см. music_nes.js);
    C.SFX.vol = {sfx, music} (0..1, присваивание сразу слышно и сохраняется); C.SFX.mute() — тишина/звук.
    Звук оживает только после первого касания страницы (политика автозапуска браузеров).
    В node AudioContext нет — всё молча проходит насквозь. Подключение — обёртками, чужие файлы не тронуты. */
@@ -36516,7 +36517,7 @@ C.heroStatus = function (g, h) {
     NOISE.set(c, b); return b;
   }
   // огибающая: тишина → пик за a → затухание за d (экспонента)
-  function env(p, t, a, peak, d) { p.setValueAtTime(0.0001, t); p.linearRampToValueAtTime(Math.max(0.0002, peak), t + a); p.exponentialRampToValueAtTime(0.0001, t + a + d); }
+  function env(p, t, a, peak, d) { p.value = 0.0001; p.setValueAtTime(0.0001, t); p.linearRampToValueAtTime(Math.max(0.0002, peak), t + a); p.exponentialRampToValueAtTime(0.0001, t + a + d); }
   function gainAt(A, t, a, peak, d, dest) { const g = A.ctx.createGain(); env(g.gain, t, a, peak, d); g.connect(dest || A.out); return g; }
   // шум через фильтр; f2 — куда уехать частоте фильтра
   function noise(A, t, o) {
@@ -36763,7 +36764,7 @@ C.heroStatus = function (g, h) {
     town: {scale: [0, 2, 4, 5, 7, 9, 10], drone: [36.71, 55.0, 73.42], lp: 650, dg: 0.04, gap: [2.2, 4.5], phrase: [2, 5], step: [0.28, 0.45], beat: 0},
     battle: {scale: [0, 1, 3, 5, 7, 8, 10], drone: [36.71, 38.89, 55.0], lp: 300, dg: 0.06, gap: [1.4, 2.8], phrase: [2, 3], step: [0.163, 0.326], beat: 0.652},
   };
-  const MUS = {want: null, cur: null, layer: null, timer: null};
+  const MUS = {want: null, cur: null, layer: null, timer: null, g: null};
   function makeLayer(m) {
     const P = MOODS[m], c = ctx, t = c.currentTime;
     const L = {mood: m, P, g: c.createGain(), nodes: [], nextNote: t + rnd(0.8, 2), nextBeat: t + 0.3, beatN: 0, deg: 7};
@@ -36806,7 +36807,9 @@ C.heroStatus = function (g, h) {
       while (L.nextBeat < horizon) { const b = BEATS[L.beatN % 8]; if (b[0]) drum(A, L.nextBeat, true); else if (b[1] && Math.random() < 0.9) drum(A, L.nextBeat, false); L.beatN++; L.nextBeat += P.beat / 2; }
     }
   }
-  function setMood(m, force) {
+  function setMood(m, force, g) {
+    const E = C.MUSIC; // музыка в духе NES (music_nes.js): свои треки и настроения
+    if (E) { if (m && !E.has(m)) return; MUS.want = m || null; if (g) MUS.g = g; E.mood(MUS.want, g || MUS.g, force); return; }
     if (m && !MOODS[m]) return;
     MUS.want = m || null;
     if (!live()) return;
@@ -36868,7 +36871,20 @@ C.heroStatus = function (g, h) {
   /* ---------- подключение: обёртки ---------- */
   const TOWN = /село|город|подворь|посад|слобод|деревн|застав|торг|корчм|мельниц|усадьб|хутор/;
   const nodeKind = g => { try { const n = C.CAMPS[g.camp].map.nodes[g.loc]; return n ? n.kind || '' : ''; } catch (e) { return ''; } };
-  const calmMood = g => g && g.scene && g.scene !== 'map' && TOWN.test(nodeKind(g)) ? 'town' : 'map';
+  // спокойный напев по месту: подземелье, храм Ока, капище, село/город — иначе дорога (край выбирает сам трек)
+  const calmMood = g => {
+    if (!g) return 'map';
+    if (g.dungeon && g.scene && /dungeon|^dg|fdg/.test(g.scene)) return C.MUSIC ? 'dungeon' : 'map';
+    if (!g.scene || g.scene === 'map') return 'map';
+    const k = nodeKind(g);
+    if (C.MUSIC) { if (k === 'храм') return 'temple'; if (k === 'капище') return 'shrine'; if (/подземел|пещер|рудник/.test(k)) return 'dungeon'; }
+    return TOWN.test(k) ? 'town' : 'map';
+  };
+  // бой с вожаком: сюжетный враг (leader), хозяин подземелья, именной главарь с чином; простой «вожак» шайки — обычный бой
+  const CHIEF = /вождь|атаман|старейшин|десятник|сотник|батыр|багатур|воевод|главар|хозяин|князь|(^|[^а-яё])хан([^а-яё]|$)/i;
+  const bossUnit = u => !!(u && u.side === 'foe' && !u.ally && (u.leader || u.pboss || (u.ref && u.ref.extra && u.ref.extra.leader) || (u.pchief && !u.pbeast && CHIEF.test(String(u.pkind || u.name || '')))));
+  let bossNext = false;
+  const battleMood = S => C.MUSIC && (bossNext || (S && Array.isArray(S.units) && S.units.some(bossUnit))) ? 'boss' : 'battle';
   const safe = f => { try { f(); } catch (e) {} };
   let battleOn = false, lastWin = -9;
 
@@ -36910,11 +36926,14 @@ C.heroStatus = function (g, h) {
       });
       return r;
     };
-    if (B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments); safe(() => { battleOn = true; setMood('battle'); }); return S; }; }
+    if (B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments); safe(() => { battleOn = true; setMood(battleMood(S)); }); bossNext = false; return S; }; }
   }
+  // бой кампании: хозяин подземелья и «хозяин/главарь» в заголовке — тоже бой с вожаком
+  if (C.battleStart) { const cs0 = C.battleStart; C.battleStart = function (g, spec) { safe(() => { const d = g && g.dungeon; bossNext = !!((spec && (spec.boss || /хозяин|главар|атаман|вожак/i.test(spec.title || ''))) || (spec && spec.setupKey === 'dungeon' && d && d.fight && d.fight.boss)); });
+    try { return cs0.apply(this, arguments); } finally { bossNext = false; } }; }
   if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S) { const res = be0.apply(this, arguments); safe(() => {
     if (S && !S._sfxEnd) { S._sfxEnd = 1; if (res && res.won) { lastWin = live() ? ctx.currentTime : -9; play('win'); } else if (!(res && res.fled)) play('lose'); }
-    battleOn = false; setMood(calmMood(g));
+    battleOn = false; setMood(calmMood(g), false, g);
   }); return res; }; }
 
   // журнал: купля-продажа, награда, уровень
@@ -36927,14 +36946,680 @@ C.heroStatus = function (g, h) {
   if (R && R.levelUp) { const lu0 = R.levelUp; R.levelUp = function () { const ups = lu0.apply(this, arguments); safe(() => { if (Array.isArray(ups) && ups.length) play('level', {gap: 1.5, delay: live() && ctx.currentTime - lastWin < 1.5 ? 1.8 : 0}); }); return ups; }; }
 
   // карта: шаги (через раз-другой), находки, костёр, смена напева
-  if (W && W.step) { let n = 0; const st0 = W.step; W.step = function (g) { const r = st0.apply(this, arguments); safe(() => { if (++n % 3 === 1) play('step', {gap: 0.2, vol: rnd(0.8, 1)}); if (!battleOn) setMood('map'); }); return r; }; }
+  if (W && W.step) { let n = 0; const st0 = W.step; W.step = function (g) { const r = st0.apply(this, arguments); safe(() => { if (++n % 3 === 1) play('step', {gap: 0.2, vol: rnd(0.8, 1)}); if (!battleOn) setMood('map', false, g); }); return r; }; }
   // вышли на карту без шага (кнопка «на дорогу») — карта спрашивает W.pos при отрисовке
-  if (W && W.pos) { const po0 = W.pos; W.pos = function (g) { const r = po0.apply(this, arguments); if (g && g.scene === 'map' && !battleOn && MUS.want !== 'map' && MUS.want !== null) safe(() => setMood('map')); return r; }; }
+  if (W && W.pos) { const po0 = W.pos; W.pos = function (g) { const r = po0.apply(this, arguments); if (g && g.scene === 'map' && !battleOn && MUS.want !== 'map' && MUS.want !== null) safe(() => setMood('map', false, g)); return r; }; }
   if (W && W.spot) { const sp0 = W.spot; W.spot = function () { const m = sp0.apply(this, arguments); if (m) safe(() => play('spot', {gap: 1, delay: 0.3})); return m; }; }
   const fire = name => { const f0 = (name[0] === 'W' ? W : C)[name.slice(2)]; if (typeof f0 !== 'function') return; (name[0] === 'W' ? W : C)[name.slice(2)] = function () { const r = f0.apply(this, arguments); safe(() => play('fire', {gap: 0.8})); return r; }; };
   if (W) { fire('W.camp'); fire('W.nightCamp'); }
   fire('C.cook'); fire('C.smoke');
-  if (C.enter) { const en0 = C.enter; C.enter = function (g) { const r = en0.apply(this, arguments); safe(() => { if (!battleOn && g) setMood(calmMood(g)); }); return r; }; }
+  if (C.enter) { const en0 = C.enter; C.enter = function (g) { const r = en0.apply(this, arguments); safe(() => { if (!battleOn && g) setMood(calmMood(g), false, g); }); return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* music_data.js */
+/* ---------- треки в духе NES: мелодии — только общественное достояние ----------
+   Ноты тем сняты с нотных изданий/разметок общественного достояния (Mutopia, народные напевы) и сверены
+   тестом tests/music_test.js по интервалам; аранжировка (голоса, арпеджио, эхо, бас, ударные, форма) — своя.
+   Запись — см. шапку src/music_nes.js. Шаг сетки: div долей на четверть.
+   gain подобран так, чтобы громкость цикла (RMS ≈ −23…−25 dBFS до шины музыки) была как у прежнего бурдона — не громче звуков. */
+(function (G) {
+  'use strict';
+  const C = G.C;
+  if (!C) return;
+  const T = C.MUSIC_TRACKS = C.MUSIC_TRACKS || {};
+
+  /* 1. Карта, «Мёртвая вода» — Э. Григ, «Смерть Озе» («Пер Гюнт», соч. 46 № 2), си минор. Эмбиент: пульс с вибрато,
+     тихие арпеджио 12,5 %, треугольник на басу, шумовой ветер; в A' — эхо второй пульсой на октаву выше. */
+  T.deadwater = {
+    title: 'Мёртвая вода', src: 'Э. Григ — «Смерть Озе», соч. 46 № 2', key: 'си минор', bpm: 60, div: 4, rev: 0.3, gain: 0.28,
+    ch: {
+      p1: {w: 'pulse', duty: 1, vol: 0.17, env: 'pad', vib: [0.4, 14, 5], pan: -0.2},
+      p2: {w: 'pulse', duty: 0, vol: 0.075, env: 'org', arp: 0.5, pan: 0.3},
+      tr: {w: 'tri', vol: 0.3},
+      nz: {w: 'noise', vol: 0.09, pan: 0.1},
+    },
+    pat: {
+      mA: 'f#3:4 b3:4 c#4:8 f#3:4 b3:4 c#4:8 d4:4 c#4:4 b3:4 c#4:2 d4:2 e4:4 d4:4 c#4:6 r:2 f#3:4 b3:4 c#4:8 f#3:4 b3:4 c#4:8 e4:4 d4:4 c#4:4 d4:2 e4:2 a#3:4 b3:8 r:4',
+      bA: '@g1 b1:4 d2:4 f#2:8 b1:4 d2:4 f#2:8 b1:4 c#2:2 d2:2 e2:4 d2:4 c#2:4 d2:2 e2:2 f#2:6 r:2 b1:4 d2:4 g2:8 b1:4 d2:4 g2:8 c#2:4 d2:2 e2:2 f#2:4 e2:4 d2:2 c#2:2 b1:8 r:4',
+      hA: '@v6 [d4 f#4 b4]:8 [f#4 a#4 c#5]:8 [d4 f#4 b4]:8 [f#4 a#4 c#5]:8 [d4 b4]:4 [e4 g4 b4]:4 [e4 g4 b4]:4 [d4 f#4 b4]:4 [e4 b4 c#5]:4 [d4 f#4 b4]:4 [f#4 a#4 c#5]:8 [d4 f#4 b4]:8 [f4 g4 b4 c#5]:8 [d4 f#4 b4]:8 [f4 g4 b4 c#5]:8 [e4 b4 c#5]:4 [d4 f#4 b4]:4 [f#4 a#4 c#5]:4 [d4 e4 g#4 b4]:4 [e4 f#4 a#4]:4 [d4 f#4 b4]:8 r:4',
+      mB: 'c#4:4 f#4:4 g#4:8 c#4:4 f#4:4 g#4:8 a4:4 g#4:4 f#4:4 g#4:2 a4:2 b4:4 a4:4 g#4:6 r:2 c#4:4 f#4:4 g#4:8 c#4:4 f#4:4 g#4:8 b4:4 a4:4 g#4:4 a4:2 b4:2 f4:4 f#4:10 r:2',
+      bB: '@g1 f#2:4 a2:4 c#3:8 f#2:4 a2:4 c#3:8 f#2:4 g#2:2 a2:2 b2:4 a2:4 g#2:4 a2:2 b2:2 c#3:6 r:2 f#2:4 a2:4 d3:8 f#2:4 a2:4 d3:8 g#2:4 a2:2 b2:2 c#3:4 b2:4 a2:2 g#2:2 f#2:10 r:2',
+      hB: '@v6 [f#4 a4 c#5]:8 [f4 g#4 c#5]:8 [f#4 a4 c#5]:8 [f4 g#4 c#5]:8 [f#4 a4]:4 [b3 d4 f#4]:4 [d4 f#4 b4]:4 [f#4 a4 c#5]:4 [f#4 g#4 b4]:4 [f#4 a4 c#5]:4 [f4 g#4 c#5]:8 [f#4 a4 c#5]:8 [d4 f#4 g#4 c5]:8 [f#4 a4 c#5]:8 [d4 f#4 g#4 c5]:8 [f#4 g#4 b4]:4 [f#4 a4 c#5]:4 [f4 g#4 c#5]:4 [d#4 f#4 a4 b4]:4 [f4 b4 c#5]:4 [f#4 a4 c#5]:12',
+      mC: 'b5:4 a#5:4 a5:8 b5:4 a#5:4 a5:8 b5:4 a#5:4 a5:8 a5:4 g5:4 f#5:6 r:2 e5:4 d#5:4 d5:8 e5:4 d#5:4 d5:8 e5:4 d#5:4 d5:8 d5:4 c#5:4 b4:6 r:2',
+      bC: '@g1 g4:8 d4:8 g4:8 d4:8 g4:8 d4:8 c#4:8 f#4:6 r:2 c4:8 g3:8 c4:8 g3:8 c4:8 g3:8 f#3:8 b3:6 r:2',
+      hC: '@v6 [f4 g4 b4]:4 [f4 g4 a#4 c#5]:4 [d4 f#4 a4]:8 [f4 g4 b4]:4 [f4 g4 a#4 c#5]:4 [d4 f#4 a4]:8 [f4 g4 b4]:4 [f4 g4 a#4 c#5]:4 [d4 f#4 a4]:4 [d4 f#4 a4]:4 [f4 a4 b4 c#5]:4 [f4 g4 b4 c#5]:4 [f#4 a#4 c#5]:8 [e4 a#4 c5]:4 [d#4 f#4 a#4 c5]:4 [d4 g4 b4]:8 [e4 a#4 c5]:4 [d#4 f#4 a#4 c5]:4 [d4 g4 b4]:8 [e4 a#4 c5]:4 [d#4 f#4 a#4 c5]:4 [d4 g4 b4]:4 [d4 g4 b4]:4 [d4 e4 f#4 a#4]:4 [e4 f#4 a#4 c#5]:4 [d4 f#4 b4]:8',
+      hI: '@v5 @env:sw [d4 f#4 b4]:16 [f#4 a#4 c#5]:16',
+      bI: 'b2:16 f#2:12 r:4',
+      wind: 'w24 .8 w20 .12', wI: 'w24 .8',
+    },
+    sec: {
+      I: {p2: 'hI', tr: 'bI', nz: 'wI'},
+      A: {p1: 'mA^12', p2: 'hA', tr: 'bA^12', nz: 'wind'},
+      B: {p1: 'mB^12', p2: 'hB', tr: 'bB^12', nz: 'wind'},
+      A2: {p1: 'mA^12@d2', p2: '=p1/2/.45/12', tr: 'bA^12', nz: 'wind'},
+      C: {p1: 'mC^-12', p2: 'hC', tr: 'bC^-12', nz: 'wind'},
+    },
+    intro: 'I', loop: 'A B A2 C',
+  };
+
+  /* 2. Обычный бой — М. Мусоргский, «Ночь на Лысой горе» (Иванова ночь на Лысой горе), ре минор/ля.
+     Тремоло триолями, взлёты к ре-диез/ми/фа/фа-диез, медная тема в басу, хоровод аккордов над ре-педалью,
+     «ведьмин» мотив; треугольник — остинато октавами, шум — бочка/малый/хэт. */
+  T.baldmountain = {
+    title: 'Лысая гора', src: 'М. Мусоргский — «Ночь на Лысой горе»', key: 'ре минор (на доминанте ля)', bpm: 152, div: 12, rev: 0.1, gain: 0.39,
+    ch: {
+      p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', vib: [0.25, 16, 6], pan: -0.25},
+      p2: {w: 'pulse', duty: 1, vol: 0.1, env: 'pl', arp: 1, pan: 0.3},
+      tr: {w: 'tri', vol: 0.34},
+      nz: {w: 'noise', vol: 0.17, pan: 0.1},
+    },
+    pat: {
+      trem: 'L4 a4 g#4 a4 a#4 a4 g#4',
+      trem16: 'L3 a3 g#3',
+      ost: '@g.7 L6 a1 a2',
+      iTr: 'r:48 a2:12 a2:12 a2:12 a2:12',
+      iNz: 's3 .3 s3 .3 s3 .3 s3 .3 s3 .3 s3 .3 s3 .3 s3 .3 s3 s3 s3 s3 s3 s3 s3 s3 S3 S3 S3 S3 S3 S3 C3 .3',
+      mA: '@g1 a4:3 g#4:3 a4:3 g#4:3 a4:8 a#4:1 c5:2 d5:1 d#5:20 d5:1 c5:2 a#4:1 a4:3 g#4:3 a4:3 g#4:3 a4:8 b4:1 c5:2 d5:1 e5:20 d5:1 c5:2 b4:1 ' +
+          'a4:4 g#4:4 a4:4 a#4:4 a4:4 g#4:4 a4:4 g#4:4 a4:4 a#4:4 a4:4 g#4:4 a4:4 g#4:4 a4:4 a#4:4 a4:4 g#4:4 a4:4 g#4:4 a4:4 a#4:4 a4:4 g#4:4 ' +
+          'a4:3 g#4:3 a4:3 g#4:3 a4:6 a#4:2 c5:1 d5:2 e5:1 f5:18 e5:2 d5:1 c5:2 a#4:1 a4:3 g#4:3 a4:3 g#4:3 a4:6 b4:2 c5:1 d5:2 e5:1 f#5:18 e5:2 d5:1 c5:2 b4:1',
+      dA: 'K3h3s3h3k3h3s3h3 k3h3s3h3k3k3s3h3',
+      dA2: 'K3h3s3h3k3h3s3k3 k3h3S3h3k3k3S3S3',
+      mB: '@d1 f4:48 e4:72 d4:24 e4:24 f4:24 g#4:72 a4:24 c4:72 c4:6 c4:6 a#3:12',
+      hB: '@v8 [f4 a4]:6 [f4 g#4]:6 [f4 a4]:6 [f4 g#4]:6 [f4 a4]:6 [f4 g#4]:6 [f4 a4]:6 [f4 g#4]:6 [e4 g#4]:6 [e4 a4]:6 [e4 g#4]:6 [e4 a4]:6 [e4 g#4]:6 [e4 a4]:6 [e4 g#4]:6 [e4 a4]:6 [e4 g#4]:6 [e4 a4]:6 [e4 g#4]:6 [e4 a4]:6 ' +
+          '[f4 a4]:6 [d4 a4]:6 [f4 a4]:6 [d4 a4]:6 [e4 g#4]:6 [e4 b4]:6 [e4 g#4]:6 [e4 b4]:6 [f4 a4]:6 [f4 g#4]:6 [f4 a4]:6 [f4 g#4]:6 ' +
+          '[f4 b4]:6 [f4 a#4]:6 [f4 b4]:6 [f4 a#4]:6 [f4 b4]:6 [f4 a#4]:6 [f4 b4]:6 [f4 a#4]:6 [f4 b4]:6 [f4 a#4]:6 [f4 b4]:6 [f4 a#4]:6 [a4 c5]:6 [a4 b4]:6 [a4 c5]:6 [a4 b4]:6 [e4 g4]:6 [e4 a4]:6 [e4 g4]:6 [e4 a4]:6 [e4 g4]:6 [e4 a4]:6 [e4 g4]:6 [e4 a4]:6 [e4 g4]:6 [e4 a4]:6 [e4 g4]:6 [e4 a4]:6 [e4 g4 c5]:24',
+      bB: '@g.7 L6 f1 f2 f1 f2 f1 f2 f1 f2 e1 e2 e1 e2 e1 e2 e1 e2 e1 e2 e1 e2 d1 d2 d1 d2 e1 e2 e1 e2 f1 f2 f1 f2 g#1 g#2 g#1 g#2 g#1 g#2 g#1 g#2 g#1 g#2 g#1 g#2 a1 a2 a1 a2 c2 c3 c2 c3 c2 c3 c2 c3 c2 c3 c2 c3 c2 c3 c2 a#1',
+      dB: 'K3h3k3h3s3h3k3h3 k3k3h3h3s3h3s3h3',
+      mC: 'L4 f#4 f#4 f#4 e4 e4 e4 f#4 f#4 f#4 a#4 a#4 a#4 f#4 f#4 f#4 a4 a4 a4 d4 d4 d4 f#4 f#4 f#4 ' +
+          'L6 f#4 f#4 e4 e4 f#4 f#4 a#4 a#4 f#4 f#4 a#4 a#4 d4 d4 f#4 f#4 ' +
+          '@vib1 f#4:24 g4:12 a4:12 a#4:24 a4:24 ' +
+          'r:21 d5:1 d#5:1 f5:1 g5:24 r:21 c#5:1 d5:1 e5:1 f5:21 e5:1 f5:1 g5:1',
+      hC: '@v9 [d4 f#4]:12 [a3 c4 e4]:12 [d4 f#4]:12 [a#3 d4]:12 [d4 f#4]:12 [a3 c4]:12 [b3 d4]:12 [f#3 a3]:12 ' +
+          '[d4 f#4]:12 [a3 c4 e4]:12 [d4 f#4]:12 [a#3 d4]:12 [d4 f#4]:12 [a#3 d4]:12 [b3 d4]:12 [f#3 a3]:12 ' +
+          '[d3 f#3]:24 [g3 a#3]:12 [f#3 a3]:12 [g3 a#3]:24 [f#3 a3]:24 ' +
+          '[d#4 g4]:12 r:36 [d4 f4]:12 r:36',
+      bC: 'L3 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 d2 c#2 ' +
+          '@g.6 L6 d2 d2 d2 d2 d2 d2 d2 d2 d2 d2 d2 d2 d2 d2 d2 d2 @g1 d#2:12 g1:12 r:24 d2:12 g#1:12 r:24',
+      dC: 'k3h3h3h3s3h3h3h3 k3h3k3h3s3h3h3h3',
+      dC2: 'C3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 K3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3 .3',
+      gr: 'a#4:3 a4:6 a#4:3 b4:3 a#4:6 a4:3',
+      m1: 'a#4:3 c#5:3 e5:21 d#5:3 b4:3 a4:3 a#4:3 a4:3 a#4:6',
+      m2: 'a#4:3 c#5:3 f5:21 d#5:3 c5:3 a4:6 a#4:3 b4:3 a#4:3',
+      m3: 'b4:3 d#5:3 f#5:18 f5:3 d#5:3 b4:3 a4:3 a#4:3 a4:3 a#4:6',
+      m4: 'c5:3 d#5:3 g5:18 f5:3 d#5:3 c5:3 a4:6 a#4:3 b4:3 a#4:3',
+      bD: '@g.7 L6 a#1 a#2 a1 a2 b1 b2 a1 a2',
+      dD: 'K3h3s3h3k3h3s3h3 k3h3s3h3k3s3S3S3',
+    },
+    sec: {
+      I: {p1: 'trem*4', p2: 'trem^-12*4', tr: 'iTr', nz: 'iNz'},
+      A: {p1: 'mA', p2: 'trem16', tr: 'ost*24', nz: 'dA'},
+      A2: {p1: 'mA@d1', p2: '=p1/3/.4', tr: 'ost*24', nz: 'dA2'},
+      B: {p1: 'mB', p2: 'hB', tr: 'bB', nz: 'dB'},
+      B2: {p1: 'mB@d2', p2: '=p1/6/.45/12', tr: 'bB', nz: 'dA2'},
+      C: {p1: 'mC', p2: 'hC', tr: 'bC', nz: 'dC*6 dC2'},
+      D: {p1: 'gr*4 m1 m2 gr*2 m3 m4 gr*2', p2: '=p1/3/.4', tr: 'bD', nz: 'dD'},
+    },
+    intro: 'I', loop: 'A B C D A2 B2',
+  };
+
+  /* 3. Бой с вожаком — И. С. Бах, Токката и фуга ре минор, BWV 565: вступление с мордентом и уменьшённым
+     аккордом над педалью ре, тема фуги на органном пункте ля, ответ с противосложением, интермедия,
+     пассажи токкаты шестнадцатыми с эхо-педалью ля, секвенции секстолями; в репризе — тема в трёх октавах. */
+  T.toccata = {
+    title: 'Токката', src: 'И. С. Бах — Токката и фуга ре минор, BWV 565', key: 'ре минор', bpm: 132, div: 12, rev: 0.16, gain: 0.37,
+    ch: {
+      p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'org', vib: [0.3, 12, 6], pan: -0.2},
+      p2: {w: 'pulse', duty: 1, vol: 0.1, env: 'org', arp: 1, pan: 0.3},
+      tr: {w: 'tri', vol: 0.34},
+      nz: {w: 'noise', vol: 0.16, pan: 0.1},
+    },
+    pat: {
+      st1: '@g1 a5:0.75 g5:0.75 a5:10.5 g5:0.75 f5:0.75 e5:0.75 d5:0.75 c#5:3 d5:18',
+      st2: '@g1 a4:0.75 g4:0.75 a4:10.5 e4:1.5 f4:1.5 c#4:3 d4:18',
+      dimT: 'r:24 a#4:24',
+      dimR: '@g1 c#3:3 e3:3 g3:3 a#3:3 c#4:3 e4:3 g4:3 a#4:3 [c#4 e4 g4 a#4]:24',
+      resT: 'd5:24', resR: '[d4 f#4 a4]:24',
+      ped48: 'd2:48', ped24: 'd2:24',
+      roll: 's3 .3 s3 .3 s3 .3 s3 .3 s3 s3 s3 s3 s3 s3 s3 s3',
+      crash: 'C24',
+      subj: '@g.95 r:3 a4:3 g4:3 a4:3 f4:3 a4:3 e4:3 a4:3 d4:3 a4:3 c#4:3 a4:3 d4:3 a4:3 e4:3 a4:3 f4:3 a4:3 a3:3 a4:3 b3:3 a4:3 c#4:3 a4:3 d4:3 a4:3 c#4:3 a4:3 d4:3 a4:3 e4:3 a4:3',
+      ans: '@g.95 r:3 d5:3 c5:3 d5:3 a#4:3 d5:3 a4:3 d5:3 g4:3 d5:3 f#4:3 d5:3 g4:3 d5:3 a4:3 d5:3 a#4:3 d5:3 d4:3 d5:3 e4:3 d5:3 f#4:3 d5:3 g4:3 d5:3 f#4:3 d5:3 g4:3 d5:3 a4:3 d5:3',
+      cs: 'L6 f4 f#4 g4 c4 a#3 a3 a#3 c4 d4 f#3 g3 a3 a#3 a3 a#3 f#3',
+      pedD: '@g.7 L6 d2 d3',
+      dF: 'K3h3s3h3k3h3s3h3 k3h3s3h3k3k3s3h3',
+      dF2: 'K3h3s3h3k3k3s3h3 k3h3s3k3k3k3S3S3',
+      epi: 'L6 a#4 d5 a#4 d5 d#5 g4 d#5 g4 c5 a4 c5 a4 d5 f4 d5 f4 a#4 g4 a#4 g4 c#5 e4 c#5 e4 a4 f4 a4 f4 g4 c#4 g4 c#4',
+      epiL: 'L3 g3 g4 g3 g4 d4 g4 d4 g4 c4 d#4 c4 d#4 c4 d#4 c4 d#4 c4 f4 c4 f4 c4 f4 c4 f4 a#3 d4 a#3 d4 a#3 d4 a#3 d4 ' +
+            'a#3 e4 a#3 e4 a#3 e4 a#3 e4 a3 c#4 a3 c#4 a3 c#4 a3 c#4 f3 d4 f3 d4 f3 d4 f3 d4 e3 a#3 e3 a#3 e3 a#3 e3 a#3',
+      epiB: '@g.7 L6 g2 g3 g2 g3 c3 c2 c3 c2 f2 f3 f2 f3 a#2 a#1 a#2 a#1 e2 e3 e2 e3 a2 a1 a2 a1 d2 d3 d2 d3 c#2 c#3 c#2 c#3',
+      runs: '@g.9 L3 d5 e5 f5 d5 e5 f5 g5 e5 f5 g5 a5 f5 g5 a5 a#5 g5 a5 f5 g5 e5 f5 d5 e5 c#5 d5 a4 a#4 g4 a4 f4 g4 e4 f4 d4 g4 e4 f4 d4 e4 c#4 d4 a3 a#3 g3 a3 f3 g3 e3 f3 d3 g3 e3 f3 d3 e3 c#3 d3:6 [d4 f4 a4]:18',
+      echoA: 'r:1.5 a4:1.5',
+      runsPc: '[a3 d4 f4]:24',
+      runsB: '@g.7 L6 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2 a2 d2:24',
+      dR: 'K3h3s3h3k3h3s3h3 k3h3s3h3k3h3s3h3',
+      tri3: '@g1 c#4:3 d4:2 e4:2 c#4:2 d4:2 e4:2 c#4:2 d4:2 e4:2 c#4:2 d4:3 e4:3 f4:2 g4:2 e4:2 f4:2 g4:2 e4:2 f4:2 g4:2 e4:2 f4:3 g4:3 a4:2 a#4:2 g4:2 a4:2 a#4:2 g4:2 a4:2 a#4:2 g4:2 a4:3 r:24 ' +
+            'c#5:3 d5:2 e5:2 c#5:2 d5:2 e5:2 c#5:2 d5:2 e5:2 c#5:2 d5:3 e5:3 f5:2 g5:2 e5:2 f5:2 g5:2 e5:2 f5:2 g5:2 e5:2 f5:3 g5:3',
+      triB: '@g.7 r:3 L6 d2 d3 d2 d3 d2 d3 d2 d3 a1 a2 a1 a2 a1 a2 a1 a2 d2 d3 d2 d3 a1 a2 a1 a2',
+      triN: '.3 K3h3s3h3k3h3s3h3 K3h3s3h3k3h3s3h3 k3h3s3h3k3h3s3h3 k3h3s3h3S3S3S3S3 K3h3s3h3k3h3s3h3 k3h3s3h3k3s3S3S3',
+      seq: '@g1 a5:2 a#5:2 g5:2 a5:2 a#5:2 g5:2 a5:2 a#5:2 g5:2 a5:3 r:24 a5:3 ' +
+           'g5:2 a#5:2 e5:2 g5:2 a#5:2 e5:2 f5:2 a5:2 d5:2 f5:2 a5:2 d5:2 e5:2 g5:2 c5:2 e5:2 g5:2 c5:2 d5:2 f5:2 a#4:2 d5:2 f5:2 a#4:2 c5:2 e5:2 a4:2 c5:2 e5:2 a4:2 ' +
+           'a#4:2 d5:2 g4:2 a#4:2 d5:2 g4:2 a4:2 c5:2 f4:2 a4:2 c5:2 f4:2 g4:2 a#4:2 e4:2 g4:2 a#4:2 e4:2 f4:2 a4:2 d4:2 f4:2 a4:2 d4:2 e4:2 g4:2 c#4:2 e4:2 g4:2 c#4:2 r:12 ' +
+           'a#4:24 a4:1.5 g4:1.5 f4:1.5 e4:1.5 d4:1.5 c#4:1.5 b3:1.5 c#4:1.5 a3:3 c#4:3 e4:3 g4:3 f4:9 e4:3 f4:12 r:9 a4:3',
+      seqB: '@g.7 L6 d2 d3 d2 d3 d2 d3 d2 d3 e2 e3 d2 d3 c2 c3 a#1 a#2 a1 a2 g1 g2 f1 f2 e1 e2 d2 d3 a1 a2 d2 d2 @g1 d2:24 a1:24 d2:24 r:12',
+      dS: 'K3h3s3h3k3h3s3h3 k3h3s3h3k3k3s3h3 K3h3s3h3k3h3s3h3 k3h3s3h3k3h3s3h3 K3h3s3h3k3h3s3h3 k3h3s3h3k3s3S3S3 K3h3s3h3k3h3s3h3 k3h3s3h3k3h3s3h3 C3h3h3h3k3h3h3h3 s3s3s3s3s3s3S3S3 C3h3s3h3k3h3h3h3',
+      rT: 'a2:36 d2:36',
+      dRe: 'C3h3s3h3k3h3s3h3 k3h3s3h3k3h3s3h3 k3h3s3h3S3S3S3S3',
+    },
+    sec: {
+      I1: {p1: 'st1', p2: 'st1^-12'},
+      I2: {p1: 'st2', p2: 'st2^-12'},
+      I3: {p1: 'st1^-24', tr: 'st1^-36'},
+      I4: {p1: 'dimT', p2: 'dimR', tr: 'ped48', nz: 'roll'},
+      I5: {p1: 'resT', p2: 'resR', tr: 'ped24', nz: 'crash'},
+      F1: {p1: 'subj', p2: '=p1/6/.3/12', tr: 'pedD', nz: 'dF'},
+      F2: {p1: 'ans', p2: 'cs', tr: 'pedD*8', nz: 'dF'},
+      E: {p1: 'epi', p2: 'epiL', tr: 'epiB', nz: 'dF'},
+      E2: {p1: 'epi@d1', p2: 'epiL@d2', tr: 'epiB', nz: 'dF2'},
+      T: {p1: 'tri3', p2: 'tri3^-12', tr: 'triB', nz: 'triN'},
+      D: {p1: 'seq', p2: 'seq^-12', tr: 'seqB', nz: 'dS'},
+      Cr: {p1: 'runs', p2: 'echoA*56 runsPc', tr: 'runsB', nz: 'dR'},
+      Cr2: {p1: 'runs@d1', p2: 'echoA*56 runsPc', tr: 'runsB', nz: 'dF2'},
+      R: {p1: 'st1 st2', p2: 'st1^-12 st2^-12', tr: 'rT', nz: 'dRe'},
+      F3: {p1: 'subj', p2: 'subj^-12', tr: 'subj^-24', nz: 'dF2'},
+      F4: {p1: 'ans', p2: 'cs', tr: 'pedD*8', nz: 'dF2'},
+    },
+    allowDiss: ['I4'], // уменьшённый септаккорд над педалью ре — так у Баха (органный пункт)
+    intro: 'I1 I2 I3 I4 I5', loop: 'F1 F2 E T D Cr R F3 F4 E2 Cr2',
+  };
+
+  /* 4. Подземелье — Э. Григ, «В пещере горного короля» («Пер Гюнт», соч. 46 № 4), си минор.
+     Эмбиент без ускорения: капли — короткие ноты пульса с эхо второй пульсой, пиццикато треугольника,
+     к концу цикла голоса и ударные добавляются (нарастание), затем тихий хвост — и шов в тишину начала. */
+  T.mountainking = {
+    title: 'Горный король', src: 'Э. Григ — «В пещере горного короля», соч. 46 № 4', key: 'си минор', bpm: 96, div: 4, rev: 0.34, gain: 0.46,
+    ch: {
+      p1: {w: 'pulse', duty: 1, vol: 0.16, env: 'st', pan: -0.25},
+      p2: {w: 'pulse', duty: 1, vol: 0.13, env: 'st', pan: 0.35},
+      tr: {w: 'tri', vol: 0.3},
+      nz: {w: 'noise', vol: 0.1, pan: 0},
+    },
+    pat: {
+      P: 'L2 b3 c#4 d4 e4 f#4 d4 f#4:4 f4 c#4 f4:4 e4 c4 e4:4 b3 c#4 d4 e4 f#4 d4 f#4 b4 a4 f#4 d4 f#4 a4:8',
+      Q: 'L2 f#4 g#4 a#4 b4 c#5 a#4 c#5:4 d5 a#4 d5:4 c#5 a#4 c#5:4 f#4 g#4 a#4 b4 c#5 a#4 c#5:4 d5 a#4 d5:4 c#5:8',
+      bP: '@g.35 L4 b1 f#2 b1 f#2 b1 f#2 b1 f#2 b1 f#2 b1 f#2 d2 a2 d2 a2',
+      bQ: '@g.35 L4 f#2 c#3 f#2 c#3 d2 a#2 f#2 c#3 f#2 c#3 f#2 c#3 d2 a#2 f#2 c#3',
+      bP8: '@g.5 L2 b1 b2 f#2 f#1 b1 b2 f#2 f#1 b1 b2 f#2 f#1 b1 b2 f#2 f#1 b1 b2 f#2 f#1 b1 b2 f#2 f#1 d2 d3 a2 a1 d2 d3 a2 a1',
+      bQ8: '@g.5 L2 f#2 f#1 c#3 c#2 f#2 f#1 c#3 c#2 d2 d3 a#2 a#1 f#2 f#1 c#3 c#2 f#2 f#1 c#3 c#2 f#2 f#1 c#3 c#2 d2 d3 a#2 a#1 f#2 f#1 c#3 c#2',
+      drip: 'h12 .20 .10 h6 .16',
+      dr1: 'h8 h8 h8 o8',
+      dr2: 'k8 h8 k8 h4 h4',
+      dr3: 'k4 h4 s4 h4 k4 h2 k2 s4 h2 h2',
+      tail: 'b1:32',
+      tailW: 'w32',
+      tailP: '@env:sw @v5 [d4 f#4 b4]:24 r:8',
+    },
+    sec: {
+      I: {tr: 'bP', nz: 'drip', p2: 'tailP*2'},
+      S1: {p1: 'P@v7 P@v8', p2: '=p1/3/.35', tr: 'bP*2', nz: 'drip'},
+      S2: {p1: 'Q@v8 Q@v9', p2: '=p1/3/.35', tr: 'bQ*2', nz: 'drip'},
+      S3: {p1: 'P^12@v9 P^12@v10', p2: '=p1/3/.4', tr: 'bP*2', nz: 'dr1'},
+      S4: {p1: 'Q^12@v10 Q^12@v11', p2: '=p1/3/.4', tr: 'bQ*2', nz: 'dr2'},
+      S5: {p1: 'P^12@v11@d2 P^12@v12@d2', p2: 'P@v10 P@v11', tr: 'bP8*2', nz: 'dr3'},
+      S6: {p1: 'Q^12@v12@d2 Q^12@v13@d2', p2: 'Q@v11 Q@v12', tr: 'bQ8*2', nz: 'dr3'},
+      Tl: {p2: 'tailP', tr: 'tail', nz: 'tailW'},
+    },
+    intro: 'I', loop: 'S1 S2 S3 S4 S5 S6 Tl',
+  };
+
+  /* 5. Корчма / село — «Калинка» (И. Ларионов, 1860, напев стал народным) и «Во поле берёза стояла» (народная).
+     Весело: пульс с вибрато, «умпа» треугольником, аккорды-арпеджио на слабую долю, лёгкие ударные; эхо в повторах. */
+  T.korchma = {
+    title: 'Корчма', src: '«Калинка» (И. Ларионов, 1860) и «Во поле берёза стояла» (народная)', key: 'ре минор / фа мажор', bpm: 126, div: 4, rev: 0.12, gain: 0.58,
+    ch: {
+      p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', vib: [0.14, 20, 6.5], pan: -0.2},
+      p2: {w: 'pulse', duty: 1, vol: 0.085, env: 'pl', arp: 0.5, pan: 0.3},
+      tr: {w: 'tri', vol: 0.32},
+      nz: {w: 'noise', vol: 0.12, pan: 0.15},
+    },
+    pat: {
+      R: 'g4:4 e4:2 f4:2 g4:4 e4:2 f4:2 g4:4 f4:2 e4:2 d4:4 a4:2 a4:2 g4:3 f4:1 e4:2 f4:2 g4:4 e4:2 f4:2 g4:4 f4:2 e4:2 d4:4 a4:4',
+      V: 'a4:2 c5:2 a#4:2 a4:1 g4:1 f4:4 c4:4 a4:2 c5:2 a#4:2 a4:1 g4:1 f4:4 c4:4 d4:4 d4:2 e4:2 g4:2 f4:2 e4:2 d4:2 c4:4 c4:4 c4:4 c5:4 ' +
+         'a4:2 c5:2 g4:2 a4:2 f4:4 c4:4 a4:2 c5:2 g4:2 a4:2 f4:4 c4:4 d4:4 d4:2 e4:2 g4:2 f4:2 e4:2 d4:2 c5:4 a#4:4 a4:8',
+      Bz: 'a4:2 a4:2 a4:2 a4:2 g4:4 f4:2 f4:2 e4:4 d4:4 a4:2 a4:2 c5:2 a4:2 g4:2 g4:2 f4:2 f4:2 e4:4 d4:4 e4:6 f4:2 g4:4 f4:2 f4:2 e4:4 d4:4 e4:6 f4:2 g4:2 a4:2 f4:2 f4:2 e4:4 d4:4',
+      iM: 'r:28 a4:4',
+      // бас «умпа»: целый такт — корень и квинта, полтакта — корень
+      oDm: '@g.5 d3:2 r:2 a2:2 r:2', oA7: '@g.5 a2:2 r:2 e2:2 r:2', oF: '@g.5 f2:2 r:2 c3:2 r:2', oBb: '@g.5 a#2:2 r:2 f2:2 r:2',
+      oG7: '@g.5 g2:2 r:2 d3:2 r:2', oC: '@g.5 c3:2 r:2 g2:2 r:2', oGm: '@g.5 g2:2 r:2 d3:2 r:2', oA: '@g.5 a2:2 r:2 e2:2 r:2',
+      hF: '@g.5 f2:2 r:2', hC7: '@g.5 c3:2 r:2', hC: '@g.5 c3:2 r:2', hGm: '@g.5 g2:2 r:2', hA: '@g.5 a2:2 r:2', hDm: '@g.5 d3:2 r:2',
+      // аккорды на слабую долю
+      sDm: 'r:2 [d4 f4 a4]:2 r:2 [d4 f4 a4]:2', sA7: 'r:2 [c#4 e4 g4]:2 r:2 [c#4 e4 g4]:2', sF: 'r:2 [c4 f4 a4]:2 r:2 [c4 f4 a4]:2', sBb: 'r:2 [d4 f4 a#4]:2 r:2 [d4 f4 a#4]:2',
+      sG7: 'r:2 [d4 f4 b4]:2 r:2 [d4 f4 b4]:2', sC: 'r:2 [c4 e4 g4]:2 r:2 [c4 e4 g4]:2', sA: 'r:2 [c#4 e4 a4]:2 r:2 [c#4 e4 a4]:2',
+      tF: 'r:2 [c4 f4 a4]:2', tC7: 'r:2 [e4 g4 a#4]:2', tC: 'r:2 [c4 e4 g4]:2', tGm: 'r:2 [d4 g4 a#4]:2', tA: 'r:2 [c#4 e4 a4]:2', tDm: 'r:2 [d4 f4 a4]:2',
+      d1: 'k2 h2 s2 h2', d2: 'k2 h2 s2 h1 h1 k2 k2 s2 o2', d0: 'k2 .2 s2 .2',
+    },
+    sec: {
+      I: {p1: 'iM', p2: 'sDm sDm sA7 sA7', tr: 'oDm oDm oA7 oA7', nz: 'd0*3 d1'},
+      R: {p1: 'R', p2: 'sA7 sA7 sA7 sDm sA7 sA7 sA7 sDm', tr: 'oA7 oA7 oA7 oDm oA7 oA7 oA7 oDm', nz: 'd1'},
+      R2: {p1: 'R@d1', p2: '=p1/3/.4/12', tr: 'oA7 oA7 oA7 oDm oA7 oA7 oA7 oDm', nz: 'd2'},
+      V: {p1: 'V', p2: 'tF tC7 sF tF tC7 sF sBb sG7 sC sC tF tC7 sF tF tC7 sF sBb sG7 tC tGm sA7',
+        tr: 'hF hC7 oF hF hC7 oF oBb oG7 oC oC hF hC7 oF hF hC7 oF oBb oG7 hC hGm oA7', nz: 'd1'},
+      Bz: {p1: 'Bz', p2: 'sDm sC tA tDm sDm sC tA tDm sA7 sC tA tDm sA7 sC tA tDm',
+        tr: 'oDm oC hA hDm oDm oC hA hDm oA7 oC hA hDm oA7 oC hA hDm', nz: 'd1'},
+      Bz2: {p1: 'Bz^12@d1', p2: 'Bz@v9', tr: 'oDm oC hA hDm oDm oC hA hDm oA7 oC hA hDm oA7 oC hA hDm', nz: 'd2'},
+    },
+    intro: 'I', loop: 'R R2 V R Bz Bz2 R',
+  };
+
+  /* 6. Степь — А. Бородин, «Половецкие пляски» («Князь Игорь»): плавная пляска девушек («Улетай на крыльях ветра»)
+     и напев вступления. Простор: пульс 25 % с вибрато, арфа-арпеджио, педаль треугольника, ветер и бубен. */
+  T.steppe = {
+    title: 'Степь', src: 'А. Бородин — «Половецкие пляски», плавная пляска девушек', key: 'си дорийский над педалью ля / фа-диез', bpm: 76, div: 4, rev: 0.26, gain: 0.5,
+    ch: {
+      p1: {w: 'pulse', duty: 1, vol: 0.16, env: 'pl', vib: [0.22, 22, 5.5], pan: -0.15},
+      p2: {w: 'pulse', duty: 0, vol: 0.085, env: 'pl', arp: 0.5, pan: 0.3},
+      tr: {w: 'tri', vol: 0.3},
+      nz: {w: 'noise', vol: 0.1, pan: 0.2},
+    },
+    pat: {
+      Th: 'b4:2 b4:2 f#5:6 e5:1 f#5:1 d5:2 c#5:1 b4:1 c#5:1 d5:1 e5:6 r:2 e5:1 f#5:1 c#5:2 b4:1 a4:1 f#4:2 f#4:2 r:4 b4:2 c#5:2 b4:2 a4:1 g#4:1 a4:1 g#4:1 f#4:6 f#4:2 g#4:2 a4:2 c#5:2',
+      In: 'a5:4 g#5:4 b5:2 c#6:2 d6:4 f#6:1 e6:2 d6:1 c#6:4 d6:2 c#6:1 b5:1 a5:4 f5:4 e5:4 f#5:2 g#5:2 a5:4 c#6:1 b5:2 a5:1 g#5:4 a5:4 r:4 ' +
+          'c5:4 b4:4 d5:2 e5:2 f5:4 a5:1 g5:2 f5:1 e5:4 f5:2 e5:1 d5:1 c5:4 r:8 f#4:2 g#4:2 a4:4 c#5:1 b4:2 a4:1 g#4:4 a4:8',
+      hT: '[b3 d4 f#4]:16 [a3 c#4 e4]:16 [b3 d4 f#4]:16 [a3 c#4 f#4]:16 [b3 d4 f#4]:16 [a3 c#4 f#4]:16 [b3 d4 f#4]:16 [a3 c#4 e4]:16',
+      bT: '@g.6 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 a2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 f#2:4 r:4 a2:4 r:4',
+      hIn: '@v7 [a3 e4]:16 [a3 c#4 e4]:16 [a3 d4 f#4]:16 [a3 c#4 e4]:16 [a3 c4 f4]:16 [a3 d4 f4]:16 [a3 c4 e4]:16 [a3 c#4 e4]:16',
+      bIn: '@g.6 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8 a2:8',
+      dT: 'k4 .4 .4 h4 k4 .4 h2 h2 .4',
+      dT2: 'k4 h2 h2 s4 h4 k4 .2 k2 s4 h2 h2',
+      w: 'w28 .4 w24 .8', wI: 'w28 .4',
+      iP: '@env:sw @v5 [a3 e4]:32',
+      iB: 'a2:32',
+    },
+    sec: {
+      I: {p2: 'iP', tr: 'iB', nz: 'wI'},
+      A: {p1: 'Th Th', p2: 'hT', tr: 'bT', nz: 'dT'},
+      B: {p1: 'In^-12', p2: '=p1/3/.4/12', tr: 'bIn', nz: 'w'},
+      A2: {p1: 'Th@d2 Th^12@d1', p2: 'hT', tr: 'bT', nz: 'dT2'},
+    },
+    intro: 'I', loop: 'A B A2',
+  };
+
+  /* 7. Город, храм Ока — И. С. Бах, Ария из Оркестровой сюиты № 3, BWV 1068 («Air»), ре мажор.
+     Органно: ровная огибающая, вибрато, медленные арпеджио аккомпанемента, бас октавными шагами треугольником. */
+  T.air = {
+    title: 'Храм Ока', src: 'И. С. Бах — Ария, Оркестровая сюита № 3, BWV 1068', key: 'ре мажор', bpm: 58, div: 8, rev: 0.34, gain: 0.3,
+    ch: {
+      p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'org', vib: [0.3, 14, 5], pan: -0.15},
+      p2: {w: 'pulse', duty: 0, vol: 0.08, env: 'org', arp: 1, pan: 0.3},
+      tr: {w: 'tri', vol: 0.3},
+    },
+    pat: {
+      A: 'f#5:36 b5:2 g5:1 f#5:1 e5:2 d5:2 c#5:2 d5:2 c#5:7 b4:1 a4:8 a5:18 f#5:2 c5:2 b4:2 e5:2 d#5:2 a5:2 g5:2 g5:18 e5:2 b4:2 a4:2 d5:2 c#5:2 g5:2 f#5:2 ' +
+         'f#5:12 g#5:2 a5:2 d5:4 d5:1 e5:1 f#5:4 e5:2 e5:2 d5:2 c#5:2 b4:2 b4:1 c#5:1 d5:6 c#5:2 b4:2 a4:16',
+      bA: '@g.85 L4 d3 d4 c#3 c#4 b2 b3 a2 a3 g2 g3 g#2 g#3 a2 a3 g2 g3 f#2 f#3 e2 e3 d#3 d#4 b2 b3 e3 e4 d3 d4 c#3 c#4 a2 a3 d3 d4 c#3 c#4 b2 b3 g#2 e2 a2 d3 e3 e2 L2 a2 b2 c#3 d3 r:8',
+      hA: '[d4 f#4 a4]:8 [c#4 f#4 a4]:8 [d4 f#4 b4]:8 [d4 f#4 b4]:8 [d4 g4 b4]:8 [e4 g#4 b4]:8 [e4 a4 c#5]:8 [e4 g4 a4]:8 [d4 f#4 a4]:8 [e4 a4 c5]:8 [d#4 f#4 b4]:8 [d#4 f#4 b4]:8 ' +
+          '[e4 g4 b4]:8 [d4 e4 g#4]:8 [c#4 e4 a4]:8 [c#4 e4 a4]:8 [d4 f#4 a4]:8 [c#4 e4 a4]:8 [d4 f#4 b4]:8 [e4 g#4 b4]:8 [d4 f#4 a4]:8 [e4 g#4 b4]:8 [c#4 e4 a4]:16',
+      B: 'c#5:10 d5:1 c#5:1 b4:1 c#5:1 a4:2 a5:12 c5:4 b4:4 b5:6 a5:2 g5:2 f#5:2 g5:9 f#5:1 e5:1 d5:1 c#5:2 b4:2 a#4:2 b4:2 c#5:6 d5:2 e5:6 f#5:2 ' +
+         'g5:8 f#5:4 e5:2 d5:2 c#5:2 b4:2 c#5:2 d5:1 e5:1 d5:4 b4:16 d5:10 f#5:2 e5:2 d5:2 b5:12 a5:2 g#5:2 f#5:1 e5:1 a5:2 a4:4 b4:6 c#5:1 d5:1 c#5:6 b4:2 a4:8 ' +
+         'd5:12 f#5:2 e5:2 e5:12 g5:2 f#5:2 f#5:12 a5:2 g5:2 g5:16 a4:10 c#5:2 e5:2 g5:2 g5:2 e5:2 f#5:10 g5:1 a5:1 d5:10 f#5:2 a5:2 c6:2 b5:12 d5:4 c#5:2 e5:2 ' +
+         'g5:8 b4:4 a4:4 e5:2 f#5:1 g5:3 f#5:4 e5:2 d5:1 c#5:1 b4:4 c#5:2 d5:4 c#5:2 d5:2 d5:16',
+      bB: '@g.85 L4 a2 a3 g2 g3 f#2 f#3 e2 e3 d#3 d#4 f#2 b2 e3 e4 d3 d4 c#3 c#4 b2 b3 a#2 b2 c#3 a#2 b2 g2 e2 f#2 b2 b3 a2 a3 g#2 g#3 f#2 f#3 e2 e3 d3 d4 c#3 c#4 d3 e3 ' +
+          'a2 a3 g2 g3 f#2 f#3 g2 g3 g#2 g#3 a2 a3 a#2 a#3 b2 b3 e2 e3 d3 d4 c#3 c#4 a2 c#3 d3 d4 c3 c4 b2 b3 a2 a3 g2 g3 f#2 f#3 e2 e3 d3 d4 c#3 a2 d3 g2 a2 g2 a2 a2 d3:16',
+      hB: '[e4 a4 c#5]:8 [e4 g4 a4]:8 [d4 f#4 a4]:8 [f#4 a4 c#5]:8 [d#4 f#4 a4 b4]:8 [d#4 f#4 b4]:8 [e4 g4 b4]:8 [d4 e4 g#4 b4]:8 [c#4 f#4 a#4]:8 [e4 g4 b4]:8 [c#4 f#4]:8 [c#4 f#4 a#4]:8 ' +
+          '[d4 g4 b4]:8 [e4 b4]:8 [d4 f#4 b4]:8 [c#4 f#4 a4]:8 [e4 g#4 b4]:8 [c#4 f#4 a4]:8 [e4 g#4 b4]:8 [d4 e4 g#4 b4]:8 [c#4 e4 a4]:8 [d4 f#4 a4]:8 [c#4 e4 a4]:8 [e4 g4 c#5]:8 ' +
+          '[d4 f#4 a4]:8 [d4 g4 b4]:8 [d4 g#4 b4]:8 [c#4 e4 a4]:8 [e4 a#4 c#5]:8 [d#4 f#4 b4]:8 [e4 g4 b4]:8 [d4 e4 g#4 b4]:8 [c#4 e4 a4]:8 [c#4 e4 a4]:8 [d4 f#4 a4]:8 [d4 f#4 c5]:8 ' +
+          '[d4 g4 b4]:8 [d4 f#4 a4]:8 [d4 g4 b4]:8 [d4 f#4 a4]:8 [e4 g4 b4]:8 [d4 g4 b4]:8 [c#4 e4 a4]:8 [d4 a4]:8 [e4 g4 a4]:8 [e4 g4 a4]:8 [d4 f#4 a4]:16',
+      iP: '@env:sw [d4 f#4 a4]:32', iB: 'd3:32',
+    },
+    sec: {
+      I: {p2: 'iP', tr: 'iB'},
+      A: {p1: 'A', p2: 'hA', tr: 'bA'},
+      A2: {p1: 'A@d1', p2: '=p1/4/.4/-12', tr: 'bA'},
+      B: {p1: 'B', p2: 'hB', tr: 'bB'},
+    },
+    intro: 'I', loop: 'A A2 B',
+  };
+
+  /* 8. Капище, волхвы — Н. Римский-Корсаков, «Садко», песня Садко; гусельный наигрыш вступления. Ля миксолидийский/ре мажор.
+     Гусли — быстрые арпеджио с щипковой огибающей, ритуальный бубен, ветер. */
+  T.sadko = {
+    title: 'Капище', src: 'Н. Римский-Корсаков — «Садко», песня Садко', key: 'ре мажор / ми дорийский', bpm: 72, div: 4, rev: 0.28, gain: 0.48,
+    ch: {
+      p1: {w: 'pulse', duty: 1, vol: 0.16, env: 'pl', vib: [0.2, 18, 5.5], pan: -0.2},
+      p2: {w: 'pulse', duty: 0, vol: 0.09, env: 'pl', arp: 0.5, pan: 0.3},
+      tr: {w: 'tri', vol: 0.3},
+      nz: {w: 'noise', vol: 0.1, pan: 0.15},
+    },
+    pat: {
+      IlM: 'd5:4 e5:2 f#5:2 g5:3 f#5:1 e5:2 b5:2 a5:2 b5:2 f#5:2 e5:2 r:4 e4:2 f#4:2 g4:3 f#4:1 e4:2 b4:2 a4:2 b4:2 f#4:2 e4:2 r:4 a5:2 b5:2 f#5:2 e5:2 r:4 a4:2 b4:2 f#4:2 e4:2',
+      Fig: 'e5:2 f#5:2 g5:3 f#5:1 e5:2 b5:2 a5:2 b5:2 f#5:2 e5:2 r:4 e4:2 f#4:2 g4:3 f#4:1 e4:2 b4:2 a4:2 b4:2 f#4:2 e4:2 r:4 a5:2 b5:2 f#5:2 e5:2 r:4 a4:2 b4:2 f#4:2 e4:2',
+      V: 'r:4 a4:2 f#5:2 e5:3 d5:1 c#5:2 b4:2 a4:2 b4:2 f#4:2 g4:2 a4:4 a4:2 f#5:2 e5:3 d5:1 c#5:2 b4:2 a4:2 b4:2 f#4:2 e4:2 a4:4 a4:2 b4:2 ' +
+         'c5:3 b4:1 a4:2 e5:2 d5:2 e5:2 b4:2 a4:2 b4:4 b4:2 c#5:2 d5:3 c#5:1 b4:2 f#5:2 e5:2 f#5:2 c#5:2 b4:2 c#5:4 r:4 ' +
+         'e5:3 f#5:1 g5:2 d5:2 c#5:4 b4:2 c#5:2 d5:4 r:4 e5:3 f#5:1 g5:2 d5:2 c#5:4 b4:2 c#5:2',
+      // гусли: аккорды по тактам 2/4
+      gD: '[d4 f#4 a4]:8', gEm: '[e4 g4 b4]:8', gA: '[c#4 e4 a4]:8', gAm: '[c4 e4 a4]:8', gG: '[d4 g4 b4]:8', gBm: '[d4 f#4 b4]:8', gE: '[e4 g#4 b4]:8', gDh: '[d4 f#4 a4]:4',
+      tD: '@g.6 d3:2 r:2 a2:2 r:2', tEm: '@g.6 e2:2 r:2 b2:2 r:2', tA: '@g.6 a2:2 r:2 e2:2 r:2', tAm: '@g.6 a2:2 r:2 e3:2 r:2', tG: '@g.6 g2:2 r:2 d3:2 r:2',
+      tBm: '@g.6 b2:2 r:2 f#2:2 r:2', tE: '@g.6 e2:2 r:2 b2:2 r:2', tDh: '@g.6 d3:2 r:2',
+      dV: 'k2 .2 h2 h2 t2 .2 h2 .2',
+      dI: 'k2 .6 h2 .2 h2 .2',
+      w: 'w30 .2', wI: 'w34 w34', wIl: 'w36 w36',
+    },
+    sec: {
+      I: {p1: 'Fig@v9', p2: 'gEm gA gEm gA gEm gA gEm gA gDh', tr: 'tEm tA tEm tA tEm tA tEm tA tDh', nz: 'wI'},
+      V: {p1: 'V', p2: 'gD gD gD gD gD gEm gA gAm gD gG gBm gE gA gEm gA gD gEm gA', tr: 'tD tD tD tD tD tEm tA tAm tD tG tBm tE tA tEm tA tD tEm tA', nz: 'dV'},
+      Il: {p1: 'IlM', p2: 'gD gEm gA gEm gA gEm gA gEm gA', tr: 'tD tEm tA tEm tA tEm tA tEm tA', nz: 'wIl'},
+      V2: {p1: 'V@d2', p2: '=p1/3/.4/12', tr: 'tD tD tD tD tD tEm tA tAm tD tG tBm tE tA tEm tA tD tEm tA', nz: 'dV'},
+      Il2: {p1: 'IlM^-12@d2', p2: 'gD gEm gA gEm gA gEm gA gEm gA', tr: 'tD tEm tA tEm tA tEm tA tEm tA', nz: 'wIl'},
+    },
+    intro: 'I', loop: 'V Il V2 Il2',
+  };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* music_nes.js */
+/* ---------- музыка в духе приставки NES (2A03): два пульса, треугольник, шум ----------
+   Данные треков — C.MUSIC_TRACKS (src/music_data.js), здесь — разбор записи, синтез и планировщик.
+   • Запись трека: ch — голоса (p1, p2 — пульсы; tr — треугольник; nz — шум), pat — паттерны, sec — разделы
+     (в разделе каждому голосу — строка ссылок на паттерны), intro — разделы вступления (раз), loop — цикл.
+   • Паттерн пульса/треугольника: `L2` длина по умолчанию (в шагах сетки div), `c#4:4` нота с длиной, `r` пауза,
+     `_` продлить прошлую ноту, `[d4 f4 a4]:8` аккорд арпеджио, `@d0..3` скважность 12,5/25/50/75 %, `@v0..15` громкость,
+     `@a1` шаг арпеджио (в шагах), `@g.9` доля звучания, `@env:org|pl|st|sw` огибающая, `@vib0/1` вибрато, `|` — черта такта.
+   • Паттерн шума: `k` бочка, `s` малый, `h` хэт, `o` открытый хэт, `c` тарелка, `t` том, `w` ветер, `.` пауза;
+     заглавная — акцент, число после знака — длина в шагах (`w32`).
+   • Ссылка в разделе: `A`, `A^7` (транспонировать), `A@v8` (громкость), `A@d1` (скважность), `A*2`;
+     эхо: `=p1/3/.35` — тот же голос p1 со сдвигом 3 шага и громкостью ×0,35 (`/12` в конце — на октаву выше).
+   • Планировщик на AudioContext.currentTime с опережением 0,12 с; смена трека — затухание 0,8 с и мягкий вход.
+   В node AudioContext нет: разбор и выбор трека работают, звук — нет. */
+(function (G) {
+  'use strict';
+  const C = G.C;
+  if (!C) return;
+  const TRK = C.MUSIC_TRACKS = C.MUSIC_TRACKS || {};
+
+  /* ---------- разбор записи ---------- */
+  const PC = {c: 0, d: 2, e: 4, f: 5, g: 7, a: 9, b: 11};
+  const RE_NOTE = /^([a-g])([#b]?)(-?\d)?$/;
+  function midiOf(s, st) {
+    const m = RE_NOTE.exec(s); if (!m) throw new Error('нота? ' + s);
+    if (m[3] != null) st.oct = +m[3];
+    return 12 * (st.oct + 1) + PC[m[1]] + (m[2] === '#' ? 1 : m[2] === 'b' ? -1 : 0);
+  }
+  const DRUMS = 'kshoctw';
+  function parsePat(src, kind, where) {
+    const ev = []; let t = 0;
+    if (kind === 'noise') {
+      const re = /([kshoctwKSHOCTW.])(\d+)?|([|\s]+)|(.)/g; let m;
+      while ((m = re.exec(src))) {
+        if (m[3]) continue; if (m[4]) throw new Error(where + ': знак шума? ' + m[4]);
+        const n = m[2] ? +m[2] : 1;
+        if (m[1] !== '.') ev.push({t, d: n, drum: m[1].toLowerCase(), acc: m[1] !== m[1].toLowerCase()});
+        t += n;
+      }
+      return {len: t, ev};
+    }
+    const st = {L: 4, oct: 4, v: 12, duty: 2, env: null, arp: 1, gate: 0.92, vib: 1};
+    let last = null;
+    const toks = src.match(/\[[^\]]*\](?::[\d.]+)?|[^\s|]+/g) || [];
+    toks.forEach(tok => {
+      let m;
+      if ((m = /^L([\d.]+)$/.exec(tok))) { st.L = +m[1]; return; }
+      if ((m = /^@(d|v|a|g|o)(-?[\d.]+)$/.exec(tok))) { const k = {d: 'duty', v: 'v', a: 'arp', g: 'gate', o: 'oct'}[m[1]]; st[k] = +m[2]; return; }
+      if ((m = /^@env:(\w+)$/.exec(tok))) { st.env = m[1]; return; }
+      if ((m = /^@vib([01])$/.exec(tok))) { st.vib = +m[1]; return; }
+      if ((m = /^\[([^\]]+)\](?::([\d.]+))?$/.exec(tok))) {
+        const ms = m[1].trim().split(/\s+/).map(s => midiOf(s, st)); const d = m[2] ? +m[2] : st.L;
+        last = {t, d, m: ms, v: st.v, duty: st.duty, env: st.env, arp: st.arp, gate: st.gate, vib: 0}; ev.push(last); t += d; return;
+      }
+      if ((m = /^([a-g][#b]?-?\d?|r|_)(?::([\d.]+))?$/.exec(tok))) {
+        const d = m[2] ? +m[2] : st.L;
+        if (m[1] === 'r') { last = null; t += d; return; }
+        if (m[1] === '_') { if (last) last.d += d; t += d; return; }
+        last = {t, d, m: midiOf(m[1], st), v: st.v, duty: st.duty, env: st.env, arp: st.arp, gate: st.gate, vib: st.vib}; ev.push(last); t += d; return;
+      }
+      throw new Error(where + ': не разобрал «' + tok + '»');
+    });
+    return {len: t, ev};
+  }
+  const KIND = v => v.w === 'noise' ? 'noise' : v.w === 'tri' ? 'tri' : 'pulse';
+  const cloneEv = (e, dt, f) => Object.assign({}, e, {t: e.t + dt}, f ? f(e) : null);
+  function tr(m, k) { return Array.isArray(m) ? m.map(x => x + k) : m + k; }
+
+  function compile(T, id) {
+    if (T._c) return T._c;
+    id = id || T.id || '?';
+    const voices = Object.keys(T.ch), pc = {};
+    const pat = (name, v) => { const key = name + '|' + KIND(T.ch[v]); if (!pc[key]) { const s = T.pat[name]; if (s == null) throw new Error(id + ': нет паттерна ' + name); pc[key] = parsePat(s, KIND(T.ch[v]), id + '.' + name); } return pc[key]; };
+    function ref(r, v) {
+      const m = /^([A-Za-z0-9_]+)((?:\^-?\d+|@[dv]\d+|\*\d+)*)$/.exec(r); if (!m) throw new Error(id + ': ссылка? ' + r);
+      const P = pat(m[1], v); let k = 0, vol = null, duty = null, rep = 1; const mods = m[2].match(/\^-?\d+|@[dv]\d+|\*\d+/g) || [];
+      mods.forEach(x => { if (x[0] === '^') k = +x.slice(1); else if (x[0] === '*') rep = +x.slice(1); else if (x[1] === 'v') vol = +x.slice(2); else duty = +x.slice(2); });
+      const ev = [];
+      for (let i = 0; i < rep; i++) P.ev.forEach(e => ev.push(cloneEv(e, i * P.len, e2 => ({m: e2.m != null ? tr(e2.m, k) : e2.m, v: vol != null ? Math.round(e2.v * vol / 12) : e2.v, duty: duty != null ? duty : e2.duty}))));
+      return {len: P.len * rep, ev};
+    }
+    const secs = {};
+    function sect(name) {
+      if (secs[name]) return secs[name];
+      const S = T.sec[name]; if (!S) throw new Error(id + ': нет раздела ' + name);
+      const out = {len: 0, ev: {}, src: {}}, raw = {};
+      voices.forEach(v => { const s = S[v]; if (!s || s[0] === '=') return; let t = 0; const ev = [];
+        s.trim().split(/\s+/).forEach(r => { const R = ref(r, v); R.ev.forEach(e => ev.push(cloneEv(e, t))); t += R.len; });
+        raw[v] = {len: t, ev}; out.len = Math.max(out.len, t); });
+      voices.forEach(v => { const R = raw[v]; if (!R) return;
+        if (R.len === out.len) { out.ev[v] = R.ev; return; }
+        if (!R.len || out.len % R.len) throw new Error(`${id}.${name}.${v}: длина ${R.len} не укладывается в раздел ${out.len}`);
+        const ev = []; for (let t = 0; t < out.len; t += R.len) R.ev.forEach(e => ev.push(cloneEv(e, t))); out.ev[v] = ev; });
+      voices.forEach(v => { const s = S[v]; if (!s || s[0] !== '=') return;
+        const m = /^=(\w+)\/([\d.]+)\/([\d.]+)(?:\/(-?\d+))?$/.exec(s.trim()); if (!m || !out.ev[m[1]]) throw new Error(id + ': эхо? ' + s);
+        const dt = +m[2], k = +(m[3]), t12 = +(m[4] || 0);
+        out.ev[v] = out.ev[m[1]].map(e => cloneEv(e, dt, e2 => ({m: tr(e2.m, t12), v: Math.max(1, Math.round(e2.v * k)), echo: 1}))); });
+      voices.forEach(v => { if (!out.ev[v]) out.ev[v] = []; });
+      return (secs[name] = out);
+    }
+    function part(form) {
+      const res = {len: 0, ev: {}, secs: []}; voices.forEach(v => { res.ev[v] = []; });
+      (form || '').trim().split(/\s+/).filter(Boolean).forEach(n => { const S = sect(n); voices.forEach(v => S.ev[v].forEach(e => res.ev[v].push(cloneEv(e, res.len)))); res.secs.push([n, res.len, S.len]); res.len += S.len; });
+      return res;
+    }
+    const intro = part(T.intro), loop = part(T.loop);
+    if (!loop.len) throw new Error(id + ': пустой цикл');
+    // эхо и хвосты, вылезшие за конец цикла, — в начало цикла (шов без дыр)
+    voices.forEach(v => { loop.ev[v].forEach(e => { if (e.t >= loop.len) e.t -= loop.len; }); loop.ev[v].sort((a, b) => a.t - b.t); });
+    const step = 60 / T.bpm / (T.div || 4);
+    const merge = P => { const L = []; voices.forEach(v => P.ev[v].forEach(e => L.push(Object.assign({v: e.v, voice: v}, e, {voice: v})))); return L.sort((a, b) => a.t - b.t); };
+    const c = {id, T, voices, step, intro, loop, list: {intro: merge(intro), loop: merge(loop)}, secLen: Object.fromEntries(Object.keys(T.sec).map(n => [n, sect(n).len]))};
+    Object.defineProperty(T, '_c', {value: c, enumerable: false, configurable: true});
+    return c;
+  }
+  const hz = m => 440 * Math.pow(2, (m - 69) / 12);
+
+  /* ---------- волны и шум приставки ---------- */
+  const BANK = new WeakMap();
+  function bank(c) {
+    let b = BANK.get(c); if (b) return b;
+    const N = 64;
+    const pulse = [0.125, 0.25, 0.5, 0.75].map(d => { const re = new Float32Array(N), im = new Float32Array(N);
+      for (let n = 1; n < N; n++) { re[n] = Math.sin(2 * Math.PI * n * d) / (Math.PI * n); im[n] = (1 - Math.cos(2 * Math.PI * n * d)) / (Math.PI * n); }
+      return c.createPeriodicWave(re, im); });
+    // треугольник 2A03 — 32 ступеньки по 4 бита
+    const steps = []; for (let k = 0; k < 32; k++) steps.push(k < 16 ? 15 - k : k - 16);
+    const re = new Float32Array(N), im = new Float32Array(N);
+    for (let n = 1; n < N; n++) { let a = 0, s = 0; for (let k = 0; k < 32; k++) { const y = steps[k] / 7.5 - 1, p0 = 2 * Math.PI * n * k / 32, p1 = 2 * Math.PI * n * (k + 1) / 32; a += y * (Math.sin(p1) - Math.sin(p0)) / (Math.PI * n); s += y * (Math.cos(p0) - Math.cos(p1)) / (Math.PI * n); } re[n] = a; im[n] = s; }
+    const tri = c.createPeriodicWave(re, im);
+    // шум: регистр сдвига на 15 бит, длинный (шорох) и короткий (металл) режимы
+    const lfsr = (short, hold, sec) => { const len = Math.floor(c.sampleRate * sec), buf = c.createBuffer(1, len, c.sampleRate), d = buf.getChannelData(0); let r = 1, cnt = 0, out = 1;
+      for (let i = 0; i < len; i++) { if (--cnt <= 0) { cnt = hold; const fb = (r & 1) ^ ((r >> (short ? 6 : 1)) & 1); r = (r >> 1) | (fb << 14); out = (r & 1) ? -0.8 : 0.8; } d[i] = out; }
+      return buf; };
+    const noise = {long1: lfsr(false, 1, 1.5), long3: lfsr(false, 3, 1.5), long8: lfsr(false, 8, 1.5), short2: lfsr(true, 2, 0.5)};
+    // мягкая реверберация: стерео-шум с затуханием
+    const rl = Math.floor(c.sampleRate * 1.8), ir = c.createBuffer(2, rl, c.sampleRate);
+    for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); let lp = 0; for (let i = 0; i < rl; i++) { const x = Math.random() * 2 - 1; lp += 0.35 * (x - lp); d[i] = lp * Math.exp(-i / (c.sampleRate * 0.42)) * (i < 64 ? i / 64 : 1); } }
+    b = {pulse, tri, noise, ir}; BANK.set(c, b); return b;
+  }
+
+  /* ---------- огибающие ---------- */
+  const ENV = {
+    pl: {a: 0.004, d: 0.22, s: 0.55, r: 0.03},   // щипок с полкой, как у громкости-огибающей пульса
+    org: {a: 0.006, d: 0, s: 1, r: 0.035},       // орган: ровно
+    st: {a: 0.003, d: 0.07, s: 0, r: 0.03},      // капля: быстро гаснет
+    sw: {a: 0.18, d: 0, s: 1, r: 0.25},          // мягкий наплыв
+    pad: {a: 0.05, d: 0.9, s: 0.75, r: 0.14},    // напев: мягкая атака, лёгкий спад
+    tri: {a: 0.004, d: 0, s: 1, r: 0.02},        // треугольник громкости не знает — только вкл/выкл
+  };
+  // до первого события у AudioParam своё значение (у усиления — 1): обнуляем заранее, иначе на старте бывает выброс в один отсчёт
+  function envelope(p, t, dur, peak, E) {
+    p.value = 0; p.setValueAtTime(0, t);
+    p.linearRampToValueAtTime(peak, t + E.a);
+    if (E.d) p.setTargetAtTime(peak * E.s, t + E.a, E.d);
+    const tEnd = t + Math.max(dur, E.a + 0.004);
+    p.setTargetAtTime(0, tEnd, E.r / 3);
+    return tEnd + E.r * 2.6;
+  }
+
+  /* ---------- проигрыватель ---------- */
+  const LOOK = 0.12, IV = 25;
+  function Player(c, dest, id, at, o) {
+    o = o || {}; const T = TRK[id]; const K = compile(T, id); const B = bank(c);
+    const P = {c, id, K, T, B, at, maxLoops: o.loops || 0, offline: !!o.offline, probe: !!o.probe, done: false, audible: o.audible || (() => true)};
+    P.out = c.createGain(); P.out.gain.value = o.fadeIn ? 0 : 1; P.out.gain.setValueAtTime(o.fadeIn ? 0 : 1, at); if (o.fadeIn) P.out.gain.linearRampToValueAtTime(1, at + o.fadeIn);
+    const tg = c.createGain(); tg.gain.value = T.gain != null ? T.gain : 1; tg.connect(P.out); P.out.connect(dest);
+    const wet = T.rev != null ? T.rev : 0.12;
+    if (wet > 0 && c.createConvolver) { const cv = c.createConvolver(); cv.buffer = B.ir; const wg = c.createGain(); wg.gain.value = wet; tg.connect(cv); cv.connect(wg); wg.connect(P.out); }
+    P.bus = {};
+    K.voices.forEach(v => { const V = T.ch[v]; const g = c.createGain(); g.gain.value = V.vol != null ? V.vol : 0.2;
+      if (c.createStereoPanner && V.pan) { const pn = c.createStereoPanner(); pn.pan.value = V.pan; g.connect(pn); pn.connect(tg); } else g.connect(tg);
+      P.bus[v] = g; });
+    P.part = K.intro.len ? 'intro' : 'loop'; P.partT = at; P.i = 0; P.iter = 0;
+    return P;
+  }
+  function fire(P, e, t) {
+    const V = P.T.ch[e.voice], c = P.c, kind = KIND(V), st = P.K.step;
+    if (kind === 'noise') return drum(P, e, t);
+    const dur = Math.max(0.02, e.d * st * (e.gate != null ? e.gate : 0.92));
+    // probe: вместо генератора — постоянный сигнал 1, слышна одна огибающая (для поиска щелчков)
+    const o = P.probe ? c.createConstantSource() : c.createOscillator(), g = c.createGain();
+    if (!P.probe) o.setPeriodicWave(kind === 'tri' ? P.B.tri : P.B.pulse[e.duty != null ? e.duty : (V.duty != null ? V.duty : 2)]);
+    const sh = (V.oct || 0) * 12;
+    if (P.probe) {} else if (Array.isArray(e.m)) {
+      const a = Math.max(0.03, (e.arp || V.arp || 1) * st), n = e.m.length; let i = 0;
+      for (let tt = t; tt < t + dur + 0.01; tt += a, i++) o.frequency.setValueAtTime(hz(e.m[i % n] + sh), tt);
+    } else o.frequency.setValueAtTime(hz(e.m + sh), t);
+    const E = ENV[e.env || V.env || (kind === 'tri' ? 'tri' : 'pl')] || ENV.pl;
+    const peak = kind === 'tri' ? (e.v > 0 ? 1 : 0) * Math.min(1, e.v / 12) : e.v / 15;
+    const tStop = envelope(g.gain, t, dur, Math.max(0.0001, peak), E);
+    o.connect(g); g.connect(P.bus[e.voice]);
+    if (!P.probe && V.vib && e.vib && !Array.isArray(e.m) && dur > V.vib[0] + 0.05) {
+      const l = c.createOscillator(), lg = c.createGain(); lg.gain.value = 0; l.frequency.value = V.vib[2] || 5.5;
+      lg.gain.setValueAtTime(0, t + V.vib[0]); lg.gain.linearRampToValueAtTime(V.vib[1], t + V.vib[0] + 0.18);
+      l.connect(lg); lg.connect(o.detune); l.start(t + V.vib[0]); l.stop(tStop);
+    }
+    o.start(t); o.stop(tStop);
+    if (!P.offline) o.onended = () => { try { g.disconnect(); } catch (x) {} };
+  }
+  function nbuf(P, k) { return P.B.noise[k]; }
+  function nhit(P, t, bus, o) {
+    const c = P.c, s = P.probe ? c.createConstantSource() : c.createBufferSource(); if (!P.probe) { s.buffer = nbuf(P, o.buf || 'long1'); s.loop = true; }
+    let node = s; if (o.f && !P.probe) { const f = c.createBiquadFilter(); f.type = o.type || 'bandpass'; f.frequency.setValueAtTime(o.f, t); if (o.f2) f.frequency.exponentialRampToValueAtTime(o.f2, t + o.d); f.Q.value = o.Q || 0.8; s.connect(f); node = f; }
+    const g = c.createGain(); g.gain.value = 0; node.connect(g); g.connect(bus);
+    g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(o.g, t + (o.a || 0.002)); g.gain.setTargetAtTime(0, t + (o.a || 0.002) + (o.hold || 0), o.d / 3);
+    const end = t + (o.a || 0.002) + (o.hold || 0) + o.d * 1.6 + 0.02;
+    if (P.probe) s.start(t); else s.start(t, Math.random() * 0.4); s.stop(end);
+    if (!P.offline) s.onended = () => { try { g.disconnect(); } catch (x) {} };
+  }
+  function tsweep(P, t, bus, f1, f2, d, gpk) {
+    const c = P.c, o = P.probe ? c.createConstantSource() : c.createOscillator(), g = c.createGain();
+    if (!P.probe) { o.setPeriodicWave(P.B.tri); o.frequency.setValueAtTime(f1, t); o.frequency.exponentialRampToValueAtTime(f2, t + d); }
+    g.gain.value = 0; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gpk, t + 0.003); g.gain.setTargetAtTime(0, t + d * 0.6, d / 4);
+    o.connect(g); g.connect(bus); o.start(t); o.stop(t + d * 1.8 + 0.02);
+    if (!P.offline) o.onended = () => { try { g.disconnect(); } catch (x) {} };
+  }
+  function drum(P, e, t) {
+    const bus = P.bus[e.voice], a = e.acc ? 1.35 : 1, st = P.K.step;
+    switch (e.drum) {
+      case 'k': tsweep(P, t, bus, 170, 48, 0.11, 0.9 * a); nhit(P, t, bus, {buf: 'long8', type: 'lowpass', f: 600, d: 0.03, g: 0.35 * a}); break;
+      case 's': nhit(P, t, bus, {buf: 'long1', type: 'bandpass', f: 2400, Q: 0.6, d: 0.13, g: 0.7 * a}); tsweep(P, t, bus, 260, 150, 0.05, 0.35 * a); break;
+      case 'h': nhit(P, t, bus, {buf: 'short2', type: 'highpass', f: 7000, Q: 0.7, d: 0.03, g: 0.35 * a}); break;
+      case 'o': nhit(P, t, bus, {buf: 'long1', type: 'highpass', f: 6000, Q: 0.7, d: 0.16, g: 0.3 * a}); break;
+      case 'c': nhit(P, t, bus, {buf: 'long1', type: 'highpass', f: 3500, Q: 0.5, d: 0.7, g: 0.4 * a}); break;
+      case 't': tsweep(P, t, bus, 210, 95, 0.16, 0.8 * a); break;
+      case 'w': { const d = e.d * st; nhit(P, t, bus, {buf: 'long1', type: 'bandpass', f: 380, f2: 1100, Q: 5, a: d * 0.45, hold: d * 0.1, d: d * 0.45, g: 0.5 * a}); break; }
+    }
+  }
+  function pump(P, until) {
+    const now = P.c.currentTime;
+    for (let guard = 0; guard < 64; guard++) {
+      const part = P.K[P.part], L = P.K.list[P.part];
+      while (P.i < L.length) {
+        const e = L[P.i], t = P.partT + e.t * P.K.step;
+        if (t > until) return;
+        if ((P.offline || t >= now - 0.03) && P.audible()) fire(P, e, Math.max(t, P.offline ? 0 : now));
+        P.i++;
+      }
+      P.partT += part.len * P.K.step; P.i = 0;
+      if (P.part === 'intro') P.part = 'loop'; else P.iter++;
+      if (P.maxLoops && P.iter >= P.maxLoops) { P.done = true; return; }
+    }
+  }
+
+  /* ---------- настроения и выбор трека ---------- */
+  const MOODS = {map: 'deadwater', battle: 'baldmountain', boss: 'toccata', dungeon: 'mountainking', town: 'korchma', temple: 'air', shrine: 'sadko'};
+  function steppe(g) {
+    try {
+      if (C.zoneOf) { const z = C.zoneOf(g); if (z && z.id === 'step') return true; }
+      if (g && g.pos && G.W && G.W.world) { const cell = G.W.world(g).cells[G.W.key(g.pos.c, g.pos.r)]; if (cell && cell.t === 'steppe') return true; }
+    } catch (e) {}
+    return false;
+  }
+  function trackFor(mood, g) {
+    if (!mood) return null;
+    if (mood === 'map' && g && steppe(g)) return TRK.steppe ? 'steppe' : MOODS.map;
+    const id = MOODS[mood]; return TRK[id] ? id : null;
+  }
+  const S = {mood: null, track: null, players: [], timer: null, switches: 0, ctx: null};
+  const sfx = () => C.SFX || null;
+  function liveCtx() { const X = sfx(); const c = X && X.ready ? X.ctx : null; return c && c.state !== 'closed' ? c : null; }
+  const audible = () => { const X = sfx(); return !X || (!X.muted && X.vol.music > 0); };
+  function tickAll() {
+    const c = liveCtx(); if (!c) return;
+    S.players.forEach(P => { if (!P.dead) pump(P, c.currentTime + LOOK); });
+    S.players = S.players.filter(P => !P.dead);
+    if (!S.players.length && S.timer) { clearInterval(S.timer); S.timer = null; }
+  }
+  function startTrack(id) {
+    const c = liveCtx(); if (!c) return false;
+    const now = c.currentTime;
+    S.players.forEach(P => { if (P.dead || P.leaving) return; P.leaving = true; const gp = P.out.gain; gp.cancelScheduledValues(now); gp.setValueAtTime(gp.value, now); gp.linearRampToValueAtTime(0, now + 0.8);
+      setTimeout(() => { P.dead = true; try { P.out.disconnect(); } catch (e) {} }, 1100); });
+    if (id && TRK[id]) {
+      const bus = sfx()._bus().musBus;
+      const P = Player(c, bus, id, now + 0.06, {fadeIn: S.players.length ? 0.6 : 0.25, audible});
+      S.players.push(P); pump(P, now + LOOK);
+      if (!S.timer) S.timer = setInterval(tickAll, IV);
+    }
+    S.switches++; return true;
+  }
+  function setMood(mood, g, force) {
+    if (mood && !MOODS[mood]) return S.mood;
+    S.mood = mood || null;
+    const id = trackFor(S.mood, g);
+    if (!force && id === S.track && S.players.some(P => !P.leaving && !P.dead)) return S.mood;
+    const was = S.track; S.track = id;
+    if (!liveCtx()) return S.mood;
+    if (force || id !== was || !S.players.some(P => !P.leaving && !P.dead)) startTrack(id);
+    return S.mood;
+  }
+  // отрисовать трек в чужой (например, Offline) контекст: вступление + loops циклов
+  function renderTo(c, dest, id, o) {
+    o = o || {}; const P = Player(c, dest, id, o.at || 0.05, {loops: o.loops || 1, offline: true, probe: o.probe});
+    pump(P, Infinity); const K = P.K; return {dur: (o.at || 0.05) + (K.intro.len + K.loop.len * (o.loops || 1)) * K.step, introSec: K.intro.len * K.step, loopSec: K.loop.len * K.step};
+  }
+
+  C.MUSIC = {
+    tracks: TRK, MOODS, ENV, compile: id => compile(TRK[id], id), parsePat, trackFor, renderTo,
+    has: m => !!MOODS[m], mood: (m, g, force) => setMood(m, g, force),
+    get current() { return S.mood; }, get track() { return S.track; }, get switches() { return S.switches; },
+    stop: () => setMood(null), _state: S,
+  };
+  // C.SFX.music(mood) — тот же вход, что и раньше; новые настроения: boss, dungeon, temple, shrine
+  if (C.SFX && C.SFX.music) { const m0 = C.SFX.music; Object.defineProperty(m0, 'track', {get: () => S.track, configurable: true}); }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* peace2.js */
@@ -41195,7 +41880,7 @@ C.shopDailyText = function (g) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mvxetr5d"></script><script>
+</script><script src="world.js?v=mvxiqw38"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
