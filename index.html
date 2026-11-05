@@ -693,7 +693,7 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .choices .mleave{flex:none;padding-top:10px;border-top:1px solid rgba(201,163,92,.25);display:grid;gap:7px}
 @media (max-width:760px),(min-width:761px) and (max-width:1180px) and (orientation:portrait){
   .scene .body{grid-template-rows:auto;overflow:auto;align-content:start}
-  .scene .body>.lines,.choices .mscroll{overflow:visible}
+  .scene .body>.lines,.choices .mscroll{overflow:visible}.scene .body>.lines{min-height:auto}
   .choices .mscroll{flex:none}.scene .body>.choices{min-height:auto}
   .mtiles{grid-template-columns:1fr 1fr}
 }
@@ -34621,6 +34621,7 @@ T.ACT = {
   pact: 'Теперь {A} вас не тронут.',
   pactPass: 'Здешние вас знают и пропускают, косясь вслед.',
   pactAsk: 'Старший кивает: «Ударим. Только вы потом не жалуйтесь, если мы своё возьмём». Вскоре из глубины доносится шум схватки.',
+  haggle: 'Разговор не кончается дракой: торгуются. Пропустить готовы — только за серебро.',
   pay: 'Серебро меняет хозяина, и вам освобождают дорогу. Друзьями вы не стали, но и врагами тоже.',
   parleyFail: 'Слово за слово, и разговор кончается руганью. Оружие уже в руках.',
   ravaged: 'Здесь недавно дрались: {dead}',
@@ -34976,6 +34977,9 @@ const DG = g => { const d = g.dungeon; if (d && d.rooms && !(d.v >= 2)) C.dungeo
 const room = (d, id) => d.rooms[id == null ? d.at : id];
 const exitsOf = (d, id) => d.edges.filter(e => (e.a === id || e.b === id) && (!e.secret || e.found));
 const say = (d, t) => { d.msg.push(t); };
+/* реплики с лицом (dungeon_voice.js): [who, текст]; если сказать некому — слова рассказчика */
+const speak = (d, ls, fallback) => { if (ls && ls.length) ls.forEach(l => d.msg.push(l)); else if (fallback) d.msg.push(fallback); };
+const DV = (fn, ...a) => { try { return C.DGV && C.DGV[fn] ? C.DGV[fn](...a) || [] : []; } catch (e) { return []; } };
 const pickH = (g, score, ok) => { const hs = C.alive(g).filter(h => !ok || ok(h)); if (!hs.length) return null;
   const cl = g.claimHero && hs.find(h => h.id === g.claimHero); if (cl) return cl; return hs.slice().sort((a, b) => score(b) - score(a))[0]; };
 /* проверка выбранным героем: бонус ремесла вычитается из сложности, в окне показывается честный итог */
@@ -35107,6 +35111,7 @@ function clash(g, d, fa, fb, o) {
   const X = distAll(d, d.at, e => !e.secret || e.found), far = X[best.b.id] == null || X[best.b.id] > 3;
   const p = bfsAny(d, d.at, best.b.id), k = p && p.length ? dirOf(d, d.at, p[0]) : null;
   say(d, far || !k ? TX().ACT.clashFar : fill(TX().ACT.clashNear, {to: 'Где-то ' + DIRS[k][3], A: cap(facWho(d, A, 'nom')), Bins: facWho(d, B, 'ins')}));
+  if (!far && k && g) { const sh = DV('clash', g, d, winF.id, best.b.id); if (sh.length) { say(d, 'Сквозь шум доносится крик:'); speak(d, sh); } }
   return {win: winF.id, lose: loseF.id, room: best.b.id};
 }
 
@@ -35179,7 +35184,7 @@ C.battleEnd = function (g, S, spec) {
   const f = d.fight; d.fight = null;
   if (res.won) { if (f.room != null) { const r = d.rooms[f.room]; r.foes = []; r.cleared = 1; if (f.boss) { d.bossDown = 1; C.note(g, `${d.name}: хозяин повержен.`); } }
     if (f.pat) { const pf = facById(d, f.pat); if (pf && pf.pat) pf.pat.foes = []; }
-    if (f.fac) { const ff = facById(d, f.fac); if (ff) { ff.blood = 1; ff.pact = 0; ff.alarm = Math.max(0, (ff.alarm || 0) - 1); } }
+    if (f.fac) { const ff = facById(d, f.fac); if (ff) { ff.blood = 1; ff.pact = 0; ff.alarm = Math.max(0, (ff.alarm || 0) - 1); d.killed = d.killed || {}; d.killed[ff.id] = (d.killed[ff.id] || 0) + 1; } }
     if (f.pend) { d.pending = null; d.pendFac = null; d.pendKind = null; } d.alarm = Math.max(0, d.alarm - 1);
     d.msg = []; afterFight(g, d, f); }
   else { g.dungeonLast = {name: d.name, fled: !!res.fled}; if (d.poi) { g.dgSaved = g.dgSaved || {}; const keep = JSON.parse(JSON.stringify(d)); keep.at = (keep.rooms.find(r => r.type === 'vhod') || keep.rooms[0] || {}).id; keep.loot = {m: 0, items: []}; keep.pending = null; keep.msg = []; g.dgSaved[d.poi] = keep; g.flags['dg_' + d.poi] = 'left'; } g.dungeon = null; }
@@ -35304,7 +35309,7 @@ function SCN(g) {
   // простукивание стен: по одной стене за раз
   if (d.knock === d.at && !d.pending) {
     lines.push(['n', 'Вы встаёте у стен и выбираете, с какой начать: стучать по всем подряд — до утра провозиться.']);
-    d.msg.forEach(t => lines.push(['n', t]));
+    d.msg.forEach(t => lines.push(Array.isArray(t) ? t : ['n', t])); if (C.DGV) C.DGV.regAll(d);
     const open = new Set(exitsOf(d, d.at).map(e => dirOf(d, d.at, other(e, d.at))));
     r.kn = r.kn || {};
     Object.keys(DIRS).filter(k => !open.has(k)).forEach(k => {
@@ -35322,11 +35327,12 @@ function SCN(g) {
   else if (r.left) lines.push(['n', 'Здесь пусто, но следы свежие: здешние сторожа совсем недавно ушли на шум.']);
   if (!r.fx) { stateLines(g, d, r).forEach(t => lines.push(['n', t])); hintLines(d, r).forEach(t => lines.push(['n', t])); }
   const cl = clueLines(g, d, r); cl.lines.forEach(t => lines.push(['n', t]));
-  d.msg.forEach(t => lines.push(['n', t]));
+  d.msg.forEach(t => lines.push(Array.isArray(t) ? t : ['n', t])); if (C.DGV) C.DGV.regAll(d);
   // засада бродячих стражей или встреча с дозором
   if (d.pending && d.pending.length) {
     const pf = facById(d, d.pendFac), FA = pf ? FT()[pf.t] || {} : {};
     lines.push(['n', d.pendKind === 'pat' ? `Из-за поворота выходит дозор: ${foeText(d.pending)}.` : `На шум из темноты выходят те, кто бродил по ходам: ${foeText(d.pending)}.`]);
+    DV('pend', g, d).forEach(l => lines.push(l));
     ch.push({t: 'Принять бой', do: act((g2, dd) => fight(g2, dd, dd.pending, {pend: 1, ambush: dd.alarm >= 5 ? 'foe' : null, title: `${dd.name}: ${dd.pendKind === 'pat' ? 'дозор' : 'на шум'}`}))});
     const sn = pickH(g, h => st(h, 'dex') + R.skill(h, 'Скрытность') + 2 * T(h, 'ten'));
     if (sn) ch.push({t: 'Затаиться и пропустить их (Ловкость, Скрытность)', do: act((g2, dd) => { const h = pickH(g2, x => st(x, 'dex') + R.skill(x, 'Скрытность') + 2 * T(x, 'ten'));
@@ -35356,6 +35362,7 @@ function SCN(g) {
   const friendly = foes.length && (r.paid || (fac && fac.pact)) && r.type !== 'boss';
   if (foes.length && !friendly) {
     lines.push(['n', r.type === 'boss' ? `Хозяин этого места и его свита: ${foeText(foes)}.` : `Здесь: ${foeText(foes)}.`]);
+    DV('room', g, d, r).forEach(l => lines.push(l));
     const boss = r.type === 'boss';
     ch.push({t: boss ? 'Биться с хозяином' : 'Напасть', do: act((g2, dd, rr) => fight(g2, dd, rr.foes, {room: rr.id, boss}))});
     if (!r.snuck) ch.push({t: 'Подкрасться и ударить первыми (Ловкость, Скрытность)', do: act((g2, dd, rr) => { rr.snuck = 1;
@@ -35381,7 +35388,7 @@ function SCN(g) {
     // с теми, кто говорит, можно говорить
     if (!boss && fac && (FT()[fac.t] || {}).talk && !fac.blood && signType(foes) && (FT()[signType(foes)] || {}).talk) pushTalk(g, d, ch, act, fac, r);
   } else {
-    if (friendly) { lines.push(['n', `Здесь: ${foeText(foes)}. ${A.pactPass}`]);
+    if (friendly) { lines.push(['n', `Здесь: ${foeText(foes)}. ${A.pactPass}`]); DV('room', g, d, r).forEach(l => lines.push(l));
       if (fac && fac.pact && !fac.asked) { const en = (d.fac || []).filter(B => B !== fac && !B.gone && hostile(d, fac.id, B.id))[0];
         if (en) ch.push({t: `Подбить их напасть на ${facWho(d, en, 'acc')}`, do: act((g2, dd) => { const F0 = facById(dd, fac.id); F0.asked = 1; say(dd, A.pactAsk); clash(g2, dd, F0.id, en.id, {bonus: 1.3}); return null; })}); }
       ch.push({t: 'Напасть на них, нарушив уговор', do: act((g2, dd, rr) => { const F0 = facById(dd, rr.fac); if (F0) { F0.pact = 0; F0.blood = 1; F0.alarm = (F0.alarm || 0) + 3; } rr.paid = 0; return fight(g2, dd, rr.foes, {room: rr.id, ambush: 'party'}); })}); }
@@ -35578,19 +35585,27 @@ function wanderTo(g, d, mul) {
 /* разговор: договориться или откупиться */
 function pushTalk(g, d, ch, act, f, r) {
   const A = TX().ACT || {}, F = FT()[f.t] || {};
+  const n = r ? (r.foes || []).length : (d.pending || []).length, price = Math.round((30 + 25 * d.lvl) * (1 + n / 2) / 10) * 10;
   const en = (d.fac || []).filter(B => B !== f && !B.gone && hostile(d, f.id, B.id))[0];
   ch.push({t: 'Заговорить с ними и договориться (Очарование, Дипломатия)', do: act((g2, dd, rr) => { const F0 = facById(dd, f.id);
     const h = pickH(g2, x => st(x, 'cha') + R.skill(x, 'Дипломатия')); const dc = 13 + Math.floor(dd.lvl / 2) + Math.min(4, F0.alarm || 0) - (F0.heard ? 2 : 0) - (en ? 1 : 0);
     const c = chk(g2, h, 'cha', 'Дипломатия', dc, T(h, 'diplomat') * 2);
-    if (c.ok) { F0.pact = 1; F0.met = 1; dd.roam = dd.roam.filter(x => x.fac !== F0.id); const E = en && facById(dd, en.id);
-      say(dd, fill(F.parley || A.pay, {foeI: E ? facWho(dd, E, 'ins') : 'чужими'}));
+    const pr = dd.pending && dd.pending.length ? null : rr;
+    if (c.ok) { F0.pact = 1; F0.met = 1; F0.haggle = 0; dd.roam = dd.roam.filter(x => x.fac !== F0.id); const E = en && facById(dd, en.id);
+      speak(dd, DV('parley', g2, dd, F0.id, 'yes', pr), fill(F.parley || A.pay, {foeI: E ? facWho(dd, E, 'ins') : 'чужими'}));
       if (E) dd.rooms.forEach(x => { if (x.fac === E.id && (x.foes || []).length) dd.known[x.id] = 1; });
       if (dd.pending && dd.pendFac === F0.id) { dd.pending = null; dd.pendFac = null; dd.pendKind = null; }
       C.giveXP(g2, 15 * dd.lvl, 'уговор'); return null; }
-    say(dd, A.parleyFail); alarm(g2, dd, 1, null, F0.id);
+    // чуть не дотянули — торгуются: проход за серебро
+    if (c.total >= c.dc - 3 && !F0.haggled) { F0.haggled = 1; F0.haggle = price; speak(dd, DV('parley', g2, dd, F0.id, 'haggle', pr), A.haggle); return null; }
+    speak(dd, DV('parley', g2, dd, F0.id, 'no', pr)); say(dd, A.parleyFail); alarm(g2, dd, 1, null, F0.id);
     return dd.pending && dd.pending.length ? fight(g2, dd, dd.pending, {pend: 1, title: `${dd.name}: ссора`}) : fight(g2, dd, rr.foes, {room: rr.id}); })});
-  const n = r ? (r.foes || []).length : (d.pending || []).length, price = Math.round((30 + 25 * d.lvl) * (1 + n / 2) / 10) * 10;
+  if (f.haggle) ch.push({t: `Сойтись на их цене (${R.priceText(f.haggle)})`, if: g2 => (g2.purse || 0) >= f.haggle, off: 'столько серебра нет', do: act((g2, dd, rr) => { const F0 = facById(dd, f.id);
+    g2.purse -= F0.haggle; F0.haggle = 0; F0.pact = 1; F0.met = 1; dd.roam = dd.roam.filter(x => x.fac !== F0.id);
+    speak(dd, DV('parley', g2, dd, F0.id, 'payok', dd.pending && dd.pending.length ? null : rr), A.pay);
+    if (dd.pending && dd.pendFac === F0.id) { dd.pending = null; dd.pendFac = null; dd.pendKind = null; } return null; })});
   ch.push({t: `Откупиться серебром (${R.priceText(price)})`, if: g2 => (g2.purse || 0) >= price, off: 'столько серебра нет', do: act((g2, dd, rr) => { g2.purse -= price; say(dd, A.pay);
+    speak(dd, DV('parley', g2, dd, f.id, 'payok', dd.pending && dd.pending.length ? null : rr));
     if (dd.pending && dd.pendFac === f.id) { const F0 = facById(dd, f.id); if (dd.pendKind === 'pat' && F0 && F0.pat) F0.pat.skip = dd.steps; dd.pending = null; dd.pendFac = null; dd.pendKind = null; }
     else if (rr) rr.paid = 1; return null; })});
 }
@@ -35608,7 +35623,9 @@ function listen(g, d, r) {
   const k2 = dirOf(d, d.at, x0.o), to = SIDE(k2).to;
   if (F.talk && F.hear) { const en = f && (d.fac || []).filter(B => B !== f && !B.gone && hostile(d, f.id, B.id))[0];
     if (f) { f.heard = 1; f.met = 1; } if (en) en.met = 1;
-    say(d, `${h.name} прижимается ухом к камню у хода ${to}. ` + fill(F.hear[(x0.r.v + d.steps) % F.hear.length], {foe: en ? facWho(d, en, 'nom') : 'чужие'}));
+    const dlg = DV('listen', g, d, x0.o);
+    if (dlg.length) { say(d, `${h.name} прижимается ухом к камню у хода ${to}. За стеной двое, говорят вполголоса.`); speak(d, dlg); }
+    else say(d, `${h.name} прижимается ухом к камню у хода ${to}. ` + fill(F.hear[(x0.r.v + d.steps) % F.hear.length], {foe: en ? facWho(d, en, 'nom') : 'чужие'}));
     if (f && f.pat) { f.pat.known = 1; say(d, 'Из разговоров ясно и то, где ходит их дозор: тропа теперь как на ладони.'); } }
   else { if (f) f.met = 1; say(d, `${h.name} слушает у хода ${to}. ${A.hearBeast}`); }
   if (occ.length > 1) say(d, `И не только там: ${occ.slice(1).map(y => SIDE(dirOf(d, d.at, y.o)).to).join(' и ')} тоже кто-то есть.`);
@@ -35863,7 +35880,8 @@ C.dgPaint = function (cv, d, anim, big) {
       x.fillStyle = '#f3d58f'; x.strokeStyle = '#2a1d10'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(r2, 0); x.lineTo(-r2 * 0.6, -r2 * 0.62); x.lineTo(-r2 * 0.25, 0); x.lineTo(-r2 * 0.6, r2 * 0.62); x.closePath(); x.fill(); x.stroke(); x.restore(); }
     else { x.fillStyle = '#f3d58f'; x.strokeStyle = '#2a1d10'; x.lineWidth = 1.5; x.beginPath(); x.arc(mx, my, rs * 0.32, 0, 7); x.fill(); x.stroke(); }
     // компас
-    const kr = W < 600 ? 20 : 28, kx = W - kr - 22, ky = kr + 22 + (big && W < 600 ? 40 : 0); x.save(); x.translate(kx, ky);
+    const faceUp = !big && cv.parentElement && cv.parentElement.querySelector('.sface'); // лицо говорящего в шапке — компас уходит влево, под подпись
+    const kr = W < 600 ? 20 : 28, kx = faceUp ? kr + 24 : W - kr - 22, ky = faceUp ? kr + 62 : kr + 22 + (big && W < 600 ? 40 : 0); x.save(); x.translate(kx, ky);
     x.fillStyle = 'rgba(20,14,8,.6)'; x.strokeStyle = 'rgba(214,190,140,.7)'; x.lineWidth = 1.5; x.beginPath(); x.arc(0, 0, kr, 0, 7); x.fill(); x.stroke();
     for (let i = 0; i < 4; i++) { x.save(); x.rotate(i * Math.PI / 2); x.fillStyle = i === 0 ? '#e58a7f' : '#e7c983'; x.beginPath(); x.moveTo(0, -kr + 6); x.lineTo(4, 0); x.lineTo(-4, 0); x.closePath(); x.fill(); x.restore(); }
     x.font = '600 11px Georgia,serif'; x.textAlign = 'center'; x.textBaseline = 'middle'; x.fillStyle = '#f0dcae';
@@ -43020,7 +43038,7 @@ C.shopDailyText = function (g) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mw1zyvg8"></script><script>
+</script><script src="world.js?v=mw3iyt8q"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
