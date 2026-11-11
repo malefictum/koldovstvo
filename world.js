@@ -53176,6 +53176,37 @@ if (C.buyPrice && C._bpW2base) { const bp0 = C.buyPrice, base = C._bpW2base; C.b
     const hol = C.holidayPriceMul ? C.holidayPriceMul(g, x) : 1, k = p / (b * hol), kk = Math.max(P().priceMin, Math.min(P().priceMax, k));
     return Math.abs(kk - k) < 1e-9 ? p : Math.max(1, Math.round(b * hol * kk)); } catch (e) { return p; } }; }
 C.w2priceSpan = () => [P().priceMin, P().priceMax];
+
+/* ---------- вкус игрока (волна D2): склонности по выборам — бой, разговор, скрытность, подземелья, обряды и вера, торг
+   и ремесло, семья. Считает w2_taste.js (через C.choose и бои); здесь — общий счёт и множители. Множитель категории —
+   от 1 − tasteShift до 1 + tasteShift (по умолчанию ±20%), пока выборов меньше tasteMin — ровно 1: ничего не сдвигается.
+   Ничего не закрывает и нигде не показывается. Состояние — g.w2pace.taste. ---------- */
+C.TASTE_CATS = ['fight', 'talk', 'sneak', 'dungeon', 'faith', 'trade', 'family'];
+Object.assign(C.W2PACE, Object.assign({tasteMin: 12, tasteShift: 0.2, tasteCap: 240}, C.W2PACE));
+const TS = g => { const s = S(g); const t = s.taste = s.taste || {}; C.TASTE_CATS.forEach(k => { if (typeof t[k] !== 'number') t[k] = 0; }); return t; };
+const tasteTot = t => C.TASTE_CATS.reduce((a, k) => a + (t[k] || 0), 0);
+C.w2taste = function (g, cat, w) {
+  if (!isFree(g) || !C.TASTE_CATS.includes(cat)) return;
+  const t = TS(g); t[cat] += (w == null ? 1 : w);
+  const tot = tasteTot(t); if (tot > P().tasteCap) C.TASTE_CATS.forEach(k => { t[k] = t[k] * P().tasteCap * 0.8 / tot; }); // старое понемногу забывается
+};
+C.w2tasteOn = g => !!(isFree(g) && !P().off && g.w2pace && g.w2pace.taste && tasteTot(g.w2pace.taste) >= P().tasteMin);
+C.w2tasteMul = function (g, cat) {
+  if (!C.w2tasteOn(g) || !C.TASTE_CATS.includes(cat)) return 1;
+  const t = g.w2pace.taste, base = 1 / C.TASTE_CATS.length, sh = (t[cat] || 0) / tasteTot(t);
+  return 1 + P().tasteShift * Math.max(-1, Math.min(1, (sh - base) / base));
+};
+/* насколько вкус выражен: 0 — нет вовсе, tasteShift — самый яркий */
+C.w2tasteStrength = g => (C.w2tasteOn(g) ? Math.max(...C.TASTE_CATS.map(k => C.w2tasteMul(g, k) - 1), 0) : 0);
+/* веса {ключ: вес} и карта {ключ: категория}: множит на месте, то же и возвращает */
+C.w2tasteW = function (g, wt, map) { if (!C.w2tasteOn(g) || !wt) return wt; Object.keys(wt).forEach(k => { const c = map && map[k]; if (c) wt[k] *= C.w2tasteMul(g, c); }); return wt; };
+/* выбрать категорию по вкусу (взвешенно), из данного списка */
+C.w2tastePick = function (g, cats) { const ws = cats.map(c => Math.max(0, C.w2tasteMul(g, c) - 0.95)); const tot = ws.reduce((a, b) => a + b, 0); if (!tot) return null;
+  let x = R.rand() * tot; for (let i = 0; i < cats.length; i++) { x -= ws[i]; if (x < 0) return cats[i]; } return cats[cats.length - 1]; };
+/* отладка: профиль для тестов, игроку не показывается */
+C.w2tasteProfile = function (g) { const t = Object.assign({}, (g && g.w2pace && g.w2pace.taste) || {}), tot = tasteTot(t), mul = {}, share = {};
+  C.TASTE_CATS.forEach(k => { mul[k] = C.w2tasteMul(g, k); share[k] = tot ? (t[k] || 0) / tot : 0; });
+  return {n: tot, on: C.w2tasteOn(g), raw: t, share, mul, top: tot ? C.TASTE_CATS.slice().sort((a, b) => (t[b] || 0) - (t[a] || 0))[0] : null}; };
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -56556,4 +56587,2261 @@ C.wbCard = function (x, h) { const out = card0.apply(this, arguments); if (!x) r
   if (x.magic && C.wbRelicOf(x.id)) { out.kind = 'реликвия'; x.price = 0; }
   if (x.honor) { const F = C.FACTIONS[x.honor.fac]; out.head = 'Чей знак'; out.fx = (x.notes || '').split(' · ').filter(Boolean); out.lore = ''; out.story.push(x.lore); out.story.push(`Жалован силой «${F.name}». Действует в её землях, а в землях её врагов мешает. За измену его отнимут.`); }
   return out; };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* w2_dgprep.js */
+/* Колдовство — w2_dgprep (волна D2): подземелье готовится к возвращению. Без DOM.
+   Отряд дрался в подземелье, ушёл, не добив хозяина (g.dgSaved — dungeon.js), и вернулся. Тогда:
+   • тревога групп сохраняется (как была при уходе; у тех, чью кровь пролили, — не ниже C.DGPREP.alarmKeep);
+   • у входа встают часовые: в ближней к входу каморе — отряд из тварей той группы, что пострадала больше всех;
+   • добавляются 1–2 ловушки в ближних каморах: бубенцы и яма;
+   • один ход закрыт свежим завалом — его можно разобрать, но грохот разнесётся по ходам (тревога).
+   Если отряд выждал больше C.DGPREP.scatterDays дней, часть стражи разбрелась: часовых меньше, у стражи по каморам — не все,
+   тревога вполовину. Приметы у входа и у ходов это отражают (свежие следы и хворост — или старые, заветренные следы).
+   Состояние — в самом подземелье: d.d2f (дрались), d.d2day (последний день внутри), d.d2prep {n, day, away}; камора r.sentry,
+   ловушка r.trap.d2, ход e.d2rubble. Старые сохранения: без меток — ничего не меняется. Все числа — в C.DGPREP. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C || !C.dungeonEnter || !C.DG_API) return;
+C.DGPREP = Object.assign({scatterDays: 7, alarmKeep: 2, sentryMul: 0.6, sentryAway: 0.35, traps: 2, trapDC: 12, rubbleNoise: 2, rubbleHours: 1, dropAway: 0.5}, C.DGPREP || {});
+const K = () => C.DGPREP;
+const A = () => C.DG_API;
+const FT = () => (C.DGT || {}).FAC || {};
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const pickV = (list, k) => list[Math.abs(k) % list.length];
+const other = (e, id) => (e.a === id ? e.b : e.a);
+const PEOPLE = ['vataga', 'kult', 'grabiteli', 'gortsy', 'podzemye'];
+const kindOf = t => PEOPLE.includes(t) ? 'ppl' : t === 'mertvye' || t === 'istukany' ? 'dead' : t === 'nechist' ? 'nech' : 'beast';
+
+/* ---------- тексты ---------- */
+C.DGPREP_T = {
+  door: {ppl: ['На ступенях свежие следы, у двери навален хворост: здесь вас ждут.', 'У входа натоптано, на камне — свежая зола от костерка. Кто-то сидел тут дозором и ушёл совсем недавно.', 'Под сводом входа кто-то вбил колья и натянул между ними верёвку. Видно, что после вашего прихода здесь крепко взялись за дело.'],
+    dead: ['На ступенях иней, хотя снаружи тепло: мёртвые подошли к порогу ближе, чем прежде.', 'У входа кости сложены в ряд, черепами наружу, будто кто-то выставил стражу из тех, кто уже никого не боится.'],
+    nech: ['На пороге рассыпана сажа и натыканы сучья: нечисть чует, что вы вернулись, и стережёт подступы.', 'У входа кто-то переплёл ветки и навязал узлов. Нечисть так метит своё, когда ждёт чужих.'],
+    beast: ['У входа свежий помёт и обглоданные кости, их стало больше. Гнездо растревожено и стережёт подступы.', 'Земля у входа изрыта когтями: потревоженные твари теперь держатся ближе к выходу.']},
+  away: {ppl: ['На ступенях следы, но старые, заветренные, а хворост у двери отсырел и осел. Ждали вас долго, да, видно, надоело ждать: часть стражи разбрелась.', 'У входа холодное кострище, присыпанное листвой. Дозор тут стоял, но давно его никто не сменял.'],
+    dead: ['Иней на ступенях стаял, кости у входа раскиданы. Мёртвые ждали, а потом разбрелись по своим углам.'],
+    nech: ['Сажа на пороге размыта дождями, узлы на ветках истрепались. Нечисть ждала, да забыла.'],
+    beast: ['Следы у входа старые, помёт высох. Твари разошлись по своим норам, хотя в глубине кто-то остался.']},
+  sentry: {ppl: 'Это часовые: их поставили здесь после вашего прошлого прихода, и спать они не собираются.', dead: 'Мёртвые встали здесь, у самого входа, будто кто-то поставил их на часах.',
+    nech: 'Нечисть держится тут, у порога: стережёт ход, которым вы пришли в прошлый раз.', beast: 'Твари залегли тут, у самого входа: растревоженное гнездо стережёт подступы.'},
+  exitSentry: 'оттуда тянет дымком и слышно, как кто-то переминается: там стерегут',
+  exitSentryB: 'оттуда пахнет зверем и слышно, как кто-то ворочается у самого прохода',
+  exitRubble: ['завален камнями и брёвнами, завал свежий', 'забит землёй и битым камнем, сверху свежие следы лопаты', 'засыпан, и засыпан недавно: из завала торчат свежие щепки'],
+  rubbleNote: 'Ход завален, и завал свежий: после вашего прихода его нарочно засыпали.',
+  clear: ['Разбирали завал час: камень за камнем, бревно за бревном. Грохот такой, что слышно, наверное, до самой глубины, но ход открыт.',
+    'Брёвна пошли со скрежетом, камни посыпались с грохотом. Час работы — и проход свободен, только тишины после этого здесь не жди.'],
+  trapYama: 'плиты пола у прохода лежат неровно, будто их недавно поднимали',
+  trapZvon: 'у самого порога что-то тускло блеснуло на нитке',
+};
+
+/* ---------- метки: дрались и когда были внутри ---------- */
+const be0 = C.battleEnd;
+C.battleEnd = function (g, S, spec) { try { if (spec && spec.setupKey === 'dungeon' && g && g.dungeon) { g.dungeon.d2f = 1; g.dungeon.d2day = g.day; } } catch (e) {} return be0.apply(this, arguments); };
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try { const d = g && g.dungeon; if (sc && id === 'dungeon' && d && Array.isArray(d.rooms)) { d.d2day = g.day; if (d.d2prep) decorate(g, d, sc); } } catch (e) {}
+  return sc;
+};
+
+/* ---------- возвращение ---------- */
+const en0 = C.dungeonEnter;
+C.dungeonEnter = function (g, kind, o) {
+  const saved = o && o.poi && g.dgSaved && g.dgSaved[o.poi];
+  const r = en0.apply(this, arguments);
+  try { if (saved && g.dungeon === saved && saved.d2f && !saved.bossDown) C.dgPrepare(g, saved); } catch (e) {}
+  return r;
+};
+const facOk = f => f && !f.gone;
+/* какая группа ставит часовых: та, чью кровь пролили, а из таких — самая встревоженная */
+const leadFac = d => (d.fac || []).filter(facOk).sort((a, b) => ((b.blood ? 10 : 0) + ((d.killed || {})[b.id] || 0) + (b.alarm || 0)) - ((a.blood ? 10 : 0) + ((d.killed || {})[a.id] || 0) + (a.alarm || 0)))[0] || null;
+const poolOf = (d, f) => { const P = ((FT()[f.t] || {}).pool || []).filter(id => C.beast(id) && C.beast(id).level <= d.lvl + 1); return P.length ? P : ((FT()[f.t] || {}).pool || []).filter(id => C.beast(id)).slice(0, 1); };
+C.dgPrepare = function (g, d) {
+  if (!d || !Array.isArray(d.rooms) || !d.rooms.length) return null;
+  const P = K(), days = Math.max(0, (g.day || 1) - (d.d2day != null ? d.d2day : g.day || 1)), away = days > P.scatterDays;
+  const rnd = A().rng('d2prep:' + d.seed + ':' + (g.day || 1) + ':' + ((d.d2prep || {}).n || 0));
+  // снять прежнее: часовые и завал прошлого возвращения не копятся
+  d.rooms.forEach(r => { if (r.sentry && !r.cleared) { r.foes = (r.foes || []).slice(0, r.sentryKeep || 0); } delete r.sentry; delete r.sentryKeep; });
+  d.edges.forEach(e => { delete e.d2rubble; });
+  const f = leadFac(d);
+  // тревога: кто потерял своих — помнит
+  (d.fac || []).filter(facOk).forEach(x => { if (x.blood || (d.killed || {})[x.id]) x.alarm = Math.max(x.alarm || 0, P.alarmKeep); if (away) x.alarm = Math.floor((x.alarm || 0) / 2); });
+  if (away) d.alarm = Math.floor((d.alarm || 0) / 2);
+  const D = A().depthOf(d);
+  const walk = e => !e.secret && !e.lock;
+  const near0 = d.edges.filter(e => (e.a === 0 || e.b === 0) && walk(e)).map(e => d.rooms[other(e, 0)]).filter(r => r && !r.hidden && !['boss', 'sokr'].includes(r.type));
+  // часовые
+  let sentry = null;
+  if (f && near0.length) {
+    sentry = near0.slice().sort((a, b) => ((a.foes || []).length && !a.cleared ? 1 : 0) - ((b.foes || []).length && !b.cleared ? 1 : 0) || a.id - b.id)[0];
+    const pool = poolOf(d, f), budget = Math.max(1, Math.round(C.budget(g, away ? P.sentryAway : P.sentryMul)));
+    let out = C.compose(pool.slice(), budget); if (!out.length) out = [pool[0]]; if (away) out = out.slice(0, 1);
+    const had = !sentry.cleared ? (sentry.foes || []).slice() : [];
+    sentry.sentryKeep = had.length; sentry.foes = had.concat(out); sentry.cleared = 0; sentry.sentry = 1; if (!had.length) sentry.fac = f.id; delete sentry.paid;
+  }
+  // ловушки: бубенцы, потом яма — в ближних к входу каморах без своей ловушки
+  const trapCand = d.rooms.filter(r => r.id !== 0 && !r.hidden && r !== sentry && !['boss', 'sokr'].includes(r.type) && !(r.trap && !r.trap.off) && (D[r.id] || 9) <= 3)
+    .sort((a, b) => (D[a.id] || 9) - (D[b.id] || 9) || a.id - b.id);
+  const nT = Math.min(trapCand.length, 1 + (rnd() < 0.5 ? 1 : 0), P.traps);
+  const kinds = ['zvon', 'yama'];
+  for (let i = 0; i < nT; i++) { const r = trapCand[i]; r.trap = {k: kinds[i], dc: P.trapDC + Math.floor(d.lvl / 2), d2: 1}; }
+  // завал: ход вглубь из ближних камор; не тот, которым входят к часовым
+  const deep = d.edges.filter(e => walk(e) && e.a !== 0 && e.b !== 0 && Math.min(D[e.a] || 0, D[e.b] || 0) >= 1 && Math.min(D[e.a] || 0, D[e.b] || 0) <= 2
+    && !d.rooms[e.a].hidden && !d.rooms[e.b].hidden).sort((a, b) => Math.min(D[a.a], D[a.b]) - Math.min(D[b.a], D[b.b]) || a.id - b.id);
+  const rub = deep.length ? deep[Math.floor(rnd() * Math.min(deep.length, 3))] : null;
+  if (rub) rub.d2rubble = 1;
+  // часть стражи разбрелась
+  if (away) { d.rooms.filter(r => r.type === 'strazh' && !r.cleared && (r.foes || []).length > 1 && r !== sentry).forEach(r => { if (rnd() < P.dropAway) r.foes = r.foes.slice(0, -1); });
+    (d.fac || []).forEach(x => { if (x.pat && (x.pat.foes || []).length > 1) x.pat.foes = x.pat.foes.slice(0, Math.ceil(x.pat.foes.length / 2)); }); }
+  d.d2prep = {n: ((d.d2prep || {}).n || 0) + 1, day: g.day, away: away ? 1 : 0, ft: f ? f.t : null, sentry: sentry ? sentry.id : null, rubble: rub ? rub.id : null, traps: trapCand.slice(0, nT).map(r => r.id)};
+  C.note(g, away ? `${d.name}: у входа старые следы — ждали вас, да не дождались.` : `${d.name}: здесь вас ждут. У входа свежие следы.`);
+  return d.d2prep;
+};
+
+/* ---------- сцена: приметы, часовые, завал ---------- */
+function decorate(g, d, sc) {
+  const T = C.DGPREP_T, p = d.d2prep, r = d.rooms[d.at], kk = kindOf(p.ft), DIRS = A().DIRS, dirOf = A().dirOf;
+  if (!r) return;
+  if (d.at === 0 && !d.pending) sc.lines.splice(Math.min(1, sc.lines.length), 0, ['n', pickV((p.away ? T.away : T.door)[kk] || T.door.ppl, hsh(d.seed + p.n))]);
+  if (r.sentry && !r.cleared && (r.foes || []).length) { const at = sc.lines.findIndex(l => /^Здесь: /.test(l[1] || '')); sc.lines.splice(at < 0 ? sc.lines.length : at + 1, 0, ['n', T.sentry[kk]]); }
+  // строки ходов: примета у хода к часовым, к ловушке, у завала
+  const exits = d.edges.filter(e => (e.a === d.at || e.b === d.at) && (!e.secret || e.found));
+  exits.forEach(e => {
+    const to = other(e, d.at), tr = d.rooms[to]; let base = '';
+    try { base = C.dungeonExitLine(g, e); } catch (x) { return; }
+    const li = sc.lines.findIndex(l => l[1] === base); if (li < 0) return;
+    let add = '';
+    if (e.d2rubble) add = pickV(T.exitRubble, e.id);
+    else if (tr.sentry && !tr.cleared && (tr.foes || []).length) add = kk === 'ppl' ? T.exitSentry : T.exitSentryB;
+    else if (!d.seen[to] && tr.trap && tr.trap.d2 && !tr.trap.off && !tr.trap.found) add = tr.trap.k === 'yama' ? T.trapYama : T.trapZvon;
+    if (add) sc.lines[li] = ['n', base.replace(/\.$/, '') + ` — ${add}.`];
+  });
+  // завал: ход закрыт, его можно разобрать с шумом
+  const rubs = exits.filter(e => e.d2rubble); if (!rubs.length) return;
+  const hot = (r.foes || []).length && !r.cleared && !r.paid && !((d.fac || []).find(f => f.id === r.fac) || {}).pact; // при живых врагах завал не разбирают
+  const nextI = () => (sc.choices.length ? Math.max(...sc.choices.map(c => c.i || 0)) + 1 : 0);
+  rubs.forEach(e => {
+    const k = dirOf(d, d.at, other(e, d.at)), lab = DIRS[k][2];
+    const ix = sc.choices.findIndex(c => c.label === lab || String(c.label || '').startsWith(lab + ' —'));
+    if (!sc.lines.some(l => l[1] === T.rubbleNote)) sc.lines.push(['n', T.rubbleNote]);
+    if (hot || (ix >= 0 && sc.choices[ix].dis)) return; // путь и так заступают — сперва с ними
+    if (ix >= 0) sc.choices[ix] = Object.assign({}, sc.choices[ix], {dis: 'ход завален', do: null, go: null});
+    sc.choices.splice(ix >= 0 ? ix + 1 : sc.choices.length, 0, {i: nextI(), label: `Разобрать завал ${DIRS[k][3]} (шумно)`, t: `Разобрать завал ${DIRS[k][3]} (шумно)`, d2rubble: e.id,
+      do: g2 => C.dgRubbleClear(g2, e.id)});
+  });
+}
+C.dgRubbleClear = function (g, eid) {
+  const d = g.dungeon, e = d && d.edges[eid]; if (!e || !e.d2rubble) return 'dungeon';
+  d.msg = []; e.d2rubble = 0; e.d2cleared = 1; C.passH(g, K().rubbleHours);
+  A().alarm(g, d, K().rubbleNoise, pickV(C.DGPREP_T.clear, eid + (g.day || 0)));
+  return 'dungeon';
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* w2_estate2.js */
+/* Колдовство — w2_estate2 (волна D2): поручения владений, добрые события, горница с трофеями, угроза семье. Без DOM.
+   Владения — хозяйство отряда (estate.js: надел, двор, корчма, кузня, знахарка, угол; повозка не в счёт) и дом семьи
+   (жена, муж или мать героя — w2_family.js, w2_hearth.js). Всё приходит грамотками (g.mail → showMail) с кнопками решений.
+   • Поручения: раз в седмицу приказчик (или домашние) пишет, что можно поручить, — на выбор два дела и «не нужно»:
+     книжник разузнаёт о сказании или подземелье (через несколько дней — три верных сведения: кто просит и где, что за беда,
+     что говорят; или кто живёт под землёй, кто хозяин, что за дверьми); дворовые встают на защиту от набега (набег реже);
+     знахарская изба варит зелье; сбор трав; набор сторожей (набег реже насовсем, пожар чуть реже).
+   • Добрые события, не одни беды: погорельцы просят приюта, проезжий гусляр, именитый гость с рекомендательной грамотой,
+     работник оказался беглым, просьба старосты, клад при копке. Каждое — грамотка с выбором; любовь игрока к семейным делам
+     (w2_pace: C.w2tasteMul 'family') делает их чуть чаще.
+   • Горница с трофеями: именной враг (w2_foenames: u.pname) пал в бою — с него трофей; дома (там, где владение или семья)
+     его вешают в горнице — дело в летописи славы (C.fameDeed 'trophy'), молва идёт по краям.
+   • Угроза семье: редкое событие — грамотка «за домом следят» с ясным сроком словами и дело у дома (Q.make, срок j.dl).
+     Успели — тихо и спасибо. Опоздали — потеря: добро из сундука и деньги на хозяйство, работник ушёл, или ранен родич.
+     Детей это не касается никогда.
+   • Состояние: g.d2est = {week, ord: [...], ev, thr, troph: [...], hurt: {}}; на владении e.d2guard (до какого дня), e.d2watch.
+     Все числа — в C.D2E. Старые сохранения: без g.d2est всё начинается с чистого листа. Только Вечный мир. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W, Q = C && C.Q;
+if (!C || !C.CAMPS || !C.CAMPS.free || !Q || !C.ESTATE) return;
+const FREE = C.CAMPS.free;
+const isFree = g => !!(g && g.camp === 'free' && g.heroes);
+C.D2E = Object.assign({ordGap: 7, knDays: 3, brewDays: 3, herbDays: 2, guardDays: 14, guardK: 0.3, watchK: 0.6, watchFire: 0.8,
+  knCost: 1500, brewCost: 400, watchCost: 3000, evGap: 6, evP: 0.07, thrGap: 45, thrP: 0.012, thrDays: 5, thrLv: 2,
+  pogorCost: 300, guslCost: 100, guestCost: 500, starCost: 800, kladMin: 400, kladMax: 1500, hurtDays: 14, trophMax: 12}, C.D2E || {});
+const K = () => C.D2E;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const pickV = (list, k) => list[Math.abs(k) % list.length];
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const nodes = () => FREE.map.nodes;
+const nName = id => (nodes()[id] || {}).name || 'село';
+const S = g => { const s = g.d2est = g.d2est && typeof g.d2est === 'object' ? g.d2est : {}; s.ord = s.ord || []; s.troph = s.troph || []; s.hurt = s.hurt || {}; return s; };
+const decl = (n, sex) => (Q.decl ? Q.decl(n, sex || 'm') : {g: n, d: n, a: n, i: n, p: n});
+
+/* ---------- дома: хозяйства и семья ---------- */
+const STEW = ['Мирон', 'Будимир', 'Ждан', 'Тихон', 'Неждан', 'Добрыня', 'Вышата'];
+C.d2Homes = function (g) {
+  if (!isFree(g)) return [];
+  const out = [];
+  C.estates(g).forEach((e, i) => { if (!C.ESTATE[e.kind] || C.ESTATE[e.kind].mobile || e.node == null) return;
+    out.push({id: 'e:' + e.kind + '@' + e.node, node: e.node, est: e, kind: e.kind, name: C.estateName(g, e)}); });
+  Object.keys(g.folkRel || {}).forEach(key => { const r = g.folkRel[key]; if (!r || !(r.bond === 'wed' || r.bond === 'kin') || (r.camp && r.camp !== g.camp)) return;
+    if (!C.alive(g).some(h => h.id === r.who)) return; const at = key.split('@')[1]; if (!nodes()[at]) return;
+    out.push({id: 'f:' + key, node: at, key, rel: r, kind: 'fam', name: `Дом семьи (${nName(at)})`}); });
+  return out;
+};
+const homeBy = (g, id) => C.d2Homes(g).find(h => h.id === id) || null;
+const sender = (g, home) => {
+  if (home.key) { const [role, at] = home.key.split('@'); let p = null; try { p = C.folkPerson(g, role, at); } catch (e) {}
+    if (p) return {from: p.n, t: p.t, face: p.face || '', sex: p.sex, kind: home.rel.bond === 'kin' ? 'kin' : 'wed', to: (C.alive(g).find(h => h.id === home.rel.who) || {}).name}; }
+  const nm = pickV(STEW, hsh(home.id)); return {from: nm, t: `приказчик, ${(C.ESTATE[home.kind] || {name: 'хозяйство'}).name.toLowerCase()} (${nName(home.node)})`, face: '', sex: 'm', kind: 'd2'};
+};
+const lead = g => (C.alive(g).filter(h => h.kind !== 'merc')[0] || C.alive(g)[0] || {name: ''});
+C.d2Mail = function (g, home, text, acts, d2) {
+  const s = sender(g, home), to = s.to || lead(g).name;
+  const m = {from: s.from, t: s.t, face: s.face, sex: s.sex, kind: s.kind, head: home.key ? null : 'Из владений', to, text, gift: null, day: g.day, d2: Object.assign({home: home.id}, d2 || {})};
+  if (acts && acts.length) m.acts = acts;
+  g.mail = (g.mail || []).concat(m).slice(-6);
+  return m;
+};
+const pendingD2 = (g, type) => (g.mail || []).some(m => m && m.d2 && (!type || m.d2.type === type));
+
+/* ---------- поручения ---------- */
+const herbsOk = h => h.kind === 'fam' || ['izba', 'dvor', 'znahar'].includes(h.kind);
+const knTarget = g => {
+  const sv = Object.entries(g.dgSaved || {}).filter(([, d]) => d && Array.isArray(d.rooms) && !d.bossDown && !d.d2kn);
+  if (sv.length) return {dg: sv[0][0]};
+  const T = (C.talesOpen ? C.talesOpen(g) : []).filter(t => !(S(g).knTales || []).includes(t.id) && !(g.jobs || []).some(j => j.tale === t.id))[0];
+  return T ? {tale: T.id} : null;
+};
+C.D2_ORD = {
+  kn: {t: 'Послать книжника разузнать', ok: (g, h) => !!knTarget(g), cost: () => K().knCost, days: () => K().knDays,
+    ask: g => { const x = knTarget(g); return x && x.dg ? 'Есть при доме человек грамотный, книжник. За плату сходит, расспросит и запишет всё, что узнает о том подземелье, откуда вы в прошлый раз ушли.' : 'Есть при доме книжник. За плату он разузнает про одно сказание, о котором шепчутся в округе: кто просит, о чём и что за беда.'; }},
+  guard: {t: 'Поставить дворовых на защиту', ok: (g, h) => h.est && h.kind !== 'ugol' && !h.est.trouble && !((h.est.d2guard || 0) >= g.day), cost: () => 0,
+    ask: () => 'Говорят, по округе ходят лихие люди. Дворовые готовы вооружиться чем есть и сторожить по очереди. Пусть стерегут?'},
+  brew: {t: 'Знахарке сварить зелье', ok: (g, h) => h.kind === 'znahar' && !h.est.trouble, cost: () => K().brewCost, days: () => K().brewDays,
+    ask: () => 'Травница спрашивает, не сварить ли вам целебного зелья к следующему приходу. Только на травы и мёд надо дать.'},
+  herbs: {t: 'Отправить людей за травами', ok: (g, h) => herbsOk(h) && !(h.est && h.est.trouble), cost: () => 0, days: () => K().herbDays,
+    ask: () => 'Сейчас самая пора для трав: подорожник, зверобой. Можно послать девок с корзинами по опушкам.'},
+  watch: {t: 'Нанять сторожей', ok: (g, h) => h.est && h.kind !== 'ugol' && !h.est.d2watch && !h.est.trouble, cost: () => K().watchCost,
+    ask: () => 'Хорошо бы взять двух сторожей насовсем: с колотушкой ночью и с собакой. Платить им надо вперёд, зато спать будем спокойно.'},
+};
+C.d2OrderOffer = function (g, force) {
+  if (!isFree(g)) return null; const s = S(g);
+  if (!force && s.week != null && g.day - s.week < K().ordGap) return null;
+  if (pendingD2(g, 'ord')) return null;
+  const hs = C.d2Homes(g); if (!hs.length) return null;
+  s.week = g.day;
+  const home = hs[hsh('ord' + g.day) % hs.length];
+  const can = Object.keys(C.D2_ORD).filter(k => C.D2_ORD[k].ok(g, home)); if (!can.length) return null;
+  const n = Math.min(can.length, 1 + (hsh(home.id + g.day) % 2)); const st = hsh('o' + g.day + home.id);
+  const pick = []; for (let i = 0; i < can.length && pick.length < n; i++) pick.push(can[(st + i) % can.length]);
+  const lines = pick.map(k => C.D2_ORD[k].ask(g, home));
+  const text = `«${home.key ? 'Всё у нас ладно, не тревожься.' : 'Кланяюсь хозяевам. На хозяйстве порядок.'} ${lines.join(' ')} Отпиши, как велишь.»`;
+  const acts = pick.map(k => { const c = C.D2_ORD[k].cost(g); return {id: k, t: C.D2_ORD[k].t + (c ? ` (${R.priceText(c)})` : '')}; }).concat({id: 'no', t: 'Пусть всё идёт как идёт'});
+  return C.d2Mail(g, home, text, acts, {type: 'ord'});
+};
+function orderDo(g, m, id) {
+  const home = homeBy(g, m.d2.home), O = C.D2_ORD[id];
+  if (!home || !O) { C.note(g, 'Грамотку спрятали за пазуху.'); return 'no'; }
+  const c = O.cost(g); if (c && (g.purse || 0) < c) { C.note(g, `В кошеле нет ${R.priceText(c)}: поручение придётся отложить.`); return 'poor'; }
+  if (c) g.purse -= c;
+  const s = S(g);
+  if (id === 'guard') { home.est.d2guard = g.day + K().guardDays; C.note(g, `${home.name}: дворовые взяли в руки вилы и топоры и сторожат по очереди.`); return 'ok'; }
+  if (id === 'watch') { home.est.d2watch = 1; C.note(g, `${home.name}: наняты сторожа. Ночью у ворот стучит колотушка.`); return 'ok'; }
+  const o = {k: id, home: home.id, due: g.day + O.days(g), day: g.day};
+  if (id === 'kn') { const x = knTarget(g); if (!x) { if (c) g.purse += c; C.note(g, 'Разузнавать оказалось нечего.'); return 'no'; } Object.assign(o, x); if (x.tale) s.knTales = (s.knTales || []).concat(x.tale); if (x.dg && g.dgSaved[x.dg]) g.dgSaved[x.dg].d2kn = 1; }
+  s.ord.push(o); C.note(g, `${home.name}: поручение передано с гонцом.`); return 'ok';
+}
+/* три верных сведения */
+C.d2KnFacts = function (g, o) {
+  if (o.dg) { const d = (g.dgSaved || {})[o.dg]; if (!d) return null; const A = C.DG_API;
+    const who = (d.fac || []).filter(f => !f.gone).map(f => A.facWho(d, f, 'nom')); const boss = d.rooms.find(r => r.type === 'boss');
+    const bn = boss && (boss.foes || [])[0] ? ((C.beast(boss.foes[0]) || {}).name || '').toLowerCase() : '';
+    const lock = d.edges.some(e => e.lock && !e.open), sec = d.edges.some(e => e.secret && !e.found);
+    if (boss) { d.known = d.known || {}; d.known[boss.id] = 1; }
+    return {about: d.name, facts: [
+      who.length > 1 ? `Под землёй живут не одни: там ${who.slice(0, -1).join(', ')} и ${who[who.length - 1]}, и меж собой они не в ладу.` : `Хозяйничают там ${who[0] || 'те, кого лучше не будить'}.`,
+      bn ? `В самой глубине, в логове, сидит главный — ${bn}.` : 'Хозяин места сидит в самой глубине и наверх не выходит.',
+      lock ? 'Самое ценное заперто за окованной дверью: без отмычки или крепкого плеча не войти.' : sec ? 'Старики помнят, что там есть тайный ход: ищите, где тянет сквозняком.' : 'Ходы там простые, без запоров: кто дойдёт до глубины, тот и возьмёт.']}; }
+  const T = C.TALES && C.TALES[o.tale]; if (!T) return null;
+  const at = [].concat(T.at || [])[0], TH = T.thr && Q.THREAT[T.thr];
+  return {about: T.title || 'сказание', facts: [
+    `Помощи ждёт ${T.who.n}, ${T.who.t}, и ждёт не первый день. Место — ${nName(at)}.`,
+    TH ? `Беда там нешуточная: ${TH.n}.` : 'Беда там людская, не звериная: с ней можно и словом сладить.',
+    T.rumor ? `В народе говорят так: ${T.rumor.replace(/^[«"]|[»"]$/g, '')}` : `Просят о том, чтобы ${T.ask || 'помочь'}.`]};
+};
+function orderDue(g) {
+  const s = S(g), due = s.ord.filter(o => o.due <= g.day); if (!due.length) return;
+  s.ord = s.ord.filter(o => o.due > g.day);
+  due.forEach(o => { const home = homeBy(g, o.home); if (!home) return;
+    if (o.k === 'kn') { const F = C.d2KnFacts(g, o); if (!F) return;
+      C.d2Mail(g, home, `«Книжник вернулся и вот что разузнал про ${F.about.toLowerCase().startsWith('подземел') ? 'то подземелье' : '«' + F.about + '»'}. ${F.facts.join(' ')}»`, null, {type: 'kn'});
+      C.note(g, `Книжник разузнал: ${F.facts.join(' ')}`); return; }
+    if (o.k === 'brew' && home.est) { const id = R.item('zele_lecheniya') ? 'zele_lecheniya' : 'zelye_lechenie'; home.est.store = home.est.store || {}; home.est.store[id] = (home.est.store[id] || 0) + 2;
+      C.d2Mail(g, home, '«Зелье сварено: две склянки, крепкие, на мёду. Стоят в сушильне, ждут вас.»', null, {type: 'res'}); return; }
+    if (o.k === 'herbs') { const add = ['podorozhnik', 'zveroboy'].filter(x => R.item(x));
+      if (home.est) { home.est.store = home.est.store || {}; add.forEach(x => { home.est.store[x] = (home.est.store[x] || 0) + 2; }); }
+      else if (C.famHome) { const H = C.famHome(g, home.key); add.forEach(x => { H.chest.push(x, x); }); }
+      C.d2Mail(g, home, home.key ? '«Ходили с корзинами по опушкам, набрали подорожника и зверобоя. Сушится на чердаке, положу тебе в сундук.»' : '«Травы собраны и сушатся: подорожник и зверобой. Заберёте, когда будете.»', null, {type: 'res'}); }
+  });
+}
+/* набег: дворовые и сторожа */
+if (C.estateRisk) { const rk0 = C.estateRisk; C.estateRisk = function (g, e) { const r = rk0.apply(this, arguments);
+  try { if (r && r.raid != null) { if ((e.d2guard || 0) >= (g.day || 0)) r.raid *= K().guardK; if (e.d2watch) { r.raid *= K().watchK; if (r.fire) r.fire *= K().watchFire; } } } catch (x) {} return r; }; }
+
+/* ---------- добрые события ---------- */
+const workers = h => h.est && ['izba', 'dvor', 'kuznya', 'korchma', 'znahar'].includes(h.kind);
+const village = h => ['село', 'подворье', 'мельница'].includes((nodes()[h.node] || {}).kind);
+C.D2_EV = {
+  pogor: {ok: () => true, text: (g, h) => `«${pickV(['У соседей ночью сгорел двор, вся семья в чём была. Просятся к нам до весны: угол, хлеб да тепло. Пустить?', 'Пришли погорельцы из-за реки, с детьми, с узлами. Говорят, их село выжгли. Просят приюта, хоть в сарае. Как велишь?'], hsh(h.id + g.day))}»`,
+    acts: [{id: 'yes', t: () => `Приютить (${R.priceText(K().pogorCost)} на хлеб)`}, {id: 'no', t: () => 'Отказать'}]},
+  gusl: {ok: () => true, text: (g, h) => `«${pickV(['Заезжал гусляр, ночевал у нас. Пел про чужие подвиги, а про ваши спрашивал. Сказал, что сложит песню, если попотчуем.', 'Остановился у нас проезжий гусляр, слепой на один глаз, да голос — заслушаешься. Просит ужина и ночлега, а взамен обещает песню.'], hsh(h.id + g.day))}»`,
+    acts: [{id: 'yes', t: () => `Накормить и попросить песню (${R.priceText(K().guslCost)})`}, {id: 'no', t: () => 'Не до песен'}]},
+  guest: {ok: () => true, text: (g, h) => `«Приехал гость, человек видный, при нём рекомендательная грамота от городского старшины. Ищет, у кого остановиться, и спрашивает о вас. Принять его с почётом — расход, зато дружба полезная.»`,
+    acts: [{id: 'yes', t: () => `Принять с почётом (${R.priceText(K().guestCost)})`}, {id: 'no', t: () => 'Вежливо отговориться'}]},
+  begl: {ok: (g, h) => workers(h) || h.kind === 'fam', text: (g, h) => `«Беда не беда, а дело тёмное. ${h.key ? 'Парень, что помогал по хозяйству,' : 'Новый работник'} оказался беглым: ушёл от боярина, и теперь его ищут. Работает честно, рук не жалеет. Что с ним делать?»`,
+    acts: [{id: 'hide', t: () => 'Укрыть его'}, {id: 'give', t: () => 'Выдать тем, кто ищет'}, {id: 'go', t: () => 'Отпустить с миром'}]},
+  star: {ok: (g, h) => village(h), text: (g, h) => `«Приходил староста, кланялся. Мост через ручей совсем сгнил, а миру не собрать. Просит помочь деньгами — обещает, что люди добро запомнят.»`,
+    acts: [{id: 'yes', t: () => `Дать на мост (${R.priceText(K().starCost)})`}, {id: 'no', t: () => 'Отказать'}]},
+  klad: {ok: (g, h) => h.kind === 'fam' || ['izba', 'dvor'].includes(h.kind), text: (g, h) => `«Копали погреб и наткнулись на горшок, а в нём старое серебро, позеленелое. Чьё — не знаем. ${h.key ? 'Я никому не сказала' : 'Работники молчат'}, ждём твоего слова.»`,
+    acts: [{id: 'take', t: () => 'Оставить себе'}, {id: 'gift', t: () => 'Отдать на храм и капище'}]},
+};
+C.d2Event = function (g, kind, homeId) {
+  if (!isFree(g)) return null; const hs = C.d2Homes(g); if (!hs.length) return null;
+  const home = (homeId && hs.find(h => h.id === homeId)) || hs[hsh('ev' + g.day) % hs.length];
+  const list = Object.keys(C.D2_EV).filter(k => C.D2_EV[k].ok(g, home));
+  const k = kind && C.D2_EV[kind] ? kind : pickV(list, hsh(home.id + 'k' + g.day)); if (!k) return null;
+  const E = C.D2_EV[k]; S(g).ev = g.day;
+  return C.d2Mail(g, home, E.text(g, home), E.acts.map(a => ({id: a.id, t: a.t(g, home)})), {type: 'ev', k});
+};
+const pay = (g, v) => { if ((g.purse || 0) < v) return false; g.purse -= v; return true; };
+function eventDo(g, m, id) {
+  const home = homeBy(g, m.d2.home) || {node: g.loc, name: 'Дом', id: m.d2.home}, k = m.d2.k, node = home.node;
+  const rep = (d, why) => { if (C.repAdd) C.repAdd(g, node, d, why); };
+  if (k === 'pogor') { if (id === 'yes') { if (!pay(g, K().pogorCost)) { C.note(g, 'Денег на хлеб для погорельцев не нашлось.'); return 'poor'; } rep(1, 'приютили погорельцев'); C.note(g, `${home.name}: погорельцев пустили, обогрели и накормили.`); return 'yes'; }
+    C.note(g, 'Погорельцам отказали. Они ушли дальше, к чужим дверям.'); return 'no'; }
+  if (k === 'gusl') { if (id === 'yes') { if (!pay(g, K().guslCost)) { C.note(g, 'Нечем даже попотчевать гусляра.'); return 'poor'; }
+      const dd = (g.w2deeds || []).slice().reverse().find(x => !x.black); if (dd && C.fameSong) { try { C.fameSong(g, dd.id); } catch (e) {} }
+      else if (C.fameDeed) C.fameDeed(g, 'job', {what: 'добрый приём гусляра', place: nName(node)});
+      C.note(g, 'Гусляр наелся, напился и ушёл с песней о вас. Теперь её будут петь по корчмам.'); return 'yes'; }
+    C.note(g, 'Гусляру отказали. Ушёл, бормоча что-то про скупых хозяев.'); return 'no'; }
+  if (k === 'guest') { if (id === 'yes') { if (!pay(g, K().guestCost)) { C.note(g, 'Принять гостя с почётом не на что.'); return 'poor'; }
+      rep(1, 'гость с грамотой хвалил хозяев'); const town = Object.keys(nodes()).find(x => nodes()[x].kind === 'город' && nodes()[x].reg === (nodes()[node] || {}).reg); if (town && town !== node && C.repAdd) C.repAdd(g, town, 1, 'о вас замолвил словечко именитый гость');
+      C.note(g, 'Гость уехал довольный и обещал замолвить о вас слово, где нужно.'); return 'yes'; }
+    C.note(g, 'Гостю вежливо отказали. Он уехал искать постой у других.'); return 'no'; }
+  if (k === 'begl') { if (id === 'hide') { rep(1, 'не выдали беглого'); if (C.fameListAdd) C.fameListAdd(g, 1); C.note(g, 'Беглого укрыли. Простой люд это запомнит, но и те, кто ищет, — тоже.'); return 'hide'; }
+    if (id === 'give') { rep(-1, 'выдали беглого'); g.purse = (g.purse || 0) + 300; C.note(g, `Беглого выдали. За поимку заплатили ${R.priceText(300)}, а в округе на вас косятся.`); return 'give'; }
+    C.note(g, 'Беглого отпустили, дали хлеба в дорогу. Куда он пошёл — никто не знает.'); return 'go'; }
+  if (k === 'star') { if (id === 'yes') { if (!pay(g, K().starCost)) { C.note(g, 'На мост денег не нашлось.'); return 'poor'; } rep(1, 'дали денег на мост'); C.note(g, 'Деньги на мост отданы. Мужики уже тешут брёвна.'); return 'yes'; }
+    C.note(g, 'Старосте отказали. Мост так и стоит гнилой.'); return 'no'; }
+  if (k === 'klad') { const v = Math.round((K().kladMin + (hsh(m.d2.home + m.day) % (K().kladMax - K().kladMin))) / 10) * 10;
+    if (id === 'take') { g.purse = (g.purse || 0) + v; C.note(g, `Клад оставили себе: ${R.priceText(v)} старым серебром.`); return 'take'; }
+    if (C.sideAdd) { try { C.sideAdd(g, 'kap', 1); } catch (e) {} } rep(1, 'отдали найденный клад на храм и капище'); C.note(g, 'Клад разделили между храмом и капищем. Говорят, это к добру.'); return 'gift'; }
+  return null;
+}
+
+/* ---------- горница с трофеями ---------- */
+if (C.FAME_KINDS && !C.FAME_KINDS.trophy) C.FAME_KINDS.trophy = {v: {folk: 1, oko: 0, kap: 0, nav: 0}, short: d => `повесили в горнице трофей с именного врага — ${d.what}`};
+C.TROPHY_T = {beast: ['шкура и клыки', 'череп с клыками'], dead: ['ржавый шлем', 'перстень с костяной руки'], ppl: ['пояс с бляхами', 'меч в ножнах', 'шапка с меховой опушкой']};
+C.d2TrophyAdd = function (g, u) {
+  if (!isFree(g) || !u || !u.pname) return null; const s = S(g); if (s.troph.some(t => t.n === u.pname)) return null;
+  const k = u.pbeast ? 'beast' : u.undead ? 'dead' : 'ppl', what = pickV(C.TROPHY_T[k], hsh(u.pname));
+  const t = {n: u.pname, t: u.ptitle || '', what, day: g.day}; s.troph.push(t); if (s.troph.length > K().trophMax) s.troph.shift();
+  return t;
+};
+const be0 = C.battleEnd;
+C.battleEnd = function (g, Sx, spec) { const r = be0.apply(this, arguments);
+  try { if (isFree(g) && r && r.won && Sx && Sx.units) Sx.units.filter(u => u.side === 'foe' && u.pname && (u.pchief || u.pboss) && (u.dead || u.hp <= 0)).forEach(u => C.d2TrophyAdd(g, u)); } catch (e) {}
+  return r; };
+C.d2TrophyHang = function (g) {
+  const s = S(g), list = s.troph.filter(t => !t.hung); if (!list.length) return [];
+  list.forEach(t => { t.hung = g.day; if (C.fameDeed) C.fameDeed(g, 'trophy', {what: `${t.what} — ${t.n}${t.t ? ', ' + t.t : ''}`}); });
+  C.note(g, `В горнице повесили: ${list.map(t => `${t.what}, что носил ${t.n}`).join('; ')}. Соседи заходят поглазеть, и молва идёт дальше.`);
+  return list;
+};
+
+/* ---------- угроза семье ---------- */
+const famHomes = g => C.d2Homes(g).filter(h => h.key);
+C.d2Threat = function (g, homeId) {
+  if (!isFree(g)) return null; const s = S(g); if (s.thr && !s.thr.end) return null;
+  const hs = famHomes(g); if (!hs.length) return null; const home = (homeId && hs.find(h => h.id === homeId)) || hs[hsh('thr' + g.day) % hs.length];
+  const at = home.node, keep = {loc: g.loc, pos: g.pos, posNode: g.posNode}; let j = null;
+  try { g.loc = at; if (W && W.isHex && W.isHex(g)) { const c = W.world(g).nodeAt[at]; if (c) { g.pos = {c: c.c, r: c.r}; g.posNode = at; } }
+    j = Q.make(g, 'town', {kind: 'bandits', giver: 'starosta', diff: 'mid'}); } finally { g.loc = keep.loc; g.pos = keep.pos; g.posNode = keep.posNode; if (keep.pos === undefined) delete g.pos; if (keep.posNode === undefined) delete g.posNode; }
+  if (!j) return null;
+  const snd = sender(g, home);
+  j.node = at; j.day = g.day; j.d2who = snd.t; j.dl = g.day + K().thrDays; j.d2thr = home.id; j.twist = null;
+  j.v.giver = Object.assign(Q.decl(snd.from, snd.sex), {sex: snd.sex, ppl: 'nolgrim', face: snd.face});
+  j.txt = Object.assign({}, j.txt, {intro: `${snd.from} встречает вас у ворот, бледн${snd.sex === 'f' ? 'ая' : 'ый'} от бессонницы.`, hook: 'Они стоят станом неподалёку и ждут, когда в доме станет пусто. Прогоните их, пока не поздно.'});
+  Q.accept(g, j);
+  s.thr = {home: home.id, job: j.id, day: g.day, dl: j.dl};
+  const days = ['', 'день', 'два дня', 'три дня', 'четыре дня', 'пять дней', 'шесть дней', 'седмица'][K().thrDays] || 'несколько дней';
+  C.d2Mail(g, home, `«Пишу второпях. За домом следят: третью ночь у плетня чужие, днём кружат верхом, высматривают. Соседи говорят, это ${j.v.thr.n}, стоят станом неподалёку. Чую, у тебя ${days}, не больше. Приезжай.»`,
+    [{id: 'go', t: 'Спешить домой'}], {type: 'thr'});
+  return j;
+};
+const THR_LOSS = ['goods', 'worker', 'hurt'];
+function threatCheck(g) {
+  const s = S(g), x = s.thr; if (!x || x.end) return;
+  const j = Q.byId(g, x.job); if (!j) { x.end = 'gone'; return; }
+  const home = homeBy(g, x.home);
+  if (['done', 'paid'].includes(j.status)) { x.end = 'safe';
+    if (home && home.key && C.hearthCare) { try { C.hearthCare(g, home.key, 1); } catch (e) {} }
+    if (home) C.d2Mail(g, home, '«Успели. Чужие ушли и больше не показываются. Спала сегодня первую ночь спокойно. Спасибо тебе.»', null, {type: 'res'});
+    return; }
+  if (j.status !== 'late') return;
+  const loss = pickV(THR_LOSS, hsh(x.home + x.day)); x.end = 'late'; x.loss = loss;
+  if (!home) return;
+  let text = ''; const rcp = home.rel && C.alive(g).find(h => h.id === home.rel.who), fem = !!(rcp && rcp.sex === 'f');
+  if (loss === 'goods') { const H = C.famHome ? C.famHome(g, home.key) : null; const took = H ? H.chest.splice(0, 3) : [];
+    const hh = (g.w2hearth || {})[home.key]; if (hh) hh.coin = 0;
+    text = `«Не успел${fem ? 'а' : ''} ты. Ночью вломились, перевернули всё вверх дном, ${took.length ? 'сундук выпотрошили и ' : ''}деньги на хозяйство забрали. Сами живы, и на том спасибо.»`; }
+  else if (loss === 'worker') { const hh = (g.w2hearth || {})[home.key]; if (hh) hh.care = Math.max(0, (hh.care || 0) - 2);
+    text = '«Не дождались мы тебя. Работник, что помогал по хозяйству, со страху ушёл со двора и не вернулся. Теперь всё на мне одной, тяжко.»'; }
+  else { s.hurt[home.key] = g.day + K().hurtDays; const hh = (g.w2hearth || {})[home.key]; if (hh) hh.care = Math.max(0, (hh.care || 0) - 1);
+    text = '«Беда. Ночью полезли через плетень, брат вступился и получил ножом. Знахарка говорит, встанет, рана чистая, но пока лежит пластом.»'; }
+  if (home.rel && home.rel.bond === 'kin') text = text.replace('на мне одной', 'на мне');
+  C.d2Mail(g, home, text, null, {type: 'res'});
+  C.note(g, 'Не успели домой: беда случилась без вас.');
+}
+if (Q.tick) { const tk0 = Q.tick; Q.tick = function (g) { const r = tk0.apply(this, arguments); try { if (isFree(g)) threatCheck(g); } catch (e) {} return r; }; }
+if (Q.report) { const rp0 = Q.report; Q.report = function (g) { const r = rp0.apply(this, arguments); try { if (isFree(g)) threatCheck(g); } catch (e) {} return r; }; }
+const tt0 = Q.title; Q.title = j => j && j.d2thr ? 'Чужие у родного дома' : tt0(j);
+const gn0 = Q.giverName; Q.giverName = j => j && j.d2thr && j.d2who ? `${j.v.giver.n}, ${j.d2who}` : gn0(j);
+
+/* ---------- грамотки: решения ---------- */
+const ma0 = C.mailAct;
+C.mailAct = function (g, m, id) {
+  if (m && m.d2) { g.mail = (g.mail || []).filter(x => x !== m);
+    if (m.d2.type === 'ord') { if (id === 'no') { C.note(g, 'Грамотку спрятали: пусть всё идёт как идёт.'); return 'no'; } return orderDo(g, m, id); }
+    if (m.d2.type === 'ev') return eventDo(g, m, id);
+    return 'ok'; }
+  return ma0 ? ma0.apply(this, arguments) : null;
+};
+
+/* ---------- сутки ---------- */
+C.d2EstateDay = function (g) {
+  if (!isFree(g)) return;
+  orderDue(g); threatCheck(g);
+  if (!C.d2Homes(g).length) return;
+  C.d2OrderOffer(g);
+  const s = S(g), mul = C.w2tasteMul ? C.w2tasteMul(g, 'family') : 1;
+  if ((s.ev == null || g.day - s.ev >= K().evGap) && !pendingD2(g, 'ev') && R.rand() < K().evP * mul) C.d2Event(g);
+  if (famHomes(g).length && C.partyLevel(g) >= K().thrLv && (!s.thr || (s.thr.end && g.day - s.thr.day >= K().thrGap)) && (s.thr || g.day >= 20) && R.rand() < K().thrP) C.d2Threat(g);
+};
+const ps0 = C.pass;
+C.pass = function (g) {
+  const d0 = g && g.day; const r = ps0.apply(this, arguments);
+  try { if (isFree(g) && g.day > d0) for (let k = d0 + 1; k <= g.day; k++) { const keep = g.day; g.day = k; try { C.d2EstateDay(g); } finally { g.day = keep; } } } catch (e) {}
+  return r;
+};
+
+/* ---------- дома: горница, тревога, раненый родич ---------- */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  if (!sc || id !== 'free_place' || !isFree(g) || !g.d2est) return sc;
+  try { const s = S(g), here = C.d2Homes(g).filter(h => h.node === g.loc); if (!here.length) return sc;
+    const tag = (t, p) => (C.w2Line ? C.w2Line('d2e', t, p) : ['n', t]);
+    if (s.thr && !s.thr.end && here.some(h => h.id === s.thr.home)) sc.lines.push(tag('Соседи шепчут: у вашего двора по ночам крутятся чужие, и собаки лают до утра.', 0));
+    here.filter(h => h.key && (s.hurt[h.key] || 0) >= g.day).forEach(() => sc.lines.push(tag('В доме пахнет травами и дымом: раненый родич лежит у печи и пока не встаёт.', 2)));
+    const hung = s.troph.filter(t => t.hung);
+    if (hung.length) sc.lines.push(tag(`В горнице на стене трофеи: ${hung.slice(-3).map(t => t.what).join(', ')}. Кто заходит, всякий спрашивает, чьё это было.`, 3));
+    const fresh = s.troph.filter(t => !t.hung);
+    if (fresh.length) { const i = sc.choices.length ? Math.max(...sc.choices.map(c => c.i || 0)) + 1 : 0;
+      sc.choices.splice(Math.max(0, sc.choices.length - 1), 0, {i, label: 'Повесить трофеи в горнице', t: 'Повесить трофеи в горнице', w2: 'kin', do: g2 => { C.d2TrophyHang(g2); return 'free_place'; }}); }
+  } catch (e) {}
+  return sc;
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* w2_entry.js */
+/* Колдовство — w2_entry (волна D2): новый герой входит сценой и не с первого уровня. Без DOM. Только Вечный мир.
+   • Уровень: новый герой (замена в корчме, отряд после гибели) садится на 1–2 уровня ниже отряда: до C.ENTRY.gap2From — на один,
+     выше — на два; не ниже нижней и не выше верхней границы края (C.levelsOf: высокоуровневым в низкую кампанию нельзя).
+     Отряд лёг весь — мерой служат павшие этой гибели. C.newHeroLevel(g) зовёт окно создания (ui.js).
+   • Сцена входа (сцена 'newcomer' Вечного мира, g.flags.newcomer — как в главах саг): как герой оказался с отрядом.
+     – пленник в логове: сидел в подземелье, откуда отряд ушёл (g.dgSaved), бежал и знает, кто там и где хозяин;
+     – выживший из чужой ватаги: знает, что их сгубило, — то самое, за чем отряд сейчас идёт (дело на руках);
+     – земляк из корней (w2_origins): из тех же мест, что кто-то из отряда, — тот же корень;
+     – родич с вестью: из дома семьи (весть из дома) или просто с вестью о сказании края.
+   • Лёг весь отряд: новый отряд начинает с крючком про павших — их вещь (кто-то сберёг и отдаёт), их дело (тот, кто их нанял,
+     всё ждёт) и их враг (дело «Долг павших» против того, кто их сгубил).
+   • Состояние: g.d2entry = {h, k, …}, g.d2wipe (последняя гибель), g.d2kit (вещи павших). Все числа — в C.ENTRY. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!C || !C.CAMPS || !C.CAMPS.free || !Q) return;
+const FREE = C.CAMPS.free;
+const isFree = g => !!(g && g.camp === 'free' && g.heroes);
+C.ENTRY = Object.assign({gap1: 1, gap2: 2, gap2From: 5, wipeDays: 3}, C.ENTRY || {});
+const K = () => C.ENTRY;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const pickV = (list, k) => list[Math.abs(k) % list.length];
+const sx = (s, sex) => String(s || '').replace(/\{([^|{}]*)\|([^|{}]*)\}/g, (m, a, b) => (sex === 'f' ? b : a));
+const nodes = () => FREE.map.nodes;
+const nName = id => (nodes()[id] || {}).name || '';
+const heroes = g => C.alive(g).filter(h => h.kind !== 'merc');
+
+/* ---------- уровень нового героя ---------- */
+C.newHeroLevel = function (g) {
+  if (!g || !isFree(g)) return (g && g.startLevel) || 1;
+  const [lo, hi] = C.levelsOf ? C.levelsOf(g.camp) : [1, 20];
+  let base = 0; const hs = heroes(g);
+  if (hs.length) base = hs.reduce((s, h) => s + (h.level || 1), 0) / hs.length;
+  else { const w = g.d2wipe, fl = (g.fallen || []).filter(f => w ? f.day >= w.day - 1 : f.day >= (g.day || 1) - K().wipeDays); if (fl.length) base = fl.reduce((s, f) => s + (f.level || 1), 0) / fl.length; }
+  if (!base) return Math.max(lo, g.startLevel || 1);
+  const b = Math.round(base), gap = b >= K().gap2From ? K().gap2 : K().gap1;
+  return Math.max(lo, 1, Math.min(hi, b - gap));
+};
+
+/* ---------- гибель отряда: что помнить ---------- */
+if (C.recordFallen) { const rf0 = C.recordFallen; C.recordFallen = function (g, h) {
+  try { if (isFree(g) && h && !g.net) { const eq = Object.values(h.eq || {}).filter(id => typeof id === 'string' && R.item(id));
+    g.d2kit = (g.d2kit || []).filter(x => (g.day || 1) - x.day <= K().wipeDays).concat({name: h.name, sex: h.sex, item: eq[0] || null, day: g.day}).slice(-6); } } catch (e) {}
+  return rf0.apply(this, arguments); }; }
+const be0 = C.battleEnd;
+C.battleEnd = function (g, S, spec) {
+  const jobs0 = isFree(g) ? Q.active(g).map(j => j.id) : [];
+  const r = be0.apply(this, arguments);
+  try { if (isFree(g) && r && r.wipe && !g.net) {
+    const ids = (S && S.units || []).filter(u => u.side === 'foe' && u.summonLeft == null).map(u => u.ref && u.ref.id).filter(id => id && C.beast(id));
+    const killer = ids.slice().sort((a, b) => (C.beast(b).level || 0) - (C.beast(a).level || 0))[0] || null;
+    g.d2wipe = {day: g.day, place: (spec && spec.place) || nName(g.loc), killer, kname: killer ? C.beast(killer).name : '', jobs: jobs0.filter(id => { const j = Q.byId(g, id); return j && j.status === 'open'; }),
+      kit: (g.d2kit || []).filter(x => x.item).slice(-3), names: (g.fallen || []).filter(f => f.day >= g.day - 1).map(f => f.name).slice(-4), used: 0}; } } catch (e) {}
+  return r;
+};
+
+/* ---------- кто входит ---------- */
+const KINDS = {};
+C.ENTRY_KINDS = KINDS;
+KINDS.captive = {ok: g => Object.values(g.dgSaved || {}).some(d => d && Array.isArray(d.rooms) && !d.bossDown),
+  make: (g, h) => { const [poi, d] = Object.entries(g.dgSaved).find(([, d]) => d && Array.isArray(d.rooms) && !d.bossDown);
+    const F = C.DG_API, who = (d.fac || []).filter(f => !f.gone).map(f => F.facWho(d, f, 'nom')), boss = d.rooms.find(r => r.type === 'boss');
+    if (boss) { d.known = d.known || {}; d.known[boss.id] = 1; } (d.rooms || []).filter(r => r.type === 'strazh').forEach(r => { d.known = d.known || {}; d.known[r.id] = 1; });
+    return {lines: [['n', sx(pickV(['Его привели в корчму под руки: худой, обросший, на запястьях следы верёвок. {Его|Её} держали в подземелье — {он|она} назвал{|а} его, и это то самое, откуда вы ушли.', 'В углу корчмы сидит {человек|женщина} с лицом серым, как у того, кто долго не видел солнца. {Он|Она} бежал{|а} из подземелья, где {его|её} держали в яме, — того самого, где вы уже побывали.'], hsh(h.id)), h.sex)],
+      [h.name, `«${who.length ? `Там ${who.join(', ')}. ` : ''}Я слышал${h.sex === 'f' ? 'а' : ''}, где сидит их главный и где стоит стража: проведу. Только дайте сперва поесть, а там — хоть сразу обратно.»`]],
+      note: `${h.name} бежал${h.sex === 'f' ? 'а' : ''} из подземелья и знает, где там стража и где логово.`, poi}; }};
+KINDS.survivor = {ok: g => Q.active(g).some(j => j.v && j.v.thr),
+  make: (g, h) => { const j = Q.active(g).find(x => x.v && x.v.thr); const T = j.v.thr;
+    j.notes = j.notes || []; j.notes.push(`${h.name} видел${h.sex === 'f' ? 'а' : ''} их своими глазами: знает, как они нападают и где ждать засады.`);
+    return {lines: [['n', sx(pickV(['За стол к вам подсаживается {незнакомец|незнакомка} с перевязанной рукой. {Он|Она} ходил{|а} с другой ватагой, и из той ватаги {он|она} одн{ин|а} вернул{ся|ась}.', 'У стойки {стоит|стоит} {человек|женщина} в порванной кольчуге и пьёт молча. Корчмарь шепчет: из всей ватаги вернул{ся|ась} только {он|она}.'], hsh(h.id + 's')), h.sex)],
+      [h.name, `«Нас было шестеро. Сгубили нас ${T.n} — это то самое, за чем вы идёте. Я знаю, как они бьют и откуда приходят. Возьмите с собой: мне есть за что с ними посчитаться.»`]],
+      note: `${h.name} — выживш${h.sex === 'f' ? 'ая' : 'ий'} из чужой ватаги: знает, что их сгубило.`}; }};
+KINDS.zemlyak = {ok: (g, h) => C.originOf && heroes(g).some(x => x.id !== h.id && C.originOf(x)),
+  make: (g, h) => { const x = heroes(g).find(y => y.id !== h.id && C.originOf(y)), O = C.originOf(x);
+    let same = false; try { if (!h.origin && C.originsFor && C.originsFor(h).some(o => o.id === O.id) && C.originSet) { C.originSet(g, h, O.id); same = true; } } catch (e) {}
+    const home = O.home ? nName(O.home) : '';
+    return {lines: [['n', sx(`${x.name} узнаёт {его|её} не сразу, а потом хлопает по плечу: земля{к|чка}! ${home ? `Оба родом оттуда же — ${home}, ` : 'Оба из одних мест, '}оба помнят одни и те же праздники и одних и тех же соседей.`, h.sex)],
+      [h.name, `«Я про тебя дома слышал${h.sex === 'f' ? 'а' : ''}: мол, ушёл${x.sex === 'f' ? 'а' : ''} с ватагой и пропал${x.sex === 'f' ? 'а' : ''}. А ты вон где. Возьмёшь земляка? Своих в беде не бросают.»`]],
+      note: `${h.name} — земля${h.sex === 'f' ? 'чка' : 'к'} ${x.name}${same ? ', одних корней' : ''}.`}; }};
+KINDS.rodich = {ok: () => true,
+  make: (g, h) => { const fam = Object.keys(g.folkRel || {}).find(k => { const r = g.folkRel[k]; return r && (r.bond === 'wed' || r.bond === 'kin') && heroes(g).some(x => x.id === r.who); });
+    if (fam) { const r = g.folkRel[fam], x = heroes(g).find(y => y.id === r.who); let p = null; try { p = C.folkPerson(g, ...fam.split('@')); } catch (e) {}
+      return {lines: [['n', sx(`{Он|Она} приходит с котомкой и с поклоном от дома: дальн{ий|яя} родственни{к|ца} ${p ? Q.decl(p.n, p.sex).g : 'семьи'}${x ? `, и ${x.name} обнимает {его|её} у порога` : ''}.`, h.sex)],
+        [h.name, `«Дома всё ладно, кланяются тебе. ${p ? p.n + ' велел' + (p.sex === 'f' ? 'а' : '') + ' передать' : 'Велели передать'}: не забывай дорогу. А я при доме засиделся${h.sex === 'f' ? 'ась' : ''}. Возьмите с собой, руки у меня не хуже прочих.»`]],
+        note: `${h.name} пришёл${h.sex === 'f' ? 'а' : ''} из дома с вестью и остался${h.sex === 'f' ? 'ась' : ''} с отрядом.`}; }
+    const ru = C.taleRumor ? C.taleRumor(g) : null;
+    return {lines: [['n', sx(pickV(['Дверь корчмы хлопает, и на пороге — {путник|путница} в дорожной пыли. Ищет вас: {он|она} родня одного из тех, кому вы когда-то помогли, и пришёл{|ла} с вестью.', '{Он|Она} садится напротив и долго молчит, а потом говорит, что {его|её} прислала родня: о вас слышали, и есть весть.'], hsh(h.id + 'r')), h.sex)],
+      [h.name, ru ? `«Вот что велели передать: ${String(ru).replace(/^[«"]|[»"]$/g, '')} А дальше, если не прогоните, пойду с вами.»` : '«Весть простая: в округе неспокойно, и люди надеются на вас. А дальше, если не прогоните, пойду с вами.»']],
+      note: `${h.name} принёс${h.sex === 'f' ? 'ла' : ''} весть и остался${h.sex === 'f' ? 'ась' : ''} с отрядом.`}; }};
+/* отряд лёг весь: крючок про павших */
+const heirJob = (g, w) => {
+  if (!w || !w.killer) return null; const thr = Object.keys(Q.THREAT).find(t => (Q.THREAT[t].pool || []).includes(w.killer)); if (!thr) return null;
+  const kind = Object.keys(Q.KIND).find(k => (Q.KIND[k].threats || []).includes(thr) && Q.KIND[k].fin === 'fight') || 'hunt';
+  const j = Q.make(g, 'town', {kind, giver: 'starosta', diff: 'mid'}); if (!j) return null; const TH = Q.THREAT[thr];
+  j.thr = thr; j.v.thrId = thr; j.v.thr = {n: TH.n, a: TH.a, g: TH.g, i: TH.i, gen: TH.gen}; j.v.ttype = TH.human ? 'human' : TH.undead ? 'undead' : TH.nechist ? 'nechist' : thr === 'spiders' ? 'spiders' : TH.beast ? 'beast' : 'monster';
+  j.d2heir = 1; j.twist = null; j.dl = g.day + 21;
+  j.txt = Object.assign({}, j.txt, {intro: 'Староста снимает шапку, когда говорит о павших.', hook: `Тех, кто сгубил ваших, — ${TH.a} — видели снова. Пока они бродят, никому покоя не будет.`});
+  return j;
+};
+const tt0 = Q.title; Q.title = j => j && j.d2heir ? 'Долг павших' : tt0(j);
+KINDS.wipe = {ok: g => !!(g.d2wipe && !g.d2wipe.used),
+  make: (g, h) => { const w = g.d2wipe; w.used = 1; const lines = [], names = w.names || [];
+    lines.push(['n', sx(`Свежие могилы у дороги ещё не осели: ${names.length > 1 ? names.slice(0, -1).join(', ') + ' и ' + names[names.length - 1] : names[0] || 'прежний отряд'} легли в бою${w.place ? ' — ' + w.place : ''}. Чужие люди предали их земле, а слух о них дошёл и до {него|неё}.`, h.sex)]);
+    const kit = (w.kit || [])[0]; let item = null;
+    if (kit && R.item(kit.item)) { item = kit.item; h.inv = h.inv || []; h.inv.push(item);
+      lines.push(['n', `Мужик, что копал могилы, приносит вещь, завёрнутую в рогожу: ${(R.item(item).name || '').toLowerCase()}, ${kit.sex === 'f' ? 'её' : 'его'} носил${kit.sex === 'f' ? 'а' : ''} ${kit.name}. «Негоже, чтоб пропало. Пусть послужит тому, кто доведёт ${kit.sex === 'f' ? 'её' : 'его'} дело».`]); }
+    const open = (w.jobs || []).map(id => Q.byId(g, id)).filter(j => j && j.status === 'open');
+    if (open.length) lines.push(['n', `И ещё: ${Q.giverName(open[0])} всё ждёт. Дело, за которое взялись павшие, — «${Q.title(open[0])}» — так и не сделано.`]);
+    const j = heirJob(g, w); if (j) { g.d2entryJob = j; lines.push(['n', `А сгубил${/ы$|и$/.test(w.kname || '') ? 'и' : ''} их ${(w.kname || 'кто-то').toLowerCase()}: в округе ${TH_WORD(j)}. Староста просит довести счёт до конца.`]); }
+    lines.push([h.name, '«Я их не знал' + (h.sex === 'f' ? 'а' : '') + ', а дорога у нас теперь одна. Начнём с того, на чём они остановились.»']);
+    return {lines, note: `Новый отряд начинает с того, на чём остановились павшие${item ? ': вещь павшего — у ' + h.name : ''}.`, wipe: 1}; }};
+const TH_WORD = j => `их видели снова — ${j.v.thr.n}`;
+const ORDER = ['captive', 'survivor', 'zemlyak', 'rodich'];
+
+/* ---------- новый герой в отряде ---------- */
+const played = g => (g.wipes || 0) > 0 || (g.fallen || []).length > 0 || Object.keys(g.visited || {}).length > 0;
+const ah0 = C.addHero;
+C.addHero = function (g, h) {
+  const arm = isFree(g) && !g.net && h && h.kind !== 'merc' && played(g);
+  const r = ah0.apply(this, arguments);
+  try { if (arm) C.entryArm(g, h); } catch (e) {}
+  return r;
+};
+C.entryArm = function (g, h, force) {
+  const kind = force || (KINDS.wipe.ok(g, h) && !heroes(g).some(x => x.id !== h.id) ? 'wipe' : (() => { const av = ORDER.filter(k => KINDS[k].ok(g, h)); return av.length ? av[hsh(h.id + g.day) % av.length] : 'rodich'; })());
+  const x = KINDS[kind].make(g, h);
+  g.d2entry = {h: h.id, k: kind, lines: x.lines, day: g.day, poi: x.poi || null};
+  if (x.note) C.note(g, x.note);
+  g.flags = g.flags || {}; g.flags.newcomer = h.id;
+  return g.d2entry;
+};
+FREE.scenes.newcomer = function (g) {
+  const e = g.d2entry, h = e && C.alive(g).find(x => x.id === e.h), n = nodes()[g.loc] || {};
+  const back = g2 => { delete g2.flags.newcomer; g2.d2entry = null; return n.scene || 'free_place'; };
+  if (!e || !h) return {title: n.name || 'Корчма', bg: 'village', lines: [['n', 'Новичок садится к огню, и разговор идёт своим чередом.']], choices: [{t: 'Дальше', do: back}]};
+  const ch = [];
+  if (g.d2entryJob) { ch.push({t: 'Взяться за долг павших', do: g2 => { const j = g2.d2entryJob; g2.d2entryJob = null; if (j) Q.accept(g2, j); return back(g2); }});
+    ch.push({t: 'Сперва оглядеться', do: g2 => { g2.d2entryJob = null; return back(g2); }}); }
+  else ch.push({t: `Принять ${Q.decl(h.name, h.sex).a} в отряд`, do: back});
+  return {title: e.k === 'wipe' ? 'Новый отряд' : `${h.name} в отряде`, bg: e.k === 'wipe' ? 'road' : 'village', people: [h.name], lines: e.lines.slice(), choices: ch};
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* w2_taste.js */
+/* Колдовство — w2_taste (волна D2): тихая подстройка под вкус игрока. Без DOM. Только Вечный мир.
+   • Что любит игрок, видно по выборам: бой, разговор, скрытность, подземелья, обряды и вера, торг и ремесло, семья.
+     Каждый выбор в сцене (общая точка — C.choose) раскладывается по кнопке и по сцене; бой, вход в подземелье, дом семьи
+     тоже идут в счёт. Счёт и множители — в распорядителе (w2_pace.js: C.w2taste, C.w2tasteMul, C.w2tasteProfile).
+   • Что сдвигается (на 10–20%, ничего не закрывается):
+     – доска дел (Q.make для доски): дело любимого рода выпадает чаще, и поворот дела — тоже под вкус;
+     – слухи в корчме (C.rumorAt): охотнику до подземелий чаще шепчут о найденном ходе под землю, прочим — о сказании их рода;
+     – сказания места (C.talesAt) и слух о них (C.taleRumor): порядок по вкусу, по-прежнему не больше двух;
+     – приметы на карте (horizon.js, W.SPOT_TASTE): дым над хутором, вороньё, туман, провал в склоне.
+   • Игроку ничего не показывается: ни счёта, ни слов о вкусе. Отладка: C.w2tasteProfile(g). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!C || !C.w2taste || !C.CAMPS || !C.CAMPS.free) return;
+const isFree = g => !!(g && g.camp === 'free' && g.heroes);
+
+/* ---------- что выбрал игрок ---------- */
+C.TASTE_RX = {
+  fight: /^(Напасть|Биться|Принять бой|В бой|Атаковать|Драться|Ударить|Отбиться|Добить|Напасть первыми)|напасть|принять бой|биться с/i,
+  talk: /Дипломат|Очарован|Заговорить|договорить|Расспрос|уговор|Поговорить|поговорить|Убедить|Обман|Запугив|Выйти на разговор|по душам|Речь\)/,
+  sneak: /Скрытн|Подкрасться|Затаиться|прокрасть|Ловкость рук|тайком|Обокрасть|украсть|Взлом|проследить|Знание замков|снять ловушку/i,
+  dungeon: /Спуститься|Войти в курган|подземел|в пещеру|штольн|Простукать|простукать|тайный ход/i,
+  faith: /Вера\)|обряд|Обряд|помолит|Помолит|молитв|жертв|Жертв|благослов|капищ|храм|отходную|Знахарство\)|поклониться/,
+  trade: /Купить|купить|Продать|продать|Торговл|Сторговать|Заказать|заказать|лавк|Лавк|ремесл|мастерск|Мастерск|кузн|Кузн|Перековать/,
+  family: /жен[аеуы]|муж[аеу]?\b|домой|Домой|дом[ау]?\b|семь|детям|детей|сын|доч|родн|матер|сундук|хозяйств|горниц/,
+};
+const SCN_RX = {dungeon: /^dungeon$|^fdg_|^dg_/, family: /home|spouse|hearth|w2_fam|kids|famsnap|^d2_home/, trade: /shop|forge|craft|kuzn|smith|market|torg|tavern_drink|folk_shop/, faith: /shrine|temple|hram|kapish|^gods|altar/};
+const SKIP = /^(Назад|Уйти|Дальше|Выйти|Вернуться|Закрыть|Оставить|На дорогу|Отойти|Хватит|Пока ничего)/;
+C.tasteOfChoice = function (sceneId, label) {
+  const out = {}, t = String(label || ''), id = String(sceneId || '');
+  if (!t || SKIP.test(t)) return out;
+  Object.keys(C.TASTE_RX).forEach(k => { if (C.TASTE_RX[k].test(t)) out[k] = (out[k] || 0) + 1; });
+  Object.keys(SCN_RX).forEach(k => { if (SCN_RX[k].test(id)) out[k] = (out[k] || 0) + (k === 'dungeon' ? 0.3 : 0.5); });
+  return out;
+};
+/* последняя показанная сцена: из неё и берётся нажатая кнопка (второй раз сцену не строим) */
+let LAST = null;
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments); try { if (isFree(g) && sc) LAST = {g, id, sc}; } catch (e) {} return sc; };
+const ch0 = C.choose;
+C.choose = function (g, sceneId, idx) {
+  try { if (isFree(g) && LAST && LAST.g === g && LAST.id === sceneId) { const c = LAST.sc.choices.find(x => x.i === idx);
+    if (c && !c.dis) { const m = C.tasteOfChoice(sceneId, c.label || c.t); Object.keys(m).forEach(k => C.w2taste(g, k, m[k])); } } } catch (e) {}
+  return ch0.apply(this, arguments);
+};
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S, spec) { const r = be0.apply(this, arguments);
+  try { if (isFree(g) && r && r.won && !(spec && spec.setupKey === 'dungeon')) C.w2taste(g, 'fight', 0.5); } catch (e) {} return r; }; }
+if (C.dungeonEnter) { const de0 = C.dungeonEnter; C.dungeonEnter = function (g) { const r = de0.apply(this, arguments); try { if (isFree(g)) C.w2taste(g, 'dungeon', 1.5); } catch (e) {} return r; }; }
+
+/* ---------- доска дел: род дела и поворот ---------- */
+C.TASTE_KIND = {hunt: 'fight', bandits: 'fight', contract: 'fight', escort: 'fight', clear: 'dungeon', retrieve: 'dungeon', missing: 'sneak', message: 'sneak',
+  investigate: 'talk', peace: 'talk', deliver: 'trade', herbs: 'trade', cure: 'faith', haunt: 'faith', ritual: 'faith'};
+/* доля «перебросов» доски от силы вкуса: при самом ярком вкусе любимых дел на доске больше примерно на 15–20% */
+C.TASTE_BOARD = 0.6;
+C.TASTE_TWIST = {victims: 'talk', liar: 'talk', cursed: 'faith', oko: 'faith', kap: 'faith', rival: 'fight', bigger: 'fight', short: 'trade', gift: 'trade'};
+if (Q && Q.make) { const mk0 = Q.make; Q.make = function (g, src, opt) {
+  let o = opt;
+  try { if (isFree(g) && src === 'town' && !(opt && opt.kind) && C.w2tasteOn(g) && R.rand() < C.w2tasteStrength(g) * C.TASTE_BOARD) {
+    const cat = C.w2tastePick(g, C.TASTE_CATS.filter(c => Object.values(C.TASTE_KIND).includes(c)));
+    const hex = G.W && G.W.isHex && G.W.isHex(g);
+    const ks = Object.keys(C.TASTE_KIND).filter(k => C.TASTE_KIND[k] === cat && Q.KIND[k] && (hex || k !== 'escort') && k !== 'contract');
+    if (ks.length) o = Object.assign({}, opt || {}, {kind: R.pick(ks)}); } } catch (e) {}
+  const j = mk0.call(this, g, src, o);
+  try { if (j && isFree(g) && C.w2tasteOn(g) && R.rand() < C.w2tasteStrength(g)) {
+    const T = Q.THREAT[j.thr] || {};
+    const ok = Object.keys(Q.TWIST).filter(k => Q.TWIST[k].kinds.includes(j.kind) && (!Q.TWIST[k].human || T.human) && (!Q.TWIST[k].beast || T.beast)
+      && !(k === 'short' && src !== 'town') && !(k === 'oko' && j.giverId === 'okovets') && !(src === 'omen' && (k === 'liar' || k === 'short')));
+    const cur = j.twist ? C.w2tasteMul(g, C.TASTE_TWIST[j.twist]) : 1;
+    const best = ok.filter(k => C.w2tasteMul(g, C.TASTE_TWIST[k]) > cur).sort((a, b) => C.w2tasteMul(g, C.TASTE_TWIST[b]) - C.w2tasteMul(g, C.TASTE_TWIST[a]))[0];
+    if (best) j.twist = best; } } catch (e) {}
+  return j;
+}; }
+
+/* ---------- сказания: порядок на месте и слух ---------- */
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+C.taleTaste = T => (T && (C.TASTE_KIND[T.kind] || (T.thr && Q && Q.THREAT[T.thr] && (Q.THREAT[T.thr].undead || Q.THREAT[T.thr].nechist) ? 'faith' : null))) || 'talk';
+const arr = x => x == null ? [] : [].concat(x);
+if (C.talesAt) { const ta0 = C.talesAt; C.talesAt = function (g, at) {
+  const base = ta0.apply(this, arguments);
+  try { if (!C.w2tasteOn(g)) return base;
+    const all = C.TALE_LIST.filter(T => arr(T.at).includes(at) && C.taleOk(g, T)); if (all.length <= 2) return base;
+    const cont = all.filter(T => T.need && (T.need.after || T.need.anyOf)), rest = all.filter(T => !cont.includes(T));
+    const wk = Math.floor((g.day || 1) / 7);
+    // взвешенный жребий на седмицу: у любимых тем шанс выше на 10–20%, у прочих ниже, но не ноль
+    const key = T => { const u = ((hsh(wk + ':' + at + ':' + T.id) % 100000) + 0.5) / 100000; return Math.pow(u, 1 / C.w2tasteMul(g, C.taleTaste(T))); };
+    return cont.concat(rest.slice().sort((a, b) => key(b) - key(a))).slice(0, 2); } catch (e) { return base; }
+}; }
+if (C.taleRumor) { const tr0 = C.taleRumor; C.taleRumor = function (g) {
+  try { if (C.w2tasteOn(g)) { const nodes = C.CAMPS[g.camp].map.nodes, here = nodes[g.loc];
+    const list = here ? C.talesOpen(g).filter(T => T.rumor && arr(T.at).some(a => nodes[a] && nodes[a].reg === here.reg && a !== g.loc)) : [];
+    if (list.length > 1) { const k = T => ((hsh(g.day + ':' + T.id) % 1000) + 0.5) / 1000 * C.w2tasteMul(g, C.taleTaste(T)); return list.slice().sort((a, b) => k(b) - k(a))[0].rumor; } } } catch (e) {}
+  return tr0.apply(this, arguments);
+}; }
+
+/* ---------- слухи в корчме ---------- */
+if (C.rumorAt) { const ra0 = C.rumorAt; C.rumorAt = function (g, tier) {
+  try { if (C.w2tasteOn(g) && R.rand() < C.w2tasteStrength(g)) {
+    const cat = C.w2tastePick(g, C.TASTE_CATS);
+    if (cat === 'dungeon' && tier >= 3) return ra0.call(this, g, 4);
+    if (cat && cat !== 'dungeon' && tier <= 2 && C.talesOpen) { const nodes = C.CAMPS[g.camp].map.nodes, here = nodes[g.loc];
+      const list = here ? C.talesOpen(g).filter(T => T.rumor && C.taleTaste(T) === cat && arr(T.at).some(a => nodes[a] && nodes[a].reg === here.reg && a !== g.loc)) : [];
+      if (list.length) return 'За соседним столом вполголоса: ' + list[(g.day + (g.drinkN || 0)) % list.length].rumor; } } } catch (e) {}
+  return ra0.apply(this, arguments);
+}; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* d1_nav.js */
+/* Колдовство — волна D1: «Навья тропа», третий путь вернуть павшего (к храму с капищем и к некроманту из raise.js). Без DOM.
+   • Вход: Навьи ворота в овраге за Эдвином (места эдвинских земель), погост или курган в Дедову ночь, капище, погост
+     или курган, когда в отряде волхв. Нужен павший, которого ещё можно вернуть (C.bodies).
+   • Тропа — короткое заповедное подземелье, собранное вручную: река без брода, две каморы из пяти (тёмная вода, бледные
+     у межи, страж межи, та, что берёт память, навий ход), стол мёртвых родичей и в конце — разговор с духом павшего.
+   • Привал на тропе — Воля против D1.NAV_REST_DC; провал — навья тоска (w2_cond), и до выхода она не снимается ничем.
+   • Время снаружи идёт иначе: за каждую камору и каждый привал уходят дни (D1.NAV_DAYS_*); в Дедову ночь — тише.
+   • Дух уговаривают по его нраву (w2_nrav), корням (w2_origins) и мечте (d1_dream): одни слова его держат, другие гонят прочь.
+     Подсказки собирают по дороге (вода, память, родичи). Согласился — встаёт без потери Телосложения.
+   • Окно разговора — talkWin (ui.js): сцена отдаёт поле talk {who, hero, log}.
+   • Числа — в C.D1. Состояние — g.d1nav (только пока отряд на тропе); старые сохранения его не знают и не замечают. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !C.CAMPS.free || !Q) return;
+const FREE = C.CAMPS.free, NODES = FREE.map.nodes;
+
+/* ---------- таблица чисел волны D1 (общая для d1_*) ---------- */
+C.D1 = Object.assign({
+  NAV_ROOMS: 2,           // каморы между рекой и столом мёртвых
+  NAV_DAYS_ROOM: 1,       // дней снаружи за камору
+  NAV_DAYS_REST: 1,       // за привал
+  NAV_DEDY_K: 0.5,        // в Дедову ночь время снаружи течёт тише
+  NAV_DC: 11,             // испытания тропы (+ половина силы отряда)
+  NAV_REST_DC: 13,        // Воля на привале
+  NAV_REST_HEAL: 0.5,     // доля сил, что возвращает привал
+  NAV_HURT: 0.15,         // доля сил, что отнимает неудача у реки
+  NAV_FERRY: 30,          // плата перевозчику, медяков за силу отряда
+  NAV_MEM_XP: 0.2,        // какую долю пути к следующей ступени забирает отданная память
+  NAV_SOUL_NEED: 4,       // сколько должно лечь на сердце духу
+  NAV_SOUL_TURNS: 3,      // сколько раз можно к нему обратиться
+  NAV_RAISE_HP: 0.5,      // с какой долей сил встаёт вернувшийся тропой
+}, C.D1 || {});
+const K = C.D1;
+
+/* ---------- общие мелочи для модулей волны D1 ---------- */
+const U = C.D1U = C.D1U || {};
+U.hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; x = Math.imul(x, 2246822507); x ^= x >>> 13; return x >>> 0; };
+U.pick = (a, key) => (a && a.length ? a[U.hsh(key) % a.length] : null);
+U.cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+U.lc = s => (s ? s[0].toLowerCase() + s.slice(1) : s);
+U.sx = (t, sex) => String(t == null ? '' : t).replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (_, m, f) => (sex === 'f' ? f : m));
+U.decl = (n, sex) => (Q && Q.decl ? Q.decl(n, sex) : {n, g: n, d: n, a: n, i: n, p: n});
+/* {h} — имя, {h:g|d|a|i|p} — падеж, {м|ж} — по полу */
+U.fill = (t, h) => { const nm = (h && h.name) || 'Кто-то', D = /\{h:[gdaip]\}/.test(t) ? U.decl(nm, h && h.sex) : null;
+  return U.sx(String(t), h && h.sex).replace(/\{h:([gdaip])\}/g, (_, k) => (D && D[k]) || nm).replace(/\{h\}/g, nm); };
+U.isFree = g => !!(g && g.camp === 'free' && g.heroes);
+U.heroes = g => (g && g.heroes ? C.alive(g).filter(h => h && h.kind !== 'merc') : []);
+U.lvl = g => Math.max(1, C.partyLevel ? C.partyLevel(g) : 1);
+U.node = g => NODES[g && g.loc] || null;
+U.reg = g => { const n = U.node(g); if (n && n.reg) return n.reg; const z = C.zoneOf ? C.zoneOf(g) : null; return z ? z.id : 'dw'; };
+U.say = (g, t) => { if (t) C.note(g, t); return t; };
+U.newPick = (g, key, list) => (C.W2FAIL && C.W2FAIL.pickNew ? C.W2FAIL.pickNew(g, 'd1|' + key, list) : list[Math.floor(R.rand() * list.length)]);
+U.dayPast = n => n <= 1 ? 'минул день' : n <= 3 ? 'минуло ' + U.dayWord(n) : n <= 6 ? 'минуло несколько дней' : n <= 8 ? 'минула седмица' : 'минуло ' + U.dayWord(n);
+U.dayWord = n => n <= 0 ? 'ни дня' : n === 1 ? 'день' : n === 2 ? 'два дня' : n === 3 ? 'три дня' : n <= 6 ? 'несколько дней' : n <= 8 ? 'седмица' : n <= 13 ? 'больше седмицы' : 'чуть не полмесяца';
+/* ввести в Q.inject кнопку на месте: sceneId — сцена узла */
+U.injectAt = (fn) => { const inj0 = Q.inject; Q.inject = function (g, sceneId, choices) { let out = inj0.apply(this, arguments);
+  try { const n = U.node(g); if (!n || n.scene !== sceneId || !U.isFree(g)) return out; const add = fn(g, n) || []; if (!add.length) return out;
+    out = out.slice(); let i = out.length ? Math.max(...out.map(c => c.i)) + 1 : 0; const at = out.findIndex(c => /^Уйти на карту/.test(String(c.label || '')));
+    const ready = add.filter(c => !c.if || c.if(g) || c.off).map(c => (c.if && !c.if(g) ? Object.assign({}, c, {dis: typeof c.off === 'function' ? c.off(g) : c.off}) : c));
+    out.splice(at < 0 ? out.length : at, 0, ...ready.map(c => Object.assign({i: i++, label: c.t}, c))); } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  return out; }; };
+/* сцену — во все кампании */
+U.scenes = (S) => { Object.values(C.CAMPS).forEach(camp => Object.entries(S).forEach(([id, sc]) => { if (camp.scenes && !camp.scenes[id]) camp.scenes[id] = sc; }));
+  if (C.register && !U._regWrap) { U._regWrap = 1; const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); (U._all || []).forEach(S2 => Object.entries(S2).forEach(([id, sc]) => { const c2 = C.CAMPS[camp.id] || camp; if (c2.scenes && !c2.scenes[id]) c2.scenes[id] = sc; })); return r; }; }
+  (U._all = U._all || []).push(S); };
+/* лица чужих людей: подобраны по роли и полу (как C.DGV_FACES в dungeon_voice.js), просмотрены глазами.
+   Детские и юные лица (C.D1_YOUNG) во взрослые роли не идут. Лицо стабильно для человека: выбор — по хешу имени. */
+C.D1_CHILD = ['pb13', 'p47', 'pb06', 'p37'];
+C.D1_YOUNG = C.D1_CHILD.concat(['p00', 'p07', 'p11', 'pa11', 'pa14', 'p35']);
+C.D1_FACES = {
+  knyaz: {m: ['p08', 'p02', 'p05']}, knyazhna: {f: ['p16', 'p20', 'pb08']}, boyarin: {m: ['p24', 'p15', 'p08', 'p02']},
+  tiun: {m: ['p28', 'pb11', 'pb07', 'p24']}, yarl: {m: ['p30', 'pa05', 'pb05', 'p12']},
+  skald: {m: ['pa09', 'p30', 'pb09'], f: ['p17', 'pa06']}, kupec: {m: ['pb09', 'pb07', 'pa16', 'p05'], f: ['pb12', 'p45', 'p44']},
+  khan: {m: ['pa07']}, kam: {m: ['p31', 'pa13']}, batyr: {m: ['p27', 'p31', 'pa07'], f: ['pa08', 'pa10']},
+  guslyar: {m: ['p39', 'pa01', 'pa09'], f: ['p38', 'pa08', 'p20']}, oko: {m: ['p26', 'p40', 'pa16', 'pb16'], f: ['p19', 'p22']},
+  volhv: {m: ['pa15', 'p15', 'pa03'], f: ['p46', 'p23', 'pa04']}, old: {m: ['pa15', 'pa03', 'pb15', 'pb14', 'p15'], f: ['pa04', 'p18', 'p46']},
+  voin: {m: ['p03', 'p13', 'p01', 'p09', 'p14', 'pb02', 'pa09', 'p12', 'p06'], f: ['p17', 'p21', 'pa06']},
+  vdova: {f: ['pb12', 'p45', 'p18', 'pa08']}, muzhik: {m: ['p32', 'p33', 'p34', 'p41', 'p28', 'p43', 'p29'], f: ['p36', 'p44', 'p45']},
+  pisar: {m: ['p42', 'pb16', 'pa13', 'p26']}, young: {m: ['p11', 'p00', 'p35', 'p10', 'p07'], f: ['pa14', 'pa02', 'pb04', 'pa12']},
+  adult: {m: ['p02', 'p05', 'p28', 'pb11', 'pb07', 'pa01', 'pa09', 'p25', 'p29', 'p33'], f: ['pa02', 'pa10', 'pa12', 'pb04', 'pb08', 'p17', 'p21', 'p20', 'p36', 'p44']},
+};
+U.faceRole = (role, sex, key) => { const sx = sex === 'f' ? 'f' : 'm', all = sx === 'f' ? (C.PORTRAITS_F || []) : (C.PORTRAITS_M || []);
+  const T = C.D1_FACES[role] || {}, adultBad = role === 'young' ? C.D1_CHILD : C.D1_YOUNG;
+  let L = (T[sx] || []).filter(id => all.includes(id) && !adultBad.includes(id));
+  if (!L.length) L = (C.D1_FACES.adult[sx] || []).filter(id => all.includes(id));
+  return L.length ? L[U.hsh(String(key || role)) % L.length] : ''; };
+/* роль по званию: «старый боярин», «купчиха-вдова», «хан Тугай»… */
+U.roleOf = (t, sex) => { t = String(t || '').toLowerCase(); // «Ока» нижний регистр не трогает — потому /i
+  const R_ = [[/княжн|княжья сестр|княгин/, 'knyazhna'], [/(?:^|[^а-яё])князь|хозяин .*княжеств/, 'knyaz'], [/бояр/, 'boyarin'], [/тиун/, 'tiun'], [/(?:^|[^а-яё])ярл(?:$|[^а-яё])|жена ярла/, 'yarl'], [/скальд/, 'skald'],
+    [/(?:^|[^а-яё])хан(?:$|[^а-яё])/, 'khan'], [/(?:^|[^а-яё])кам(?:$|[^а-яё])|годи/, 'kam'], [/нукер|батыр/, 'batyr'], [/гусляр|акын|плакальщ|братств/, 'guslyar'], [/(?:^|[^а-яё])ока(?:$|[^а-яё])|обетник|звёздн/i, 'oko'],
+    [/волхв|ведун|травниц|знахар|жрец|жриц/, 'volhv'], [/вдов/, 'vdova'], [/купец|купчих|купеч|меняла|лиги|гильди|приказчик|солевар|торгов/, 'kupec'],
+    [/писар|переписчик|книжн|хранител|законоговор/, 'pisar'], [/мальчишк|ученик|сын ярла|дочь|девк|сестра, что/, 'young'],
+    [/стар(ый|ая|ик|уха|ейшин)|(?:^|[^а-яё])дед|бабк|слеп/, 'old'], [/сотник|мечник|хирд|воевод|гридень|дружин|страж|кормщ|воин|десятник|ловчий|охотник/, 'voin'],
+    [/рыбак|лесоруб|возчик|межевщик|корчмар|староста|лесник|бонд|мужик|кузнец|мельник|пастух/, 'muzhik']];
+  const x = R_.find(([re]) => re.test(t)); return x ? x[1] : 'adult'; };
+U.face = (seed, sex, role) => U.faceRole(role || 'adult', sex, seed);
+/* лицо сцены (sceneFace в ui.js берёт sc.face): из сырой сцены */
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  if (sc && sc.raw && sc.raw.d1face && !sc.face) Object.assign(sc, {face: sc.raw.d1face.id, faceName: sc.raw.d1face.n, faceSub: sc.raw.d1face.sub}); return sc; }; }
+/* сцена-разговор: строки для обычного показа из ленты talk */
+U.talkLines = log => log.map(x => ['n', x.who === 'n' ? x.text : `${x.name ? x.name + ': ' : ''}«${x.text}»`]);
+
+/* ---------- слава: новые дела ---------- */
+if (C.FAME_KINDS) {
+  C.FAME_KINDS.navpath = {v: {folk: 1, oko: -1, kap: 1, nav: 1}, short: d => `ходили в Навь за своим — ${d.what}`};
+  if (C.FAME_SONG && C.FAME_SONG.delo) C.FAME_SONG.delo.navpath = ['Как ходили они за рекою тёмной, / Где ни солнца нет, ни слова доброго,', 'За товарищем — {what} — / Спустились туда, откуда не ходят,'];
+}
+
+/* ---------- вход ---------- */
+const GRAVE = ['погост', 'курган'];
+const dedy = g => !!(C.HOLIDAY && C.HOLIDAY.dedy && C.holidayActive && C.holidayActive(g, C.HOLIDAY.dedy));
+const volhv = g => U.heroes(g).find(h => h.cls === 'volhv');
+C.navWays = function (g) {
+  if (!U.isFree(g) || g.d1nav || !C.bodies(g).some(b => b.hero)) return [];
+  const n = U.node(g); if (!n) return [];
+  const out = [];
+  if (n.reg === 'ed' && ['погост', 'лагерь', 'ворота', 'город', 'лес'].includes(n.kind)) out.push({how: 'vorota', t: 'Спуститься в овраг за Эдвином, к Навьим воротам, — пойти за павшим'});
+  if (GRAVE.includes(n.kind) && dedy(g)) out.push({how: 'dedy', t: 'Дедова ночь: пойти за павшим погостной тропой, пока мёртвые ходят к живым'});
+  const v = volhv(g); if (v && ['капище', 'погост', 'курган'].includes(n.kind)) out.push({how: 'volhv', t: `${v.name} поведёт тропой мёртвых за павшим`});
+  return out.slice(0, 1).concat(out.slice(1).filter(x => x.how !== out[0].how)).slice(0, 2);
+};
+U.injectAt(g => C.navWays(g).map(w => ({t: w.t, d1nav: w.how, do: g2 => { g2.d1navPick = w.how; return 'd1nav_pick'; }})));
+
+/* ---------- состояние тропы ---------- */
+const ROOM_POOL = ['water', 'pale', 'guard', 'mem', 'hod'];
+const st = g => g.d1nav || null;
+C.navOn = g => !!(g && g.d1nav);
+C.navStart = function (g, bodyId, how) {
+  const b = (g.bodies || []).find(x => x.id === bodyId); if (!b || !b.hero) return null;
+  const seed = 'nav|' + b.id + '|' + g.day + '|' + (g.seed || 0), pool = ROOM_POOL.slice().sort((x, y) => U.hsh(seed + x) - U.hsh(seed + y));
+  g.d1nav = {b: b.id, name: b.name, sex: b.hero.sex, how: how || 'vorota', rooms: ['river'].concat(pool.slice(0, K.NAV_ROOMS), ['kin']), i: 0,
+    room: {}, days: 0, rests: 0, hint: 0, hints: [], from: g.loc, soul: null, day: g.day};
+  C.note(g, U.fill(how === 'volhv' ? 'Волхв велит взяться за руки и не оглядываться. Огонь гаснет, и земля уходит из-под ног: отряд идёт за {h:i} туда, откуда не возвращаются.'
+    : how === 'dedy' ? 'В Дедову ночь калитка погоста стоит открытой, и тропа за ней ведёт не к могилам, а вниз. Отряд идёт за {h:i}, пока мёртвые сами ходят к живым.'
+      : 'Меж двух глыб в овраге за Эдвином тянет холодом. Отряд спускается за {h:i} туда, где кончаются старые дороги.', {name: b.name, sex: b.hero.sex}));
+  return g.d1nav;
+};
+const dcOf = (g, add) => K.NAV_DC + Math.floor(U.lvl(g) / 2) + (add || 0);
+const outerDays = S => Math.max(1, Math.round(((S.i + (S.room.done ? 1 : 0)) * K.NAV_DAYS_ROOM + S.rests * K.NAV_DAYS_REST) * (S.how === 'dedy' ? K.NAV_DEDY_K : 1)));
+const fallenH = S => ({name: S.name, sex: S.sex});
+const bodyOf = (g, S) => (g.bodies || []).find(x => x.id === S.b) || null;
+const hurt = (g, k) => U.heroes(g).concat(g.mercs || []).forEach(h => { if (!h.dead) h.hp = Math.max(1, h.hp - Math.ceil((h.hpMax || 1) * k)); });
+const addHint = (S, k) => { if (!S.hints.includes(k)) S.hints.push(k); S.hint = (S.hint || 0) + 1; };
+const hasAny = (g, ids) => U.heroes(g).concat(g.mercs || []).some(h => (h.inv || []).some(x => ids.includes(R.baseId ? R.baseId(x) : x)));
+const takeAny = (g, ids) => { for (const h of U.heroes(g).concat(g.mercs || [])) { const i = (h.inv || []).findIndex(x => ids.includes(R.baseId ? R.baseId(x) : x)); if (i >= 0) { h.inv.splice(i, 1); return true; } } return false; };
+const FOODS = h => (h.inv || []).filter(id => C.FOOD && C.FOOD[id] && !(C.RAW && C.RAW[id]));
+const anyFood = g => U.heroes(g).concat(g.mercs || []).some(h => FOODS(h).length);
+const takeFood = g => { for (const h of U.heroes(g).concat(g.mercs || [])) { const f = FOODS(h)[0]; if (f) { h.inv.splice(h.inv.indexOf(f), 1); return true; } } return false; };
+const SALT = ['sol_1_funt', 'gorkaya_sol', 'zelye_nyuhatelnaya_sol'];
+/* навья тоска с тропы: снимется только снаружи */
+const TOSKA_K = ['apathy', 'terror', 'morok'];
+const TOSKA_GET = ['{h} {сел|села} на камень и долго не {мог|могла} встать: холод тропы вошёл под рёбра, и стало всё равно, куда идти.',
+  'У {h:g} побелели губы. Навья тоска легла {ему|ей} на плечи и не уходит: здесь её не стряхнуть.',
+  '{h} {смотрел|смотрела} в темноту, пока темнота не {посмотрела|посмотрела} в ответ. Тоска пристала, как мокрая рубаха.'];
+const toskaGive = (g, h) => { if (!h || (C.toskaOf && C.toskaOf(h))) return false;
+  const s = h.w2c = (h.w2c && typeof h.w2c === 'object') ? h.w2c : {}; if (!Array.isArray(s.nag)) s.nag = [];
+  s.toska = {k: TOSKA_K[U.hsh(h.id + '|' + g.day + '|' + (st(g) || {}).i) % 3], day: g.day, at: 'navpath'};
+  U.say(g, U.fill(U.newPick(g, 'navtk', TOSKA_GET), h)); return true; };
+if (C.toskaDrop) { const td0 = C.toskaDrop; C.toskaDrop = function (g, h) {
+  if (g && g.d1nav && h && h.w2c && h.w2c.toska && h.w2c.toska.at === 'navpath') return false; // на тропе тоску не снять
+  return td0.apply(this, arguments); }; }
+/* привал: Воля; провал — тоска; удача — силы */
+C.navRest = function (g) {
+  const S = st(g); if (!S) return null; S.rests++; S.room.rested = 1;
+  const got = [], ok = [];
+  U.heroes(g).forEach(h => { if (C.condSave && !C.condSave(g, h, 'will', K.NAV_REST_DC)) { if (toskaGive(g, h)) got.push(h); }
+    else { h.hp = Math.min(h.hpMax, h.hp + Math.ceil(h.hpMax * K.NAV_REST_HEAL)); ok.push(h); } });
+  (g.mercs || []).forEach(m => { if (!m.dead) m.hp = Math.min(m.hpMax, m.hp + Math.ceil(m.hpMax * K.NAV_REST_HEAL / 2)); });
+  const t = got.length === U.heroes(g).length ? 'Костра здесь не развести: огонь не берёт. Вы сидите плечом к плечу в серой полутьме, и сон не идёт ни к кому.'
+    : ok.length ? `Вы садитесь спиной к спине и закрываете глаза. ${ok.map(h => h.name).join(', ')} ${ok.length > 1 ? 'поднимаются' : U.sx('поднимается', ok[0].sex)} окрепшими, будто и вправду спали.` : '';
+  S.room.res = [S.room.res, t].filter(Boolean).join(' ');
+  if (t) C.note(g, t);
+  return {got, ok};
+};
+
+/* ---------- каморы ---------- */
+const ROOMS = {
+  river: {title: 'Река без брода',
+    lines: g => [['n', 'Тропа упирается в реку. Вода в ней тёмная и тёплая, как парное молоко, и течёт без звука. Моста нет, только тонкая жердь, перекинутая с берега на берег, да на той стороне сидит в лодке сгорбленный человек и смотрит на вас, не мигая.'],
+      ['n', 'Над водой не летают даже мошки. Старики говорят, что живой, ступивший в эту реку, забывает своё имя ещё до того берега.']],
+    ch: (g, S) => { const fee = Math.max(10, Math.round(K.NAV_FERRY * U.lvl(g) / 10) * 10), out = [];
+      out.push({t: 'Перейти по жерди (Ловкость, Атлетика)', do: g2 => { const r = C.bestCheck(g2, 'dex', 'Атлетика', dcOf(g2)); g2.lastCheck = r;
+        if (r.ok) return roomDone(g2, 'Жердь гнётся и пружинит, но держит. Вы переходите по одному, глядя только на того, кто впереди, и ни разу не опускаете глаз к воде.');
+        hurt(g2, K.NAV_HURT); return roomDone(g2, 'Кто-то оступается, и тёплая вода хватает за ноги. Его вытаскивают за ворот, но он ещё долго трясётся и путает, как кого зовут. Силы ушли в реку, как в песок.'); }});
+      out.push({t: `Положить перевозчику на ладонь серебро — ${R.priceText(fee)}`, if: g2 => (g2.purse || 0) >= fee, off: 'не хватает серебра',
+        do: g2 => { g2.purse -= fee; return roomDone(g2, 'Перевозчик сжимает монету в кулаке и молча гребёт. Лодка идёт без плеска. На том берегу он кивает вам вслед, будто старым знакомым, и шепчет: «Обратно — не через меня».'); }});
+      if (S.how === 'volhv' || U.heroes(g).some(h => ['volhv', 'zhrets'].includes(h.cls)))
+        out.push({t: 'Попросить реку пропустить, как велит старый обычай', do: g2 => { const v = U.heroes(g2).find(h => ['volhv', 'zhrets'].includes(h.cls));
+          addHint(S, 'old'); return roomDone(g2, U.fill('{h} кланяется воде до земли и долго шепчет над ней. Река темнеет, а потом из неё поднимаются камни, один за другим, ровно на шаг. Вода пропустила вас — и, похоже, что-то о вас запомнила.', v)); }});
+      return out; }},
+  water: {title: 'Тёмная вода',
+    lines: g => [['n', 'Здесь тропа идёт по краю озера. Вода стоит недвижно, гладкая, как зеркало, и в ней видно не то, что над ней. Кто-то видит в отражении свой двор, кто-то — себя седым, а кто-то — себя лежащим.'],
+      ['n', 'Вода зовёт заглянуть поглубже. Говорят, она отвечает на один вопрос — только платит за ответ тот, кто спросил.']],
+    ch: (g, S) => [
+      {t: 'Идти, не поднимая глаз (Мудрость)', do: g2 => { const r = C.bestCheck(g2, 'wis', null, dcOf(g2)); g2.lastCheck = r;
+        if (r.ok) return roomDone(g2, 'Вы идёте, глядя себе под ноги, и не отвечаете, когда вода зовёт по именам. Озеро остаётся позади, обиженное и тихое.');
+        if (C.frightTry) C.frightTry(g2, dcOf(g2), 'find'); return roomDone(g2, 'Кто-то всё-таки поднял глаза. Что он увидел — не говорит, но руки у него трясутся до самой следующей тропы.'); }},
+      {t: `Заглянуть в воду и спросить о ${U.decl(S.name, S.sex).p} (Интеллект, Грамота)`, do: g2 => { const r = C.bestCheck(g2, 'int', 'Грамота', dcOf(g2, 1)); g2.lastCheck = r;
+        if (r.ok) { addHint(S, 'water'); return roomDone(g2, U.fill('Вода показывает {h:a} — не мёртвым, а живым, у костра, в тот вечер, когда {он|она} смеялся громче всех. Теперь вы знаете, что держит {его|её} там, внизу, и что может позвать обратно.', fallenH(S))); }
+        toskaGive(g2, r.hero && r.hero.name ? r.hero : U.heroes(g2)[0]); return roomDone(g2, 'Вода показала только чёрное дно. Тот, кто смотрел, отходит молча, и от него тянет холодом.'); }}]},
+  pale: {title: 'Бледные у межи',
+    lines: g => [['n', 'Поперёк тропы, на меже, стоят бледные: мужики, бабы, дети, все в смертном, все босые. Они не нападают, только смотрят и тянут к вам руки — не хватать, а просить.'],
+      ['n', 'У живых им взять нечего, кроме тепла. Только тепло у живых — не лишнее. Старики кладут покойникам в домовину соль да железо не зря: от соли и железа бледные отступают.']],
+    ch: (g, S) => [
+      {t: 'Рассыпать соль кругом и идти по кругу', if: g2 => hasAny(g2, SALT), off: 'соли с собой нет',
+        do: g2 => { takeAny(g2, SALT); return roomDone(g2, 'Соль ложится белой дугой, и бледные отступают от неё, как от огня. Они не сердятся: просто стоят и смотрят, как вы уходите.'); }},
+      {t: 'Провести по земле ножом и сказать старое слово (Мудрость, Знахарство)', do: g2 => { const r = C.bestCheck(g2, 'wis', 'Знахарство', dcOf(g2)); g2.lastCheck = r;
+        if (r.ok) return roomDone(g2, 'Железо чертит на земле черту, и бледные останавливаются у неё, как у порога чужой избы. Кто-то из детей машет вам вслед.');
+        U.heroes(g2).slice(0, 1).forEach(h => toskaGive(g2, h)); hurt(g2, K.NAV_HURT / 2); return roomDone(g2, 'Слово вышло не то. Бледные подходят ближе и касаются ваших рук холодными пальцами — не больно, только тепло уходит, и уходит надолго.'); }},
+      {t: 'Пробиться силой', do: g2 => fight(g2, 'Бледные у межи', false)}]},
+  guard: {title: 'Страж межи',
+    lines: g => [['n', 'У брода через сухое русло стоит воин в старой кольчуге, ржавой до дыр. Лица под шеломом не видно. Копьё опущено поперёк тропы.'],
+      ['n', '«Кто идёт? — голос будто из-под земли, и так оно, верно, и есть. — Живым здесь не ходят. Назовитесь, за кем пришли и по какому праву».']],
+    ch: (g, S) => [
+      {t: `Назвать себя и ${U.decl(S.name, S.sex).a} по имени (Очарование, Дипломатия)`, do: g2 => { const r = C.bestCheck(g2, 'cha', 'Дипломатия', dcOf(g2)); g2.lastCheck = r;
+        if (r.ok) { addHint(S, 'guard'); return roomDone(g2, U.fill('Страж долго молчит, потом поднимает копьё. «{h}… — повторяет он. — Помню. {Пришёл|Пришла} недавно и всё оглядывается назад. Значит, не всё {он|она} там оставил{|а}. Ступайте».', fallenH(S))); }
+        return fight(g2, 'Страж межи', false, 'Страж не верит ни одному слову. Копьё поднимается — но не вверх.'); }},
+      {t: 'Ударить первыми', do: g2 => fight(g2, 'Страж межи', true)}]},
+  mem: {title: 'Та, что берёт память',
+    lines: g => [['n', 'На пне у тропы сидит старуха с веретеном. Нить у неё серая, бесконечная, и тянется она прямо из воздуха. Старуха не поднимает глаз.'],
+      ['n', '«Дальше даром не ходят, — говорит она. — Дайте мне память — одну, хорошую, тёплую, — и я пущу вас. А взамен скажу, что помнит ваш мёртвый. Без этого он вас и не узнает».']],
+    ch: (g, S) => U.heroes(g).map(h => ({t: `${h.name}: отдать ей добрую память`, do: g2 => { const hh = U.heroes(g2).find(x => x.id === h.id); if (!hh) return 'd1nav_room';
+        const step = R.xpStep ? R.xpStep(hh.level, hh.cls) : 100; hh.xp = Math.max(R.xpFor ? R.xpFor(hh.level, hh.cls) : 0, (hh.xp || 0) - Math.round(step * K.NAV_MEM_XP));
+        hh.d1mem = (hh.d1mem || []).concat(U.pick(MEMS, hh.id + g2.day)).slice(-3); addHint(S, 'mem');
+        return roomDone(g2, U.fill(`{h} закрывает глаза, и старуха наматывает на веретено светлую нить. Что это было, {h} уже не помнит — только пусто там, где было тепло, и выученное будто подёрнулось пылью. «А твой мёртвый, — говорит старуха, — помнит одно: кто его ждёт. С этого и начинай».`, hh)); }}))
+      .concat([{t: 'Отказать старухе и искать обход (Мудрость, Выживание)', do: g2 => { const r = C.bestCheck(g2, 'wis', 'Выживание', dcOf(g2, 1)); g2.lastCheck = r;
+        if (r.ok) return roomDone(g2, 'Вы обходите пень по сухому руслу. Старуха смеётся вам вслед, не поднимая глаз: «Ну-ну. Посмотрим, узнает ли он вас».');
+        U.heroes(g2).forEach(h => toskaGive(g2, h)); return roomDone(g2, 'Обход петляет и петляет и выводит к тому же пню. Старуха пропускает вас молча, но всю дорогу потом кажется, что за вами тянется серая нить.'); }}])},
+  hod: {title: 'Навий ход',
+    lines: g => [['n', 'Тропа уходит в низкий ход, где пахнет землёй и воском. По стенам — норы, и из нор на вас смотрят. Где-то впереди скрипит, будто кто-то тащит по камню тяжёлое.'],
+      ['n', 'Ход ветвится. В одну сторону тянет теплом, в другую — сквозняком, и сквозняк пахнет вашей родной печью.']],
+    ch: (g, S) => [
+      {t: 'Идти на сквозняк (Мудрость, Поиск пути)', do: g2 => { const r = C.bestCheck(g2, 'wis', 'Поиск пути', dcOf(g2)); g2.lastCheck = r;
+        if (r.ok) return roomDone(g2, 'Сквозняк обманывает: он пахнет домом, чтобы увести назад. Вы идёте наоборот — на тепло — и выходите туда, куда надо.');
+        S.days += K.NAV_DAYS_ROOM; return roomDone(g2, 'Ход долго водит вас кругами. Вы выходите туда, куда нужно, но кажется, что прошла целая вечность — и снаружи, верно, так оно и есть.'); }},
+      {t: 'Идти напролом, через тех, кто в норах', do: g2 => fight(g2, 'Навий ход', false)}]},
+  kin: {title: 'Стол мёртвых',
+    lines: (g, S) => { const ls = [['n', 'В конце тропы — изба без стен: один стол, длинный, под белой скатертью, и за ним сидят мёртвые. Они не страшные — свои. Отряд узнаёт их не сразу, а потом уже не может не узнать.']];
+      U.heroes(g).forEach(h => ls.push(['n', U.fill(kinOf(h), h)]));
+      ls.push(['n', 'Миски на столе пусты. Мёртвые голодны: в Деды они сами ходят к живым есть, а тут живые пришли к ним. За дальним концом стола, спиной к вам, сидит тот, за кем вы шли.']);
+      return ls; },
+    ch: (g, S) => [
+      {t: 'Поставить на стол хлеб и всё, что есть съестного', if: g2 => anyFood(g2), off: 'съестного с собой нет',
+        do: g2 => { takeFood(g2); takeFood(g2); addHint(S, 'kin'); U.heroes(g2).forEach(h => { h.hp = Math.min(h.hpMax, h.hp + Math.ceil(h.hpMax * 0.25)); });
+          return roomDone(g2, 'Мёртвые едят молча и долго, а потом старший кладёт ложку и кланяется вам: «Накормили. Не забыли». У каждого из вас будто камень с души. А тот, за дальним концом стола, обернулся на запах хлеба.'); }},
+      {t: 'Сесть с ними и отведать их угощения', do: g2 => { U.heroes(g2).forEach(h => toskaGive(g2, h)); addHint(S, 'kin');
+        return roomDone(g2, 'Угощение пахнет полынью и ничем не пахнет. Вы едите — и вкуса нет, только холод, что медленно идёт от горла вниз. Мёртвые смотрят с жалостью: «Зачем же вы, живые… Нашего не едят». Тот, за дальним концом стола, обернулся.'); }},
+      {t: 'Пройти мимо стола, не глядя (Воля)', do: g2 => { let bad = 0; U.heroes(g2).forEach(h => { if (C.condSave && !C.condSave(g2, h, 'will', K.NAV_REST_DC)) { if (toskaGive(g2, h)) bad++; } });
+        return roomDone(g2, bad ? 'Вы идёте мимо, и мёртвые провожают вас глазами. Кто-то из своих тихо зовёт по имени, и не откликнуться — тяжелее, чем драться.' : 'Вы идёте мимо, глядя перед собой. Мёртвые не обижаются: они знают, зачем вы пришли.'); }}]},
+};
+const MEMS = ['первый снег на родном дворе', 'материну песню над колыбелью', 'запах хлеба из печи', 'первую ярмарку', 'первый поцелуй у реки', 'отцовскую руку на плече', 'летнюю ночь на сеновале'];
+const KIN = ['За столом {h} видит деда: тот подвигается, оставляя место, как бывало дома.', 'Мать {h:g} сидит у края стола и поправляет на голове платок — тот самый, в котором её хоронили.',
+  'Старший брат {h:g} подмигивает, словно они опять мальчишки и сбежали с покоса.', 'Бабка {h:g} шевелит губами — считает, все ли пришли.', 'Отец {h:g} смотрит строго и долго, а потом едва заметно кивает.',
+  'Сестра {h:g}, умершая совсем маленькой, тянет {h:a} за рукав, будто зовёт играть.'];
+const kinOf = h => { const o = C.originOf && C.originOf(h);
+  if (o && o.id === 'lipovka') return 'Рядом с {h:i} садятся погорельцы Липовки — соседи, что сгорели вместе с улицей. От них пахнет дымом, но смотрят они тепло.';
+  if (o && o.id === 'polon') return 'Против {h:g} сидят те, с кем {он|она} шёл в полон и кого не выкупили. Они не держат зла.';
+  return U.pick(KIN, h.id + (h.name || '')); };
+/* бой на тропе */
+const NAVFOES = ['naviy_duh', 'kostyak', 'podnyatyy_mertvets', 'mertvyak', 'navya_golova', 'myortvy_ratnik', 'mavka_navya'];
+function fight(g, title, amb, pre) {
+  const S = st(g); if (!S) return 'map';
+  const L = C.zoneLevel ? C.zoneLevel(g) : U.lvl(g), ok = NAVFOES.filter(id => C.beast && C.beast(id) && C.beast(id).level <= U.lvl(g) + 1);
+  let foes = ok.length && C.compose ? C.compose(ok.slice(), C.budget(g, 1)) : [];
+  if (!foes.length) foes = ['naviy_duh', 'naviy_duh'];
+  if (pre) C.note(g, pre);
+  S.room.fight = 1;
+  return {battle: {title, foes, field: C.fieldFor ? C.fieldFor('wasteland', true) : {bg: 'meadow', scatter: []}, ambush: amb ? 'party' : null, win: 'd1nav_won', lose: 'map', xpBonus: 0, place: 'Навья тропа', d1nav: 1}};
+}
+function roomDone(g, text) { const S = st(g); if (!S) return 'map'; S.room.done = 1; S.room.res = text; C.note(g, text); return 'd1nav_room'; }
+/* бой на тропе проигран — тропа кончилась */
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, Sx, spec) {
+  const r = be0.apply(this, arguments);
+  try { if (g && g.d1nav && spec && spec.d1nav && Sx && Sx.over && Sx.over !== 'win') navLeave(g, false, 'lost'); } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  return r; }; }
+
+/* ---------- дух павшего ---------- */
+const ARGS = {
+  kin: {t: b => { const o = C.originOf && C.originOf(b); return o ? `«Тебя ждут. ${U.cap(o.kin.n)} всё глаза проглядел${o.kin.sex === 'f' ? 'а' : ''}»` : '«Дома тебя ждут. Кто будет ждать, если не вернёшься?»'; }},
+  word: {t: () => '«Ты слово давал{|а}. Мы тебе поверили — ты нам верил{|а}. Неужто здесь его и бросишь?»'},
+  mercy: {t: () => '«Те, кого ты вытащил{|а}, ещё живы. Кто за них встанет, если не ты?»'},
+  gain: {t: () => '«Твоя доля добычи лежит нетронутой. Не отдавать же её чужим»'},
+  dream: {t: b => { const d = C.dreamOf && C.dreamOf(b); return d ? `«А как же то, о чём ты мечтал{|а}? ${U.cap(d.short || d.t)} — само не сбудется»` : '«Ты ведь ещё не сделал{|а} того, ради чего жил{|а}»'; }},
+  friends: {t: () => '«Мы без тебя не пойдём. Хоть до утра тут сидеть будем»'},
+  order: {t: () => '«Встань. Нечего тут рассиживаться. Пошли»'},
+};
+const SOUL_SAY = {
+  hi: ['Здесь тихо, — говорит {h}, не оборачиваясь. — Не болит ничего. Зачем вы пришли?', 'А, это вы, — {h} оборачивается не сразу. — Я уж думал{|а}, мне снится. Тут всё как сон. И хорошо.',
+    'Вы зря спустились, — голос у {h:g} ровный, без тепла. — Здесь не холодно и не страшно. Здесь просто ничего не нужно.'],
+  strong: ['{h} долго молчит, и в лице проступает что-то живое. — Правда… Я и забыл{|а}. Как же я забыл{|а}…', 'Пальцы у {h:g} сжимаются, будто ищут рукоять. — Вот это… это ты верно сказал.',
+    '{h} впервые смотрит прямо на вас. — Ждут, говоришь… Ну, если ждут…'],
+  mid: ['{h} пожимает плечами, но уже не отворачивается. — Может, и так. Может.', 'Слова доходят до {h:g} будто сквозь воду. — Повтори. Я не расслышал{|а}.'],
+  weak: ['Это — не то, — {h} качает головой. — Это не держит. Ничего такого здесь не держит.', '{h} отворачивается к пустой миске. — Не то говоришь. Совсем не то.',
+    'Холодом тянет от {h:g} сильнее прежнего. — Ты меня с кем-то путаешь.'],
+  yes: ['{h} встаёт из-за стола, и мёртвые расступаются. — Ладно. Пошли. Только не оглядывайтесь — ни вы, ни я.', 'Ну, раз так… — {h} поднимается, и скатерть под рукой оказывается простым холстом. — Ведите. Только держите крепче.'],
+  no: ['Нет, — говорит {h} тихо. — Вы идите. А я посижу. Мне здесь хорошо, правда.', '{h} снова отворачивается к столу. — Не зовите больше. Я слышу, но не пойду. Простите.'],
+};
+/* что держит духа: по нраву, корням, мечте */
+const soulKeys = b => { const n = C.nravOf ? C.nravOf(b) : {slovo: 0, ruka: 0, koryst: 0}, out = {strong: [], weak: []};
+  if (C.originOf && C.originOf(b)) out.strong.push('kin');
+  if (C.dreamOf && C.dreamOf(b) && !(b.dreamDone)) out.strong.push('dream');
+  if (n.slovo >= 2) out.strong.push('word'); else if (n.slovo <= -2) out.weak.push('word');
+  if (n.ruka >= 2) out.strong.push('mercy'); else if (n.ruka <= -2) out.strong.push('order');
+  if (n.koryst <= -2) out.strong.push('gain'); else if (n.koryst >= 2) out.weak.push('gain');
+  if (n.ruka > -2) out.weak.push('order');
+  if (!out.strong.length) out.strong.push('friends');
+  return out; };
+C.navSoulKeys = b => soulKeys(b);
+const soulOf = (g, S) => { if (!S.soul) S.soul = {n: 0, score: Math.min(2, S.hint || 0), used: [], log: []}; return S.soul; };
+function soulSay(g, S, k) { const b = bodyOf(g, S); return U.fill(U.newPick(g, 'soul|' + k, SOUL_SAY[k]), fallenH(S)) + ''; }
+C.navSoulPick = function (g, arg) {
+  const S = st(g); if (!S) return null; const b = bodyOf(g, S); if (!b) return null; const so = soulOf(g, S); if (so.end) return so;
+  const keys = soulKeys(b.hero), hero = U.heroes(g)[0] || {name: 'Отряд', sex: 'm'};
+  so.used.push(arg); so.n++;
+  so.log.push({who: 'h', text: U.sx(ARGS[arg].t(b.hero), b.hero.sex).replace(/^«|»$/g, '')});
+  let gain = 0;
+  if (keys.strong.includes(arg)) gain = 2;
+  else if (keys.weak.includes(arg)) gain = -1;
+  else { const r = C.bestCheck(g, 'cha', 'Дипломатия', dcOf(g)); g.lastCheck = r; gain = r.ok ? 1 : 0; }
+  so.score += gain;
+  so.log.push({who: 'o', text: soulSay(g, S, gain >= 2 ? 'strong' : gain === 1 ? 'mid' : 'weak')});
+  if (so.score >= K.NAV_SOUL_NEED) { so.end = 'yes'; so.log.push({who: 'o', text: soulSay(g, S, 'yes')}); }
+  else if (so.n >= K.NAV_SOUL_TURNS) { so.end = 'no'; so.log.push({who: 'o', text: soulSay(g, S, 'no')}); }
+  return so;
+};
+/* вернуть павшего тропой: без потери Телосложения */
+C.navRaise = function (g, b) {
+  if (!b || !b.hero) return null;
+  g.bodies = (g.bodies || []).filter(x => x !== b);
+  const h = b.hero; h.dead = false; h.hp = Math.max(1, Math.round((h.hpMax || 10) * K.NAV_RAISE_HP));
+  const f = (g.fallen || []).find(x => x.id === b.id); if (f) { f.raised = g.day; f.nav = 1; }
+  if (C.raiseHook) C.raiseHook(g, h, b); else g.heroes.push(h);
+  C.note(g, U.fill('{h} возвращ{ён|ена} из Нави своими ногами, по тропе, а не обрядом. Навь {его|её} отпустила целиком: тело то же, что было, только глаза ещё долго смотрят мимо огня.', h));
+  return h;
+};
+function navLeave(g, ok, why) {
+  const S = st(g); if (!S) return null;
+  const days = outerDays(S), b = bodyOf(g, S);
+  let h = null; if (ok && b) h = C.navRaise(g, b);
+  delete g.d1nav;
+  for (let d = 0; d < days; d++) C.pass(g, 4);
+  g.d1navLast = {name: S.name, sex: S.sex, ok: !!h, days, why: why || '', how: S.how};
+  if (h && C.fameDeed) C.fameDeed(g, 'navpath', {what: S.name, wsex: S.sex});
+  if (h && C.trust && g.chron) C.trust(g, 'nav', 0.5);
+  C.note(g, `Отряд выходит к живым. Наверху ${U.dayPast(days)}: ${days > 2 ? 'трава успела подняться, а люди глядят на вас, будто на пришлых с того света' : 'небо то же, только ветер сменился'}.`);
+  return g.d1navLast;
+}
+C.navLeave = navLeave;
+
+/* ---------- сцены ---------- */
+const nodeScene = g => { const n = U.node(g); return n ? n.scene : 'map'; };
+const restCh = (g, S) => ({t: 'Устроить привал на тропе (Воля)', if: g2 => !(st(g2) && st(g2).room.rested), off: 'здесь уже отдыхали',
+  do: g2 => { C.navRest(g2); return 'd1nav_room'; }});
+const SC = {
+  d1nav_pick: g => { const how = g.d1navPick || 'vorota', bs = C.bodies(g).filter(b => b.hero);
+    if (!bs.length) return {title: 'Тропа', bg: 'graveyard', lines: [['n', 'Звать из Нави некого.']], choices: [{t: 'Назад', go: g2 => nodeScene(g2)}]};
+    const lines = [['n', how === 'vorota' ? 'Навьи ворота — две глыбы в овраге за Эдвином. Меж ними ход вниз, и в этот раз он ведёт не в старые дороги, а дальше. Тянет оттуда не холодом, а пустотой.'
+      : how === 'dedy' ? 'Дедова ночь. На могилах горят свечи, на столах в избах оставлены ложки для мёртвых. Калитка погоста скрипит сама собой, а за ней тропа уходит не к могилам, а вниз, в серый туман.'
+        : 'Волхв разводит огонь из можжевельника и сыплет в него соль. «Тропа есть, — говорит он. — Узкая. Пройдёте — приведёте. Оглянетесь — останетесь. А что там будет на сердце — не спрашивайте заранее».'],
+    ['n', 'Говорят, туда ходили и раньше. Возвращались не все, а кто возвращался, тот приводил своих целыми — не такими, как после храмового чуда, когда Навь берёт себе кусок. Только время наверху идёт иначе: внизу час, а тут — дни.']];
+    return {title: 'Навья тропа', bg: how === 'vorota' ? 'cave' : 'graveyard', lines,
+      choices: bs.map(b => ({t: `Идти за ${U.decl(b.name, b.hero.sex).i}`, do: g2 => { if (!C.navStart(g2, b.id, how)) return nodeScene(g2); delete g2.d1navPick; return 'd1nav_room'; }}))
+        .concat([{t: 'Не сейчас', go: g2 => { delete g2.d1navPick; return nodeScene(g2); }}])};
+  },
+  d1nav_room: g => { const S = st(g);
+    if (!S) return {title: 'Навья тропа', bg: 'cave', lines: [['n', 'Тропа кончилась.']], choices: [{t: 'Дальше', go: g2 => nodeScene(g2)}]};
+    const id = S.rooms[S.i], R0 = ROOMS[id], lines = typeof R0.lines === 'function' ? R0.lines(g, S) : R0.lines;
+    const FACE_R = {river: ['old', 'm', 'Перевозчик', 'на том берегу'], guard: ['voin', 'm', 'Страж межи', 'мёртвый воин'], mem: ['old', 'f', 'Старуха с веретеном', 'та, что берёт память'],
+      kin: ['old', 'm', 'Старший за столом', 'из ваших мёртвых'], pale: ['muzhik', 'f', 'Бледные', 'у межи']}[id];
+    const d1face = FACE_R ? {id: U.faceRole(FACE_R[0], FACE_R[1], 'nav|' + id + '|' + S.b), n: FACE_R[2], sub: FACE_R[3]} : null;
+    const ch = [];
+    if (!S.room.done) ch.push(...R0.ch(g, S));
+    else {
+      lines.push(['n', S.room.res]);
+      const last = S.i >= S.rooms.length - 1;
+      ch.push({t: last ? `Подойти к ${U.decl(S.name, S.sex).d}` : 'Идти дальше по тропе', do: g2 => { const S2 = st(g2); if (!S2) return nodeScene(g2);
+        if (S2.i >= S2.rooms.length - 1) { soulOf(g2, S2); return 'd1nav_soul'; } S2.i++; S2.room = {}; return 'd1nav_room'; }});
+      ch.push(restCh(g, S));
+    }
+    ch.push({t: 'Повернуть назад, без павшего', do: g2 => { navLeave(g2, false, 'back'); return 'd1nav_out'; }});
+    return {title: `Навья тропа: ${R0.title.toLowerCase()}`, bg: id === 'kin' ? 'graveyard' : 'cave', lines, choices: ch, d1face};
+  },
+  d1nav_won: g => { const S = st(g); if (S) { S.room.done = 1; S.room.res = 'Мёртвые легли — не насовсем: здесь никто не ложится насовсем. Но тропа свободна, и надо идти, пока они не поднялись.'; }
+    return {title: 'Навья тропа', bg: 'cave', lines: [['n', S ? S.room.res : 'Бой окончен.']], choices: [{t: 'Дальше', go: g2 => (st(g2) ? 'd1nav_room' : nodeScene(g2))}]}; },
+  d1nav_soul: g => { const S = st(g); const b = S && bodyOf(g, S);
+    if (!S || !b) return {title: 'Навья тропа', bg: 'graveyard', lines: [['n', 'За столом пусто: того, за кем шли, здесь уже нет.']], choices: [{t: 'Возвращаться', do: g2 => { navLeave(g2, false, 'gone'); return 'd1nav_out'; }}]};
+    const so = soulOf(g, S), hh = U.heroes(g)[0] || {name: '', portrait: ''};
+    if (!so.log.length) { so.log.push({who: 'n', text: U.fill('{h} сидит за дальним концом стола, в чистой рубахе, умыт{ый|ая} и тих{ий|ая}. Перед {ним|ней} пустая миска. На вас {он|она} смотрит, как смотрят на соседей через улицу: узнаёт, но не рад{|а}.', fallenH(S))},
+      {who: 'o', text: soulSay(g, S, 'hi')});
+      if (S.hints.length) so.log.push({who: 'n', text: 'Вы вспоминаете, что видели и слышали на тропе. Теперь понятно, с чего начать.'}); }
+    const ch = [];
+    if (!so.end) Object.keys(ARGS).filter(k => !so.used.includes(k)).filter(k => k !== 'dream' || (C.dreamOf && C.dreamOf(b.hero))).filter(k => k !== 'kin' || (C.originOf && C.originOf(b.hero)) || so.used.length)
+      .forEach(k => ch.push({t: U.sx(ARGS[k].t(b.hero), b.hero.sex), d1arg: k, do: g2 => { C.navSoulPick(g2, k); return 'd1nav_soul'; }}));
+    else if (so.end === 'yes') ch.push({t: 'Взять за руку и вести назад, не оглядываясь', end: 1, do: g2 => { navLeave(g2, true, 'yes'); return 'd1nav_out'; }});
+    else ch.push({t: 'Проститься и уходить', end: 1, do: g2 => { navLeave(g2, false, 'no'); return 'd1nav_out'; }});
+    return {title: S.name, bg: 'graveyard', lines: U.talkLines(so.log.map(x => Object.assign({name: x.who === 'o' ? S.name : x.who === 'h' ? hh.name : ''}, x))), choices: ch,
+      talk: {who: {name: S.name, face: b.hero.portrait || '', head: 'Стол мёртвых', sub: 'Навья тропа'}, hero: {name: hh.name, face: hh.portrait || ''}, log: so.log.map(x => Object.assign({}, x))}};
+  },
+  d1nav_out: g => { const x = g.d1navLast || {name: 'павший', ok: false, days: 1};
+    const t = x.ok ? U.fill('Последние шаги — самые тяжёлые: за спиной кто-то идёт и дышит, и обернуться хочется так, что сводит шею. Вы не оборачиваетесь. Наверху {h} падает в траву и долго лежит, глядя в небо, а потом смеётся — живо, хрипло, по-своему.', {name: x.name, sex: x.sex})
+      : x.why === 'lost' ? 'Тропа выплюнула вас обратно, избитых и пустых. Того, за кем шли, вы так и не увидели.'
+        : U.fill('Вы выходите одни. {h} остал{ся|ась} там, за белой скатертью. Может, так и надо. Тело ещё можно вернуть иначе, пока не вышел срок, — но уже не целиком.', {name: x.name, sex: x.sex});
+    return {title: x.ok ? 'Из Нави — своими ногами' : 'Навья тропа', bg: 'graveyard', lines: [['n', t]], choices: [{t: 'Дальше', go: g2 => nodeScene(g2)}]};
+  },
+};
+U.scenes(SC);
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* d1_grace.js */
+/* Колдовство — волна D1: благодать бога с обетом. Без DOM. Только Вечный мир.
+   • За редкий поступок бог даёт благодать одному герою: поднять заброшенное тайное капище (shrines.js — у идола своего
+     бога), довести до конца сказание о деле бога (сорвать замысел против него, спасти служителя: C.GRACE_TALES),
+     долгую службу вере (D1.GRACE_FAITH_JOBS дел веры одного бога — gods.js, shrines.js), стать братом по делу силе мира,
+     что чтит этого бога (w2_factions: C.GRACE_FAC). Для Ока — своя «милость звезды».
+   • Благодать — малая прибавка в стихии бога: Велес — нежить бьёт хуже, звериная тропа читается; Перун — в грозу рука
+     крепче, угрозе верят; Мокошь — у больного и роженицы руки не дрогнут; Сварог — огонь жжёт слабее, ковка удаётся;
+     Стрибог — стрела вернее, дорога сама ложится; Око — чужая воля и страх соскальзывают. Помощь словами: C.GRACE.
+   • Обет — один из двух у бога (C.VOWS): нарушение видно через нрав (w2_nrav: ложь, суровость, корысть) и поступки
+     (наговор w2_cond, бегство с поля, водиться с навью). Нарушил — благодать отнята, о том идёт молва (w2_fame).
+   • Одна благодать на героя; отнятую от того же бога второй раз не дают. Принять — сцена знамения (d1_grace).
+   • Показ — только словами: C.graceLine(h) для листа героя. Числа — в C.D1.
+   Состояние: h.d1g = {god, vow, day}, h.d1gLost = [{god, vow, day}], g.d1go = знамение, что ждёт ответа, g.d1gs — счётчики. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, Q = C && C.Q, U = C && C.D1U;
+if (!R || !C || !C.CAMPS || !C.CAMPS.free || !Q || !U) return;
+Object.assign(C.D1, {GRACE_FAITH_JOBS: 5, GRACE_WAIT: 10, GRACE_HIT: 1, GRACE_FIRE: 2, GRACE_SHRINE_FEE: 30, GRACE_SHRINE_DAYS: 1});
+const K = C.D1;
+
+/* ---------- боги и обеты ---------- */
+C.VOWS = {
+  lie: {t: 'не лгать', say: 'не лгать ни служителю, ни путнику, ни врагу', codes: 'L'},
+  greed: {t: 'не брать лишнего', say: 'не брать сверх уговора и не наживаться на чужой беде', codes: 'G'},
+  cruel: {t: 'не поднимать руки на безоружного', say: 'не поднимать руки на безоружного и сдавшегося', codes: 'H'},
+  grave: {t: 'не тревожить мёртвых', say: 'не тревожить мёртвых и не брать их добра', nag: ['kurgan', 'grave']},
+  tree: {t: 'не рубить дуба и не обирать святых мест', say: 'не рубить священного дерева и не брать с жертвенника', nag: ['tree', 'idol']},
+  oath: {t: 'не бросать начатого дела', say: 'не бросать дела, за которое взялся', nag: ['oath']},
+  flee: {t: 'не бежать с поля', say: 'не показывать спины врагу, пока стоят свои', flee: 1},
+  nav: {t: 'не водиться с навью', say: 'не ходить к некромантам и не спускаться в Навь', nav: 1},
+};
+C.GRACE = {
+  veles: {n: 'благодать Велеса', gen: 'Велеса', vows: ['grave', 'greed'], skills: ['Выживание'], undead: 1,
+    gift: 'нежить бьёт по {h:d} хуже, будто сквозь шкуру, а звериную тропу {он|она} читает, как свою',
+    sign: 'Ночью у костра садится огромный бурый медведь. Он не рычит и не уходит — смотрит на {h:a} долго, как хозяин на работника, а потом исчезает в темноте, не хрустнув ни веткой.'},
+  perun: {n: 'благодать Перуна', gen: 'Перуна', vows: ['lie', 'flee'], skills: ['Запугивание'], storm: 1,
+    gift: 'в грозу и под дождём рука {h:g} бьёт крепче, а угрозе {его|её} верят, как клятве под дубом',
+    sign: 'Небо чистое, а гром бьёт трижды прямо над головой. Молния уходит в землю у ног {h:g} и оставляет на траве чёрный круг, тёплый, как ладонь.'},
+  mokosh: {n: 'благодать Мокоши', gen: 'Мокоши', vows: ['oath', 'cruel'], skills: ['Медицина', 'Знахарство'],
+    gift: 'у постели больного и у роженицы руки {h:g} не дрогнут: всякая нить у {него|неё} в пальцах ложится верно',
+    sign: 'На рукаве у {h:g} утром находят красную нить, завязанную узлом, — никто её не вязал. Старухи говорят: Мокошь кого приметила, того и пометила.'},
+  svarog: {n: 'благодать Сварога', gen: 'Сварога', vows: ['tree', 'greed'], skills: [], fire: 1, forge: 1,
+    gift: 'огонь жжёт {h:a} слабее, а железо под {его|её} молотом слушается, как тёплый воск',
+    sign: 'Угли в костре вспыхивают белым и не гаснут до утра. Когда {h} протягивает к ним руку, огонь ластится к пальцам, как кошка, и не жжёт.'},
+  stribog: {n: 'благодать Стрибога', gen: 'Стрибога', vows: ['greed', 'lie'], skills: ['Поиск пути'], ranged: 1,
+    gift: 'стрела {h:g} летит вернее, ветер сам подправляет её, а дорога ложится под ноги, как постеленная',
+    sign: 'Ветер налетает из ниоткуда, срывает с {h:g} шапку и уносит — а потом приносит обратно и кладёт к ногам. Перья на ней чужие, соколиные.'},
+  oko: {n: 'милость звезды', gen: 'Ока', vows: ['nav', 'lie'], skills: [], will: 1,
+    gift: 'чужая воля, страх и навья тьма соскальзывают с {h:g}, как вода с намасленной кожи',
+    sign: 'В полночь над {h:i} в небе загорается звезда, которой там не было, — восьмилучевая, ясная. Горит до рассвета, и все в отряде её видят.'},
+};
+const GODS = Object.keys(C.GRACE);
+/* сказания, где отряд сорвал замысел против бога или выручил его служителя */
+C.GRACE_TALES = {
+  asb_bogumil_sekira: 'perun', tk5_utes_shchepa: 'perun', tk5_utes_ugol: 'perun', sw2_ustye_grom: 'perun', as4_dub_pni: 'perun',
+  sw1_velesov_kamen: 'veles', sw1_ogni_3b: 'veles', asb_velemir_3: 'veles', sw5_mera_2: 'veles',
+  dwa_pryaslitse: 'mokosh', step5_idol_3: 'mokosh', sw2_istok_pryaslitse: 'mokosh', w2o_mokosh_les_2: 'mokosh',
+  as3_kuznets: 'svarog', tk1_stefan_obereg: 'svarog', w2p_tihomir_1: 'svarog',
+  step1_veter: 'stribog', sw4_gal_chasha: 'stribog',
+  sw1_chernye_ruki: 'oko', ed1_obetnik_pepel: 'oko', imp3_peshchery: 'oko', step1_brat: 'oko',
+};
+/* силы мира, что чтят бога: ступень «брат по делу» — знамение */
+C.GRACE_FAC = {terak: 'perun', lossy: 'veles', gortsy: 'svarog', step: 'stribog', palata: 'oko'};
+
+/* ---------- кто может принять ---------- */
+const faithOf = h => (C.faithOf ? C.faithOf(h) : null);
+C.graceOf = h => (h && h.d1g && C.GRACE[h.d1g.god] ? h.d1g : null);
+C.graceFits = function (h, god) {
+  if (!h || h.kind === 'merc' || h.dead || C.graceOf(h) || !C.GRACE[god]) return false;
+  if ((h.d1gLost || []).some(x => x.god === god)) return false;
+  const f = faithOf(h);
+  if (god === 'oko') return f === 'oko' || (!f && !['volhv', 'zhrets'].includes(h.cls));
+  if (f === 'oko' || f === 'chernobog') return false;
+  return true;
+};
+const fitHeroes = (g, god) => U.heroes(g).filter(h => C.graceFits(h, god));
+/* знамение: ждёт ответа GRACE_WAIT дней */
+C.graceOffer = function (g, god, why) {
+  if (!U.isFree(g) || !C.GRACE[god] || !fitHeroes(g, god).length) return null;
+  const o = g.d1go; if (o && g.day - o.day <= K.GRACE_WAIT) return null;
+  g.d1go = {god, why: why || '', day: g.day};
+  C.note(g, U.fill(C.GRACE[god].sign, fitHeroes(g, god)[0]));
+  return g.d1go;
+};
+const offerLive = g => { const o = g && g.d1go; if (!o) return null; if (g.day - o.day > K.GRACE_WAIT || !fitHeroes(g, o.god).length) { delete g.d1go; return null; } return o; };
+const vowOf = (h, god) => C.GRACE[god].vows[U.hsh(h.id + '|' + god) % C.GRACE[god].vows.length];
+C.graceGive = function (g, h, god, vow) {
+  if (!C.graceFits(h, god)) return null;
+  vow = C.VOWS[vow] ? vow : vowOf(h, god);
+  h.d1g = {god, vow, day: g.day};
+  delete g.d1go;
+  C.note(g, U.fill(`{h} принимает ${C.GRACE[god].n}. Отныне ${C.GRACE[god].gift}. Но и слово дано: ${C.VOWS[vow].say}.`, h));
+  return h.d1g;
+};
+
+/* ---------- нарушение обета ---------- */
+if (C.FAME_KINDS) {
+  C.FAME_KINDS.oathbreak = {v: {folk: -1, oko: 0, kap: -2, nav: 0}, short: d => `нарушили обет, данный богу, — ${d.what}`, black: 1};
+  if (C.FAME_SONG && C.FAME_SONG.delo) C.FAME_SONG.delo.oathbreak = ['Дал обет — да не сдержал, / Отвернулся бог, что руку держал.', 'Было слово, стало дым: / Бог ушёл, а он — один.'];
+}
+const BREAK = ['{h} вдруг бледнеет и хватается за грудь: что-то тёплое, что было с {ним|ней} всё это время, ушло, как вода в песок. Обет нарушен, и {бог} это видел.',
+  'Ночью {h:d} снится, как {бог} отворачивается — молча, без гнева, просто отворачивается. Утром {h} знает: благодати больше нет.'];
+/* бог по имени: Велеса → Велес, Мокоши → Мокошь */
+const GOD_N = {veles: 'Велес', perun: 'Перун', mokosh: 'Мокошь', svarog: 'Сварог', stribog: 'Стрибог', oko: 'Око'};
+C.graceBreak = function (g, h, why) { const x = C.graceOf(h); if (!x) return false;
+  const god = x.god; delete h.d1g; h.d1gLost = (h.d1gLost || []).concat({god, vow: x.vow, day: g.day}).slice(-6);
+  C.note(g, U.fill(U.pick(BREAK, h.id + g.day), h).replace(/\{бог\}/g, GOD_N[god]));
+  if (C.fameDeed) C.fameDeed(g, 'oathbreak', {what: `${h.name} — «${C.VOWS[x.vow].t}»`, who: h.name, sex: h.sex});
+  return true; };
+const vowHolders = (g, test) => U.heroes(g).filter(h => { const x = C.graceOf(h); return x && test(C.VOWS[x.vow] || {}); });
+/* нрав: ложь, суровость, корысть */
+if (C.nravDeed) { const nd0 = C.nravDeed; C.nravDeed = function (g, codes) {
+  const r = nd0.apply(this, arguments);
+  try { if (U.isFree(g) && codes) { const up = String(codes).toUpperCase(); vowHolders(g, v => v.codes && up.includes(v.codes)).forEach(h => C.graceBreak(g, h, 'nrav')); } } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  return r; }; }
+/* поступки: наговор за могилу, дуб, капище, брошенное дело */
+if (C.nagAdd) { const na0 = C.nagAdd; C.nagAdd = function (g, k) {
+  const r = na0.apply(this, arguments);
+  try { if (U.isFree(g) && r) vowHolders(g, v => (v.nag || []).includes(k)).forEach(h => C.graceBreak(g, h, 'nag')); } catch (e) {}
+  return r; }; }
+/* бегство с поля */
+if (B && B.flee) { const fl0 = B.flee; B.flee = function (S, u) {
+  const r = fl0.apply(this, arguments);
+  try { if (u && u.ref && u.side === 'party' && u.gone && C.graceOf(u.ref) && C.VOWS[C.graceOf(u.ref).vow].flee) u.ref._d1flee = 1; } catch (e) {}
+  return r; }; }
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g) {
+  const r = be0.apply(this, arguments);
+  try { if (U.isFree(g)) U.heroes(g).forEach(h => { if (h._d1flee) { delete h._d1flee; C.graceBreak(g, h, 'flee'); } }); } catch (e) {}
+  return r; }; }
+/* навь: некромант или Навья тропа */
+if (C.raise) { const ra0 = C.raise; C.raise = function (g, id, full) {
+  const r = ra0.apply(this, arguments);
+  try { if (r && full && U.isFree(g)) vowHolders(g, v => v.nav).forEach(h => C.graceBreak(g, h, 'nav')); } catch (e) {}
+  return r; }; }
+if (C.navStart) { const ns0 = C.navStart; C.navStart = function (g) {
+  const r = ns0.apply(this, arguments);
+  try { if (r) vowHolders(g, v => v.nav).forEach(h => C.graceBreak(g, h, 'nav')); } catch (e) {}
+  return r; }; }
+
+/* ---------- откуда берётся знамение ---------- */
+/* 1. тайное капище: поднять заброшенное */
+const wrapFolk = camp => { const raw = camp.scenes && camp.scenes.folk; if (typeof raw !== 'function' || raw._d1g) return;
+  const f = function (g) { const sc = raw.apply(this, arguments);
+    try { if (!sc || !sc.choices || !g || g.folkRole !== 'temple' || !g.folkAt || !U.isFree(g)) return sc;
+      const cell = W_cell(g, g.folkAt); const god = cell && cell.shrine; if (!god || !C.GRACE[god]) return sc;
+      const done = ((g.d1gs || {}).shr || {})[g.folkAt], fee = Math.max(10, Math.round(K.GRACE_SHRINE_FEE * U.lvl(g) / 10) * 10);
+      if (done) return sc;
+      const c = {t: `Поднять заброшенное капище: подправить идол, вычистить круг, обновить жертвенник (день трудов, ${R.priceText(fee)})`, if: g2 => (g2.purse || 0) >= fee, off: 'не хватает серебра',
+        do: g2 => { g2.purse -= fee; const s = g2.d1gs = g2.d1gs || {}; s.shr = s.shr || {}; s.shr[g2.folkAt] = g2.day; for (let i = 0; i < K.GRACE_SHRINE_DAYS; i++) C.pass(g2, 4);
+          g2.folkLast = 'Весь день вы рубите сухостой, правите покосившийся идол, отскребаете мох с жертвенника и обкладываете круг свежим камнем. К вечеру капище стоит, как при дедах.';
+          C.note(g2, g2.folkLast); if (C.sideAdd) C.sideAdd(g2, 'kap', 0.5);
+          return C.graceOffer(g2, god, 'капище поднято') ? 'd1_grace' : 'folk'; }};
+      const last = sc.choices.length - 1; sc.choices = sc.choices.slice(0, last).concat([c], sc.choices.slice(last));
+    } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+    return sc; };
+  f._d1g = 1; Object.keys(raw).forEach(k => { if (k !== '_d1g') f[k] = raw[k]; }); camp.scenes.folk = f; };
+const W_cell = (g, key) => { try { return G.W && G.W.isHex(g) ? G.W.world(g).cells[key] : null; } catch (e) { return null; } };
+Object.values(C.CAMPS).forEach(wrapFolk);
+if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrapFolk(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
+/* 2. сказание о деле бога; 3. долгая служба вере */
+const rep0 = Q.report;
+Q.report = function (g, j) {
+  const r = rep0.apply(this, arguments);
+  try { if (U.isFree(g) && j) {
+    const god = j.tale && C.GRACE_TALES[j.tale];
+    if (god) C.graceOffer(g, god, 'сказание');
+    else { const f = C.jobFaith ? C.jobFaith(j) : null; if (f && C.GRACE[f] && j.status === 'paid') { const s = g.d1gs = g.d1gs || {}; s.fj = s.fj || {}; s.fj[f] = (s.fj[f] || 0) + 1;
+      if (s.fj[f] % K.GRACE_FAITH_JOBS === 0) C.graceOffer(g, f, 'служба'); } }
+  } } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  return r;
+};
+/* 4. сила мира: брат по делу */
+if (C.facApply && C.facStep) { const fa0 = C.facApply; C.facApply = function (g) {
+  const before = U.isFree(g) ? Object.fromEntries(Object.keys(C.GRACE_FAC).map(id => [id, C.facStep(g, id)])) : null;
+  const r = fa0.apply(this, arguments);
+  try { if (before) Object.entries(C.GRACE_FAC).forEach(([id, god]) => { if (before[id] < 3 && C.facStep(g, id) >= 3) C.graceOffer(g, god, 'сила мира'); }); } catch (e) {}
+  return r; }; }
+
+/* ---------- сцена знамения ---------- */
+const nodeScene = g => { const n = U.node(g); return n ? n.scene : 'map'; };
+U.injectAt(g => { const o = offerLive(g); return o ? [{t: `Знамение: ${C.GRACE[o.god].gen === 'Ока' ? 'звезда Ока' : 'знак ' + C.GRACE[o.god].gen} ждёт ответа`, d1g: 1, go: 'd1_grace'}] : []; });
+const WHY = {капище: 'Капище стоит, как при дедах, и бог это заметил.', сказание: 'Дело сделано, и тот, ради кого оно делалось, не остался в долгу.',
+  служба: 'Долгая служба не прошла незамеченной.', 'сила мира': 'Те, кто чтит этого бога, назвали вас своими, и бог услышал.'};
+const SC = {
+  d1_grace: g => { const o = offerLive(g);
+    if (!o) return {title: 'Знамение', bg: 'shrine', lines: [['n', 'Знамение минуло. Что было — то прошло.']], choices: [{t: 'Дальше', go: g2 => (g2.folkRole === 'temple' && g2.folkAt ? 'folk' : nodeScene(g2))}]};
+    const D = C.GRACE[o.god], hs = fitHeroes(g, o.god);
+    const lines = [['n', WHY[o.why] || WHY[String(o.why).split(' ')[0]] || 'Бог заметил вас.'], ['n', U.fill(D.sign, hs[0])],
+      ['n', o.god === 'oko' ? 'Брат Ока, будь он здесь, сказал бы, что звезда выбирает сама, но выбранный волен ответить. Милость даётся не даром: за ней — обет, и нарушить его значит потерять её навсегда.'
+        : `Старые люди сказали бы: ${GOD_N[o.god]} дарит не всякому и не задаром. Кто примет благодать, тот даст и обет — и держать его придётся крепче, чем слово на торгу.`]];
+    const ch = hs.map(h => { const v = vowOf(h, o.god); return {t: `${h.name}: принять ${D.n} и обет — ${C.VOWS[v].t}`, focus: h.id,
+      do: g2 => { const hh = U.heroes(g2).find(x => x.id === h.id); if (hh) C.graceGive(g2, hh, o.god, v); return g2.folkRole === 'temple' && g2.folkAt && g2.scene === 'folk' ? 'folk' : nodeScene(g2); }}; });
+    ch.push({t: 'Не отвечать: такое бремя никому из вас не по плечу', do: g2 => { delete g2.d1go; C.note(g2, 'Знамение осталось без ответа. Бог не гневается — он просто уходит.'); return nodeScene(g2); }});
+    return {title: `Знамение: ${D.n}`, bg: 'shrine', lines, choices: ch};
+  },
+};
+U.scenes(SC);
+
+/* ---------- что даёт благодать ---------- */
+const gr = h => (h ? C.graceOf(h) : null);
+/* проверки: преимущество в своей стихии */
+if (C.checkAdv) { const ca0 = C.checkAdv; C.checkAdv = function (g, h, stat, skill) {
+  const r = ca0.apply(this, arguments) || {a: 0, why: ''};
+  try { const x = gr(h); if (!x || !skill || !(C.GRACE[x.god].skills || []).includes(skill)) return r;
+    const w = C.GRACE[x.god].n; return Object.assign({}, r, r.a < 0 ? {a: 0, why: ''} : {a: 1, why: r.a > 0 && r.why ? r.why + ', ' + w : w}, {A: (r.A || []).concat(w)}); } catch (e) { return r; } }; }
+/* бой: гроза, стрела, нежить */
+if (B && B.hitMods) { const hm0 = B.hitMods; B.hitMods = function (S, u, t, ranged) {
+  const res = hm0.apply(this, arguments);
+  try { let [m, why] = res; why = why.slice();
+    const xa = u && u.kind !== 'monster' ? gr(u.ref) : null, xt = t && t.kind !== 'monster' ? gr(t.ref) : null;
+    const wet = S && S.wx && C.WEATHER && (C.WEATHER[S.wx.kind] || {}).wet;
+    if (xa && C.GRACE[xa.god].storm && !ranged && wet) { m += K.GRACE_HIT; why.push('Перун в грозе +' + K.GRACE_HIT); }
+    if (xa && C.GRACE[xa.god].ranged && ranged) { m += K.GRACE_HIT; why.push('ветер Стрибога +' + K.GRACE_HIT); }
+    if (xt && C.GRACE[xt.god].undead && u && (u.undead || u.group === 'нежить')) { m -= K.GRACE_HIT; why.push('Велес хранит −' + K.GRACE_HIT); }
+    return [m, why]; } catch (e) { return res; } }; }
+/* огонь — слабее для того, кого любит Сварог */
+if (B) { const tk0 = B.takeHook; B.takeHook = function (S, t, d, src) {
+  d = tk0 ? tk0.apply(this, arguments) : d;
+  try { const x = t && t.kind !== 'monster' ? gr(t.ref) : null; if (!x || !C.GRACE[x.god].fire || !(d > 0)) return d;
+    const dt = S && S._dt; const fire = dt && dt.el ? dt.el === 'fire' : /огон|огн|плам|ожог|горит|пожар/i.test(src || ''); return fire ? Math.max(0, d - K.GRACE_FIRE) : d; } catch (e) { return d; } }; }
+/* воля — милость звезды: из двух бросков лучший */
+if (B && B.saveRoll) { const sr0 = B.saveRoll; B.saveRoll = function (u, kind) {
+  const k = ['fort', 'refl', 'will'].includes(kind) ? kind : (R.SAVE_RU && R.SAVE_RU[kind]) || kind;
+  const x = u && u.kind !== 'monster' ? gr(u.ref) : null;
+  if (!x || !C.GRACE[x.god].will || k !== 'will') return sr0.apply(this, arguments);
+  return sr0.apply(this, arguments) || sr0.apply(this, arguments); }; }
+/* ковка: Сварог держит молот — из двух бросков лучший */
+if (C.forgeSelf) { const fs0 = C.forgeSelf; C.forgeSelf = function (g, h) {
+  const x = gr(h); if (!x || !C.GRACE[x.god].forge) return fs0.apply(this, arguments);
+  const d0 = R.d; R.d = function (n) { const a = d0.apply(this, arguments); return n === 20 ? Math.max(a, d0.apply(this, arguments)) : a; };
+  try { return fs0.apply(this, arguments); } finally { R.d = d0; } }; }
+
+/* ---------- лист героя ---------- */
+C.graceLine = function (h) {
+  const x = gr(h);
+  if (x) return U.fill(`${U.cap(C.GRACE[x.god].n)}: ${C.GRACE[x.god].gift}. Обет: ${C.VOWS[x.vow].say}.`, h);
+  const L = (h && h.d1gLost) || []; if (!L.length) return '';
+  const l = L[L.length - 1]; return U.fill(`${U.cap(C.GRACE[l.god].n)} отнята: {h} {нарушил|нарушила} обет — ${C.VOWS[l.vow].t}. Об этом знают и боги, и люди.`, h);
+};
+C.heroLoreLines = (function (f0) { return function (g, h) { const out = f0 ? f0.apply(this, arguments) : []; const t = C.graceLine(h); if (t) out.push(t); return out; }; })(C.heroLoreLines);
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* d1_dream_data.js */
+/* Колдовство — волна D1: заветные мечты героев (данные). Без DOM. Механика — d1_dream.js.
+   Мечта: id, t — как звучит, short — коротко, fit — кому ближе (cls, ppl; без fit — всякому), why — откуда она,
+   m — три вехи (личные сказания в формате C.taleAdd; {h} — имя героя в intro/offer/lore), end — особый исход:
+   t — что стало, song — песня гусляра (строки через « / »), fx — награда (gold, fame, fac, honor, skill, title). */
+(function (G) {
+'use strict';
+const C = G.C; if (!C) return;
+C.DREAMS = [
+{id: 'dvor', t: 'поставить свой двор', short: 'свой двор',
+  why: 'Надоело ночевать под чужими крышами. Хочется угла, где печь своя и где тебя ждут.',
+  m: [
+    {title: 'Земля под двор', who: {n: 'Ждан', t: 'старый межевщик', sex: 'm'}, ask: 'знает, где продают землю без хозяина', kind: 'bandits', thr: 'bandits',
+      offer: ['Земля есть, мил человек, у Кривого ручья: пустошь, хозяина нет, пашни на три двора. Только там лихие люди стоят станом, и пока они там, никто туда избы не поставит.', 'Выгоните их — и ставь хоть терем. Я межу проведу честно, по старым камням.'],
+      done: 'Стан лихих людей разметали, а Ждан, кряхтя, обходит пустошь с вешками и вбивает межевые колья.', lore: '{h} получил{|а} землю у Кривого ручья: межу провели по старым камням, и впервые за много лет пустошь обрела хозяина.',
+      win: 'Ждан вытирает руки о порты: «Вот и твоя земля. Теперь дело за брёвнами».'},
+    {title: 'Лес на сруб', who: {n: 'Добрыня', t: 'лесоруб', sex: 'm'}, ask: 'продаст сосну на сруб, если отвадить шатуна', kind: 'hunt', thr: 'bear',
+      offer: ['Сосна у меня рудовая, звонкая, на сруб лучше не сыщешь. Да вот беда: в делянке медведь-шатун поселился, двоих мужиков помял.', 'Уберёте его — брёвна ваши по честной цене, и вывезу сам.'],
+      done: 'Шатун лёг в делянке, и к вечеру первые брёвна уже катят к ручью.', lore: 'Для двора {h:g} рубили сосну в Добрыниной делянке, где прежде стоял шатун. Сруб вышел звонкий, в лапу.',
+      win: 'Добрыня хлопает по бревну: «Сто лет простоит. Внукам хватит».'},
+    {title: 'Новоселье', who: {n: 'бабка Ульяна', t: 'соседка с пустоши', sex: 'f'}, ask: 'зовёт перевезти домового на новое место', kind: 'ritual', thr: 'imps',
+      offer: ['Без домового изба — не изба, а сарай. Его надо перевезти из старого дома в лапте, с угольком из печи.', 'Только на старом пепелище бесы завелись: ходу не дают. Отгоните — и я проведу хозяина, как положено.'],
+      done: 'Бесов разогнали, и бабка Ульяна несёт в лапте уголёк, приговаривая: «Батюшка-домовой, пойдём с нами в новый дом».', lore: 'У Кривого ручья встал двор {h:g}. Домового перевезли в лапте с угольком, по обычаю, и с тех пор в той избе не гаснет печь.',
+      win: 'Ульяна ставит лапоть у печи: «Ну вот. Теперь живите».'}],
+  end: {t: 'Над Кривым ручьём стоит двор: сруб в лапу, тёсовые ворота, на коньке резной петух. Здесь всегда найдётся постель и горячая похлёбка.',
+    song: ['Не в чужом углу ночует, / Не под ёлкой у дороги —', 'Свой поставил{|а} двор у ручья, / Свои ворота, свою печь,', 'А в печи огонь не гаснет, / Ждёт хозяина домой.'], fx: {gold: 4, fame: 1}}},
+{id: 'voevoda', t: 'стать воеводой у князя', short: 'воеводство', fit: {cls: ['druzhinnik', 'yaryi', 'lovchiy']},
+  why: 'Меч носить мало. Хочется вести людей и чтобы за тобой шли не за плату, а за слово.',
+  m: [
+    {title: 'Сотня без сотника', who: {n: 'Ратибор', t: 'старый сотник', sex: 'm'}, ask: 'ищет, кто поведёт ополчение на дезертиров', kind: 'bandits', thr: 'deserters',
+      offer: ['Князь велел собрать ополчение, а вести некому: я стар, молодые зелены. В лесу за бродом засели дезертиры — грабят, жгут.', 'Поведёшь мужиков — покажешь, чего стоишь. А я князю шепну.'],
+      done: 'Ополчение вернулось почти целым, а дезертиров ведут связанными. Мужики говорят о вас уважительно, как о своём.', lore: '{h} впервые {повёл|повела} ополчение — против дезертиров за бродом. Мужики вернулись почти все, и это запомнили.',
+      win: 'Ратибор кивает: «Людей бережёшь. Это главное. Князю скажу».'},
+    {title: 'Княжий смотр', who: {n: 'Твердислав', t: 'княжий мечник', sex: 'm'}, ask: 'зовёт на смотр перед князем', kind: 'peace', thr: 'bandits',
+      offer: ['Князь хочет видеть тебя. Но на смотру вперёд пустят того, кто умеет не только рубить: два боярских двора грызутся из-за межи, вот-вот возьмутся за топоры.', 'Помиришь их — князь увидит воеводу, а не рубаку.'],
+      done: 'Боярские дворы разошлись миром, и на смотру князь сам подзывает вас к себе и долго расспрашивает.', lore: 'На княжьем смотру {h} стоял{|а} подле самого князя: до того {он|она} помирил{|а} два боярских двора без единой крови.',
+      win: 'Твердислав улыбается в усы: «Князь сказал — видал таких. Редко».'},
+    {title: 'Стяг воеводы', who: {n: 'князь', t: 'хозяин Коровинского княжества', sex: 'm'}, ask: 'даёт последнее испытание перед стягом', kind: 'clear', thr: 'undead',
+      offer: ['Воевода должен уметь то, чего другие не могут. У старой засеки по ночам встают мёртвые, и мои люди туда больше не ходят.', 'Очистишь засеку — получишь стяг. Не очистишь — останешься тем, кто есть. Тоже не худо.'],
+      done: 'Засека очищена. Утром у княжьего крыльца вам выносят стяг — красный, с вышитым соколом.', lore: '{h} стал{|а} воеводой у князя: получил{|а} стяг с соколом, после того как очистил{|а} старую засеку от мёртвых.',
+      win: 'Князь вручает стяг: «Неси. И не опускай».'}],
+  end: {t: 'У княжьего крыльца стоит воевода со стягом. Люди идут под этот стяг сами, и вражьи станы снимаются, едва заслышав, кто идёт.',
+    song: ['Не боярского роду, / Не княжьего колена —', 'А стяг с соколом несёт, / И люди за ним идут,', 'Потому что знают: / Не бросит, не продаст.'], fx: {title: 'воевода', fame: 2}}},
+{id: 'imya', t: 'очистить имя рода', short: 'честь рода',
+  why: 'Про род твой говорят худое — за чужую вину. Пока имя в грязи, и тебе не отмыться.',
+  m: [
+    {title: 'Старая грамота', who: {n: 'Евстафий', t: 'писарь', sex: 'm'}, ask: 'хранит грамоту о давнем деле', kind: 'investigate', thr: 'cult',
+      offer: ['Есть грамота, по которой ваш род обвинили. Только подпись на ней, похоже, чужая.', 'Кто её подделал — найдите. Бумага у меня, а вот правда — у живых.'],
+      done: 'Подделку нашли: грамоту сочинили люди, которым была нужна ваша земля.', lore: 'Грамота, по которой обвинили род {h:g}, оказалась подделкой: её писали ради чужой земли.',
+      win: 'Евстафий бережно сворачивает грамоту: «Первый шаг сделан. Остальное — при людях».'},
+    {title: 'Свидетель', who: {n: 'Никифор', t: 'бывший тиунов человек', sex: 'm'}, ask: 'видел всё, но боится говорить', kind: 'escort', thr: 'bandits', vic: {n: 'Никифор', sex: 'm'},
+      offer: ['Я видел, как всё было. Только скажу — и меня в первую же ночь найдут в канаве.', 'Доведите меня до суда живым — и я скажу всё, что видел.'],
+      done: 'Никифора довели до суда целым, хотя по дороге дважды пришлось браться за оружие.', lore: 'Свидетель Никифор при всех рассказал, как оклеветали род {h:g}. Его довели до суда живым — не без крови.',
+      win: 'Никифор кланяется на все четыре стороны: «Сказал. Теперь и умирать не страшно».'},
+    {title: 'Слово на площади', who: {n: 'старейшина', t: 'старейшина края', sex: 'm'}, ask: 'готов снять позор при всём народе', kind: 'peace', thr: 'bandits',
+      offer: ['Правда есть, свидетель есть. Осталось, чтобы народ услышал. Только те, кто оклеветал, привели своих — шумят, грозят.', 'Уймите их без крови — и я скажу своё слово.'],
+      done: 'Крикуны разошлись, а старейшина при всём народе называет ваш род честным.', lore: 'При всём народе старейшина назвал род {h:g} честным. Позор, что лежал на нём с дедовских времён, снят.',
+      win: 'Старейшина кланяется в пояс: «Простите нас. Не знали».'}],
+  end: {t: 'Имя рода снова звучит без шёпота за спиной. Старики, что прежде отворачивались, теперь первыми снимают шапки.',
+    song: ['Был род в грязи, как сапог в распутицу, / Да нашлась рука, что отмыла,', 'Не мечом и не серебром — / А правдой, при всём народе,', 'И теперь то имя вслух говорят.'], fx: {fame: 2, fac: 1}}},
+{id: 'otec', t: 'найти убийцу отца', short: 'убийца отца',
+  why: 'Отца нашли у дороги, и убийцу так никто и не сыскал. Ты поклял{ся|ась} найти.',
+  m: [
+    {title: 'След у дороги', who: {n: 'Гостята', t: 'корчмарь у тракта', sex: 'm'}, ask: 'помнит ту ночь и тех гостей', kind: 'investigate', thr: 'bandits',
+      offer: ['Помню ту ночь. Твой отец сидел вон там, а с ним трое — чужие, при мечах. Ушли вместе.', 'Один из тех троих с тех пор бывает в лесном стане. Поспрашивай его — только осторожно.'],
+      done: 'Из лесного стана вытащили одного из троих. Он назвал имя того, кто бил.', lore: '{h} {нашёл|нашла} первого из тех, кто был с отцом в последнюю ночь. Он назвал имя убийцы.',
+      win: 'Гостята наливает молча и не берёт платы.'},
+    {title: 'Убийца в бегах', who: {n: 'Вета', t: 'травница', sex: 'f'}, ask: 'лечила убийцу, когда он прятался', kind: 'missing', thr: 'swamp', vic: {n: 'Хотен', sex: 'm'},
+      offer: ['Был у меня такой. Рана на плече, глаза бегают. Ушёл в болото, к гнилым островам.', 'Найдёшь — не руби сразу. Спроси, за что. Иногда ответ страшнее смерти.'],
+      done: 'Хотена нашли на гнилом острове. Он не бежал — будто ждал.', lore: 'Убийцу отца {h:g} нашли на гнилом острове. Он сказал, что бил по чужому приказу.',
+      win: 'Вета вздыхает: «Ну, теперь знаешь. Легче?»'},
+    {title: 'Тот, кто приказал', who: {n: 'Хотен', t: 'убийца, что раскаялся', sex: 'm'}, ask: 'выдаст заказчика, если дадут ему уйти', kind: 'bandits', thr: 'deserters',
+      offer: ['Я бил, но не я хотел. Заказчик сидит в своём дворе за частоколом, с ним нанятые люди.', 'Возьмёте его — и делайте со мной что хотите. Я своё уже отжил.'],
+      done: 'Двор заказчика взят. Он стоит перед вами без оружия, и в глазах у него страх.', lore: 'Кто приказал убить отца {h:g}, стоял перед {ним|ней} без меча. Долг крови закрыт — так или иначе.',
+      win: 'Хотен уходит в лес, не оглядываясь.'}],
+  end: {t: 'Долг закрыт. На отцовской могиле — свежий камень, и по ночам больше не снится дорога.',
+    song: ['Отца нашли у тракта / С ножом под рёбрами,', 'А сын ли, дочь ли — не забыли, / Шли по следу годами,', 'И пришли туда, где начиналось, / И закрыли долг, как дверь.'], fx: {fame: 1, gold: 2}}},
+{id: 'pesni', t: 'выучить все песни края', short: 'все песни', fit: {cls: ['guslyar']},
+  why: 'Каждая песня — чья-то жизнь. Хочется собрать все, пока последние старики не унесли их с собой.',
+  m: [
+    {title: 'Песня слепого деда', who: {n: 'дед Лукьян', t: 'слепой гусляр', sex: 'm'}, ask: 'отдаст свою последнюю песню за услугу', kind: 'retrieve', thr: 'bandits', item: {n: 'гусли Лукьяна', a: 'гусли Лукьяна', g: 'гуслей Лукьяна'},
+      offer: ['Песню я тебе дам, да петь её без моих гуслей не выйдет: лихие люди отняли.', 'Вернёшь гусли — спою, а ты запоминай. Второй раз не смогу: голос уже не тот.'],
+      done: 'Гусли вернулись к деду, и вечером он поёт — долго, медленно, будто сам себе.', lore: 'Дед Лукьян отдал {h:d} последнюю свою песню — про реку, что текла вспять. Больше её никто не знает.',
+      win: 'Лукьян касается струн: «Вот теперь и помирать можно. Песня не пропадёт».'},
+    {title: 'Песня на кургане', who: {n: 'Голуба', t: 'плакальщица', sex: 'f'}, ask: 'знает песню, что поют мёртвые', kind: 'haunt', thr: 'ghost',
+      offer: ['Есть песня, которую не поют живые. Её поёт мёртвый воин на кургане, каждую ночь, одно и то же.', 'Упокоишь его — песня останется тебе. Не упокоишь — будешь петь вместе с ним.'],
+      done: 'Мёртвый воин допел свою песню в последний раз и лёг.', lore: 'Песню мёртвого воина с кургана {h} записал{|а} в память: её пели над павшими, когда здешние леса ещё были чужими.',
+      win: 'Голуба вытирает глаза: «Теперь её будут петь живые. Так и надо».'},
+    {title: 'Песня, которой нет', who: {n: 'Беляна', t: 'старшая из братства гусляров', sex: 'f'}, ask: 'зовёт сложить свою, последнюю', kind: 'ritual', thr: 'cult',
+      offer: ['Ты собрал{|а} всё, что было. Осталась одна песня — та, которой ещё нет. Её надо сложить самому.', 'Только на ту ночь, когда гусляры собираются вместе, чернокнижники готовят свой обряд. Сорвёшь его — и споёшь при всех.'],
+      done: 'Обряд сорван, и в ту же ночь вы поёте при всём братстве — новую песню, ещё горячую.', lore: '{h} сложил{|а} песню, которую теперь поют все гусляры края. Братство признало {его|её} своим.',
+      win: 'Беляна кладёт ладонь на струны: «Это наша песня теперь. Спасибо».'}],
+  end: {t: 'Все песни края живут в одной памяти. Гусляры приходят издалека, чтобы услышать ту, что про реку, текущую вспять.',
+    song: ['Сколько песен по краю — / Все собрал{|а}, ни одной не упустил{|а},', 'И свою сложил{|а} сверху, / Самую новую, самую звонкую,', 'Теперь её поют и в корчмах, / И над павшими.'], fx: {fac: 2, facId: 'gusl', fame: 1}}},
+{id: 'knigi', t: 'собрать утраченные книги', short: 'утраченные книги', fit: {cls: ['knizhnik', 'charovnik']},
+  why: 'Книги жгут на площадях. Хочется спасти хоть то, что осталось, пока огонь не дошёл до последних.',
+  m: [
+    {title: 'Сундук на чердаке', who: {n: 'Бенедикт', t: 'старый переписчик', sex: 'm'}, ask: 'прячет сундук с книгами', kind: 'deliver', thr: 'bandits', item: {n: 'сундук с книгами', a: 'сундук с книгами', g: 'сундука с книгами'},
+      offer: ['У меня на чердаке сундук: травники, звёздные таблицы, сказания. Если найдут — сожгут и меня с ними.', 'Вывезите его туда, где не ищут. Это всё, что я спас за жизнь.'],
+      done: 'Сундук вывезли и спрятали в надёжном месте. Бенедикт плачет от облегчения.', lore: '{h} {спас|спасла} сундук книг переписчика Бенедикта: травники, звёздные таблицы и сказания, которых больше нигде нет.',
+      win: 'Бенедикт сжимает вам руку: «Пусть хоть это уцелеет».'},
+    {title: 'Книга с пожарища', who: {n: 'Неждана', t: 'вдова книжника', sex: 'f'}, ask: 'знает, куда увезли мужнины книги', kind: 'retrieve', thr: 'cult', item: {n: 'мужнина книга', a: 'мужнину книгу', g: 'мужниной книги'},
+      offer: ['Мужнины книги забрали не на сожжение — их увезли в подвал к тем, кто служит тьме. Им они нужны для дела.', 'Верните хоть одну — главную, в чёрной коже. В ней его рука.'],
+      done: 'Книгу в чёрной коже вынесли из подвала. Остальное сгорело в драке, но главная цела.', lore: 'Книгу книжника, мужа Нежданы, {h} вырвал{|а} у тех, кто служил тьме. На полях — его заметки.',
+      win: 'Неждана прижимает книгу к груди и долго молчит.'},
+    {title: 'Тайная книжня', who: {n: 'Прокл', t: 'хранитель тайной книжни', sex: 'm'}, ask: 'ищет место для книжни, куда не дойдёт огонь', kind: 'clear', thr: 'undead',
+      offer: ['Книг собрано много. Им нужен дом. Есть старый склеп под холмом: сухой, глубокий, никто туда не ходит.', 'Не ходят потому, что там лежат мёртвые, которые не лежат. Очистите — и будет книжня.'],
+      done: 'Склеп очищен. Книги расставлены по нишам, и Прокл зажигает первую лампаду.', lore: 'Под холмом теперь тайная книжня, которую собрал{|а} {h}. Огонь туда не дойдёт.',
+      win: 'Прокл вешает на дверь ключ: «Один — тебе. Приходи читать».'}],
+  end: {t: 'Под холмом тайная книжня, и туда ходят те, кому нужно знать. Огонь на площадях горит по-прежнему, но последних книг в нём уже нет.',
+    song: ['Жгли книги на площадях, / Пепел ветер носил,', 'А один{|а} собирал{|а} по листу, / По сундуку, по подвалу,', 'И теперь под холмом — / Целый мир, что не сгорел.'], fx: {skill: 'Грамота', fac: 1, facId: 'uchenye'}}},
+{id: 'kapishche', t: 'поднять капище предков', short: 'капище предков', fit: {cls: ['volhv', 'zhrets', 'lovchiy', 'vedmak']},
+  why: 'Капище, где молились деды, заросло и разорено. Пока оно лежит, боги не слышат твой род.',
+  m: [
+    {title: 'Где стояли идолы', who: {n: 'Велемир', t: 'старый волхв', sex: 'm'}, ask: 'помнит, где было капище', kind: 'hunt', thr: 'wolves',
+      offer: ['Капище стояло на холме за рекой. Теперь там волчье логово, и стая злая — к холму не подойти.', 'Отгоните волков — покажу, где лежали камни круга.'],
+      done: 'Стая ушла, и Велемир по памяти находит камни круга под мхом.', lore: 'На холме за рекой {h} {нашёл|нашла} камни круга, где молились деды. Велемир узнал их по зарубкам.',
+      win: 'Велемир гладит мшистый камень: «Здесь. Я помню».'},
+    {title: 'Идол в болоте', who: {n: 'Мстиша', t: 'рыбак', sex: 'm'}, ask: 'видел старого идола в трясине', kind: 'retrieve', thr: 'swamp', item: {n: 'старый идол', a: 'старого идола', g: 'старого идола'},
+      offer: ['Идол-то в трясине лежит, лицом вниз. Его туда при дедах сбросили, когда звёздные пришли.', 'Вытащить можно, только в той трясине нечисть водится. Я туда не сунусь.'],
+      done: 'Идол вытащили из трясины. Лицо у него стёртое, но глаза ещё видны.', lore: 'Старого идола, сброшенного в трясину при дедах, {h} вытащил{|а} на свет.',
+      win: 'Мстиша снимает шапку перед идолом: «Здравствуй, дедушка».'},
+    {title: 'Первая треба', who: {n: 'Велемир', t: 'старый волхв', sex: 'm'}, ask: 'зовёт поставить идола и принести требу', kind: 'ritual', thr: 'cult',
+      offer: ['Идол есть, круг есть. Осталось поставить и принести требу. Только в ту же ночь чужие хотят осквернить холм.', 'Не дайте им. И первую требу принесёте сами.'],
+      done: 'Чужих прогнали, идол стоит, и над холмом поднимается дым первой требы.', lore: 'На холме за рекой снова капище: {h} поставил{|а} идола и {принёс|принесла} первую требу. Говорят, в ту ночь прошёл тёплый дождь.',
+      win: 'Велемир плачет и не стыдится слёз.'}],
+  end: {t: 'Капище предков стоит на холме, и к нему тропа уже протоптана. Над идолом всегда вьются ленты.',
+    song: ['Заросло капище, / Идол в болоте лежал,', 'А пришёл потомок — / И поднял, и поставил,', 'И теперь над холмом / Снова дым и снова песни.'], fx: {fame: 1, kap: 1}}},
+{id: 'molelnya', t: 'поставить молельню Ока в глуши', short: 'молельня в глуши', fit: {cls: ['chernets', 'obetnik']},
+  why: 'В глуши люди живут без света звезды. Хочется, чтобы и там было, куда прийти помолиться.',
+  m: [
+    {title: 'Место для молельни', who: {n: 'брат Гервасий', t: 'странствующий брат Ока', sex: 'm'}, ask: 'ищет место для молельни в лесном краю', kind: 'hunt', thr: 'boar',
+      offer: ['Есть поляна в глуши, где сходятся три тропы. Лучше места для молельни не найти.', 'Только там секач хозяйничает, троих уже порвал. Без вас не обойтись.'],
+      done: 'Секача свалили, и брат Гервасий втыкает посреди поляны шест с восьмилучевой звездой.', lore: 'На поляне, где сходятся три тропы, {h} выбрал{|а} место для молельни Ока.',
+      win: 'Гервасий кланяется: «Звезда видит, кто ей служит».'},
+    {title: 'Лес на молельню', who: {n: 'Онфим', t: 'лесной староста', sex: 'm'}, ask: 'не даст леса, пока не помогут его людям', kind: 'cure', thr: 'swamp',
+      offer: ['Леса на молельню дадим, да у нас мор. Люди лежат пластом, знахарка не справляется.', 'Поможете — сами срубим. Не поможете — не обессудьте.'],
+      done: 'Мор отступил, и лесные мужики сами идут рубить сосну на молельню.', lore: 'Лесные люди сами срубили молельню Ока после того, как {h} {помог|помогла} им одолеть мор.',
+      win: 'Онфим смущённо крутит шапку: «Мы-то думали, звёздные только жгут».'},
+    {title: 'Первое било', who: {n: 'брат Гервасий', t: 'странствующий брат Ока', sex: 'm'}, ask: 'просит отстоять молельню в первую ночь', kind: 'clear', thr: 'forestkin',
+      offer: ['Молельня стоит, било повешено. Но лесные духи не рады: в первую ночь они придут.', 'Отстоим её — и она простоит век.'],
+      done: 'Ночь отстояли. Утром над поляной впервые звучит храмовое било.', lore: 'В глуши стоит молельня Ока, и над тремя тропами звучит храмовое било. Её поставил{|а} {h}.',
+      win: 'Гервасий бьёт в било, и звук уходит далеко-далеко в лес.'}],
+  end: {t: 'В глуши стоит молельня, и к ней ходят не из страха, а потому что там тепло и не прогонят.',
+    song: ['Где три тропы сходятся, / Там поляна в лесу,', 'А на поляне — звезда, / И било зовёт негромко,', 'Не огнём пришли, а словом — / Так и запомнят.'], fx: {fame: 1, oko: 1}}},
+{id: 'more', t: 'увидеть море и край земли', short: 'море и край земли',
+  why: 'Все говорят, что земля кончается морем. Хочется своими глазами увидеть, где она кончается.',
+  m: [
+    {title: 'Дорога к морю', who: {n: 'Охрим', t: 'возчик', sex: 'm'}, ask: 'идёт обозом к морю, нужна охрана', kind: 'escort', thr: 'steppe', vic: {n: 'Охрим', sex: 'm'},
+      offer: ['Иду к морю с солью и мёдом. Дорога через степь, а в степи всякое бывает.', 'Проводите — и сами увидите море. Я там тридцать раз был, а всё равно дух захватывает.'],
+      done: 'Обоз дошёл. С последнего холма видно что-то синее, бескрайнее.', lore: '{h} впервые увидел{|а} море — с холма над обозной дорогой. Говорят, долго не {мог|могла} вымолвить ни слова.',
+      win: 'Охрим смеётся: «Ну что? Говорил я!»'},
+    {title: 'Ладья на запад', who: {n: 'Сигрун', t: 'кормщица', sex: 'f'}, ask: 'возьмёт на ладью, если выручить её людей', kind: 'missing', thr: 'bandits', vic: {n: 'Эйвинд', sex: 'm'},
+      offer: ['На запад, к краю, мало кто ходит. Я хожу. Но мой кормщик пропал на берегу — схватили лихие.', 'Вернёшь его — возьму на борт. Без него ладья не пойдёт.'],
+      done: 'Эйвинда вызволили, и ладья уходит на запад, к самому краю.', lore: 'На ладье кормщицы Сигрун {h} {ушёл|ушла} на запад, туда, где море сливается с небом.',
+      win: 'Сигрун свистит: «Поднимай парус!»'},
+    {title: 'Край земли', who: {n: 'Сигрун', t: 'кормщица', sex: 'f'}, ask: 'знает остров на краю, где живёт страх', kind: 'clear', thr: 'serpent',
+      offer: ['Дальше края — только остров. На нём, говорят, живёт тот, кто сторожит конец мира.', 'Ступишь на остров — увидишь, где кончается земля. Если вернёшься.'],
+      done: 'Сторож острова повержен. С последней скалы видно, как море уходит вниз, за край.', lore: '{h} стоял{|а} на краю земли и видел{|а}, куда уходит море. Вернул{ся|ась} — и молчит об этом.',
+      win: 'Сигрун не спрашивает, что вы видели. Она знает.'}],
+  end: {t: 'Ты стоял{|а} на краю земли. Теперь, когда в корчме спорят, есть ли у мира конец, ты молча улыбаешься.',
+    song: ['Кто видал, где кончается земля? / Никто не видал,', 'А один{|а} {пошёл|пошла} и увидел{|а}, / Через степь и через море,', 'И вернул{ся|ась}, и молчит, / Потому что словами не сказать.'], fx: {fame: 2, gold: 2}}},
+{id: 'zver', t: 'добыть зверя, о котором поют', short: 'зверь из песен', fit: {cls: ['lovchiy', 'vedmak', 'yaryi']},
+  why: 'В песнях поют о звере, которого никто не добыл. Хочется, чтобы следующая песня была про тебя.',
+  m: [
+    {title: 'Первый след', who: {n: 'Тур', t: 'старый ловчий', sex: 'm'}, ask: 'видел след, какого не бывает', kind: 'hunt', thr: 'wolves',
+      offer: ['След шире моей ладони, а когти — как ножи. И волки при нём ходят, как собаки при хозяине.', 'Перебей стаю — и выйдешь на него самого. Без стаи его не взять.'],
+      done: 'Стая перебита. Под старой елью — свежий след, ещё тёплый.', lore: '{h} перебил{|а} волчью стаю, что ходила при звере из песен, и вышел{|а} на его след.',
+      win: 'Тур присвистывает: «Ну, теперь он тебя знает».'},
+    {title: 'Логово', who: {n: 'Лесана', t: 'дочь лесника', sex: 'f'}, ask: 'знает, где логово', kind: 'clear', thr: 'liho',
+      offer: ['Логово его — за гнилой падью, где лихо одноглазое живёт. Зверь с лихом не ссорится.', 'Пройди мимо лиха — и будешь у логова.'],
+      done: 'Лихо отступило, и у входа в логово видны кости — много костей.', lore: 'За гнилой падью {h} {прошёл|прошла} мимо лиха одноглазого к логову зверя из песен.',
+      win: 'Лесана отводит глаза: «Вернись. Обещай».'},
+    {title: 'Зверь из песен', who: {n: 'Тур', t: 'старый ловчий', sex: 'm'}, ask: 'пойдёт с тобой на последнюю охоту', kind: 'hunt', thr: 'giants',
+      offer: ['Он вышел. Сам. Видно, понял, что ты не отстанешь.', 'Иди. Я рядом встану, если что. Только он твой.'],
+      done: 'Зверь лёг. Шкура его не помещается на телеге.', lore: '{h} добыл{|а} зверя, о котором пели при дедах. Теперь поют о {нём|ней}.',
+      win: 'Тур снимает шапку: «Видал я охотников. Таких — нет».'}],
+  end: {t: 'Шкура зверя из песен висит над очагом, и всякий, кто входит, замолкает.',
+    song: ['Пели деды о звере / Выше ели, злее бури,', 'И никто его не взял — / А {пришёл|пришла} один{|а} и взял{|а},', 'И теперь о звере не поют — / Поют о том, кто его добыл.'], fx: {fame: 3}}},
+{id: 'bogach', t: 'разбогатеть так, чтоб купцы кланялись', short: 'богатство', fit: {cls: ['tat', 'dushegub'], ppl: ['yuzhnober', 'imperets']},
+  why: 'Насмотрел{ся|ась} на тех, кто считает медь. Хочется, чтобы считали за тобой — и кланялись.',
+  m: [
+    {title: 'Доля в обозе', who: {n: 'Нико', t: 'купец', sex: 'm'}, ask: 'возьмёт в долю, если обоз дойдёт', kind: 'deliver', thr: 'bandits', item: {n: 'обоз с сукном', a: 'обоз с сукном', g: 'обоза с сукном'},
+      offer: ['Сукно везу на юг. Дойдёт обоз — треть прибыли твоя. Не дойдёт — моя голова и твоя доля в одной канаве.', 'Решайся. Богатеют не те, кто ждёт.'],
+      done: 'Обоз дошёл, и Нико отсчитывает долю, не жмурясь.', lore: '{h} взял{|а} долю в обозе купца Нико — первое серебро, которое не пришлось ни у кого отнимать.',
+      win: 'Нико подмигивает: «Ещё будет. Держись меня».'},
+    {title: 'Солёный путь', who: {n: 'Нико', t: 'купец', sex: 'm'}, ask: 'хочет открыть новый путь для соли', kind: 'bandits', thr: 'steppe',
+      offer: ['Соль через степь возить вдвое выгоднее, если степняки пропустят. Не пропускают.', 'Уговори или разгони — и путь наш.'],
+      done: 'Степной путь открыт, и по нему уже идут первые возы с солью.', lore: 'Солёный путь через степь открыл{|а} {h}. По нему теперь ходят возы, и с каждого — доля.',
+      win: 'Нико смеётся: «Вот теперь ты купец».'},
+    {title: 'Своя лавка в городе', who: {n: 'Демид', t: 'старшина торговой гильдии', sex: 'm'}, ask: 'пустит в гильдию, если решить его беду', kind: 'investigate', thr: 'cult',
+      offer: ['В гильдию так просто не берут. Но у нас воруют из амбаров, и стража не может сыскать вора.', 'Найдёшь — будешь сидеть с нами за одним столом.'],
+      done: 'Вора нашли — свой же, гильдейский. Демид отводит вас в сторону и называет «братом».', lore: '{h} {вошёл|вошла} в торговую гильдию и открыл{|а} лавку в городе. Купцы теперь кланяются первыми.',
+      win: 'Демид наливает: «За нового брата гильдии!»'}],
+  end: {t: 'В городе своя лавка, на солёном пути свои возы, и купцы, завидев тебя, снимают шапки первыми.',
+    song: ['Был{|а} гол{|а}, как сокол, / Медь в кармане считал{|а},', 'А теперь купцы кланяются, / И возы по степи идут,', 'Только песня — она бесплатно: / Слушай, купец, да не жмись.'], fx: {gold: 12, fac: 1, facId: 'liga'}}},
+{id: 'sestra', t: 'вернуть сестру из полона', short: 'сестра в полоне',
+  why: 'Сестру угнали в полон, когда ты был{|а} ещё мал{|а}. Ты поклял{ся|ась}, что найдёшь.',
+  m: [
+    {title: 'Слух о полонянке', who: {n: 'Забава', t: 'бывшая полонянка', sex: 'f'}, ask: 'видела твою сестру в полоне', kind: 'investigate', thr: 'bandits',
+      offer: ['Была с нами такая, с родинкой над бровью. Её продали дальше — кому, не знаю, но знает перекупщик с тракта.', 'Найди его. Он трус, скажет всё.'],
+      done: 'Перекупщик сказал всё, что знал: сестру продали на юг, в Солёную Гавань.', lore: '{h} узнал{|а}, куда увезли сестру из полона: на юг, к морю.',
+      win: 'Забава сжимает ваши руки: «Найди её. За нас всех».'},
+    {title: 'Невольничий торг', who: {n: 'Хрисанф', t: 'писарь невольничьего торга', sex: 'm'}, ask: 'продаст запись о сделке', kind: 'retrieve', thr: 'bandits', item: {n: 'запись о сделке', a: 'запись о сделке', g: 'записи о сделке'},
+      offer: ['Записи есть, но хозяин держит их под замком и с охраной. Я бы вынес, да боюсь.', 'Добудешь книгу — найдёшь имя.'],
+      done: 'Книга записей в руках. Имя хозяина, купившего сестру, — на третьей странице.', lore: 'По книге невольничьего торга {h} {нашёл|нашла} имя того, кто купил сестру.',
+      win: 'Хрисанф уходит, не оглядываясь, — его тут больше не увидят.'},
+    {title: 'Домой', who: {n: 'Милава', t: 'сестра, что ждала', sex: 'f'}, ask: 'ждёт, когда её заберут', kind: 'escort', thr: 'deserters', vic: {n: 'Милава', sex: 'f'},
+      offer: ['Я знала. Каждую ночь знала, что ты придёшь.', 'Только хозяин так просто не отпустит. Он пошлёт за нами людей.'],
+      done: 'Погоню отбили, и Милава уже не оглядывается назад.', lore: '{h} вернул{|а} сестру Милаву из полона. Она дома, и по вечерам поёт материны песни.',
+      win: 'Милава обнимает вас и долго не отпускает.'}],
+  end: {t: 'Сестра дома. Она учится заново смеяться, а соседи приходят посмотреть на ту, что вернулась с юга.',
+    song: ['Угнали сестру в полон / Ещё девчонкой,', 'А брат ли, сестра ли — не забыли, / Нашли за морем, за торгом,', 'И привели домой, / Где мать её ждала.'], fx: {fame: 2}}},
+{id: 'mech', t: 'вернуть родовой меч', short: 'родовой меч', fit: {cls: ['druzhinnik'], ppl: ['terak', 'gorets']},
+  why: 'Родовой меч ушёл из семьи — проигран, продан или отнят. Пока его нет, род будто без руки.',
+  m: [
+    {title: 'Где меч', who: {n: 'Арнгрим', t: 'старый кузнец', sex: 'm'}, ask: 'узнает меч по клейму', kind: 'investigate', thr: 'bandits',
+      offer: ['Меч твоего рода я узнаю — его ковал мой дед, клеймо волчье. Видели его недавно у разбойного атамана.', 'Узнай, где он прячет добычу.'],
+      done: 'Атаманов схрон найден. Меча там нет, но есть запись: продан в горы.', lore: '{h} напал{|а} на след родового меча: атаман продал его в горы.',
+      win: 'Арнгрим качает головой: «Далеко ушёл. Но найдётся».'},
+    {title: 'Меч в горах', who: {n: 'Хальвард', t: 'горский старейшина', sex: 'm'}, ask: 'отдаст меч за услугу роду', kind: 'hunt', thr: 'giants',
+      offer: ['Меч у меня. Купил честно. Но отдам — если поможешь роду: великан с перевала таскает наших коз и детей.', 'Убьёшь великана — меч твой.'],
+      done: 'Великан лёг, и Хальвард сам выносит меч, завёрнутый в волчью шкуру.', lore: 'Родовой меч {h:g} вернулся из гор — за голову великана с перевала.',
+      win: 'Хальвард отдаёт меч: «Хороший клинок. Береги».'},
+    {title: 'Меч на родине', who: {n: 'Арнгрим', t: 'старый кузнец', sex: 'm'}, ask: 'перекуёт меч, если добыть руду', kind: 'clear', thr: 'undead',
+      offer: ['Меч надо перековать — он устал. Нужна руда из старого рудника, где теперь мёртвые сторожат.', 'Принесёшь руду — меч будет как при деде.'],
+      done: 'Руда добыта, меч перекован. Клеймо волчье горит, как новое.', lore: '{h} вернул{|а} роду меч с волчьим клеймом. Род снова при руке.',
+      win: 'Арнгрим протягивает клинок: «Теперь он снова твой. И твоих детей».'}],
+  end: {t: 'Меч с волчьим клеймом висит в головах. Род снова при руке, и старики говорят: теперь будет кому заступиться.',
+    song: ['Ушёл меч из рода — / Проигран ли, отнят ли,', 'А вернул{ся|ась} потомок — / Через горы, через великана,', 'И висит меч в головах, / И волк на клейме не спит.'], fx: {fame: 1, gold: 3}}},
+{id: 'uchenik', t: 'вырастить ученика себе на смену', short: 'ученик',
+  why: 'Всё, что знаешь, уйдёт с тобой, если некому передать. Хочется, чтобы осталось.',
+  m: [
+    {title: 'Сирота с дороги', who: {n: 'Ярко', t: 'мальчишка с пепелища', sex: 'm'}, ask: 'просится в ученики', kind: 'bandits', thr: 'bandits',
+      offer: ['Возьми меня. Я всё умею — ну, почти. Только у меня долг: те, кто сжёг наш двор, ещё в лесу.', 'Помоги их выгнать — и я твой до смерти.'],
+      done: 'Лихих людей выгнали, и Ярко молча встаёт за вашим плечом, как тень.', lore: '{h} взял{|а} в ученики Ярко — мальчишку с пепелища.',
+      win: 'Ярко кланяется до земли: «Учи, я не подведу».'},
+    {title: 'Первое дело ученика', who: {n: 'Ярко', t: 'ученик', sex: 'm'}, ask: 'хочет сам взяться за дело', kind: 'missing', thr: 'forestkin', vic: {n: 'Голуба', sex: 'f'},
+      offer: ['Дай мне самому! Девка из соседнего села пропала в лесу — я найду.', 'Ты только сзади иди. Не мешай, ладно?'],
+      done: 'Голубу нашли. Ярко вёл, а вы лишь пару раз молча поправили его шаг.', lore: 'Ученик {h:g} Ярко сам вывел из леса пропавшую девку. Учитель стоял позади.',
+      win: 'Ярко сияет: «Видал? Сам!»'},
+    {title: 'Ученик вырос', who: {n: 'Ярослав', t: 'бывший ученик', sex: 'm'}, ask: 'хочет, чтобы учитель видел его последнее испытание', kind: 'clear', thr: 'undead',
+      offer: ['Учитель, меня зовут теперь Ярославом. У нас в округе мёртвые встали, и я иду их упокоить.', 'Пойдёшь со мной? Не помогать — смотреть.'],
+      done: 'Ярослав справился сам. Вы только стояли и смотрели, и было на что смотреть.', lore: 'Ученик {h:g} Ярослав вырос и сам упокоил мёртвых в своей округе. Учитель видел.',
+      win: 'Ярослав кланяется в пояс: «Всё, что есть, — от тебя».'}],
+  end: {t: 'Ученик вырос и ушёл своей дорогой. О нём уже говорят, и всякий раз добавляют: «А учил{|а} его {h}».',
+    song: ['Взял{|а} сироту с пепелища, / Дал ему меч и слово,', 'А вырос он — и ушёл, / И делает своё дело,', 'И когда о нём поют — / Поминают и учителя.'], fx: {fame: 2, gold: 1}}},
+];
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* d1_dream.js */
+/* Колдовство — волна D1: мечта героя. Без DOM. Данные — d1_dream_data.js (C.DREAMS). Только Вечный мир.
+   • Мечту выбирают сразу после корня (w2_origins) — из трёх-четырёх, что ближе корню, народу и классу; можно отложить,
+     и тогда она сама напомнит о себе на D1.DREAM_ASK ступени. Сцена d1_dream (как w2_origin — при входе в место).
+   • Вехи на D1.DREAM_LV ступенях: личное сказание (механика tales.js, C.taleAdd; d1d_*), открывается в любом селе или
+     городе, когда герой с этой мечтой дорос; развязка ложится в летопись (g.taleLore) с именем героя.
+   • Последняя веха — особый исход (C.DREAMS[].end.fx: серебро, слава, сила мира, звание, навык) и песня гусляра о мечте
+     (w2_fame: своя песня в g.w2fame.songs и дело 'dream' в молве).
+   • Лист героя — словами: C.dreamLine(g, h). Числа — в C.D1. Состояние: h.dream, h.dreamLater, h.dreamDone, h.d1title. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q, U = C && C.D1U;
+if (!R || !C || !C.CAMPS || !C.CAMPS.free || !Q || !U || !C.DREAMS) return;
+Object.assign(C.D1, {DREAM_LV: [5, 10, 15], DREAM_ASK: 3, DREAM_PICK: 4, DREAM_GOLD: 100, DREAM_DL: 16});
+const K = C.D1, FC = C.CAMPS.free, NODES = FC.map.nodes;
+C.DREAM = {}; C.DREAMS.forEach(d => { C.DREAM[d.id] = d; });
+C.dreamOf = h => (h && h.dream && C.DREAM[h.dream]) || null;
+const fits = (d, h) => !d.fit || (d.fit.cls || []).includes(h.cls) || (d.fit.ppl || []).includes(h.people);
+/* три-четыре на выбор: сперва свои по классу и народу, потом общие */
+C.dreamsFor = function (h) {
+  if (!h) return [];
+  const own = C.DREAMS.filter(d => d.fit && fits(d, h)), all = C.DREAMS.filter(d => !d.fit);
+  const sort = L => L.slice().sort((a, b) => U.hsh(h.id + a.id) - U.hsh(h.id + b.id));
+  const out = sort(own).slice(0, 2); sort(all).forEach(d => { if (out.length < K.DREAM_PICK - (own.length ? 0 : 1)) out.push(d); });
+  return out;
+};
+C.dreamSet = function (g, h, id) {
+  const d = C.DREAM[id]; if (!d || !h) return false;
+  h.dream = id; delete h.dreamLater;
+  C.note(g, U.fill(`У {h:g} есть заветная мечта — ${d.t}. ${d.why}`, h));
+  return true;
+};
+/* сколько вех пройдено */
+C.dreamStep = (g, h) => { const d = C.dreamOf(h); if (!d) return 0; return [0, 1, 2].filter(k => (g.taleDone || []).includes(taleId(d.id, k))).length; };
+const taleId = (id, k) => `d1d_${id}_${k + 1}`;
+const owner = (g, id) => U.heroes(g).find(h => h.dream === id && !h.dreamDone) || null;
+
+/* ---------- вехи — личные сказания ---------- */
+const TOWNS = Object.keys(NODES).filter(id => ['село', 'город', 'подворье', 'стан', 'застава', 'торг', 'лагерь'].includes(NODES[id].kind));
+const tales = [];
+C.DREAMS.forEach(d => d.m.forEach((m, k) => {
+  const who = Object.assign({}, m.who); who.role = who.role || U.roleOf(who.t + ' ' + who.n, who.sex); who.face = who.face || U.faceRole(who.role, who.sex, 'd1d|' + who.n + '|' + who.t);
+  tales.push(Object.assign({as: 'putnik', diff: k === 2 ? 'hard' : 'mid', pay: 1 + k * 0.2, dl: K.DREAM_DL}, m, {id: taleId(d.id, k), land: 'dw', at: TOWNS, lv: [1, 40], who,
+    d1d: {dream: d.id, k}, need: k ? {after: taleId(d.id, k - 1)} : {}, rumor: null}));
+}));
+if (C.taleAdd) C.taleAdd(tales);
+/* открыто, когда в отряде герой с этой мечтой дорос до вехи */
+if (C.taleOk) { const ok0 = C.taleOk; C.taleOk = function (g, T) {
+  if (T && T.d1d) { if (!U.isFree(g)) return false; const h = owner(g, T.d1d.dream); if (!h || h.level < K.DREAM_LV[T.d1d.k]) return false; }
+  return ok0.apply(this, arguments); }; }
+/* своё — первым, и не больше одного за раз */
+if (C.talesAt) { const ta0 = C.talesAt; C.talesAt = function (g, at) {
+  const base = ta0.apply(this, arguments); if (!U.isFree(g)) return base;
+  const mine = C.TALE_LIST.filter(T => T.d1d && (T.at || []).includes(at) && C.taleOk(g, T));
+  const rest = base.filter(T => !T.d1d);
+  return mine.length ? mine.slice(0, 1).concat(rest.slice(0, 2)) : rest; }; }
+/* слова — с именем героя */
+const fillT = (t, h) => (t && h ? U.fill(String(t), h) : t);
+if (C.taleJob) { const tj0 = C.taleJob; C.taleJob = function (g, T) {
+  const j = tj0.apply(this, arguments);
+  try { if (T && T.d1d) { const h = owner(g, T.d1d.dream); if (h) { j.d1dHero = h.id; j.txt = Object.assign({}, j.txt, {intro: fillT(j.txt.intro, h), hook: fillT(j.txt.hook, h)}); } } } catch (e) {}
+  return j; }; }
+const rep0 = Q.report;
+Q.report = function (g, j) {
+  const T = j && j.tale && C.TALES[j.tale], was = (g.taleDone || []).includes(j && j.tale);
+  const r = rep0.apply(this, arguments);
+  try { if (T && T.d1d && !was && U.isFree(g)) {
+    const h = U.heroes(g).find(x => x.id === j.d1dHero) || owner(g, T.d1d.dream); if (!h) return r;
+    const raw = T.lore, L = (g.taleLore || []).slice().reverse().find(x => x.id === T.id);
+    if (L) { L.t = fillT(L.t, h); L.title = `${h.name}: ${T.title}`; L.land = U.reg(g); }
+    const n = g.journal.slice().reverse().find(x => x.t === raw); if (n) n.t = fillT(raw, h);
+    if (T.d1d.k === 2) C.dreamFulfil(g, h);
+  } } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  return r;
+};
+
+/* ---------- особый исход и песня ---------- */
+if (C.FAME_KINDS) {
+  C.FAME_KINDS.dream = {v: {folk: 2, oko: 0, kap: 0, nav: 0}, short: d => `сбылась мечта — ${d.what}`};
+  if (C.FAME_SONG && C.FAME_SONG.delo) C.FAME_SONG.delo.dream = ['Что задумал{|а} — то и сделал{|а}: / {what} —', 'Говорили — не сбудется, / А сбылось: {what}.'];
+}
+C.dreamFulfil = function (g, h) {
+  const d = C.dreamOf(h); if (!d || h.dreamDone) return null;
+  h.dreamDone = g.day;
+  const fx = (d.end && d.end.fx) || {}, lv = U.lvl(g);
+  if (fx.gold) g.purse = (g.purse || 0) + fx.gold * lv * K.DREAM_GOLD;
+  if (fx.fame) g.fame = (g.fame || 0) + fx.fame;
+  if (fx.fac && fx.facId && C.facAdd && C.FACTIONS && C.FACTIONS[fx.facId]) { try { C.facAdd(g, fx.facId, fx.fac * 2, {noChain: true}); } catch (e) {} }
+  if (fx.title) h.d1title = fx.title;
+  if (fx.skill) { h.skills = h.skills || {}; h.skills[fx.skill] = (h.skills[fx.skill] || 0) + 1; }
+  if (fx.kap && C.trust && g.chron) C.trust(g, 'kap', fx.kap);
+  if (fx.oko && C.trust && g.chron) C.trust(g, 'oko', fx.oko);
+  const text = fillT(d.end.t, h);
+  g.taleLore = (g.taleLore || []).concat({id: 'd1dream:' + h.id, title: `Мечта сбылась: ${h.name}`, land: U.reg(g), t: text, day: g.day});
+  C.note(g, U.fill(`Сбылась заветная мечта {h:g} — ${d.t}. `, h) + text);
+  let deed = null; if (C.fameDeed) deed = C.fameDeed(g, 'dream', {what: d.t, who: h.name, sex: h.sex});
+  const F = g.w2fame = g.w2fame || {}; F.songs = F.songs || [];
+  const lines = []; (d.end.song || []).forEach(x => lines.push(...U.sx(fillT(x, h), h.sex).split(' / ')));
+  const song = {id: 's' + (F.songs.length + 1), deed: deed ? deed.id : null, k: 'dream', day: g.day, reg: U.reg(g), loc: g.loc,
+    title: `Песня о мечте ${U.decl(h.name, h.sex).g}: ${d.short}`, lines, parts: {}, black: 0, d1d: d.id};
+  F.songs.push(song); if (F.songs.length > 30) F.songs.shift(); g.fame = (g.fame || 0) + 1;
+  C.note(g, `Гусляр сложил песню: «${song.title}». Её будут петь по корчмам.`);
+  g.d1dEnd = {hero: h.id, id: d.id, day: g.day, song: song.id};
+  return song;
+};
+/* в расчёте последней вехи — исход и песня */
+const qr0 = FC.scenes.q_report;
+if (qr0) FC.scenes.q_report = function (g) {
+  const sc = qr0.apply(this, arguments);
+  try { const E = g.d1dEnd, j = Q.byId && Q.byId(g, g.curJob); const T = j && j.tale && C.TALES[j.tale];
+    if (E && T && T.d1d && T.d1d.k === 2 && E.day === g.day && sc && sc.lines) { const h = (g.heroes || []).find(x => x.id === E.hero), d = C.DREAM[E.id];
+      const s = ((g.w2fame || {}).songs || []).find(x => x.id === E.song);
+      if (h && d) { sc.lines = sc.lines.concat([['n', fillT(d.end.t, h)]], s ? [['n', `Вечером в корчме гусляр трогает струны и поёт новое: «${s.lines.join(' ')}»`]] : []); } } } catch (e) {}
+  return sc; };
+
+/* ---------- выбор мечты ---------- */
+const rootless = g => U.heroes(g).filter(h => !h.origin && C.originsFor && C.originsFor(h).length);
+const needDream = h => h && h.kind !== 'merc' && !h.dream && h.origin && (!h.dreamLater || h.level >= K.DREAM_ASK);
+const st = g => { g.d1d = g.d1d || {}; return g.d1d; };
+FC.scenes.d1_dream = g => {
+  const S = st(g), h = U.heroes(g).find(needDream), back = S.back || 'free_place';
+  if (!h) return {title: 'Дорога', bg: 'village', lines: [['n', 'У каждого в отряде своё на сердце, и дорога зовёт дальше.']], choices: [{t: 'Дальше', go: back}]};
+  if (!S.opts || S.opts.hero !== h.id) S.opts = {hero: h.id, ids: C.dreamsFor(h).map(d => d.id)};
+  const lines = [['n', U.fill(h.dreamLater ? 'Дорога долгая, и у костра {h} всё чаще молчит, глядя в огонь. Пора сказать вслух, ради чего {он|она} вообще в пути.'
+    : 'У всякого, кто уходит из дома, есть то, ради чего он однажды вернётся — или не вернётся вовсе. О чём {h} думает перед сном?', h)]];
+  S.opts.ids.forEach(id => { const d = C.DREAM[id]; if (d) lines.push(['n', `${U.cap(d.t)}. ${U.sx(d.why, h.sex)}`]); });
+  const next = g2 => (U.heroes(g2).some(needDream) ? 'd1_dream' : (st(g2).back || 'free_place'));
+  const ch = S.opts.ids.filter(id => C.DREAM[id]).map(id => ({t: U.cap(C.DREAM[id].t), d1dream: id, focus: h.id, do: g2 => { const hh = U.heroes(g2).find(x => x.id === h.id); if (hh) C.dreamSet(g2, hh, id); st(g2).opts = null; return next(g2); }}));
+  if (h.level < K.DREAM_ASK) ch.push({t: 'Пока не сказать: дорога сама подскажет', d1dream: '-', do: g2 => { const hh = U.heroes(g2).find(x => x.id === h.id); if (hh) hh.dreamLater = 1; st(g2).opts = null; return next(g2); }});
+  return {title: `Мечта: ${h.name}`, bg: 'village', focus: h.id, lines, choices: ch};
+};
+const en0 = C.enter;
+C.enter = function (g, id) {
+  if (U.isFree(g) && NODES[g.loc] && NODES[g.loc].scene === id && FC.scenes[id] && !rootless(g).length && U.heroes(g).some(needDream)) {
+    st(g).back = id; return en0.call(this, g, 'd1_dream'); }
+  return en0.apply(this, arguments);
+};
+/* дорос до вехи — мечта напоминает о себе */
+if (C.giveXP) { const gx0 = C.giveXP; C.giveXP = function (g) {
+  const before = U.isFree(g) ? U.heroes(g).map(h => [h, h.level]) : [];
+  const r = gx0.apply(this, arguments);
+  try { before.forEach(([h, l0]) => { const d = C.dreamOf(h); if (!d || h.dreamDone) return;
+    const k = K.DREAM_LV.findIndex(L => l0 < L && h.level >= L); if (k >= 0 && C.dreamStep(g, h) === k)
+      C.note(g, U.fill(`{h} стал{|а} сильнее, и мечта — ${d.t} — снова зовёт в дорогу. В ближнем селе или городе найдётся тот, кто подскажет следующий шаг.`, h)); }); } catch (e) {}
+  return r; }; }
+
+/* ---------- лист героя ---------- */
+const STEP_W = ['дорога к ней ещё не начата', 'первый шаг сделан', 'полпути позади', 'до неё рукой подать'];
+C.dreamLine = function (g, h) {
+  const d = C.dreamOf(h); if (!d) return h && h.dreamLater ? U.fill('Мечту {h} пока держит при себе.', h) : '';
+  if (h.dreamDone) return U.fill(`Мечта сбылась: ${d.t}.${h.d1title ? ` Зовут {его|её} теперь — ${h.d1title}.` : ''}`, h);
+  const k = g ? C.dreamStep(g, h) : 0, lvOk = h.level >= K.DREAM_LV[Math.min(2, k)];
+  return `Заветная мечта: ${d.t}. ${U.cap(STEP_W[k])}${k < 3 ? (lvOk ? '; следующий шаг ждёт в ближнем селе или городе.' : U.fill('; следующий шаг откроется, когда {h} окрепнет.', h)) : '.'}`;
+};
+C.heroLoreLines = (function (f0) { return function (g, h) { const out = f0 ? f0.apply(this, arguments) : []; const t = h && h.kind !== 'merc' ? C.dreamLine(g, h) : ''; if (t) out.push(t); return out; }; })(C.heroLoreLines);
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* d1_feast.js */
+/* Колдовство — волна D1: пир, тинг и прочие светские сцены. Без DOM. Только Вечный мир.
+   • Шаблон из D1.FEAST_TOURS туров. В туре герой выбирает, к кому из гостей подсесть, и что сделать: поднять чашу,
+     рассказать о своих делах, уважить желание гостя (песня, дар, спор на руках, вести, почёт, тайна), подшутить
+     при всех или попросить о деле. У каждого гостя своё исходное отношение и своё желание (тайна мастера: наружу —
+     только то, как гость смотрит). Растёт общий счёт впечатления.
+   • После второго тура — одно прерывание: драка, обвинение, отравление или вестник.
+   • Награда по счёту: знакомство (свой человек на этом месте — уступит в лавках), дело от гостя, ступень у силы мира,
+     знак чести (wb_world), молва о празднике (w2_fame). Плохой счёт — холод у силы мира.
+   • Виды (C.FEASTS): княжий пир, теракский тинг, ярлов стол, приём у тиуна, купеческий сговор, степной той. Где —
+     на своих местах (раз в D1.FEAST_GAP дней) и в праздники (w2_calendar: сцена праздника получает «Сесть за стол»).
+   • Окно — talkWin (ui.js): сцена отдаёт поле talk {who, hero, log}. Числа — в C.D1. Состояние — g.d1fe (лениво). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q, U = C && C.D1U;
+if (!R || !C || !C.CAMPS || !C.CAMPS.free || !Q || !U) return;
+Object.assign(C.D1, {FEAST_TOURS: 3, FEAST_GAP: 12, FEAST_DC: 11, FEAST_FAME_DC: 2, FEAST_GIFT: 20, FEAST_TIERS: [0, 4, 7, 10], FEAST_DISC: 0.07, FEAST_LOG: 14, FEAST_LV: 3});
+const K = C.D1, FC = C.CAMPS.free, NODES = FC.map.nodes;
+
+/* ---------- гости и столы ---------- */
+const g5 = (id, n, t, sex, rel, want, hi) => ({id, n, t, sex, rel, want, hi});
+C.FEASTS = {
+  knyaz: {n: 'Княжий пир', tone: 'folk', at: ['as_korovino'], hol: ['kolyada', 'dozhinki'], fac: 'gusl', bg: 'hut',
+    host: 'князь коровинский', intro: ['В гриднице жарко от печей и факелов. Столы ломятся: лебеди, осетры, пироги с вязигой, мёд в братинах. Князь сидит во главе, по правую руку — бояре, по левую — дружина, а вас сажают посередине, где все видят.',
+      'Гусли звенят, скоморохи кувыркаются у порога, и чашник обносит гостей заморским вином. Князь поднимает рог за гостей с дороги — и все смотрят, что вы ответите.'],
+    guests: [g5('boyarin', 'Твердята', 'старый боярин', 'm', -1, 'honor', 'Боярин оглаживает бороду и смотрит поверх вас: с бродягами за одним столом он, видно, сидит не каждый день.'),
+      g5('voevoda', 'Вышата', 'княжий воевода', 'm', 0, 'bet', 'Воевода хлопает ладонью по столу: «А ну, кто тут с дороги? Рука-то крепкая?»'),
+      g5('knyaginya', 'Предслава', 'княжья сестра', 'f', 1, 'song', 'Княжья сестра улыбается одними глазами: «Говорят, вы много где были. А петь умеете?»'),
+      g5('kupec', 'Садко', 'гость-купец из Поморья', 'm', 0, 'news', 'Купец щурится: «С дороги, значит. Что там на трактах? Мне бы знать, куда возы гнать».'),
+      g5('volhv', 'Богумил', 'старый волхв при дворе', 'm', 0, 'secret', 'Старик в белом сидит с краю и почти не ест. Глаза у него усталые, и он всё поглядывает на дверь.')],
+    intr: ['draka', 'vestnik', 'otrava']},
+  ting: {n: 'Теракский тинг', tone: 'north', at: ['tk_podvorye'], hol: ['ting'], fac: 'terak', bg: 'village',
+    host: 'законоговоритель', intro: ['У тингового камня горят костры. Ярлы и бонды сидят кругом на шкурах, рога с пивом ходят по рукам, а законоговоритель на камне ждёт, пока все наговорятся.',
+      'Здесь решают споры, а после споров пьют. Чужака сажают в круг только тогда, когда кто-то за него поручился. За вас — поручились.'],
+    guests: [g5('yarl', 'Хальвдан', 'ярл с северных уделов', 'm', 0, 'bet', '«Ты кто? — ярл говорит, не поворачивая головы. — Чужак в круге. Покажи, что стоишь своего места».'),
+      g5('bond', 'Ормульв', 'бонд, у которого спор о меже', 'm', -1, 'secret', 'Бонд сидит, сжав кулаки. На вас он смотрит, как на ещё одну беду.'),
+      g5('skald', 'Эйнар', 'скальд', 'm', 1, 'song', '«А, гости с дороги. Скальду новые песни — как ветер парусу. Есть что спеть?»'),
+      g5('vdova', 'Торгерд', 'вдова хирдмана', 'f', 0, 'honor', 'Вдова сидит прямо, как копьё. Её муж пал за этот удел, и место в круге — её по праву.'),
+      g5('zakon', 'Снорри', 'законоговоритель', 'm', 0, 'news', '«Законы я знаю. А вот что творится за горами — нет. Говори, чужак».')],
+    intr: ['draka', 'obvinenie', 'vestnik']},
+  yarl: {n: 'Ярлов стол', tone: 'north', at: ['tk_stavka'], hol: ['yol'], fac: 'terak', bg: 'hut',
+    host: 'ярл', intro: ['В длинном доме чадят очаги, по стенам — щиты. Ярл сидит на резном кресле, у ног — волкодавы. Хирдманы пьют из рогов и меряются шрамами.',
+      'Пиво льётся рекой, на вертеле шипит целый бык. Ярл поднимает рог: «Гости за моим столом — мои гости. Кто их тронет — тронет меня».'],
+    guests: [g5('hird', 'Бьярни', 'старший хирдман', 'm', -1, 'bet', 'Хирдман ухмыляется в бороду: «Чужие мечи. Посмотрим, чего они стоят».'),
+      g5('zhena', 'Асгерд', 'жена ярла', 'f', 0, 'gift', 'Хозяйка дома обносит гостей рогом и смотрит, кто как благодарит.'),
+      g5('syn', 'Торкель', 'молодой сын ярла', 'm', 1, 'news', '«Вы правда были за горами? Расскажите! Отец меня никуда не пускает».'),
+      g5('skald', 'Гудрун', 'скальдица', 'f', 0, 'song', '«Песню за песню, гость. Я спою про наших — ты спой про своих».'),
+      g5('zhrec', 'Хрольв', 'годи, что приносит жертвы', 'm', 0, 'secret', 'Годи молчит и смотрит в огонь. Похоже, ему есть что сказать, но не при всех.')],
+    intr: ['draka', 'otrava', 'vestnik']},
+  tiun: {n: 'Приём у тиуна', tone: 'folk', at: ['dw_taren'], hol: ['dozhinki'], fac: null, bg: 'town',
+    host: 'тиун', intro: ['В горнице у тиуна пахнет воском и квасом. Стол накрыт скромно, да чинно: каждому своё место, каждому своя чарка. Тиун сидит во главе и считает, кто сколько выпил.',
+      'К тиуну на поклон приходят старосты, купцы и всякий люд, кому нужна его подпись. Сегодня позвали и вас.'],
+    guests: [g5('starosta', 'Мирон', 'староста Ольшанки', 'm', 1, 'news', '«А, вы-то нам и нужны. Что там на дорогах творится, расскажите тиуну — меня он не слушает».'),
+      g5('kupchiha', 'Агафья', 'купчиха-вдова', 'f', 0, 'gift', 'Купчиха поджимает губы: подарки она любит, а вот пустые слова — нет.'),
+      g5('tiun', 'Путята', 'тиун', 'm', -1, 'honor', 'Тиун смотрит на вас, как на неоплаченный долг. Почёт он любит больше, чем серебро.'),
+      g5('pisar', 'Евстафий', 'писарь', 'm', 0, 'secret', 'Писарь всё время что-то записывает, но перо у него дрожит.'),
+      g5('dochka', 'Любава', 'тиунова дочь', 'f', 1, 'song', '«Батюшка не велит, а я люблю песни. Спойте, гости!»')],
+    intr: ['obvinenie', 'otrava', 'vestnik']},
+  kupec: {n: 'Купеческий сговор', tone: 'trade', at: ['ber_gavan'], hol: ['sol'], fac: 'liga', bg: 'market',
+    host: 'старшина лиги', intro: ['В доме лиги — ковры, серебряная посуда, вино с юга. За длинным столом сидят купцы, и каждый считает в уме, сколько стоит его сосед.',
+      'Здесь не пьют без дела: всякая чарка — сговор, всякая здравица — цена. Вас позвали, потому что о вас говорят, а говор в Гавани — тоже товар.'],
+    guests: [g5('starshina', 'Демид', 'старшина торговой лиги', 'm', 0, 'news', '«Вести — дороже соли. Что видели на трактах? Говорите, я плачу словом».'),
+      g5('chuzhezemec', 'Лукулл', 'имперский торговый гость', 'm', -1, 'honor', 'Имперец сидит так, будто стол ему ниже по званию. Ждёт, чтобы с ним заговорили почтительно.'),
+      g5('vdova', 'Феврония', 'хозяйка солеварен', 'f', 0, 'gift', 'Хозяйка солеварен оценивает вас взглядом, как товар на весах.'),
+      g5('kormshik', 'Сигрун', 'кормщица', 'f', 1, 'bet', '«Сухопутные! А на спор выпить сумеете? Или только меча держать?»'),
+      g5('menyala', 'Захар', 'меняла', 'm', 0, 'secret', 'Меняла улыбается всем, но глаза у него бегают — видно, нечисто у него на душе.')],
+    intr: ['obvinenie', 'otrava', 'draka']},
+  toy: {n: 'Степной той', tone: 'steppe', at: ['step_stavka'], hol: ['kurultay', 'skachki'], fac: 'step', bg: 'village',
+    host: 'хан Тугай', intro: ['В белой юрте хана горит огонь, на коврах — бешбармак в огромных чашах, кумыс в бурдюках. Хан сидит на войлоке, и к нему подходят по одному, кланяясь.',
+      'Акын тянет песню под домбру, нукеры смеются, а над юртой свистит ветер. Гостя в степи кормят первым — и первым же испытывают.'],
+    guests: [g5('nuker', 'Бекет', 'старший нукер', 'm', -1, 'bet', 'Нукер щурится: «Говорят, вы сильны. В степи сильного видно сразу. Покажи».'),
+      g5('akyn', 'Жанар', 'акынша', 'f', 1, 'song', '«Песню за песню, гость. Без песни у нас и кумыс кислый».'),
+      g5('biy', 'Азамат', 'бий, судья рода', 'm', 0, 'honor', 'Бий сидит неподвижно, ждёт почтения. Его слово весит больше ханского — в своём роду.'),
+      g5('kupec', 'Нико', 'купец с юга', 'm', 0, 'news', '«Вы ведь с той стороны? Как там дороги? Мне бы знать, где спокойно».'),
+      g5('kam', 'Курмаш', 'кам с бубном', 'm', 0, 'secret', 'Кам гладит бубен и смотрит не на вас, а сквозь вас.')],
+    intr: ['draka', 'vestnik', 'obvinenie']},
+};
+const FIDS = Object.keys(C.FEASTS);
+const FEAST_HOL = {}; FIDS.forEach(id => (C.FEASTS[id].hol || []).forEach(h => { (FEAST_HOL[h] = FEAST_HOL[h] || []).push(id); }));
+C.FEAST_HOL = FEAST_HOL;
+const GUEST_ROLE = {'knyaz.knyaginya': 'knyazhna', 'ting.zakon': 'pisar', 'ting.bond': 'muzhik', 'yarl.zhena': 'yarl', 'yarl.syn': 'young', 'yarl.zhrec': 'kam', 'tiun.dochka': 'young', 'tiun.starosta': 'muzhik',
+  'kupec.kormshik': 'voin', 'kupec.chuzhezemec': 'kupec', 'toy.akyn': 'guslyar', 'toy.biy': 'old', 'toy.nuker': 'batyr'};
+FIDS.forEach(id => C.FEASTS[id].guests.forEach(x => { x.role = x.role || GUEST_ROLE[id + '.' + x.id] || U.roleOf(x.t, x.sex); x.face = x.face || U.faceRole(x.role, x.sex, 'd1f|' + id + '|' + x.n); }));
+
+/* ---------- слова ---------- */
+const MOOD = {2: '{n} смотрит на вас как на своего.', 1: '{n} приветлив{|а} и не прочь поговорить.', 0: '{n} присматривается к вам.', '-1': '{n} холод{ен|на} и держится особняком.', '-2': '{n} косится недобро.'};
+const WANT = {song: 'Песен ждёт, а не речей.', gift: 'Знает цену подарку.', bet: 'Руки у {него|неё} так и чешутся помериться.', news: 'Вести с дорог {ему|ей} дороже мёда.', honor: 'Любит, чтобы {его|её} почитали.', secret: 'На душе у {него|неё} что-то тяжёлое.'};
+const SAY = {
+  toast: {ok: ['{n} поднимает чашу в ответ: «И тебе здоровья, гость!»', '{n} пьёт до дна и утирает усы: «Добрые слова. Запомню».'], cold: ['{n} пригубливает для вида и ставит чашу. Тёплых слов от {него|неё} не дождаться.']},
+  tale: {ok: ['{n} слушает, подавшись вперёд, и под конец смеётся: «Вот это дело! Расскажи ещё!»', 'За столом стихают: все слушают, как вы шли и что видели. {n} качает головой: «Не врёшь ведь, а?»'],
+    fail: ['{n} зевает в кулак. Рассказ вышел скучный, и соседи уже говорят о своём.', 'Вы сбиваетесь, путаете имена, и {n} вежливо кивает — вежливо, и только.']},
+  song: {ok: ['Песня льётся, и {n} подпевает, сам{|а} того не заметив. Когда стихает, стол бьёт ладонями.', '{n} слушает, прикрыв глаза. «Вот это песня. Такую не купишь».'],
+    fail: ['Голос садится на середине. {n} морщится, но молчит.']},
+  gift: {ok: ['{n} принимает дар двумя руками и кланяется: «Щедрый гость — честь хозяину».', '{n} оглядывает подарок, взвешивает в руке и улыбается: «Знаешь, что дарить».']},
+  bet: {ok: ['Локти на столе, ладонь в ладонь. {n} пыхтит, краснеет — и ложится. Стол ревёт от восторга, а {n} смеётся громче всех.', 'Спор вышел честный, и победа ваша. {n} хлопает вас по плечу так, что звенит в ушах.'],
+    fail: ['{n} кладёт вашу руку на стол без особых усилий. Но смеётся по-доброму: «Не сдался — уже хорошо».']},
+  news: {ok: ['{n} ловит каждое слово, переспрашивает, запоминает. «Вот за это спасибо. Это мне дороже серебра».'], fail: ['Вести ваши {n} уже слыхал{|а}, да и то не от вас. Вежливый кивок — и только.']},
+  honor: {ok: ['Вы уступаете {n:d} место повыше и подносите чашу первым. {n} принимает почёт, как должное, но взгляд у {него|неё} теплеет.'], hit: 'Кое-кто за столом переглядывается: гость с дороги кланяется низковато.'},
+  secret: {ok: ['{n} долго молчит, а потом тихо, чтобы не слышали другие, рассказывает, что у {него|неё} на душе. Похоже, никто давно не слушал.'], fail: ['{n} начинает было говорить, но осекается и машет рукой: «Пустое. Не бери в голову».']},
+  jest: {ok: ['Шутка ложится точно: стол хохочет, и даже {n} не может удержаться.'], fail: ['Шутка выходит злой. {n} бледнеет, стол затихает — и тишина эта нехорошая.']},
+  ask: {ok: ['{n} кивает: «Есть у меня одно дело. Как отгуляем — подойди, расскажу».'], no: ['{n} разводит руками: «Дела у меня есть, да не для первых встречных».']},
+};
+const INTR = {
+  draka: {t: 'Драка', lines: ['Двое за дальним концом стола вскакивают разом, опрокидывая скамью. Ножи уже в руках, хозяин кричит, а все смотрят на вас: вы ближе всех.'],
+    ch: [{t: 'Разнять их голыми руками (Сила, Атлетика)', check: ['str', 'Атлетика'], ok: 'Вы хватаете обоих за шиворот и разводите в стороны. Ножи звенят о пол. Хозяин сам наливает вам чашу.', okS: 3, fail: 'Вас сбивают с ног, драка катится по полу, и разнимают её уже без вас.', failS: -1},
+      {t: 'Пристыдить при всех (Очарование, Запугивание)', check: ['cha', 'Запугивание'], ok: 'Ваш голос режет шум, как нож. Драчуны прячут ножи и садятся, пряча глаза.', okS: 2, fail: 'Вас не слышат. Драку заканчивают слуги хозяина, а вы стоите с открытым ртом.', failS: -1},
+      {t: 'Не вмешиваться', ok: 'Вы остаётесь на месте. Драку разнимают слуги. Кто-то за столом смотрит на вас с упрёком.', okS: -1}]},
+  obvinenie: {t: 'Обвинение', lines: ['Кто-то встаёт с чашей в руке и громко, на всю горницу, говорит, что гости с дороги — люди тёмные, и неизвестно ещё, чьё серебро у них в кошеле.'],
+    ch: [{t: 'Ответить спокойно и честно (Очарование, Дипломатия)', check: ['cha', 'Дипломатия'], ok: 'Вы отвечаете не спеша, называя дела и имена. Обвинитель садится, а хозяин качает головой: «Пьяный бредит».', okS: 3, fail: 'Слова не идут, и обвинение висит в воздухе. Кто-то отодвигается от вас.', failS: -2},
+      {t: 'Вызвать клеветника выйти и повторить (Сила, Запугивание)', check: ['str', 'Запугивание'], ok: 'Клеветник бледнеет и бормочет, что ошибся. Над ним смеются.', okS: 2, fail: 'Клеветник не испугался, и теперь за столом говорят, что гости грозят хозяевам.', failS: -2},
+      {t: 'Отшутиться (Очарование, Обман)', check: ['cha', 'Обман'], ok: 'Шутка выходит такой, что стол хохочет, а обвинитель остаётся в дураках.', okS: 2, fail: 'Шутку не поняли. Тишина.', failS: -1, nrav: 'l'}]},
+  otrava: {t: 'Отравление', lines: ['Один из гостей хватается за горло, хрипит и валится со скамьи. Пена на губах. Кто-то кричит: «Отрава!» — и все смотрят на свои чаши.'],
+    ch: [{t: 'Броситься помогать (Мудрость, Медицина)', check: ['wis', 'Медицина'], ok: 'Вы переворачиваете его на бок, суёте пальцы в рот, вливаете молоко. Через время он дышит. Хозяин смотрит на вас иначе.', okS: 4, fail: 'Вы стараетесь, но поздно: он затихает у вас на руках. Хозяин молча закрывает ему глаза.', failS: 0},
+      {t: 'Искать отравителя (Мудрость, Поиск)', check: ['wis', 'Поиск'], ok: 'Чашник прячет за пазухой пустую склянку. Его уводят, а хозяин жмёт вам руку.', okS: 3, fail: 'Отравителя вы не нашли, а подозрение легло на всех, и на вас тоже.', failS: -1},
+      {t: 'Отойти от стола и не пить', ok: 'Вы ставите чашу и отходите к стене. Разумно, но за столом это заметили.', okS: -1}]},
+  vestnik: {t: 'Вестник', lines: ['Двери распахиваются, и в горницу вваливается гонец, весь в грязи. Он падает на колено перед хозяином: дурные вести с границы — сожжено село, люди угнаны.'],
+    ch: [{t: 'Встать и сказать слово за всех (Очарование, Дипломатия)', check: ['cha', 'Дипломатия'], ok: 'Вы встаёте и говорите то, что все думают, но боятся сказать. Хозяин кивает, а гости поднимают чаши за погибших.', okS: 3, fail: 'Слова выходят неуклюжими, и хозяин морщится: не гостю говорить в такой час.', failS: -1},
+      {t: 'Поднять чашу за павших', ok: 'Вы молча поднимаете чашу. Один за другим встают все. Это было правильно.', okS: 1},
+      {t: 'Предложить хозяину свои мечи', ok: 'Хозяин смотрит долго: «Запомню». Кто-то за столом хмыкает — мол, наёмники всегда ищут работу.', okS: 2, job: 1}]},
+};
+
+/* ---------- состояние ---------- */
+const st = g => { const s = g.d1fe = (g.d1fe && typeof g.d1fe === 'object') ? g.d1fe : {}; s.last = s.last || {}; s.known = s.known || []; s.hol = s.hol || {}; return s; };
+const cur = g => (g.d1fe && g.d1fe.cur) || null;
+C.feastCur = cur;
+const dcOf = (g, add) => K.FEAST_DC + Math.floor(U.lvl(g) / 2) + (add || 0);
+const relWord = x => U.sx(MOOD[Math.max(-2, Math.min(2, x.rel))], x.sex).replace(/\{n\}/g, x.n);
+const sayX = (x, t) => U.sx(String(t), x.sex).replace(/\{n:d\}/g, U.decl(x.n, x.sex).d).replace(/\{n\}/g, x.n);
+const pickS = (g, key, a) => U.newPick(g, 'fe|' + key, a);
+const logPush = (F, o) => { F.log.push(o); if (F.log.length > K.FEAST_LOG) F.log.splice(0, F.log.length - K.FEAST_LOG); };
+C.feastStart = function (g, kind, why) {
+  const D = C.FEASTS[kind]; if (!D || !U.isFree(g)) return null;
+  const seed = 'fe|' + kind + '|' + g.day + '|' + (g.seed || 0);
+  const guests = D.guests.map(x => ({id: x.id, n: x.n, t: x.t, sex: x.sex, face: x.face, rel: x.rel, want: x.want, done: []}));
+  const S = st(g); S.cur = {kind, tour: 1, phase: 'pick', who: null, score: 0, guests, log: [], intr: U.pick(D.intr, seed), intrDone: 0, job: null, why: why || 'place', day: g.day, loc: g.loc};
+  if (why === 'place') S.last[kind] = g.day; else S.hol[why] = 1;
+  const F = S.cur; logPush(F, {who: 'n', text: U.pick(D.intro, seed)});
+  const kn = S.known.find(k => k.at === g.loc); if (kn) logPush(F, {who: 'n', text: `За столом и знакомое лицо: ${kn.n} кивает вам, как старым приятелям.`});
+  logPush(F, {who: 'n', text: PICK_SAY(1)});
+  return F;
+};
+const guestOf = (F, id) => F.guests.find(x => x.id === id);
+const after = (g, F, gain) => { F.score += gain; };
+/* что можно сделать с гостем */
+const giftCost = g => Math.max(10, Math.round(K.FEAST_GIFT * U.lvl(g) / 10) * 10);
+const WANT_ACT = {
+  song: g => ({t: 'Спеть для {него|неё} (Очарование)', check: ['cha', null], auto: U.heroes(g).some(h => h.cls === 'guslyar')}),
+  gift: g => ({t: `Поднести дар — ${R.priceText(giftCost(g))}`, cost: giftCost(g)}),
+  bet: g => ({t: 'Потягаться на руках (Сила, Атлетика)', check: ['str', 'Атлетика']}),
+  news: g => ({t: 'Рассказать вести с дорог (Интеллект, Поиск пути)', check: ['int', 'Поиск пути']}),
+  honor: g => ({t: 'Уступить {ему|ей} место повыше и поднести чашу первым'}),
+  secret: g => ({t: 'Выслушать, о чём {он|она} молчит (Мудрость, Медицина)', check: ['wis', 'Медицина']}),
+};
+const ACTS = ['toast', 'tale', 'want', 'jest', 'ask'];
+C.feastActs = function (g, F, x) {
+  const out = [];
+  out.push({k: 'toast', t: 'Поднять чашу за {него|неё}'});
+  out.push({k: 'tale', t: 'Рассказать о своих делах (Очарование, Дипломатия)', check: ['cha', 'Дипломатия']});
+  out.push(Object.assign({k: 'want'}, WANT_ACT[x.want](g)));
+  out.push({k: 'jest', t: 'Подшутить над {ним|ней} при всех (Очарование, Обман)', check: ['cha', 'Обман']});
+  if (!F.job && x.rel >= 1) out.push({k: 'ask', t: 'Спросить, нет ли у {него|неё} дела для таких, как вы'});
+  return out.map(a => Object.assign(a, {t: U.sx(a.t, x.sex)}));
+};
+const roll = (g, chk, add) => { const r = C.bestCheck(g, chk[0], chk[1] || null, dcOf(g, add)); g.lastCheck = r; return r.ok; };
+C.feastAct = function (g, gid, k) {
+  const F = cur(g); if (!F || F.phase !== 'act') return null; const x = guestOf(F, gid); if (!x) return null;
+  const a = C.feastActs(g, F, x).find(y => y.k === k); if (!a) return null;
+  logPush(F, {who: 'h', text: a.t.replace(/ \([^)]*\)$/, '').replace(/ — .*$/, '')});
+  let line = '', dr = 0, ds = 0;
+  const fameAdd = (g.fame || 0) >= 3 ? -K.FEAST_FAME_DC : 0;
+  if (k === 'toast') { if (x.rel >= 0) { dr = 1; ds = x.rel >= 1 ? 1 : 0; line = pickS(g, 'toast', SAY.toast.ok); } else { ds = 0; line = pickS(g, 'toastc', SAY.toast.cold); } }
+  else if (k === 'tale') { if (roll(g, a.check, fameAdd)) { dr = 1; ds = 2; line = pickS(g, 'tale', SAY.tale.ok); } else { ds = -1; line = pickS(g, 'talef', SAY.tale.fail); } }
+  else if (k === 'want') {
+    const W_ = x.want;
+    if (a.cost) { if ((g.purse || 0) < a.cost) return null; g.purse -= a.cost; dr = 2; ds = 1; line = pickS(g, 'gift', SAY.gift.ok); }
+    else if (W_ === 'honor') { dr = 2; ds = -1; line = pickS(g, 'honor', SAY.honor.ok) + ' ' + SAY.honor.hit; }
+    else if (a.auto || roll(g, a.check)) { dr = 2; ds = W_ === 'secret' ? 1 : 2; line = pickS(g, W_, SAY[W_].ok); if (W_ === 'secret') F.secret = x.id; }
+    else { dr = W_ === 'bet' ? 1 : 0; ds = 0; line = pickS(g, W_ + 'f', SAY[W_].fail || SAY.tale.fail); }
+  }
+  else if (k === 'jest') { if (roll(g, a.check)) { ds = 2; dr = x.rel >= 1 ? 0 : -1; line = pickS(g, 'jest', SAY.jest.ok); } else { ds = -2; dr = -2; line = pickS(g, 'jestf', SAY.jest.fail); } }
+  else if (k === 'ask') { if (x.rel >= 2) { F.job = x.id; ds = 0; line = pickS(g, 'ask', SAY.ask.ok); } else { line = pickS(g, 'askn', SAY.ask.no); } }
+  x.rel = Math.max(-2, Math.min(3, x.rel + dr)); x.done.push(k); after(g, F, ds);
+  logPush(F, {who: 'o', name: x.n, face: x.face, text: sayX(x, line)});
+  F.phase = 'next'; F.lastWho = x.id; advance(g);
+  return {line, dr, ds};
+};
+C.feastIntr = function (g, i) {
+  const F = cur(g); if (!F || F.phase !== 'intr') return null; const I = INTR[F.intr], c = I && I.ch[i]; if (!c) return null;
+  logPush(F, {who: 'h', text: c.t.replace(/ \([^)]*\)$/, '')});
+  const ok = !c.check || roll(g, c.check);
+  after(g, F, ok ? c.okS : (c.failS || 0)); if (c.job && ok) F.job = F.job || 'host';
+  if (c.nrav && C.nravDeed) try { C.nravDeed(g, c.nrav, {key: 'feast|' + F.day}); } catch (e) {}
+  logPush(F, {who: 'n', text: ok ? c.ok : c.fail}); F.intrDone = 1; F.phase = 'next'; advance(g);
+  return ok;
+};
+/* после хода: следующий тур, прерывание после второго или конец */
+const PICK_SAY = t => (t === 1 ? 'Вы садитесь. С кем заговорить первым?' : t === K.FEAST_TOURS ? 'Пир клонится к концу: одна чаша, одна беседа — и пора вставать.' : 'Чаши наполнены снова. К кому подсесть теперь?');
+function advance(g) {
+  const F = cur(g); if (!F || F.phase !== 'next') return F;
+  if (F.tour === 2 && !F.intrDone) { F.phase = 'intr'; logPush(F, {who: 'n', text: INTR[F.intr].lines[0]}); }
+  else if (F.tour >= K.FEAST_TOURS) C.feastEnd(g);
+  else { F.tour++; F.phase = 'pick'; F.who = null; logPush(F, {who: 'n', text: PICK_SAY(F.tour)}); }
+  return F;
+}
+const tierOf = s => K.FEAST_TIERS.filter(t => s >= t).length; // 0 — холодно … 4 — лучше некуда
+C.feastEnd = function (g) {
+  const F = cur(g); if (!F || F.phase === 'end') return F;
+  const D = C.FEASTS[F.kind], T = tierOf(F.score), S = st(g), out = [];
+  const best = F.guests.slice().sort((a, b) => b.rel - a.rel)[0];
+  if (T === 0) { out.push('Провожают вас вежливо и холодно: о таких гостях за этим столом вспоминать не будут.'); if (D.fac && C.facAdd) try { C.facAdd(g, D.fac, -1, {noChain: true}); } catch (e) {} }
+  if (T === 1) out.push('Посидели неплохо. Никто вас не запомнил надолго, но и худого не скажут.');
+  if (T >= 2 && best && best.rel >= 1) { const kn = {n: best.n, t: best.t, sex: best.sex, face: best.face, at: g.loc, day: g.day, kind: F.kind};
+    S.known = S.known.filter(k => !(k.at === g.loc && k.n === best.n)).concat(kn).slice(-12);
+    out.push(U.sx(`${best.n} на прощание жмёт вам руку: «Будете здесь — заходите. Своим всегда рад{|а}». Теперь у вас здесь знакомый.`, best.sex)); }
+  if (T >= 2 && C.fameDeed) C.fameDeed(g, 'feast', {what: D.n});
+  if (T >= 3 && D.fac && C.facAdd) { try { C.facAdd(g, D.fac, 2); } catch (e) {} out.push(`О вас заговорили и там, где решают дела: ${(C.FACTIONS[D.fac] || {}).name || 'сильные люди'} теперь смотрят на вас иначе.`); }
+  if (T >= 3 && !D.fac && C.repAdd) { try { C.repAdd(g, g.loc, 1, 'добрые гости на пиру'); } catch (e) {} out.push('Хозяин теперь говорит о вас с уважением, а за ним и весь город.'); }
+  if (T >= 4 && D.fac && C.wbHonorGive) { const z = C.wbHonorGive(g, D.fac, null, `за честь, что оказали на пиру — ${D.n.toLowerCase()}`); if (z) out.push('Хозяин подзывает вас и при всех вручает знак своей милости.'); }
+  F.phase = 'end'; F.tier = T; F.endText = out.join(' ');
+  logPush(F, {who: 'n', text: F.endText});
+  C.note(g, `${D.n}: ${F.endText}`);
+  return F;
+};
+/* знакомый в этом месте — уступает в лавках */
+if (C.buyPrice) { const bp0 = C.buyPrice; C.buyPrice = function (g, h, x) { const p = bp0.apply(this, arguments);
+  try { if (p && U.isFree(g) && g.d1fe && (g.d1fe.known || []).some(k => k.at === g.loc) && x && !x.magic) return Math.max(1, Math.round(p * (1 - K.FEAST_DISC))); } catch (e) {}
+  return p; }; }
+
+/* ---------- где зовут к столу ---------- */
+const placeOk = (g, kind) => { const S = st(g), l = S.last[kind]; return l == null || g.day - l >= K.FEAST_GAP; };
+const famous = g => (g.fame || 0) >= 1 || U.lvl(g) >= K.FEAST_LV;
+U.injectAt(g => { if (cur(g)) return [{t: 'Вернуться за стол', go: 'd1_feast'}];
+  return FIDS.filter(id => C.FEASTS[id].at.includes(g.loc)).map(id => ({t: `${C.FEASTS[id].n}: зовут к столу`, if: g2 => placeOk(g2, id) && famous(g2),
+    off: g2 => (!famous(g2) ? 'к столу зовут тех, о ком наслышаны' : 'стол уже накрывали недавно'), do: g2 => { C.feastStart(g2, id, 'place'); return 'd1_feast'; }})); });
+/* праздник: сцена w2c_fest получает «Сесть за стол» */
+const occ = (g, hid) => hid + ':' + Math.floor(((g.day || 1) - 1) / ((C.SEASON_DAYS || 90) * 4));
+if (FC.scenes.w2c_fest) { const fe0 = FC.scenes.w2c_fest; FC.scenes.w2c_fest = function (g) {
+  const sc = fe0.apply(this, arguments);
+  try { const hid = g.w2cal && g.w2cal.cur, h = hid && C.HOLIDAY && C.HOLIDAY[hid]; if (!h || !sc || !sc.choices || !FEAST_HOL[hid] || !C.holidayActive(g, h)) return sc;
+    const kind = FEAST_HOL[hid][0], key = occ(g, hid);
+    const c = {t: `Сесть за праздничный стол: ${C.FEASTS[kind].n.toLowerCase()}`, if: g2 => !st(g2).hol[key] && !cur(g2), off: 'за этот стол вы уже садились', do: g2 => { C.feastStart(g2, kind, key); st(g2).cur.back = 'w2c_fest'; return 'd1_feast'; }};
+    const at = Math.max(0, sc.choices.length - 1); sc.choices = sc.choices.slice(0, at).concat([c], sc.choices.slice(at)); } catch (e) {}
+  return sc; }; }
+
+/* ---------- сцена ---------- */
+const nodeScene = g => { const n = U.node(g); return n ? n.scene : 'map'; };
+FC.scenes.d1_feast = function (g) {
+  const F = cur(g);
+  if (!F) return {title: 'Пир', bg: 'tavern', lines: [['n', 'Столы убраны, гости разошлись.']], choices: [{t: 'Дальше', go: g2 => nodeScene(g2)}]};
+  const D = C.FEASTS[F.kind], hh = U.heroes(g)[0] || {name: '', portrait: ''}, ch = [];
+  let who = {name: D.n, faces: F.guests.slice(0, 4).map(x => x.face), head: F.why === 'place' ? 'Застолье' : 'Праздничный стол', sub: `Хозяин — ${D.host}`};
+  if (F.phase === 'next') advance(g); // старое состояние: дошагать
+  if (F.phase === 'pick') {
+    F.guests.forEach(x => ch.push({t: `${x.n}, ${x.t}`, d1fg: x.id, do: g2 => { const F2 = cur(g2); if (!F2) return nodeScene(g2); F2.phase = 'act'; F2.who = x.id;
+      const xx = guestOf(F2, x.id); if (!xx.met) { xx.met = 1; logPush(F2, {who: 'o', name: xx.n, face: xx.face, text: (D.guests.find(y => y.id === xx.id) || {}).hi || ''}); }
+      logPush(F2, {who: 'n', text: relWord(xx) + ' ' + U.sx(WANT[xx.want], xx.sex)}); return 'd1_feast'; }}));
+  } else if (F.phase === 'act') {
+    const x = guestOf(F, F.who); who = {name: x.n, face: x.face, head: D.n, sub: x.t};
+    C.feastActs(g, F, x).forEach(a => ch.push({t: a.t, d1fa: a.k, if: g2 => !a.cost || (g2.purse || 0) >= a.cost, off: 'не хватает серебра', do: g2 => { C.feastAct(g2, x.id, a.k); return 'd1_feast'; }}));
+    ch.push({t: 'Пересесть к другому гостю', nar: 1, do: g2 => { const F2 = cur(g2); if (F2) { F2.phase = 'pick'; F2.who = null; } return 'd1_feast'; }});
+  } else if (F.phase === 'intr') {
+    const I = INTR[F.intr]; who = {name: I.t, faces: F.guests.slice(0, 4).map(x => x.face), head: D.n, sub: 'За столом неладно'};
+    I.ch.forEach((c, i) => ch.push({t: c.t, d1fi: i, do: g2 => { C.feastIntr(g2, i); return 'd1_feast'; }}));
+  } else if (F.phase === 'end') {
+    const back = F.back && FC.scenes[F.back] ? F.back : null;
+    const jobG = F.job && (F.job === 'host' ? {n: D.host, sex: 'm'} : guestOf(F, F.job));
+    if (jobG) ch.push({t: `Выслушать, о каком деле говорил${jobG.sex === 'f' ? 'а' : ''} ${jobG.n}`, do: g2 => { const F2 = cur(g2); const j = Q.make(g2, 'town'); delete g2.d1fe.cur;
+      g2.jobPending = j; g2.jobOffer = j.id; g2.jobFrom = 'town'; return 'q_offer'; }});
+    ch.push({t: 'Встать из-за стола и откланяться', end: 1, do: g2 => { delete st(g2).cur; return back || nodeScene(g2); }});
+  }
+  return {title: D.n, bg: D.bg, lines: U.talkLines(F.log.map(x => Object.assign({}, x, x.who === 'h' ? {name: hh.name} : {}))), choices: ch,
+    talk: {who, hero: {name: hh.name, face: hh.portrait || ''}, log: F.log.map(x => Object.assign({}, x))}};
+};
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* d1_games.js */
+/* Колдовство — волна D1: состязания на праздниках. Без DOM. Только Вечный мир.
+   • Кулачный бой стенка на стенку (Комоедица, Святки): упрощённо, три сшибки. У бойца — стойкость (не хиты): на нуле он
+     выбывает и отлёживается, но не гибнет. Каждую сшибку игрок выбирает: идти в лоб, держать строй, бить вожака.
+   • Стрельба в цель (Перунов день, Дожинки, курултай, Ярила): три стрелы на трёх дальностях; кольцо — по запасу броска
+     над сложностью (D1.RINGS: край … яблочко). Как целиться: не спеша, с ходу, на удачу в яблочко.
+   • Конские бега (Конский праздник, курултай): нужен верховой конь (horses.js; свой или чужой одолжат). Три отрезка:
+     беречь коня, гнать во весь опор, срезать через овраг. Порода и прыть коня — в счёт.
+   • Награда: приз серебром, молва о празднике (w2_fame), повод для флирта (merc_romance: сцена «Разговор в отряде»)
+     или для соперника (w2_rival: проигравший запоминает). Строки — словами, без чисел.
+   • Числа — в C.D1. Состояние — g.d1gm (только пока идёт состязание) и g.d1gmDone (что уже было в этот праздник). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q, U = C && C.D1U;
+if (!R || !C || !C.CAMPS || !C.CAMPS.free || !Q || !U) return;
+Object.assign(C.D1, {FIST_ROUNDS: 3, FIST_LADS: 4, FIST_HP: 6, FIST_OUT: 0.2, ARROWS: 3, ARROW_DC: [11, 13, 15], RINGS: [0, 2, 4, 6, 9],
+  RACE_LEGS: 3, RACE_RIVALS: 3, GAME_PRIZE: 12, GAME_RIVAL_P: 0.35, GAME_FLIRT_P: 0.6});
+const K = C.D1, FC = C.CAMPS.free;
+
+C.GAMES = {
+  fist: {n: 'Кулачный бой стенка на стенку', hol: ['komoeditsa', 'svyatki'], what: 'выстояли в стенке'},
+  bow: {n: 'Стрельба в цель', hol: ['perun', 'dozhinki', 'kurultay', 'yarila'], what: 'перестреляли всех на празднике'},
+  race: {n: 'Конские бега', hol: ['skachki', 'kurultay'], what: 'пришли первыми на конских бегах'},
+};
+const GAME_HOL = {}; Object.entries(C.GAMES).forEach(([id, x]) => x.hol.forEach(h => { (GAME_HOL[h] = GAME_HOL[h] || []).push(id); }));
+C.GAME_HOL = GAME_HOL;
+const RIVALS = {nolgrim: ['Ставр', 'Бурислав', 'Ждан', 'Милонег', 'Твердило'], terak: ['Ульв', 'Кетиль', 'Торстейн', 'Свен'], stepnyak: ['Ерлан', 'Кайрат', 'Мурат', 'Бекжан'],
+  imperets: ['Луций', 'Гай', 'Марк', 'Тит'], loss: ['Ойво', 'Тармо', 'Вейко'], yuzhnober: ['Демид', 'Агап', 'Феофан'], gorets: ['Арвад', 'Хальвард'], parnass: ['Никанор', 'Ксанф']};
+const rivPpl = g => { const r = (C.FREE_REGIONS || []).find(x => x.id === U.reg(g)); return (r && RIVALS[r.people]) ? r.people : 'nolgrim'; };
+const st = g => g.d1gm || null;
+const done = g => { g.d1gmDone = (g.d1gmDone && typeof g.d1gmDone === 'object') ? g.d1gmDone : {}; return g.d1gmDone; };
+const occ = (g, hid) => hid + ':' + Math.floor(((g.day || 1) - 1) / ((C.SEASON_DAYS || 90) * 4));
+const team = g => U.heroes(g).concat((g.mercs || []).filter(m => !m.dead));
+const mod = (h, s) => R.mod((h.stats || {})[s] || 10);
+const sk = (h, s) => (R.skill ? R.skill(h, s) : 0);
+const logp = (S, t) => { S.log.push(t); if (S.log.length > 8) S.log.shift(); };
+
+/* ---------- кулачный бой ---------- */
+const fistHp = h => Math.max(3, K.FIST_HP + mod(h, 'con') * 2 + Math.floor((h.level || 1) / 2));
+C.fistStart = function (g, key) {
+  const lv = U.lvl(g), ours = team(g).map(h => ({id: h.id, name: h.name, sex: h.sex, hp: fistHp(h), out: 0}));
+  const n = ours.length + K.FIST_LADS, names = RIVALS[rivPpl(g)];
+  g.d1gm = {kind: 'fist', key, round: 0, lads: K.FIST_LADS, foes: Array.from({length: n}, (_, i) => ({n: i ? 'боец' : names[U.hsh(g.day + 'v') % names.length], hp: 6 + Math.floor(lv / 2) + (i ? 0 : 4), lead: !i})),
+    ours, log: ['Две стенки стоят друг против друга на утоптанном снегу. Бабы на пригорке визжат, старики считают зубы у тех, кто уже бился. Против вас — вожак той стороны, широкий, как ворота.'], tac: null};
+  return g.d1gm;
+};
+const TAC = {
+  lob: {t: 'Идти в лоб (Сила, Атлетика)', hit: 2, take: 2, say: 'Вы бросаетесь вперёд, плечом к плечу, и стенка той стороны трещит.'},
+  stroy: {t: 'Держать строй, не рваться вперёд (Телосложение)', hit: 0, take: -2, guard: 3, say: 'Вы смыкаете плечи и принимаете удары на руки, как на щиты.'},
+  vozhak: {t: 'Пробиться к вожаку и свалить его (Ловкость, Атлетика)', hit: 0, take: 1, lead: 1, say: 'Кто-то из ваших ныряет под кулаки и рвётся к вожаку той стороны.'},
+};
+C.fistRound = function (g, tac) {
+  const S = st(g); if (!S || S.kind !== 'fist' || S.over) return null; const T = TAC[tac] || TAC.lob, lv = U.lvl(g);
+  S.round++; logp(S, T.say);
+  const live = S.ours.filter(x => !x.out), foes = S.foes.filter(f => f.hp > 0);
+  live.forEach((x, i) => { const h = team(g).find(y => y.id === x.id); if (!h) return;
+    let f = T.lead ? foes.find(y => y.lead && y.hp > 0) || foes.find(y => y.hp > 0) : foes[i % Math.max(1, foes.length)];
+    if (!f || f.hp <= 0) f = foes.find(y => y.hp > 0); if (!f) return;
+    const atk = R.d(20) + mod(h, T.lead ? 'dex' : 'str') + sk(h, 'Атлетика'), def = 10 + Math.floor(lv / 2) + (f.lead ? 2 : 0);
+    if (atk >= def) { f.hp -= 2 + R.d(4) + Math.max(0, mod(h, 'str')) + T.hit; if (f.hp <= 0 && f.lead) logp(S, U.fill('{h} валит вожака той стороны! Стенка напротив качается.', h)); }
+    else if (T.lead) { x.hp -= 2; }
+    const hit = R.d(20) + 2 + Math.floor(lv / 2), ac = 10 + mod(h, 'dex') + (T.guard || 0) + (tac === 'stroy' ? mod(h, 'con') : 0);
+    if (hit >= ac) x.hp -= Math.max(1, 1 + R.d(4) + T.take);
+    if (x.hp <= 0 && !x.out) { x.out = 1; h.hp = Math.max(1, h.hp - Math.ceil((h.hpMax || 1) * K.FIST_OUT)); logp(S, U.fill('{h} падает в снег и отползает за черту: на сегодня {он|она} отбил{ся|ась}. Жив{|а}, только звёзды перед глазами.', h)); } });
+  // свои парни и чужие бойцы бьются сами
+  const leadDown = S.foes.some(f => f.lead && f.hp <= 0);
+  for (let i = 0; i < 2; i++) { if (S.lads > 0 && R.rand() < (leadDown ? 0.35 : 0.5)) S.lads--; const f = S.foes.find(y => y.hp > 0 && !y.lead); if (f && R.rand() < (leadDown ? 0.75 : 0.5)) f.hp = 0; }
+  const us = S.ours.filter(x => !x.out).length + S.lads, them = S.foes.filter(f => f.hp > 0).length;
+  logp(S, us > them ? 'Ваша стенка теснит чужую: те пятятся к реке.' : us < them ? 'Чужая стенка давит, и ваши отступают на шаг, ещё на шаг.' : 'Стенки стоят грудь в грудь, ни одна не уступает.');
+  if (S.round >= K.FIST_ROUNDS || !us || !them) { S.over = us > them ? 'win' : us < them ? 'lose' : 'draw'; gameOver(g, S); }
+  return S;
+};
+
+/* ---------- стрельба ---------- */
+const RING_W = ['мимо щита', 'в самый край', 'во второе кольцо', 'в среднее кольцо', 'у самого яблочка', 'в яблочко'];
+const ringOf = m => (m < 0 ? 0 : K.RINGS.filter(t => m >= t).length);
+C.bowStart = function (g, key, hid) {
+  const h = U.heroes(g).find(x => x.id === hid) || U.heroes(g).slice().sort((a, b) => mod(b, 'dex') - mod(a, 'dex'))[0]; if (!h) return null;
+  const names = RIVALS[rivPpl(g)];
+  g.d1gm = {kind: 'bow', key, shooter: h.id, arrow: 0, score: 0, rivals: [0, 1].map(i => ({n: names[(U.hsh(g.day + 'b') + i) % names.length], s: 0, b: 3 + Math.floor(U.lvl(g) / 2) + i})),
+    log: [U.fill('Щит с кольцами ставят у дальнего конца выгона. {h} пробует тетиву и выходит к черте. Рядом — здешние стрелки, и глядят они без улыбки.', h)]};
+  return g.d1gm;
+};
+const AIM = {calm: {t: 'Целиться не спеша', b: 2, say: 'долго ведёт острием за ветром'}, quick: {t: 'Бить с ходу', b: 0, quick: 1, say: 'спускает тетиву на выдохе'}, bold: {t: 'На удачу — в самое яблочко', b: -3, bold: 1, say: 'целит в самую середину, не оставляя себе запаса'}};
+C.bowShot = function (g, aim) {
+  const S = st(g); if (!S || S.kind !== 'bow' || S.over) return null; const A = AIM[aim] || AIM.calm, h = U.heroes(g).find(x => x.id === S.shooter); if (!h) return null;
+  const dc = K.ARROW_DC[S.arrow] + Math.floor(U.lvl(g) / 3);
+  let bonus = mod(h, 'dex') + Math.floor((h.level || 1) / 4) + A.b;
+  if (C.graceOf && C.graceOf(h) && C.GRACE[C.graceOf(h).god].ranged) bonus += K.GRACE_HIT || 1;
+  const wet = C.weather && C.WEATHER && (C.WEATHER[C.weather(g)] || {}).wet; if (wet) bonus -= wet;
+  const d = R.d(20); let ring = d === 1 ? 0 : ringOf(d + bonus - dc);
+  if (A.quick && d >= 19) ring = 5; if (A.bold && ring >= 3) ring = Math.min(5, ring + 1);
+  S.score += ring; S.arrow++;
+  S.rivals.forEach(r => { r.s += ringOf(R.d(20) + r.b - dc); });
+  logp(S, U.fill(`{h} ${A.say} — и стрела ложится ${RING_W[ring]}.`, h) + ' ' + (S.rivals[0].s > S.score ? `${S.rivals[0].n} пока стреляет лучше.` : S.rivals[0].s < S.score ? 'Здешние стрелки переглядываются.' : 'Пока выходит ровно.'));
+  if (S.arrow >= K.ARROWS) { const best = Math.max(...S.rivals.map(r => r.s)); S.over = S.score > best ? 'win' : S.score === best ? 'draw' : 'lose'; gameOver(g, S); }
+  return S;
+};
+
+/* ---------- бега ---------- */
+const HORSE_B = {kon_boevoy_legkiy: 2, kon_ezdovoy: 1, kon_boevoy: 1, kon_boevoy_tyazhelyy: 0, kon_lomovoy: -1, loshadka_maloroslaya: -1};
+C.raceHorse = g => { for (const h of team(g)) for (const id of (h.inv || [])) { const o = C.horseOf && C.horseOf(id); if (o && C.isRiding && C.isRiding(id)) return {h, id, o, b: (HORSE_B[o.base] || 0) + (o.spd || 0), name: o.name}; } return null; };
+C.raceStart = function (g, key) {
+  const hr = C.raceHorse(g), rider = U.heroes(g).slice().sort((a, b) => mod(b, 'dex') - mod(a, 'dex'))[0]; if (!rider) return null;
+  const names = RIVALS[rivPpl(g)];
+  g.d1gm = {kind: 'race', key, rider: rider.id, horse: hr ? (hr.name || 'свой конь') : null, hb: hr ? hr.b : -1, leg: 0, pos: 0, fresh: 0,
+    rivals: Array.from({length: K.RACE_RIVALS}, (_, i) => ({n: names[(U.hsh(g.day + 'r') + i) % names.length], p: 0})),
+    log: [U.fill(hr ? `{h} садится в седло и выводит ${hr.name ? 'своего ' + (C.Q && C.Q.decl ? C.Q.decl(hr.name, 'm').a : hr.name) : 'своего коня'} к черте. Рядом пляшут степные скакуны, и седоки у них лёгкие, как пух.` : '{h} берёт коня у хозяев праздника — смирного, немолодого. Седоки рядом посмеиваются.', rider)]};
+  return g.d1gm;
+};
+const LEG = {keep: {t: 'Беречь коня, держаться в хвосте', say: 'придерживает коня и идёт ровно, не тратя сил'}, push: {t: 'Гнать во весь опор (Ловкость, Атлетика)', say: 'бросает коня вперёд, пригнувшись к гриве'},
+  cut: {t: 'Срезать через овраг (Мудрость, Выживание)', say: 'сворачивает к оврагу, где путь короче, да круче'}};
+C.raceLeg = function (g, how) {
+  const S = st(g); if (!S || S.kind !== 'race' || S.over) return null; const L = LEG[how] || LEG.keep, h = U.heroes(g).find(x => x.id === S.rider); if (!h) return null;
+  const lv = U.lvl(g), base = R.d(20) + mod(h, 'dex') + S.hb * 2 + S.fresh;
+  let gain = base; S.fresh = 0;
+  if (how === 'keep') { gain -= 2; S.fresh = 4; }
+  else if (how === 'push') { const r = C.bestCheck(g, 'dex', 'Атлетика', 10 + Math.floor(lv / 2)); g.lastCheck = r; gain += r.ok ? 5 : 1; if (!r.ok) S.fresh = -2; }
+  else { const r = C.bestCheck(g, 'wis', 'Выживание', 11 + Math.floor(lv / 2)); g.lastCheck = r; gain += r.ok ? 8 : -5; }
+  S.pos += gain; S.leg++;
+  S.rivals.forEach(r => { r.p += R.d(20) + 3 + Math.floor(lv / 4); });
+  const ahead = S.rivals.filter(r => r.p > S.pos).length;
+  logp(S, U.fill(`{h} ${L.say}. `, h) + (ahead === 0 ? 'Вы впереди, и ветер свистит в ушах.' : ahead === S.rivals.length ? 'Все впереди, и пыль от чужих копыт летит в лицо.' : `Впереди ${ahead === 1 ? 'один седок' : 'двое'}, и вы почти голова в голову.`));
+  if (S.leg >= K.RACE_LEGS) { S.over = ahead === 0 ? 'win' : ahead === 1 ? 'draw' : 'lose'; gameOver(g, S); }
+  return S;
+};
+
+/* ---------- итог: приз, молва, флирт, соперник ---------- */
+const winner = (g, S) => U.heroes(g).find(x => x.id === (S.shooter || S.rider)) || U.heroes(g).slice().sort((a, b) => (b.level || 0) - (a.level || 0))[0];
+function gameOver(g, S) {
+  const D = C.GAMES[S.kind], h = winner(g, S), lv = U.lvl(g);
+  if (S.over === 'win') {
+    const prize = Math.round(K.GAME_PRIZE * lv) * 10; g.purse = (g.purse || 0) + prize;
+    logp(S, `${S.kind === 'fist' ? 'Ваша стенка гонит чужую до самой реки!' : S.kind === 'bow' ? 'Стрелы ваши лучше всех: старшины несут приз.' : 'Вы первыми проноситесь мимо столба, и толпа ревёт.'} Приз — ${R.priceText(prize)} и почёт на весь край.`);
+    if (C.fameDeed) C.fameDeed(g, 'feast', {what: D.what, who: h && h.name, sex: h && h.sex});
+    if (R.rand() < K.GAME_FLIRT_P) flirt(g, h, S); if (R.rand() < K.GAME_RIVAL_P) rival(g, S);
+  } else if (S.over === 'draw') { const prize = Math.round(K.GAME_PRIZE * lv / 3) * 10; g.purse = (g.purse || 0) + prize; logp(S, `Вровень с лучшими: старшины делят приз, и вам достаётся ${R.priceText(prize)}.`); }
+  else logp(S, S.kind === 'fist' ? 'Чужая стенка взяла своё. Смеются беззлобно и мажут вам скулы гусиным жиром: бой есть бой.' : 'Сегодня не ваш день. Победитель машет вам шапкой — без насмешки.');
+  done(g)[S.key + ':' + S.kind] = 1;
+  C.note(g, `${D.n}: ${S.log[S.log.length - 1]}`);
+}
+/* повод для флирта: напарник иного пола видел победу */
+if (C.MR_KIND) C.MR_KIND.d1_win = {pick(g, m, hero, P, O) {
+  if (O.k === 0) { try { C.mwAdd(g, m, 0.5); } catch (e) {} return [{who: 'h', text: U.sx('А ты смотрел{|а}? Значит, не зря старал{ся|ась}.', hero.sex)}, {who: 'o', text: U.sx('Смотрел{|а}. Глаз не мог{|ла} отвести, если хочешь знать.', m.sex)}]; }
+  return [{who: 'h', text: 'Повезло. С кем не бывает.'}, {who: 'o', text: U.sx('Ну-ну. Скромни{к|ца} нашл{ся|ась}.', m.sex)}]; }};
+function flirt(g, h, S) {
+  if (!h || !C.mrScene || !C.mwCanLove || g.mrPend) return;
+  const m = (g.mercs || []).find(x => !x.dead && C.mwOf && C.mwOf(x) && C.mwCanLove(g, x, h)); if (!m) return;
+  const P = C.mrOf ? C.mrOf(m) : {}; if (['no', 'wed'].includes(P.st)) return;
+  C.mrScene(g, m, h, 'd1_win', 'После состязания', [{who: 'o', text: U.sx(U.fill(`${S.kind === 'fist' ? 'Видал{|а} я, как ты их' : S.kind === 'bow' ? 'Видал{|а} я, как ты стрелял{|а}' : 'Видал{|а} я, как ты летел{|а}'}… Красиво. Я аж дышать забыл{|а}.`, h), m.sex)}],
+    [{t: 'Подыграть: «А ты смотрел{|а}?»'.replace('{|а}', m.sex === 'f' ? 'а' : '')}, {t: 'Отшутиться', nar: true}]);
+}
+/* повод для соперника: проигравший запомнил */
+function rival(g, S) {
+  const nm = S.kind === 'fist' ? (S.foes.find(f => f.lead) || {}).n : (S.rivals || [])[0] && S.rivals[0].n; if (!nm) return;
+  const R_ = g.w2rival = (g.w2rival && typeof g.w2rival === 'object') ? g.w2rival : {}; R_.causes = R_.causes || [];
+  const key = 'band:d1game:' + g.day; if (R_.causes.some(c => c.key === key)) return;
+  R_.causes.push({key, type: 'band', k: 'tale', what: C.GAMES[S.kind].n.toLowerCase(), day: g.day}); R_.causes = R_.causes.slice(-12);
+  logp(S, `${nm} не смеётся вместе со всеми. Он смотрит вам вслед долго и молча — такие не забывают.`);
+}
+
+/* ---------- праздник: «Состязание» в сцене праздника ---------- */
+if (FC.scenes.w2c_fest) { const fe0 = FC.scenes.w2c_fest; FC.scenes.w2c_fest = function (g) {
+  const sc = fe0.apply(this, arguments);
+  try { const hid = g.w2cal && g.w2cal.cur, h = hid && C.HOLIDAY && C.HOLIDAY[hid]; if (!h || !sc || !sc.choices || !GAME_HOL[hid] || !C.holidayActive(g, h)) return sc;
+    const key = occ(g, hid), add = [];
+    GAME_HOL[hid].forEach(kind => { const D = C.GAMES[kind];
+      if (kind === 'bow') U.heroes(g).slice().sort((a, b) => mod(b, 'dex') - mod(a, 'dex')).slice(0, 2).forEach(x => add.push({t: `${D.n}: стреляет ${x.name}`, if: g2 => !done(g2)[key + ':bow'] && !st(g2), off: 'в этот праздник уже стреляли',
+        do: g2 => { C.bowStart(g2, key, x.id); return 'd1_game'; }}));
+      else add.push({t: `${D.n}${kind === 'race' && !C.raceHorse(g) ? ' (коня одолжат хозяева)' : ''}`, if: g2 => !done(g2)[key + ':' + kind] && !st(g2), off: 'в этот праздник уже было',
+        do: g2 => { if (kind === 'fist') C.fistStart(g2, key); else C.raceStart(g2, key); return 'd1_game'; }}); });
+    let ch = sc.choices; if (GAME_HOL[hid].includes('fist')) ch = ch.filter(c => !/^Встать в стенку/.test(String(c.t || c.label || ''))); // старая быстрая стенка — теперь настоящая
+    const at = Math.max(0, ch.length - 1); sc.choices = ch.slice(0, at).concat(add, ch.slice(at)); } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  return sc; }; }
+
+/* ---------- сцена ---------- */
+FC.scenes.d1_game = function (g) {
+  const S = st(g);
+  if (!S) return {title: 'Состязание', bg: 'village', lines: [['n', 'Народ расходится, судьи уносят шесты.']], choices: [{t: 'Назад', go: 'w2c_fest'}]};
+  const D = C.GAMES[S.kind], lines = S.log.map(t => ['n', t]), ch = [];
+  if (S.over) ch.push({t: 'Вернуться к празднику', do: g2 => { delete g2.d1gm; return 'w2c_fest'; }});
+  else if (S.kind === 'fist') Object.entries(TAC).forEach(([k, T]) => ch.push({t: T.t, d1t: k, do: g2 => { C.fistRound(g2, k); return 'd1_game'; }}));
+  else if (S.kind === 'bow') Object.entries(AIM).forEach(([k, A]) => ch.push({t: A.t, d1t: k, do: g2 => { C.bowShot(g2, k); return 'd1_game'; }}));
+  else Object.entries(LEG).forEach(([k, L]) => ch.push({t: L.t, d1t: k, do: g2 => { C.raceLeg(g2, k); return 'd1_game'; }}));
+  if (!S.over && S.kind === 'fist' && !S.round) ch.push({t: 'Передумать и уйти из стенки', do: g2 => { delete g2.d1gm; return 'w2c_fest'; }});
+  const rv = S.kind === 'fist' ? (S.foes.find(f => f.lead) || {}).n : ((S.rivals || [])[0] || {}).n, steppe = rivPpl(g) === 'stepnyak';
+  const role = S.kind === 'fist' ? 'muzhik' : S.kind === 'race' ? (steppe ? 'batyr' : 'young') : steppe ? 'batyr' : 'voin';
+  const d1face = rv ? {id: U.faceRole(role, 'm', 'game|' + rv + '|' + U.reg(g)), n: rv, sub: S.kind === 'fist' ? 'вожак той стороны' : S.kind === 'bow' ? 'лучший здешний стрелок' : 'первый наездник'} : null;
+  return {title: D.n, bg: 'village', lines, choices: ch, d1face};
+};
+
+G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);

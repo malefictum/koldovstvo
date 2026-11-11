@@ -36353,7 +36353,10 @@ const KIND = {
   odd: {w: 25, see: ['над низиной стоит туман, хотя кругом сухо', 'на холме что-то блестит в траве', 'камни на дальнем пригорке стоят кругом', 'у старой берёзы висят ленты', 'в стороне от дороги кружат птицы, но никуда не садятся']},
   hole: {w: 15, see: ['в склоне чернеет провал', 'у оврага каменная кладка уходит в землю', 'у подножия холма — лаз, заваленный ветками', 'в зарослях — обломки стены и ступени вниз', 'из расщелины в земле тянет сырым холодом']},
 };
-const pickW = () => { const tot = Object.values(KIND).reduce((s, k) => s + k.w, 0); let x = R.rand() * tot; for (const [k, v] of Object.entries(KIND)) { x -= v.w; if (x < 0) return k; } return 'odd'; };
+/* веса знаков; вкус игрока (w2_pace: C.w2tasteW) тихо сдвигает их на 10–20% */
+W.SPOT_TASTE = {job: 'talk', fight: 'fight', odd: 'faith', hole: 'dungeon'};
+const pickW = g => { const wt = {}; Object.entries(KIND).forEach(([k, v]) => { wt[k] = v.w; }); if (g && C.w2tasteW) C.w2tasteW(g, wt, W.SPOT_TASTE);
+  const tot = Object.values(wt).reduce((s, w) => s + w, 0); let x = R.rand() * tot; for (const k of Object.keys(wt)) { x -= wt[k]; if (x < 0) return k; } return 'odd'; };
 const marks = g => (g.marks = (g.marks || []).filter(m => m.until >= g.day));
 W.marks = marks;
 W.markAt = (g, c) => marks(g).find(m => m.c === c.c && m.r === c.r) || null;
@@ -36367,7 +36370,7 @@ const placeFor = (g, from, dmin, dmax) => {
 W.spot = function (g, from, dmin, dmax) {
   if (marks(g).length >= 4) return null;
   const cell = placeFor(g, from, dmin, dmax); if (!cell) return null;
-  const kind = pickW(), e = eyes(g);
+  const kind = pickW(g), e = eyes(g);
   const m = {id: 'mk' + g.day + '_' + Math.floor(R.rand() * 1e6), c: cell.c, r: cell.r, kind, see: R.pick(KIND[kind].see), by: e ? e.h.name : '', day: g.day, until: g.day + 2};
   g.marks = marks(g).concat(m); W.reveal(g, cell, 0);
   C.note(g, `${m.by ? m.by + ' останавливает отряд и показывает вдаль' : 'Вдали видно что-то странное'}: ${m.see}. Надо бы подойти поглядеть.`);
@@ -43675,7 +43678,7 @@ C.wbCard = function (x, h) { const out = card0 ? card0.apply(this, arguments) : 
 C.wbActs = function (g, h, id) { return C.isDivo(id) ? C.divoActs(g, h, id) : (C.wbActsMore ? C.wbActsMore(g, h, id) : []); };
 C.wbAct = function (g, h, id, k) { return C.isDivo(id) ? C.divoAct(g, h, id, k) : (C.wbActMore ? C.wbActMore(g, h, id, k) : {err: 'не выходит'}); };
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=mwchgvpy"></script><script>
+</script><script src="world.js?v=mwcj0sky"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -44746,7 +44749,7 @@ function heroSheet(h) {
   const spells = (h.spells || []).map(id => DATA.spellById[id]).filter(Boolean);
   return `<div class="hhead">${heroFace(h, 'sface')}<div>
     <h3>${esc(h.name)}</h3><div class="sub">${esc(C.clsName ? C.clsName(h) : cls.name)} (${esc(cls.was)}), ${h.level}-й уровень · ${esc((R.PEOPLES[h.people] || {})[h.sex === 'f' ? 'f' : 'name'] || '')}${h.kind === 'merc' ? ' · наёмник' : ''} · <span title="Опыт до следующего уровня">опыт ${h.xp}/${R.xpFor(h.level + 1, h.cls)}</span></div>
-    <div class="note">${esc(cls.note)}${h.motive ? ' Мотив: ' + esc(h.motive) : ''}</div>${C.originLine && C.originLine(h) ? `<div class="note">${esc(C.originLine(h))}</div>` : ''}${C.ageLine ? `<div class="note">${esc(C.ageLine(h))}</div>` : ''}${C.nravLine && h.kind !== 'merc' && C.nravLine(h) ? `<div class="note">${esc(C.nravLine(h))}</div>` : ''}</div></div>
+    <div class="note">${esc(cls.note)}${h.motive ? ' Мотив: ' + esc(h.motive) : ''}</div>${C.originLine && C.originLine(h) ? `<div class="note">${esc(C.originLine(h))}</div>` : ''}${C.heroLoreLines && h.kind !== 'merc' ? C.heroLoreLines(g, h).map(t => `<div class="note">${esc(t)}</div>`).join('') : ''}${C.ageLine ? `<div class="note">${esc(C.ageLine(h))}</div>` : ''}${C.nravLine && h.kind !== 'merc' && C.nravLine(h) ? `<div class="note">${esc(C.nravLine(h))}</div>` : ''}</div></div>
     ${C.heroStatus ? (() => { const st = C.heroStatus(g, h); return `<div class="hstate"><b>Состояние:</b> ${st.length ? st.map(x => `<span class="hs ${x.cls}" title="${esc(x.why)}">${esc(x.t)}</span>`).join(' ') + `<div class="note">${esc(st.map(x => x.why).join(' '))}</div>` : '<span class="hs up">бодр и здоров</span>'}</div>`; })() : ''}
     <div class="doll"><div class="dcol">${slot('head', 'Шлем', x => R.isArmor(x) && x.slot === 'голова')}${slot('body', 'Доспех', x => R.isArmor(x) && x.slot === 'тело')}${slot('shield', 'Щит / вторая рука', x => (R.isArmor(x) && x.slot === 'щит') || (R.offhandOk(x) && (x.id !== h.eq.weapon || h.inv.filter(y => y === x.id).length > 1)))}</div>
       <canvas class="dfig" data-doll="${h.id}" width="400" height="520"></canvas>
@@ -45374,7 +45377,7 @@ function showChron(ch) {
 /* ---------- создание героя ---------- */
 function showCreate(first, opts) {
   renderTop();
-  const NO = opts || null, LV = NO ? NO.level : !NET() && trialLevel() ? trialLevel() : g.startLevel, G0 = g || {fallen: [], heroes: [], flags: {}};
+  const NO = opts || null, LV = NO ? NO.level : !NET() && trialLevel() ? trialLevel() : (g && C.newHeroLevel ? C.newHeroLevel(g) : g.startLevel), G0 = g || {fallen: [], heroes: [], flags: {}};
   const st = {cls: 'druzhinnik', sex: 'm', people: 'nolgrim', name: '', rolls: null, assign: null, portrait: null, school: 'white', picks: []};
   const NAMES_M = ['Ратибор', 'Всеслав', 'Милонег', 'Добрян', 'Гостомысл', 'Будимир', 'Ждан', 'Твердислав', 'Остромир', 'Вышеслав', 'Радим', 'Борислав'];
   const NAMES_F = ['Милава', 'Забава', 'Любава', 'Веселина', 'Ярослава', 'Злата', 'Велимира', 'Негода', 'Голуба', 'Росава'];
@@ -45773,7 +45776,7 @@ function showMail() {
     return talkWin({who: {name: m.from, face: m.face, sub: m.t, head: 'Просьба'}, hero: hr ? {name: hr.name, face: hr.portrait || ''} : null,
       lines: [{who: 'o', text: unq(m.text)}], opts: m.acts.map(x => ({t: say[x.id] || x.t, attr: `data-klact="${esc(x.id)}"`, on: act(x.id)}))});
   }
-  const head = m.kind === 'wed' ? (m.sex === 'f' ? 'От жены' : 'От мужа') : m.kind === 'brat' ? (m.sex === 'f' ? 'От посестры' : 'От побратима') : m.mercAsk ? 'Просьба наёмника' : 'От того, кто ждёт';
+  const head = m.head ? m.head : m.kind === 'wed' ? (m.sex === 'f' ? 'От жены' : 'От мужа') : m.kind === 'brat' ? (m.sex === 'f' ? 'От посестры' : 'От побратима') : m.mercAsk ? 'Просьба наёмника' : 'От того, кто ждёт';
   openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>Берестяная грамотка · ${esc(head)}</small><h3>${esc(m.from)}</h3><div class="note">${esc(m.t)} · кому: ${esc(m.to)}</div></div></div>
     <p class="kltext">${esc(m.text)}</p>${m.gift ? `<p class="klgift">В свёртке — <b>${esc(m.gift)}</b>.</p>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap">${(m.acts || []).length && C.mailAct ? m.acts.map(x => `<button class="btn ${x.id === 'send' ? 'primary' : ''}" data-klact="${esc(x.id)}">${esc(x.t)}</button>`).join('') : '<button class="btn primary" id="kl-ok">Спрятать грамотку за пазуху</button>'}</div></div>`, 'sm', {sticky: !!((m.acts || []).length && C.mailAct)});
   if ($('#kl-ok')) $('#kl-ok').onclick = () => { closeModal(); setTimeout(showMail, 300); };
@@ -45824,6 +45827,14 @@ document.addEventListener('keydown', e => {
   const m = $('#modal'); if (!m || m.hidden) return; const b = [...m.querySelectorAll('.tk-opts .tk-o')][+e.key - 1];
   if (b && !b.disabled) { e.preventDefault(); b.click(); }
 });
+/* волна D1: сцена-разговор (пир, тинг, дух павшего на Навьей тропе). Сцена отдаёт raw.talk = {who, hero, log},
+   выборы сцены — ответы героя; фон и заголовок — как у обычной сцены, окно talkWin поверх. */
+function showTalkScene(id, sc) {
+  const T = sc.raw.talk; renderTop(); save();
+  $('#main').innerHTML = `<div class="screen scene"><div class="bg" style="background-image:${sceneBg(sc, BG[sc.bg] || 'cover')}"><h2>${esc(sc.title)}</h2></div><div class="body"><div class="lines"></div><div class="choices"><button class="btn primary" id="tk-back">Вернуться к разговору</button></div></div></div>`;
+  $('#tk-back').onclick = () => showTalkScene(id, sc); // окно закрыли крестиком — разговор не потерян
+  talkWin({who: T.who || {}, hero: T.hero || {}, lines: T.log || [], opts: sc.choices.map(c => ({t: c.label, nar: !!c.nar, end: !!c.end, dis: c.dis || '', on: () => { closeModal(); choose(id, c.i); }}))});
+}
 /* уйти из разговора: слова по времени суток */
 const talkBye = () => { const hr = g && C.hourOf ? C.hourOf(g) : 12; return hr >= 21 || hr < 5 ? 'Доброй ночи. Отдыхай.' : 'Ладно, пойду. Ещё поговорим.'; };
 const nameList = ns => (ns.length > 2 ? ns.slice(0, -1).join(', ') + ' и ' + ns[ns.length - 1] : ns.join(' и '));
@@ -45937,6 +45948,7 @@ function showScene(id, talk) {
   const view = NETG(); viewPurse();
   const sc = talk !== undefined || view ? C.sceneOf(g, id) : C.enter(g, id); if (!sc) return showMap();
   if (!view && sc.id && sc.id !== id && g.scene === sc.id) id = sc.id; // сцена перенаправила (годы, корни): выборы — от показанной сцены
+  if (!view && !NET() && sc.raw && sc.raw.talk) return showTalkScene(id, sc); // волна D1: пир, дух павшего — окном разговора
   if (!view && (talkScene(id, sc) || g.w2rest)) { TALK_OK = true; setTimeout(showCompTalk, 650); } // реплики наёмников — в корчме, на ночлеге, после отдыха
   { const nd = CAMP_OF().map.nodes[g.loc]; if (nd && nd.scene === id && ['село', 'город', 'подворье', 'стан'].includes(nd.kind)) setTimeout(() => tip1('town'), 600); if (/^tavern|^folk|^shop/.test(id)) setTimeout(() => tip1('food'), 600); }
   // личное: учёба, кузня, ювелир — решает игрок своего героя, без голосования
@@ -48497,13 +48509,13 @@ function showSwap(back) {
    <p class="note">${cur ? `${esc(cur.name)} может остаться здесь, в корчме, — а с отрядом дальше пойдёт другой ваш герой.` : 'Вашего героя нет за столом. Позовите другого из своих.'}</p>
    ${cur ? `<div class="pool"><div class="pcard">${faceHTML(cur.portrait, '')}<div><b>${esc(cur.name)}</b><div class="note">${esc(R.CLASSES[cur.cls] ? R.CLASSES[cur.cls].name : cur.cls)}, ${cur.level}-й ур.</div></div></div></div>` : ''}
    <div class="row" style="margin-top:10px"><button class="btn primary" id="sw-in">${cur ? 'Сменить героя' : 'Позвать своего'}</button></div>`);
-  $('#sw-in').onclick = () => showPool({camp: g.camp, level: 1, inParty: g.heroes.map(h => h.id), done: h0 => {
+  $('#sw-in').onclick = () => showPool({camp: g.camp, level: C.newHeroLevel ? C.newHeroLevel(g) : 1, inParty: g.heroes.map(h => h.id), done: h0 => {
     if (NET()) { sagaRelease(h0.id); act({a: 'swapHero', old: cur ? cur.id : null, hero: h0}); return showScene(back); }
     const x = JSON.parse(JSON.stringify(h0)); delete x._at; delete x._camp; delete x._dead;
     // из корчмы герой выходит каким туда сел: раны, хвори и голод при нём (лечит дорога и отдых, а не смена героя)
     x.hp = x.hp > 0 ? Math.min(x.hp, x.hpMax) : x.hpMax; x.power = x.power != null && R.powerMax ? Math.min(x.power, R.powerMax(x)) : (R.powerMax ? R.powerMax(x) : x.power); x.dead = false; x.down = false; x.ails = x.ails || []; x.hurts = x.hurts || []; x.hunger = x.hunger || 0; x.busy = null;
     if (cur) { poolPut(cur); g.heroes = g.heroes.filter(y => y !== cur); C.note(g, `${cur.name} остаётся в корчме.`); }
-    const p0 = g.pendingCreate; g.pendingCreate = 1; C.addHero(g, x); g.pendingCreate = p0; save(); renderTop(); showScene(back); }});
+    const p0 = g.pendingCreate; g.pendingCreate = 1; C.addHero(g, x); g.pendingCreate = p0; save(); renderTop(); showScene(g.flags && g.flags.newcomer && C.CAMPS[g.camp].scenes.newcomer ? 'newcomer' : back); }});
 }
 
 /* ---------- срез для гостей ---------- */
