@@ -685,6 +685,49 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .btn.ch.mt .ct{display:flex;flex-direction:column;gap:2px}
 .btn.ch.mt .ct b{font-weight:600}.btn.ch.mt .ct small{font:13px/1.25 var(--t-text);letter-spacing:0;text-transform:none;color:var(--paper-2)}
 .mtalk{display:flex;gap:7px;flex-wrap:wrap}.mtalk .btn.ch.mt{flex:1 1 140px;padding:7px 10px 7px 6px}.mtalk .btn.ch.mt .ui-i{width:22px;height:22px}
+/* ===== окно разговора (ui.js talkWin): портрет, лента реплик, нумерованные ответы героя ===== */
+#modal .paper.tkp{--mw:880px;display:flex;flex-direction:column;overflow:hidden;padding:0 0 34px;max-height:calc(100dvh - 32px)}
+#modal .paper.tkp>.mbody{flex:1 1 auto;min-height:0;display:flex;padding:0 22px}
+.talk{flex:1;min-height:0;display:grid;grid-template-columns:176px minmax(0,1fr);gap:0 22px;padding-top:22px}
+.tk-who{display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;align-self:start}
+.tk-who canvas.tk-face{width:168px;height:168px;border-radius:8px;border:2px solid #8a6d44;box-shadow:0 0 0 3px rgba(43,33,23,.85),0 6px 16px rgba(0,0,0,.35);background:#3a2d1f}
+.tk-faces{display:grid;grid-template-columns:1fr 1fr;gap:8px}.tk-faces.n1{grid-template-columns:1fr}
+.tk-faces canvas.tk-face{width:80px;height:80px}.tk-faces.n1 canvas.tk-face{width:168px;height:168px}
+.tk-nm small{display:block;font:700 11px var(--t-label);letter-spacing:.14em;text-transform:uppercase;color:#8b6a3a}
+.tk-nm h3{margin:2px 0 4px;font:400 24px/1.2 var(--t-display);color:#3a2410}
+.tk-nm .note{font:italic 14px/1.3 var(--t-text)}
+.tk-main{display:flex;flex-direction:column;min-height:0;padding-right:34px}
+.tk-log{flex:1 1 auto;min-height:220px;max-height:52vh;overflow:auto;overscroll-behavior:contain;display:flex;flex-direction:column;gap:10px;padding:14px 16px;background:linear-gradient(#e9dcc0,#dccaa3);border:1px solid #b39a6e;border-radius:3px 10px 4px 12px;box-shadow:inset 0 0 18px rgba(120,90,50,.25)}
+.tk-l{display:flex;gap:10px;align-items:flex-start;max-width:92%}
+.tk-l canvas.tk-fs,.tk-l span.tk-fs{width:40px;height:40px;border-radius:50%;border:2px solid #8a6d44;flex:none}.tk-l span.tk-fs{border-color:transparent}
+.tk-l.cont{margin-top:-6px}
+.tk-b b{display:block;font:700 13px var(--t-label);letter-spacing:.04em;color:#6b4a22}
+.tk-b p{margin:1px 0 0;font:17px/1.5 var(--t-text);color:#2e2216}
+.tk-l.h{align-self:flex-end;flex-direction:row-reverse;text-align:right}
+.tk-l.h .tk-b{background:rgba(86,60,30,.11);border:1px solid rgba(107,85,55,.3);border-radius:10px 3px 10px 10px;padding:5px 12px 7px}
+.tk-l.h .tk-b b{color:#56723c}
+.tk-n{margin:2px 8px;font:italic 16px/1.45 var(--t-text);color:#6a5640;text-align:center}
+.tk-recall{margin:0 0 8px;border:1px dashed rgba(107,85,55,.45);border-radius:6px;padding:4px 10px;background:rgba(255,255,255,.12)}
+.tk-recall>summary{cursor:pointer;font:700 12px var(--t-label);letter-spacing:.1em;text-transform:uppercase;color:#8b6a3a;list-style:none;padding:3px 0}
+.tk-recall>summary::-webkit-details-marker{display:none}.tk-recall>summary::before{content:"▸ ";color:var(--brass)}.tk-recall[open]>summary::before{content:"▾ "}
+.tk-rc{display:flex;flex-direction:column;gap:8px;max-height:30vh;overflow:auto;padding:4px 2px 8px;opacity:.85}
+.tk-rq{margin:6px 0 0;font:700 12px var(--t-label);letter-spacing:.06em;color:#8b6a3a;border-bottom:1px solid rgba(107,85,55,.25)}
+.tk-opts{flex:none;list-style:none;margin:12px 0 0;padding:8px 0 0;border-top:1px solid rgba(107,85,55,.35);display:flex;flex-direction:column;gap:2px;max-height:40vh;overflow:auto}
+.tk-o{display:flex;gap:10px;align-items:baseline;width:100%;text-align:left;background:none;border:0;border-left:3px solid transparent;border-radius:0 6px 6px 0;padding:7px 12px 7px 9px;font:17px/1.4 var(--t-text);color:#2a1d10;cursor:pointer}
+.tk-o .n{flex:none;min-width:1.5em;font:700 15px var(--t-label);color:#8b6a3a}
+.tk-o:hover,.tk-o:focus-visible{background:rgba(120,90,50,.15);border-left-color:var(--brass);outline:none}.tk-o:hover .n{color:#6b4a22}
+.tk-o.nar .t{font-style:italic}.tk-o.end .t{color:#6a5640}.tk-o.end{margin-top:4px}
+.tk-o:disabled{opacity:.45;cursor:not-allowed;background:none;border-left-color:transparent}
+@media (max-width:640px){
+  #modal .paper.tkp{max-height:calc(100dvh - 16px)}#modal .paper.tkp>.mbody{padding:0 12px}
+  .talk{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:10px;padding-top:12px}
+  .tk-who{flex-direction:row;text-align:left;align-items:center;gap:12px;padding-right:44px;align-self:stretch}
+  .tk-who canvas.tk-face,.tk-faces.n1 canvas.tk-face{width:64px;height:64px;border-radius:50%;box-shadow:0 0 0 2px rgba(43,33,23,.85)}
+  .tk-faces{grid-template-columns:repeat(2,40px);gap:4px}.tk-faces canvas.tk-face{width:40px;height:40px;border-radius:50%}
+  .tk-nm h3{font-size:20px}.tk-main{padding-right:0}
+  .tk-log{min-height:120px;max-height:none;padding:10px 10px}.tk-l{max-width:100%}.tk-b p{font-size:16px}
+  .tk-opts{max-height:46dvh}.tk-o{font-size:16px;padding:8px 8px 8px 6px}
+}
 .btn.ch.morder{align-items:center;gap:12px;padding:8px 10px}
 .btn.ch.morder .sico{width:48px;height:48px;flex:none;background:rgba(0,0,0,.3);border-radius:6px}
 .btn.ch.morder .ct{display:flex;flex-direction:column;gap:4px}.btn.ch.morder small{font:13px var(--t-text);letter-spacing:0;text-transform:none;color:var(--paper-2)}
@@ -3082,11 +3125,11 @@ C.VOICE = {
     mem: f => `Тот, кого звали ${f.name}, ушёл к корням. ${f.place}. Лес слышал: ${f.cause}.`,
   },
   gorets: { // неторопливый, кузнечный: металл, камень, огонь
-    addr: h => 'брат по огню',
+    addr: h => h.sex === 'f' ? 'сестра по огню' : 'брат по огню',
     mem: f => `${f.name}... крепкий был металл. ${f.place}, ${f.cause}. Камень помнит.`,
   },
   stepnyak: { // прямой, гордый: конь, ветер, небо
-    addr: h => 'брат',
+    addr: h => h.sex === 'f' ? 'сестра' : 'брат',
     mem: f => `${f.name} ${f.sex === 'f' ? 'ушла' : 'ушёл'} за ветром. ${f.place}: ${f.cause}. Небо видело.`,
   },
   parnass: { // учёный, вежливо-отстранённый
@@ -43038,7 +43081,7 @@ C.shopDailyText = function (g) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
-</script><script src="world.js?v=mw3iyt8q"></script><script>
+</script><script src="world.js?v=mwcf8194"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -45110,6 +45153,12 @@ window.addEventListener('resize', () => { if ($('#main .dmap')) drawDMap(false);
 function showMail() {
   if (!g || NETG() || battle || !C.mailNext) return; const m = C.mailNext(g); if (!m || !$('#modal').hidden) return;
   C.mailDone(g); save();
+  if (m.mercAsk && (m.acts || []).length && C.mailAct) { // просьба наёмника — разговор, а не грамотка
+    const hr = C.alive(g).find(x => x.name === m.to) || C.alive(g)[0], act = id => () => { C.mailAct(g, m, id); save(); renderTop(); closeModal(); setTimeout(showMail, 300); setTimeout(() => { if (TALK_OK) showCompTalk(); }, 700); };
+    const say = {send: 'Бери. Пусть лучше тебе служит, чем в суме лежит.', no: 'Нет, это я оставлю при себе.'};
+    return talkWin({who: {name: m.from, face: m.face, sub: m.t, head: 'Просьба'}, hero: hr ? {name: hr.name, face: hr.portrait || ''} : null,
+      lines: [{who: 'o', text: unq(m.text)}], opts: m.acts.map(x => ({t: say[x.id] || x.t, attr: `data-klact="${esc(x.id)}"`, on: act(x.id)}))});
+  }
   const head = m.kind === 'wed' ? (m.sex === 'f' ? 'От жены' : 'От мужа') : m.kind === 'brat' ? (m.sex === 'f' ? 'От посестры' : 'От побратима') : m.mercAsk ? 'Просьба наёмника' : 'От того, кто ждёт';
   openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>Берестяная грамотка · ${esc(head)}</small><h3>${esc(m.from)}</h3><div class="note">${esc(m.t)} · кому: ${esc(m.to)}</div></div></div>
     <p class="kltext">${esc(m.text)}</p>${m.gift ? `<p class="klgift">В свёртке — <b>${esc(m.gift)}</b>.</p>` : ''}<div class="row" style="gap:6px;flex-wrap:wrap">${(m.acts || []).length && C.mailAct ? m.acts.map(x => `<button class="btn ${x.id === 'send' ? 'primary' : ''}" data-klact="${esc(x.id)}">${esc(x.t)}</button>`).join('') : '<button class="btn primary" id="kl-ok">Спрятать грамотку за пазуху</button>'}</div></div>`, 'sm', {sticky: !!((m.acts || []).length && C.mailAct)});
@@ -45121,6 +45170,50 @@ function showMail() {
 const TALK_SCENE = /^(tavern|folk_tavern|korchma|inn|vorony|lodge)/;
 const talkScene = (id, sc) => TALK_SCENE.test(id || '') || !!(sc && (sc.choices || []).some(c => c.inn || /^(Заночевать|Переночевать)/.test(c.label || '')));
 let TALK_OK = false; // текущий экран — подходящий (ставят showMap/showHexMap и showScene)
+/* ---------- окно разговора: одно на все разговоры с людьми ----------
+   talkWin(o) рисует окно: слева (на телефоне — сверху) крупный портрет собеседника, имя и кто он; справа лента реплик
+   и под ней нумерованный список ответов героя (клавиши 1–9). Клик мимо окна его не закрывает.
+   o.who    — собеседник {name, face, sub, head} (head — мелкая строка над именем: «По душам», «У костра»);
+              для разговора нескольких — {name: заголовок, faces: [лица], head, sub}.
+   o.hero   — герой {name, face}: его реплики в ленте справа.
+   o.lines  — лента: {who: 'o' (собеседник; name/face — если говорит кто-то другой), 'h' (герой), 'n' (рассказчик), text}.
+   o.opts   — ответы: {t, nar (действие, а не слова — курсивом), end (уход из разговора — последним), dis (нельзя: подсказка),
+              attr (атрибуты кнопки), on (что делать)}.
+   o.recall — свёрнутое «Вспомнить разговор»: [{t: тема, lines: [как в ленте]}], перечитать сказанное раньше.
+   Звать можно с любой лентой и вариантами; повторный вызов перерисовывает окно и прокручивает ленту к концу. */
+function talkWin(o) {
+  const who = o.who || {}, hero = o.hero || {};
+  const ln = (x, prev) => {
+    if (x.who === 'n') return `<p class="tk-n">${esc(x.text)}</p>`;
+    const h = x.who === 'h', nm = x.name || (h ? hero.name : who.faces ? '' : who.name) || '', fc = x.face != null ? x.face : h ? hero.face : who.face;
+    const cont = prev && prev.who === x.who && (prev.name || '') === (x.name || '');
+    return `<div class="tk-l ${h ? 'h' : 'o'}${cont ? ' cont' : ''}">${cont ? '<span class="tk-fs"></span>' : faceHTML(fc || '', 'tk-fs')}<div class="tk-b">${cont || !nm ? '' : `<b>${esc(nm)}</b>`}<p>${esc(x.text)}</p></div></div>`;
+  };
+  const lines = o.lines || [], opts = (o.opts || []).filter(Boolean);
+  const big = who.faces ? `<div class="tk-faces n${Math.min(4, who.faces.length)}">${who.faces.slice(0, 4).map(f => `<canvas class="tk-face" data-face="${esc(f || '')}" width="160" height="160"></canvas>`).join('')}</div>`
+    : `<canvas class="tk-face" data-face="${esc(who.face || '')}" width="192" height="192"></canvas>`;
+  const rc = (o.recall || []).filter(r => r && (r.lines || []).length);
+  openModal(`<div class="talk">
+    <div class="tk-who">${big}<div class="tk-nm">${who.head ? `<small>${esc(who.head)}</small>` : ''}<h3>${esc(who.name || '')}</h3>${who.sub ? `<div class="note">${esc(who.sub)}</div>` : ''}</div></div>
+    <div class="tk-main">
+      ${rc.length ? `<details class="tk-recall"><summary>Вспомнить разговор</summary><div class="tk-rc">${rc.map(r => `<p class="tk-rq">${esc(r.t)}</p>${r.lines.map((x, i) => ln(x, r.lines[i - 1])).join('')}`).join('')}</div></details>` : ''}
+      <div class="tk-log" id="tk-log">${lines.map((x, i) => ln(x, lines[i - 1])).join('')}</div>
+      <ol class="tk-opts">${opts.map((x, i) => `<li><button type="button" class="tk-o${x.nar ? ' nar' : ''}${x.end ? ' end' : ''}" data-tk="${i}" ${x.attr || ''}${x.dis ? ` disabled title="${esc(x.dis)}"` : ''}><span class="n">${i + 1}.</span><span class="t">${esc(x.t)}</span></button></li>`).join('')}</ol>
+    </div></div>`, 'md', {sticky: true});
+  const pp = $('#modal .paper'); pp.classList.add('tkp'); pp.classList.remove('scrolls');
+  const lg = $('#tk-log'); if (lg) lg.scrollTop = lg.scrollHeight;
+  $('#modal').querySelectorAll('[data-tk]').forEach(b => b.onclick = () => { const x = opts[+b.dataset.tk]; if (x && !x.dis && x.on) x.on(); });
+}
+/* клавиши 1–9 в окне разговора */
+document.addEventListener('keydown', e => {
+  if (!/^[1-9]$/.test(e.key) || (e.target.closest && e.target.closest('input,select,textarea'))) return;
+  const m = $('#modal'); if (!m || m.hidden) return; const b = [...m.querySelectorAll('.tk-opts .tk-o')][+e.key - 1];
+  if (b && !b.disabled) { e.preventDefault(); b.click(); }
+});
+/* уйти из разговора: слова по времени суток */
+const talkBye = () => { const hr = g && C.hourOf ? C.hourOf(g) : 12; return hr >= 21 || hr < 5 ? 'Доброй ночи. Отдыхай.' : 'Ладно, пойду. Ещё поговорим.'; };
+const nameList = ns => (ns.length > 2 ? ns.slice(0, -1).join(', ') + ' и ' + ns[ns.length - 1] : ns.join(' и '));
+const unq = t => String(t || '').replace(/^«([\s\S]*)»$/, '$1');
 function showCompTalk(tries) {
   if (!g || NETG() || battle || !C.compTalkNext || !TALK_OK) return;
   // окно занято (итог привала, грамотка) — подождать, пока его закроют, а не терять реплики
@@ -45129,76 +45222,99 @@ function showCompTalk(tries) {
   if (C.sporNext) { const sp = C.sporNext(g); if (sp) return showSpor(sp); }
   let ms; if (C.compTalkBatch) ms = C.compTalkBatch(g); else { const m = C.compTalkNext(g); ms = m ? [m] : []; if (m) C.compTalkDone(g); }
   if (!ms.length) return; g.w2rest = 0; save();
-  const m = ms[0], ban = ms.some(x => x.ban);
-  const btn = ms.length === 1 ? (m.up ? 'Кивнуть' : m.up === false ? 'Выслушать молча' : 'Дальше') : 'Дальше';
-  if (ms.length === 1) openModal(`<div class="kletter"><div class="klh">${faceHTML(m.face, 'kface')}<div><small>${m.hero ? 'У костра' : m.ban ? 'Разговор в отряде' : 'Слово наёмника'}</small><h3>${esc(m.from)}</h3>${m.sub ? `<div class="note">${esc(m.sub)}</div>` : ''}</div></div>
-    <p class="kltext">«${esc(m.text)}»</p><div class="row"><button class="btn primary" id="kl-ok">${btn}</button></div></div>`, 'sm', {sticky: true});
-  else { const names = [...new Set(ms.map(x => x.from))];
-    openModal(`<div class="kletter"><div class="klh"><div><small>${ban ? (ms.some(x => x.hero) ? 'У костра' : 'Разговор в отряде') : names.length > 1 ? 'Слово наёмников' : 'Слово наёмника'}</small><h3>${esc(names.length > 2 ? names.slice(0, -1).join(', ') + ' и ' + names[names.length - 1] : names.join(' и '))}</h3></div></div>
-    <div class="kltalk">${ms.map((x, i) => `<div class="kl-ln${i && ms[i - 1].from === x.from ? ' cont' : ''}">${i && ms[i - 1].from === x.from ? '<span class="kface sm"></span>' : faceHTML(x.face, 'kface sm')}<div>${i && ms[i - 1].from === x.from ? '' : `<b>${esc(x.from)}</b>${x.sub && !ban ? `<small>${esc(x.sub)}</small>` : ''}`}<p>«${esc(x.text)}»</p></div></div>`).join('')}</div>
-    <div class="row"><button class="btn primary" id="kl-ok">${btn}</button></div></div>`, 'sm', {sticky: true}); }
-  $('#kl-ok').onclick = () => { closeModal(); setTimeout(() => showCompTalk(), 300); };
+  const m = ms[0], ban = ms.some(x => x.ban), names = [...new Set(ms.map(x => x.from))], one = names.length === 1;
+  const head = ms.some(x => x.hero) ? 'У костра' : ban ? 'Разговор в отряде' : one ? 'Слово наёмника' : 'Слово наёмников';
+  const bye = ms.length === 1 && m.up ? 'Кивнуть.' : ms.length === 1 && m.up === false ? 'Выслушать молча.' : ban ? 'Дослушать и идти дальше.' : 'Дослушать.';
+  const hr = C.alive(g)[0];
+  talkWin({who: one ? {name: m.from, face: m.face, sub: m.sub, head} : {name: nameList(names), faces: names.map(n => (ms.find(x => x.from === n) || {}).face), head},
+    hero: hr ? {name: hr.name, face: hr.portrait || ''} : null,
+    lines: ms.map(x => ({who: x.hero && hr && x.from === hr.name ? 'h' : 'o', name: one ? '' : x.from, face: x.face, text: unq(x.text)})),
+    opts: [{t: bye, nar: 1, end: 1, attr: 'id="kl-ok"', on: () => { closeModal(); setTimeout(() => showCompTalk(), 300); }}]});
 }
 /* спор в отряде и совет перед делом (w2_mercsoul): реплики двоих, выбор героя, отклики */
+const COUNCIL_SAY = [n => `Первым пойдёт ${n}.`, n => `Спину отряду побережёт ${n}.`, n => `С встречными будет говорить ${n}.`];
 function showSpor(sp, done) {
-  const faceOf = x => x.who === 'a' ? sp.who && sp.who.a : x.who === 'b' ? sp.who && sp.who.b : x.who === 'h' ? sp.hero : x.who === 'm' ? {name: x.name, face: x.face} : null;
-  const ln = x => { const f = faceOf(x); return !f ? `<p class="note">${esc(x.text)}</p>` : `<div class="kl-ln"${x.who === 'h' ? ' style="flex-direction:row-reverse;text-align:right"' : ''}>${faceHTML(f.face, 'kface sm')}<div><b>${esc(f.name)}</b><p>«${esc(x.text)}»</p></div></div>`; };
-  const body = (done || sp.lines || []).map(ln).join('');
-  const btns = done ? '<button class="btn primary" id="sp-ok">Дальше</button>'
-    : sp.kind === 'council' ? `<p class="kltext"><b>${esc(sp.q)}</b></p>` + sp.opts.map(o => `<button class="btn" data-spk="${o.k}">${esc(o.t)}</button>`).join('')
-    : sp.opts.map(o => `<button class="btn" data-spk="${o.k}">${o.nar ? '<i>' + esc(o.t) + '</i>' : '«' + esc(o.t) + '»'}</button>`).join('');
-  openModal(`<div class="kletter mtalk"><div class="klh"><div><small>${sp.kind === 'council' ? 'У костра' : 'Разговор в отряде'}</small><h3>${esc(sp.title || '')}</h3></div></div>
-    <div class="kltalk">${body}</div><div class="row" style="gap:6px;flex-wrap:wrap">${btns}</div></div>`, 'md', {sticky: true});
-  $('#modal').querySelectorAll('[data-spk]').forEach(b => b.onclick = () => { const r = C.sporPick(g, +b.dataset.spk); if (r.err) { toast(r.err); closeModal(); return; } save(); renderTop();
-    if (r.next) { const nx = C.sporNext(g); return nx ? showSpor(nx) : closeModal(); }
-    const sh = sp.hero ? sp : Object.assign({}, sp, {hero: (C.alive(g)[0] && {name: C.alive(g)[0].name, face: C.alive(g)[0].portrait || ''}) || null});
-    showSpor(sh, r.lines && r.lines.length ? r.lines : [{who: 'n', text: 'Так и решили.'}]); });
-  const ok = $('#sp-ok'); if (ok) ok.onclick = () => { closeModal(); setTimeout(() => showCompTalk(), 300); };
+  const pick = x => x.who === 'a' ? sp.who && sp.who.a : x.who === 'b' ? sp.who && sp.who.b : x.who === 'm' ? {name: x.name, face: x.face} : null;
+  const lines = (done || sp.lines || []).map(x => { if (x.who === 'h') return {who: 'h', text: x.text}; const f = pick(x); return f ? {who: 'o', name: f.name, face: f.face, text: x.text} : {who: 'n', text: x.text}; });
+  const faces = sp.who ? [sp.who.a && sp.who.a.face, sp.who.b && sp.who.b.face] : [...new Set((sp.opts || []).filter(x => !x.hero).map(x => x.face).concat((done || sp.lines || []).filter(x => x.who === 'm').map(x => x.face)))];
+  const names = sp.who ? [sp.who.a && sp.who.a.name, sp.who.b && sp.who.b.name].filter(Boolean) : [];
+  const hero = sp.hero || ((C.alive(g)[0] && {name: C.alive(g)[0].name, face: C.alive(g)[0].portrait || ''}) || null);
+  const fin = () => { closeModal(); setTimeout(() => showCompTalk(), 300); };
+  let opts;
+  if (done) opts = [{t: sp.kind === 'council' ? 'Решено. Расходимся по местам.' : 'На том и порешим.', end: 1, attr: 'id="sp-ok"', on: fin}];
+  else {
+    if (sp.kind === 'council') lines.push({who: 'n', text: sp.q});
+    opts = sp.opts.map(o => ({t: sp.kind === 'council' ? (COUNCIL_SAY[sp.step] || (n => n))(o.t) : o.t, nar: o.nar, attr: `data-spk="${o.k}"`, on: () => {
+      const r = C.sporPick(g, o.k); if (r.err) { toast(r.err); closeModal(); return; } save(); renderTop();
+      if (r.next) { const nx = C.sporNext(g); return nx ? showSpor(nx) : closeModal(); }
+      const res = r.lines && r.lines.length ? r.lines : [{who: 'n', text: 'Так и решили.'}];
+      if (sp.kind === 'council') return showSpor(Object.assign({}, sp, {hero}), res);
+      showSporDone(sp, hero, lines.slice(), res, fin); }}));
+  }
+  talkWin({who: {name: sp.title || '', faces: faces.length ? faces : [hero && hero.face], head: sp.kind === 'council' ? 'У костра' : 'Разговор в отряде', sub: names.length ? nameList(names) : ''},
+    hero, lines, opts});
 }
-/* сказанное наёмником сразу — тем же окном с лицом (по душам, ответ на подарок) */
+function showSporDone(sp, hero, prev, rl, fin) {
+  const pick = x => x.who === 'a' ? sp.who && sp.who.a : x.who === 'b' ? sp.who && sp.who.b : x.who === 'm' ? {name: x.name, face: x.face} : null;
+  const add = rl.map(x => { if (x.who === 'h') return {who: 'h', text: x.text}; const f = pick(x); return f ? {who: 'o', name: f.name, face: f.face, text: x.text} : {who: 'n', text: x.text}; });
+  const names = sp.who ? [sp.who.a && sp.who.a.name, sp.who.b && sp.who.b.name].filter(Boolean) : [];
+  talkWin({who: {name: sp.title || '', faces: sp.who ? [sp.who.a && sp.who.a.face, sp.who.b && sp.who.b.face] : [], head: 'Разговор в отряде', sub: nameList(names)}, hero,
+    lines: prev.concat(add), opts: [{t: 'На том и порешим.', end: 1, attr: 'id="sp-ok"', on: fin}]});
+}
+/* сказанное наёмником сразу — тем же окном (по душам, ответ на подарок) */
 function sayWin(t, after) {
   const h = (g.mercs || []).concat(C.alive(g)).find(x => x.name === t.from), sub = t.sub || (h && C.NRAV && C.NRAV[h.nrav] ? (h.sex === 'f' ? C.NRAV[h.nrav].f : C.NRAV[h.nrav].n) : '');
-  openModal(`<div class="kletter"><div class="klh">${faceHTML(t.face, 'kface')}<div><small>${esc(t.head || 'По душам')}</small><h3>${esc(t.from)}</h3>${sub ? `<div class="note">${esc(sub)}</div>` : ''}</div></div>
-    <p class="kltext">«${esc(t.text)}»</p>${t.after ? `<p class="note">${esc(t.after)}</p>` : ''}<div class="row"><button class="btn primary" id="kl-ok">Дальше</button></div></div>`, 'sm', {sticky: true});
-  $('#kl-ok').onclick = () => { closeModal(); if (after) after(); };
+  const sx = t.sex || (h && h.sex), hr = C.alive(g)[0];
+  const bye = t.head === 'Подарок' ? 'Носи на здоровье.' : `Спасибо, что рассказал${sx === 'f' ? 'а' : ''}.`;
+  talkWin({who: {name: t.from, face: t.face, sub, head: t.head || 'По душам'}, hero: hr ? {name: hr.name, face: hr.portrait || ''} : null,
+    lines: [{who: 'o', text: unq(t.text)}].concat(t.after ? [{who: 'n', text: t.after}] : []),
+    opts: [{t: bye, end: 1, attr: 'id="kl-ok"', on: () => { closeModal(); if (after) after(); }}]});
 }
-/* разговор по душам (w2_merctalk): вопросы, ответ наёмника, ответ героя его голосом, отклик; просьба на ступени — здесь же */
+/* разговор по душам (w2_merctalk): вопросы, ответ наёмника, ответ героя его голосом, отклик; просьба на ступени — здесь же.
+   Обсуждённое вариантом не висит: спрошенный вопрос уходит из списка, а сказанное лежит в «Вспомнить разговор»
+   (память окна — g.uiTalk[наёмник][вопрос], только для перечитывания). Если вопрос снова открылся (новая ступень,
+   новый кусок истории), он возвращается другими словами — «вернуться к разговору». */
+const MT_BACK = {rod: 'Ты как-то говорил<|а> о родных краях. Расскажешь больше?', why: 'Ты тогда не досказал<|а>, как пош<ёл|ла> в наёмники. Расскажешь теперь?',
+  delo: 'Ну а теперь что скажешь о нашем деле?', trev: 'Опять у тебя что-то на душе. Что стряслось?', vera: 'Вернёмся к вере. Ты с тех пор что-нибудь передумал<|а>?',
+  me: 'Ну а теперь, после всего, что ты обо мне думаешь?', mech: 'Ты о мечте говорил<|а>. Она всё та же?', fam: 'Расскажи ещё о своих, кого ты оставил<|а> дома.',
+  strah: 'Ты как-то сказал<|а>, чего боишься. Страх с тех пор не прошёл?', molch: 'Ты тогда не всё сказал<|а>. Теперь скажешь?', dom: 'Расскажи ещё, каким тебе видится наш дом.'};
+const mtMem = id => { g.uiTalk = g.uiTalk && typeof g.uiTalk === 'object' ? g.uiTalk : {}; return (g.uiTalk[id] = g.uiTalk[id] || {}); };
 function showMercTalk(id, log, later) {
   const h = (g.mercs || []).find(x => x.id === id); if (!h || !C.mtView) return;
   const V = C.mtView(g, h); if (!V) return toast('Сейчас не до разговоров.');
   log = log || [{who: 'm', text: V.intro}];
-  const back = () => showParty(id, true);
-  const line = x => x.nar ? `<p class="note" style="margin:2px 0 2px 58px">${esc(x.text)}</p>`
-    : x.who === 'o' ? `<div class="kl-ln">${faceHTML(x.face, 'kface sm')}<div><b>${esc(x.name)}</b><p>«${esc(x.text)}»</p></div></div>`
-    : x.who === 'h' && V.hero ? `<div class="kl-ln" style="flex-direction:row-reverse;text-align:right">${faceHTML(V.hero.face, 'kface sm')}<div><b>${esc(V.hero.name)}</b><p>«${esc(x.text)}»</p></div></div>`
-    : `<div class="kl-ln">${faceHTML(V.face, 'kface sm')}<div><b>${esc(V.name)}</b><p>«${esc(x.text)}»</p></div></div>`;
-  const draw = (btns) => {
-    openModal(`<div class="kletter mtalk"><div class="klh">${faceHTML(V.face, 'kface')}<div><small>По душам</small><h3>${esc(V.name)}</h3>${V.sub ? `<div class="note">${esc(V.sub)}</div>` : ''}</div></div>
-      <div class="kltalk" id="mt-log">${log.map(line).join('')}</div><div class="row" style="gap:6px;flex-wrap:wrap" id="mt-btns">${btns}</div></div>`, 'md', {sticky: true});
-    const lg = $('#mt-log'); if (lg) lg.scrollTop = lg.scrollHeight;
-    $('#modal').querySelectorAll('[data-mtq]').forEach(b => b.onclick = () => { const r = C.mtAsk(g, h, b.dataset.mtq); if (r.err) return toast(r.err); save();
-      log.push({who: 'h', text: r.q}, {who: 'm', text: r.text}); if (r.opts && r.opts.length) return draw(r.opts.map(o => `<button class="btn" data-mtr="${esc(o.k)}">${esc(o.t)}</button>`).join(''));
-      showMercTalk(id, log, later); });
-    $('#modal').querySelectorAll('[data-mtr]').forEach(b => b.onclick = () => { const r = C.mtReply(g, h, b.dataset.mtr); if (r.err) return toast(r.err); save(); renderTop();
-      if (r.hero) log.push(r.hero.nar ? {nar: 1, text: r.hero.text} : {who: 'h', text: r.hero.text}); log.push({who: 'm', text: r.react}); showMercTalk(id, log, later); });
-    $('#modal').querySelectorAll('[data-mta]').forEach(b => b.onclick = () => { const r = C.mtAskAnswer(g, h, b.dataset.mta === 'y'); if (r.err) return toast(r.err); save(); renderTop();
-      log.push({who: 'm', text: r.words || r.text}); showMercTalk(id, log); });
-    /* разговор-испытание (w2_mercsoul): узлы с ответами героя; ушёл — только «Закончить» */
-    const tl = r => { (r.lines || []).forEach(x => log.push(x.who === 'n' ? {nar: 1, text: x.text} : x.who === 'o' ? {who: 'o', name: x.name, face: x.face, text: x.text} : {who: x.who === 'h' ? 'h' : 'm', text: x.text})); };
-    const topts = r => r.opts.map(o => `<button class="btn" data-mto="${o.k}">${o.nar ? '<i>' + esc(o.t) + '</i>' : '«' + esc(o.t) + '»'}</button>`).join('');
-    $('#modal').querySelectorAll('[data-mtt]').forEach(b => b.onclick = () => { const r = C.msStart(g, h, b.dataset.mtt); if (r.err) return toast(r.err); save(); tl(r); draw(topts(r)); });
-    $('#modal').querySelectorAll('[data-mto]').forEach(b => b.onclick = () => { const r = C.msPick(g, h, +b.dataset.mto); if (r.err) return toast(r.err); save(); renderTop(); tl(r);
-      if (!r.done) return draw(topts(r)); if (r.left || !(g.mercs || []).includes(h)) return draw('<button class="btn primary" id="mt-end">Закончить разговор</button>'); showMercTalk(id, log, later); });
-    const e = $('#mt-end'); if (e) e.onclick = () => { closeModal(); back(); };
-    const lt = $('#mt-later'); if (lt) lt.onclick = () => showMercTalk(id, log, 1);
-  };
+  const back = () => showParty(id, true), mem = mtMem(id), sx = s => String(s).replace(/<([^|>]*)\|([^>]*)>/g, (_, a, b) => (h.sex === 'f' ? b : a));
+  const toL = x => x.nar ? {who: 'n', text: x.text} : x.who === 'o' ? {who: 'o', name: x.name, face: x.face, text: x.text} : x.who === 'h' ? {who: 'h', text: x.text} : {who: 'o', text: x.text};
+  const recall = () => Object.keys(mem).map(k => mem[k]).filter(r => r && r.lines).sort((a, b) => (a.at || 0) - (b.at || 0)).map(r => ({t: r.t, lines: r.lines.map(toL)}));
+  const keep = (qid, t, add) => { if (!qid) return; const r = mem[qid] = mem[qid] || {t, lines: []}; r.at = Date.now(); r.lines.push(...add.map(x => x.nar ? {nar: 1, text: x.text} : x)); r.lines = r.lines.slice(-12); };
+  const draw = (opts, rec) => talkWin({who: {name: V.name, face: V.face, sub: V.sub, head: 'По душам'}, hero: V.hero, lines: log.map(toL), opts,
+    recall: rec === false ? [] : recall()});
+  const bye = (t, nar) => ({nar, t: t || (V.left ? talkBye() : (C.hourOf && (C.hourOf(g) >= 21 || C.hourOf(g) < 5) ? 'Доброй ночи. Завтра договорим.' : 'Ладно, завтра договорим.')), end: 1, attr: 'id="mt-end"', on: () => { closeModal(); back(); }});
+  /* разговор-испытание (w2_mercsoul): узлы с ответами героя */
+  const tl = r => (r.lines || []).forEach(x => log.push(x.who === 'n' ? {nar: 1, text: x.text} : x.who === 'o' ? {who: 'o', name: x.name, face: x.face, text: x.text} : {who: x.who === 'h' ? 'h' : 'm', text: x.text}));
+  const tk = (r, tid, tt) => { tl(r); if (tid) keep('t:' + tid, tt, (r.lines || []).map(x => x.who === 'n' ? {nar: 1, text: x.text} : x.who === 'o' ? {who: 'o', name: x.name, face: x.face, text: x.text} : {who: x.who === 'h' ? 'h' : 'm', text: x.text})); };
+  const topts = (r, tid, tt) => r.opts.map(o => ({t: o.t, nar: o.nar, attr: `data-mto="${o.k}"`, on: () => { const q = C.msPick(g, h, o.k); if (q.err) return toast(q.err); save(); renderTop(); tk(q, tid, tt);
+    if (!q.done) return draw(topts(q, tid, tt)); if (q.left || !(g.mercs || []).includes(h)) return draw([{t: 'Уйти, не оглядываясь.', nar: 1, end: 1, attr: 'id="mt-end"', on: () => { closeModal(); back(); }}]);
+    showMercTalk(id, log, later); }})).concat([bye('Давай договорим в другой раз.')]);
   if (V.offer && !later) { if (log[log.length - 1].text !== V.offer.say) log.push({who: 'm', text: V.offer.say});
-    return draw(`<button class="btn primary" data-mta="y"${V.offer.why ? ` disabled title="${esc(V.offer.why)}"` : ''}>Обещать помочь</button><button class="btn" data-mta="n">Отказать</button><button class="btn" id="mt-later">Подумать и ответить после</button>`); }
-  const qs = V.qs.map(q => `<button class="btn small${q.asked ? ' on' : ''}" data-mtq="${esc(q.id)}"${q.dis ? ' disabled' : ''}>${esc(q.t)}${q.asked ? ' <small>· об этом уже говорили</small>' : q.dis ? ' <small>· завтра</small>' : ''}</button>`).join('');
-  if (V.trialCur && !later) { if (!log.some(x => x.text === (V.trialCur.lines[V.trialCur.lines.length - 1] || {}).text)) V.trialCur.lines.forEach(x => log.push(x.who === 'n' ? {nar: 1, text: x.text} : x.who === 'o' ? {who: 'o', name: x.name, face: x.face, text: x.text} : {who: 'm', text: x.text}));
-    return draw(V.trialCur.opts.map(o => `<button class="btn" data-mto="${o.k}">${o.nar ? '<i>' + esc(o.t) + '</i>' : '«' + esc(o.t) + '»'}</button>`).join('')); }
-  const ts = (V.trials || []).map(t => `<button class="btn small" data-mtt="${esc(t.id)}">${esc(t.t)}</button>`).join('');
-  draw(`${qs}${ts}<button class="btn primary" id="mt-end">${V.left ? 'Закончить разговор' : 'Доброй ночи'}</button>`);
+    if (V.offer.why && !log.some(x => x.why)) log.push({nar: 1, why: 1, text: V.offer.why[0].toUpperCase() + V.offer.why.slice(1) + '.'});
+    const ans = yes => () => { const r = C.mtAskAnswer(g, h, yes); if (r.err) return toast(r.err); save(); renderTop(); log.push({who: 'm', text: r.words || r.text}); showMercTalk(id, log); };
+    return draw([{t: 'Помогу. Рассказывай, что нужно сделать.', attr: 'data-mta="y"', dis: V.offer.why || '', on: ans(true)},
+      {t: 'Прости, не возьмусь. Не до того сейчас.', attr: 'data-mta="n"', on: ans(false)},
+      {t: 'Дай подумать. Отвечу после.', attr: 'id="mt-later"', on: () => showMercTalk(id, log, 1)}]); }
+  if (V.trialCur && !later) { if (!log.some(x => x.text === (V.trialCur.lines[V.trialCur.lines.length - 1] || {}).text)) tl(V.trialCur);
+    return draw(topts(V.trialCur)); }
+  const ask = q => () => { const r = C.mtAsk(g, h, q.id); if (r.err) return toast(r.err); save();
+    const qt = mem[q.id] && !q.asked ? sx(MT_BACK[q.id.split(':')[0]] || r.q) : r.q;
+    log.push({who: 'h', text: qt}, {who: 'm', text: r.text}); keep(q.id, r.q, [{who: 'h', text: qt}, {who: 'm', text: r.text}]);
+    if (r.opts && r.opts.length) return draw(r.opts.map(o => ({t: o.t, nar: 1, attr: `data-mtr="${esc(o.k)}"`, on: () => { const p = C.mtReply(g, h, o.k); if (p.err) return toast(p.err); save(); renderTop();
+      const add = (p.hero ? [p.hero.nar ? {nar: 1, text: p.hero.text} : {who: 'h', text: p.hero.text}] : []).concat([{who: 'm', text: p.react}]);
+      log.push(...add); keep(q.id, r.q, add); showMercTalk(id, log, later); }})).concat([bye('Ничего не ответить и отойти.', 1)]), false);
+    showMercTalk(id, log, later); };
+  const qs = V.qs.filter(q => !q.asked && !q.dis).map(q => ({t: mem[q.id] ? sx(MT_BACK[q.id.split(':')[0]] || q.t) : q.t, attr: `data-mtq="${esc(q.id)}"`, on: ask(q)}));
+  const ts = (V.trials || []).map(t => ({t: t.t, attr: `data-mtt="${esc(t.id)}"`, on: () => { const r = C.msStart(g, h, t.id); if (r.err) return toast(r.err); save(); tk(r, t.id, t.t); draw(topts(r, t.id, t.t)); }}));
+  if (!qs.length && !ts.length && V.left && log.length < 2) log.push({nar: 1, text: `О чём могли, вы с ${C.Q && C.Q.decl ? C.Q.decl(V.name, V.sex).i : V.name} уже переговорили. Новое придёт с новыми днями.`});
+  draw(qs.concat(ts, [bye()]));
 }
 function showScene(id, talk) {
   TALK_OK = false;
@@ -48701,7 +48817,8 @@ window.__kldv = { play: () => PLAY, playDraw: () => drawField(true), hall: o => 
   icon: (c, id) => { const k = iconOf(id); if (!k) return ''; const d = document.createElement('div'); c.dataset.ico = k; d.appendChild(c); paintIcons(d); return k; },
   ready: () => !!(IMG.heroes && IMG.units && IMG.items)};
 /* отладка: сборы привала, журнал, окно реплик наёмников */
-Object.assign(window.__kldv, {rest: kind => { closeModal(); const e = C.restOpen(g, kind || 'night'); if (!e) restShow(); return e; }, journal: tab => { closeModal(); showJournal(tab); }, finfo: (c, r) => foeInfo({c, r}), talk: () => { TALK_OK = true; closeModal(); showCompTalk(); }});
+Object.assign(window.__kldv, {rest: kind => { closeModal(); const e = C.restOpen(g, kind || 'night'); if (!e) restShow(); return e; }, journal: tab => { closeModal(); showJournal(tab); }, finfo: (c, r) => foeInfo({c, r}), talk: () => { TALK_OK = true; closeModal(); showCompTalk(); },
+  mtalk: id => { closeModal(); showMercTalk(id); }, say: (t, after) => { closeModal(); sayWin(t, after); }, mail: () => { closeModal(); showMail(); }});
 /* ---------- запуск ---------- */
 ready.then(() => { showTitle(); });
 window.addEventListener('pagehide', save);
