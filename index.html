@@ -43678,7 +43678,7 @@ C.wbCard = function (x, h) { const out = card0 ? card0.apply(this, arguments) : 
 C.wbActs = function (g, h, id) { return C.isDivo(id) ? C.divoActs(g, h, id) : (C.wbActsMore ? C.wbActsMore(g, h, id) : []); };
 C.wbAct = function (g, h, id, k) { return C.isDivo(id) ? C.divoAct(g, h, id, k) : (C.wbActMore ? C.wbActMore(g, h, id, k) : {err: 'не выходит'}); };
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=mwcj0sky"></script><script>
+</script><script src="world.js?v=mwcj8ui3"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -45006,12 +45006,13 @@ function showFallen() {
 
 /* описание вещи для игрока: без рабочих пометок о ценах и источниках */
 const HELM_SAVE_TXT = {shapka: 20, shelom: 40, shlem_barmitsa: 50, shlem_lichina: 60};
+const critWord = n => n >= 50 ? 'часто' : n >= 30 ? 'нередко' : n >= 15 ? 'порой' : 'изредка';
 function cleanNote(t) { return (t || '').split(/(?<=[.!?])\s+/).filter(s => s && !/сайт|\bgp\b|\bsp\b|\.json|снижено|взято|оставлено|прогресси|заменено|совпадает|спорит|понято как|без броска/i.test(s)).join(' ').trim(); }
 function itemNote(x) {
   const p = [];
   if (x.dmg) p.push('урон ' + x.dmg);
   if (x.def) p.push('Защита +' + x.def);
-  if (HELM_SAVE_TXT[x.id]) p.push('гасит крит в ' + HELM_SAVE_TXT[x.id] + '%');
+  if (HELM_SAVE_TXT[x.id]) p.push(critWord(HELM_SAVE_TXT[x.id]) + ' гасит крит');
   if (C.wearSlotOf && C.wearSlotOf(x)) { const f = C.wearFx(x); p.push('носится: ' + ({hands: 'руки', legs: 'ноги', feet: 'обувь', cloak: 'плащ', neck: 'шея', ring: 'кольцо'})[C.wearSlotOf(x)] + (f ? ' — ' + f : '')); }
   if (C.toolFx && C.isTool(x.id)) { const t = C.toolFx(x.id); if (t[0]) p.push(t[0]); if (t.length > 1) p.push(t.slice(1).join('; ')); }
   const n = cleanNote(x.notes); if (n) p.push(n.length > 90 ? n.slice(0, 88).replace(/\s+\S*$/, '') + '…' : n);
@@ -45045,9 +45046,9 @@ function itemCard(id, h) {
     if (x.def || ['тело', 'щит', 'голова'].includes(x.slot)) kv('Защита', '+' + (x.def || 0));
     if (x.vs && Object.values(x.vs).some(v => v)) kv('Против ударов', esc(Object.entries(x.vs).filter(([, v]) => v).map(([k, v]) => `${k} +${v}`).join(', ')));
     if (x.dex_cap != null) kv('Предел Ловкости', '+' + x.dex_cap); if (x.steps_penalty) kv('Шаги', String(x.steps_penalty)); if (x.str_req) kv('Нужна Сила', String(x.str_req));
-    if (x.crit_def) kv('Гасит крит', Math.round(x.crit_def * 2) + '%');
+    if (x.crit_def) kv('Гасит крит', critWord(Math.round(x.crit_def * 2)));
   }
-  if (HELM_SAVE_TXT[R.baseId(x.id)]) kv('Гасит крит', HELM_SAVE_TXT[R.baseId(x.id)] + '%');
+  if (HELM_SAVE_TXT[R.baseId(x.id)]) kv('Гасит крит', critWord(HELM_SAVE_TXT[R.baseId(x.id)]));
   if (C.FOOD && C.FOOD[x.id]) kv('Сытость', C.FOOD[x.id] + ' дн.');
   if (C.SPOIL && C.SPOIL[x.id]) kv('Портится', 'за ' + C.SPOIL[x.id] + ' дн.');
   const kg = C.itemWeight ? C.itemWeight(x.id) : x.weight_kg; if (kg) kv('Вес', (Math.round(kg * 100) / 100 + '').replace('.', ',') + ' кг');
@@ -47148,7 +47149,7 @@ function drawField(noFollow) {
       ctx.fillStyle = 'rgba(20,14,8,.9)'; ctx.strokeStyle = '#ff8a70'; ctx.lineWidth = 1.5; ctx.fillRect(p.x - tw / 2, p.y - s2 * 2.75, tw, s2 * 0.62); ctx.strokeRect(p.x - tw / 2, p.y - s2 * 2.75, tw, s2 * 0.62); ctx.fillStyle = '#ff8a70'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, p.x, p.y - s2 * 2.44); ctx.restore(); }
     else if (t && t.side !== cur.side && B.active(t)) { const melee = B.dist(cur, t) === 1 && mode !== 'shoot', ranged = !melee && cur.ranged && B.rangeBand(cur, t) !== null;
       if (melee || ranged || B.dist(cur, t) > 1) { const ch = melee || ranged ? Math.round(100 * B.hitChance(S, cur, t, ranged)) : Math.round(100 * B.hitChance(S, cur, t, false)), p = hexXY(t.c, t.r), s2 = geo.s;
-        const txt = (C.bkHitWord && C.bkFoe(t) && C.bkHitWord(S, t, ch, ranged)) || (ranged ? 'выстрел ' : 'удар ') + ch + '%'; ctx.save(); ctx.font = `700 ${Math.max(12, Math.round(s2 * 0.42))}px "Alegreya SC", serif`; const tw = ctx.measureText(txt).width + 14;
+        const txt = (C.bkHitWord && C.bkHitWord(S, t, ch, ranged)) || (ranged ? 'выстрел' : 'удар'); ctx.save(); ctx.font = `700 ${Math.max(12, Math.round(s2 * 0.42))}px "Alegreya SC", serif`; const tw = ctx.measureText(txt).width + 14;
         ctx.fillStyle = 'rgba(20,14,8,.9)'; ctx.strokeStyle = ch >= 60 ? '#a6d38a' : ch >= 40 ? '#e7c983' : '#ff8a70'; ctx.lineWidth = 1.5; const bx = p.x - tw / 2, by = p.y - s2 * 2.75;
         ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, tw, s2 * 0.62, 5) : ctx.rect(bx, by, tw, s2 * 0.62); ctx.fill(); ctx.stroke(); ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, p.x, by + s2 * 0.31); ctx.restore(); } } }
   // прикрытие: пунктир от стража и щит над прикрытым
