@@ -665,6 +665,24 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .rplist{display:grid;gap:8px;margin:8px 0}.rprow{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;align-items:center;border:1px solid rgba(107,85,55,.35);border-radius:8px;padding:8px;background:rgba(43,33,23,.05)}
 .rprow>:first-child{width:48px;height:48px;max-width:48px;overflow:hidden;border-radius:6px}.rprow>:first-child canvas,.rprow>:first-child img{width:48px!important;height:48px!important}
 .rpm{min-width:0;display:grid;gap:4px}.rpm small{color:#6b5a44;font-size:12.5px}.rpm select{width:100%;max-width:100%;font:inherit;padding:6px 8px;border-radius:6px;border:1px solid rgba(107,85,55,.5);background:#f6ecd6;color:#2b2016}
+/* окно стоянки (ui.js restShow) */
+.campw .cw-sub{margin:0 0 8px;color:#5a4a36;font-style:italic}
+.campw .cw-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px}
+.campw .cw-col{display:grid;gap:12px;align-content:start;min-width:0}
+.campw .cw-b{border:1px solid rgba(107,85,55,.35);border-radius:8px;padding:8px 10px;background:rgba(43,33,23,.04);min-width:0}
+.campw .cw-b h4{margin:0 0 6px;font-variant:small-caps;letter-spacing:.04em;color:#5b3a1c}
+.campw .cw-b select{width:100%;max-width:100%;font:inherit;padding:6px 8px;border-radius:6px;border:1px solid rgba(107,85,55,.5);background:#f6ecd6;color:#2b2016}
+.campw .cw-b .note{margin:6px 0 0}
+.campw .cw-mates{display:grid;gap:8px}
+.campw .cw-mate{display:grid;grid-template-columns:48px minmax(0,1fr);gap:10px;align-items:center;padding:6px;border-radius:8px;border:1px solid rgba(107,85,55,.25)}
+.campw .cw-mate.want{border-color:#a0702a;background:rgba(160,112,42,.10)}
+.campw .cw-mate>canvas{width:48px!important;height:48px!important;border-radius:6px}
+.campw .cw-mn{min-width:0;display:grid;gap:2px}.campw .cw-mn small{color:#6b5a44;font-size:12.5px}.campw .cw-want{color:#8a4a12!important;font-weight:700}
+.campw .cw-acts{display:flex;gap:6px;flex-wrap:wrap;margin-top:4px}
+.campw .cw-watch{display:flex;gap:6px;flex-wrap:wrap}
+.campw .cw-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(107,85,55,.35)}
+@media (max-width:760px){.campw .cw-grid{grid-template-columns:1fr}.campw .cw-foot{flex-direction:column}.campw .cw-foot .btn{width:100%}}
+.scard .sc-talk{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0}.scard .sc-talk .btn{padding:2px 8px;font-size:12px;min-height:0}.scard .sc-want{color:#e7b866;font-size:12px}
 .pmap-wrap{width:100%;overflow:auto;border:1px solid rgba(107,85,55,.5);border-radius:6px;background:#e8dcc0}.pmap-wrap canvas{display:block;cursor:pointer}
 .trade2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}.tside{min-width:0;display:grid;gap:6px;align-content:start;border:1px solid rgba(107,85,55,.35);border-radius:8px;padding:8px;background:rgba(43,33,23,.05)}
 .thead{display:flex;gap:10px;align-items:center}.thead .tface{width:44px;height:44px;border-radius:6px;border:1px solid var(--rim)}.thead b{display:block;font:700 15px var(--t-label)}.thead small{color:var(--ink-2);font-size:12.5px}
@@ -28014,7 +28032,7 @@ SC.svc_temple = g => {
   if (g.templeLast) lines.push(['n', g.templeLast]);
   const ch = [];
   const unkN = hs.reduce((n, x) => n + x.inv.filter(y => /^m\?:/.test(y)).length, 0);
-  if (unkN) ch.push({t: `Распознать находки (${unkN}) — по ${R.priceText(C.identPrice())} за вещь`, free: 1, do: g2 => { g2.shopIdent = 1; return {shop: true, back: 'svc_temple'}; }});
+  if (unkN) ch.push((C.templeIdentCh && C.templeIdentCh(g, 'svc_temple')) || {t: `Распознать находки (${unkN}) — по ${R.priceText(C.identPrice())} за вещь`, free: 1, do: g2 => { g2.shopIdent = 1; return {shop: true, back: 'svc_temple'}; }});
   team.forEach(h => {
     const cursed = C.cursedOn(h).length || h.navTaken || h.stoneSteps || h.inv.some(x => { const o = C.magicParse(x); return o && !o.unknown && o.curse; });
     if (cursed) ch.push({t: `${h.name}: снять проклятие — ${R.priceText(3000)}`, if: g2 => g2.purse >= 3000, off: 'не хватает серебра',
@@ -28467,6 +28485,7 @@ SC.folk = g => {
   const lines = [['n', greet(g, role)]];
   if (g.folkLast) lines.push(['n', g.folkLast]);
   const ch = [];
+  if (role === 'jewel' && C.jewelTradeCh) ch.push(...C.jewelTradeCh(g, 'folk')); // распознание и свой торг — первыми, не в конце списка
   const teach = C.folkTeaches(role);
   if (teach.length) ch.push({t: `Учиться: ${F.learn}`, do: g2 => { g2.folkLast = null; g2.profHero = null; return 'folk_learn'; }});
   if (!home) injected(g).filter(c => typeof c.go === 'string' && MOVE[c.go] === role).forEach(c => ch.push({t: c.label, go: c.go}));
@@ -28574,7 +28593,7 @@ Q.inject = function (g, sceneId, choices) {
 };
 /* сбросить «у кого стоим» при уходе на карту */
 const so0 = C.sceneOf;
-C.sceneOf = function (g, id) { if (id !== 'folk' && g.shopMode) g.shopMode = null; return so0(g, id); };
+C.sceneOf = function (g, id) { if (id !== 'folk' && g.shopMode && !(g.shopBack && g.shopBack === id)) { g.shopMode = null; g.shopBack = null; } return so0(g, id); };
 
 /* ---------- лавка: диковинки — только у купца ---------- */
 const sx0 = C.shopExtra;
@@ -30135,7 +30154,7 @@ C.cookOpts = function (g, h) {
   return C.recipesOfHero(h).map(rid => { const r = C.RECIPES[rid];
     const miss = r.need.filter(([grp, n]) => rawOf(h, grp).length < n).map(([grp, n]) => grp.split('|').map(x => C.RAW_RU[x]).join(' или ') + (n > 1 ? ' ×' + n : ''));
     const out = r.out + T(h, 'povar');
-    return {rid, t: `${r.name} → ${plural(out, 'порция', 'порции', 'порций')}${r.hp ? `, +${r.hp} хит. на ночлеге` : ''}${r.pw ? `, +${r.pw} Силы` : ''}`, why: !C.fireHere(g) ? 'нужен костёр: «Короткий отдых» или «Привал»' : miss.length ? 'нет: ' + miss.join(', ') : ''}; });
+    return {rid, t: `${r.name} → ${plural(out, 'порция', 'порции', 'порций')}${r.hp ? `, +${r.hp} хит. на ночлеге` : ''}${r.pw ? `, +${r.pw} Силы` : ''}`, why: !C.fireHere(g) ? 'нужен костёр: «Встать на привал»' : miss.length ? 'нет: ' + miss.join(', ') : ''}; });
 };
 C.cook = function (g, h, rid) {
   const o = C.cookOpts(g, h).find(x => x.rid === rid); if (!o || o.why) return {err: o ? o.why : 'нет такого рецепта'};
@@ -30307,7 +30326,7 @@ W.nightCamp = function (g) {
   team(g).forEach(h => { if (h.hunger > 0) return; /* голодный на привале не лечится и Силы не набирает */ const b = bonus[h.id] || {}; const heal = Math.ceil(h.hpMax / 4) + (h.level || 1) + (b.hp || 0) - (enc ? Math.ceil(h.hpMax / 8) : 0);
     h.hp = Math.min(h.hpMax, h.hp + Math.max(1, heal)); if (R.powerMax) h.power = Math.min(R.powerMax(h), (h.power || 0) + Math.ceil(R.powerMax(h) / 2) + (b.pw || 0)); });
   const calm = ['Ночь проходит спокойно, только костёр потрескивает до утра.', 'Ночь проходит тихо: где-то кричит ночная птица, но к лагерю никто не подходит.', 'Ночь проходит спокойно, и к рассвету угли ещё тлеют.'];
-  C.note(g, `Привал на ночь (${risk.why}). ${watch ? watch.name + ' первым встаёт в дозор. ' : ''}${text || calm[(g.day || 0) % calm.length]} Утром, выспавшись, отряд снова в пути.`);
+  C.note(g, `Привал на ночь (${risk.why}). ${watch ? watch.name + (watch.sex === 'f' ? ' первой' : ' первым') + ' встаёт в дозор. ' : ''}${text || calm[(g.day || 0) % calm.length]} Утром, выспавшись, отряд снова в пути.`);
   return enc ? {enc} : null;
 };
 
@@ -36291,7 +36310,7 @@ Object.entries(C.SMOKE_KEEP).forEach(([id, d]) => { C.SPOIL[id] = d; DATA.items[
 C.FOOD.kopchenoe_myaso = 1; C.FOOD.kopchenaya_ryba = 1; C.FOOD_FX.kopchenoe_myaso = {hp: 1}; C.FOOD_FX.kopchenaya_ryba = {hp: 0};
 const SMOKE = {myaso_1_funt: 'kopchenoe_myaso', myaso_na_odnogo: 'kopchenoe_myaso', ryba_svezhaya_1_funt: 'kopchenaya_ryba'};
 const survivor = g => team(g).filter(h => C.alive(g).includes(h)).map(h => ({h, v: T(h, 'vyzhiv') + ((R.CLASS_SKILLS[h.cls] || []).includes('Выживание') ? 1 : 0)})).filter(x => x.v > 0).sort((a, b) => b.v - a.v)[0];
-C.smokeWhy = g => { if (!C.fireHere(g)) return 'нужен костёр: «Короткий отдых» или «Привал»'; if (g.smokeDay === g.day) return 'сегодня уже коптили: ольховый дым и рогатины — раз в сутки'; if (!survivor(g)) return 'никто в отряде не умеет коптить (Выживание)';
+C.smokeWhy = g => { if (!C.fireHere(g)) return 'нужен костёр: «Встать на привал»'; if (g.smokeDay === g.day) return 'сегодня уже коптили: ольховый дым и рогатины — раз в сутки'; if (!survivor(g)) return 'никто в отряде не умеет коптить (Выживание)';
   if (!team(g).some(h => h.inv.some(id => SMOKE[id]))) return 'нет свежего мяса или рыбы'; return ''; };
 C.smokeCap = g => { const s = survivor(g); return s ? 3 + 3 * s.v : 0; };
 C.smoke = function (g) {
@@ -36304,7 +36323,7 @@ C.smoke = function (g) {
 };
 /* сготовить на всех */
 const VAL = rid => { const r = C.RECIPES[rid], ing = r.need.reduce((a, [, n]) => a + n, 0); const keeps = r.item === 'solonina_funt' || r.item === 'ryba_solenaya_funt' || r.harch || r.keep; return (r.out * ((r.hp || 0) + 1 + (r.pw || 0) * 2 + (keeps ? 1.5 : 0))) / ing; };
-C.cookAllWhy = g => { if (!C.fireHere(g)) return 'нужен костёр: «Короткий отдых» или «Привал»'; if (!team(g).some(h => h.inv.some(id => C.RAW[id] && C.RAW[id] !== 'salt'))) return 'нет продуктов'; return ''; };
+C.cookAllWhy = g => { if (!C.fireHere(g)) return 'нужен костёр: «Встать на привал»'; if (!team(g).some(h => h.inv.some(id => C.RAW[id] && C.RAW[id] !== 'salt'))) return 'нет продуктов'; return ''; };
 C.cookAll = function (g, opt) {
   opt = opt || {};
   const w = C.cookAllWhy(g); if (w) return {err: w};
@@ -39248,7 +39267,7 @@ C.pass = function (g) { if (g && g._planRun) return; return pass0.apply(this, ar
 /* какие дела долгие: их — только на привале */
 const LONG_OCAST = ['herbs', 'chem', 'hex', 'grove', 'map', 'ritual', 'raiseN'];
 const longAbil = arg => arg === 'chem' || /^rit_/.test(arg || '');
-C.REST_HINT = 'делается на привале: «Короткий отдых» или «Привал» на карте';
+C.REST_HINT = 'делается на стоянке: «Встать на привал» на карте';
 const inPlan = g => !!(g && (g._planRun || g._planList));
 if (C.abilOpts) { const ao0 = C.abilOpts, ab0 = C.abil;
   C.abilOpts = function (g, h) { const out = ao0.apply(this, arguments); return inPlan(g) ? out : out.map(o => longAbil(o.arg) && !o.why ? Object.assign({}, o, {why: C.REST_HINT}) : o); };
@@ -39338,6 +39357,9 @@ C.restRun = function (g) {
       if (r && r.enc) enc.push(r.enc);
     });
   } finally { g._planRun = false; }
+  // ночь вдвоём с супругом (супругой) — то же, что прежняя «Ночь у костра вдвоём» (w2_mercwed: mw_fire), до сна, чтобы ужин вдвоём лёг на ночлег
+  if (P.kind === 'night' && P.pair) { const m = (g.mercs || []).find(x => x.id === P.pair), ok = m && C.campPairs(g).find(x => x.m === m);
+    if (ok && C.abil) { let r = null; try { r = C.abil(g, m, 'mw_fire'); } catch (e) {} if (r && r.text) lines.push(r.text); } }
   // отдых
   const n1 = (g.journal || []).length;
   let rr = null;
@@ -39350,6 +39372,31 @@ C.restRun = function (g) {
   lines.push(...(g.journal || []).slice(n1).map(x => x.t));
   if (rr && rr.enc) enc.unshift(rr.enc);
   return {ok: true, kind: P.kind, lines, enc: enc[0] || null};
+};
+
+/* ---------- окно стоянки: с кем провести ночь, кто хочет поговорить ---------- */
+/* с кем из наёмников можно провести ночь вдвоём: супруг(а) героя (w2_mercwed, ступень 'wed'), герой жив, сегодня ещё не были вдвоём.
+   Правила прежние: однополых браков нет, обетники и братья Ока в брак не вступают (их отсекает сама ступень). */
+C.campPairs = function (g) {
+  const day = g.day || 1;
+  return (g.mercs || []).filter(m => m && !m.dead && m.hp > 0 && m.mw && m.mw.tier === 'wed' && m.mw.who && m.mw.fireDay !== day)
+    .map(m => ({m, hero: C.alive(g).find(h => h.id === m.mw.who)})).filter(x => x.hero && x.hero.sex !== x.m.sex);
+};
+/* кто у огня: можно ли сегодня поговорить по душам, ждёт ли кто ответа (просьба, испытание, спор, сватовство), можно ли дарить */
+C.campMates = function (g) {
+  const out = []; let spor = null;
+  try { spor = C.sporNext ? C.sporNext(g) : null; } catch (e) { spor = null; }
+  const sporIds = spor && spor.who ? [spor.who.a && spor.who.a.id, spor.who.b && spor.who.b.id].filter(Boolean) : [];
+  (g.mercs || []).filter(m => m && !m.dead && m.hp > 0).forEach(m => {
+    let opts = []; try { opts = C.abilOpts ? C.abilOpts(g, m) : []; } catch (e) { opts = []; }
+    const tk = opts.find(o => o.arg === 'mw_talk' || o.arg === 'mt_talk'), gift = opts.find(o => o.arg === 'mw_giftpick');
+    let want = null, kind = null;
+    if (opts.some(o => o.arg === 'mw_mtyes')) { want = 'просит о помощи'; kind = 'ask'; }
+    else if (sporIds.includes(m.id)) { want = spor.kind === 'spor' ? 'спорит, ждёт вашего слова' : 'хочет поговорить'; kind = 'spor'; }
+    else { try { if (C.msView && C.msView(g, m)) { want = 'хочет договорить'; kind = 'trial'; } } catch (e) {} }
+    out.push({id: m.id, name: m.name, face: m.portrait || '', sex: m.sex, talk: tk ? tk.arg : null, why: tk ? tk.why || '' : 'не до разговоров', gift: gift ? gift.why || '' : null, want, kind});
+  });
+  return out;
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -41426,11 +41473,11 @@ SC.jeweler = g => {
   if (g.jewelLast) lines.push(['n', g.jewelLast]);
   const ch = [], back = {t: 'Назад', free: 1, do: g2 => { g2.jewel = null; g2.jewelLast = null; return g2.folkRole ? 'folk' : nodeScene(g2); }};
   const unkAll = hs.reduce((n, x) => n + x.inv.filter(y => /^m\?:/.test(y)).length, 0), identCh = {t: `Распознать находки (${unkAll}) — по ${R.priceText(C.identPrice ? C.identPrice() : 5000)} за вещь`, free: 1, do: g2 => { g2.shopIdent = 1; return {shop: true, back: 'jeweler'}; }};
-  if (!h) { hs.forEach(x => ch.push({t: `${x.name}: заказать кольцо или оберег`, own: x.id, do: g2 => { g2.jewel = {hero: x.id}; return 'jeweler'; }})); if (unkAll) ch.push(identCh); ch.push(back); return {title: 'Ювелир', bg: 'market', art: 'market', lines, choices: ch}; }
+  const top = C.jewelTradeCh ? C.jewelTradeCh(g, 'jeweler') : (unkAll ? [identCh] : []); ch.push(...top); // распознание и торг — первыми
+  if (!h) { hs.forEach(x => ch.push({t: `${x.name}: заказать кольцо или оберег`, own: x.id, do: g2 => { g2.jewel = {hero: x.id}; return 'jeweler'; }})); ch.push(back); return {title: 'Ювелир', bg: 'market', art: 'market', lines, choices: ch}; }
   C.jewelOpts(h).forEach(o => ['ring', 'neck'].forEach(form => { const nd = C.jewelNeed(o.id, form);
     ch.push({t: `${FORM[form].name}: ${C.EN[o.id].name.toLowerCase()} — ${C.EN[o.id].effect} Нужно: ${C.jewelNeedText(nd)}`, if: () => C.jewelHave(h, nd), off: 'нужно: ' + C.jewelNeedText(nd),
       do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const r = C.jewelMake(g2, hh, o.id, form); g2.jewelLast = r.err || r.text; return 'jeweler'; }}); }));
-  if (unkAll) ch.push(identCh);
   if (hs.length > 1) ch.push({t: 'Другой герой', free: 1, do: g2 => { g2.jewel = null; return 'jeweler'; }}); ch.push(back);
   return {title: 'Ювелир', bg: 'market', art: 'market', lines, choices: ch, focus: hs.length > 1 ? h.id : null};
 };
@@ -42246,6 +42293,59 @@ const wrap = camp => { const raw = camp.scenes.folk; if (typeof raw !== 'functio
   f._salv = 1; Object.keys(raw).forEach(k => { if (k !== '_salv') f[k] = raw[k]; }); camp.scenes.folk = f; };
 Object.values(C.CAMPS).forEach(wrap);
 if (C.register) { const r0 = C.register; C.register = function (camp) { const r = r0.apply(this, arguments); try { wrap(C.CAMPS[camp.id] || camp); } catch (e) {} return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* master_trade.js */
+/* Колдовство — master_trade: узкий торг у мастеров. Без DOM.
+   Общая лавка (всё купит, всё продаст) — у купца и на торгу. Мастер берёт только своё:
+   • ювелир — кольца, перстни, гривны, обручья, обереги на шею, самоцветы, жемчуг, серебро и золото, курганное
+     серебро и бронза, металлы силы для колец; продаёт свои украшения и камни; распознаёт находки;
+   • служитель храма — только распознание, торговать в храме не торгуют;
+   • конюшня — берёт коней, сбрую, повозки, корм;
+   • стол корчмы — берёт съестное и продукты.
+   Режим — g.shopMode (как 'horse', 'food', 'rare'); окно лавки (ui.js showShop) спрашивает C.tradeOf(g).
+   Поля: title — заголовок окна; buy(x) — что мастер продаёт (нет — окно без вкладки «Купить», а у конюшни и стола
+   корчмы своё, прежнее); sell(x) — что берёт; empty — слова, когда взять нечего; ident — распознаёт; noBuy, noSell. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C || !R) return;
+const slotOf = x => (C.wearSlotOf ? C.wearSlotOf(x) : null);
+const JEWEL_IDS = new Set(['serebro', 'zoloto', 'med', 'podzemnoe_serebro', 'alatyr', 'persten_pechatka', 'obereg_znak_boga', 'fibula_zastezhka',
+  'zvezdnoe_zhelezo_1_ed', 'bulat_1_ed', 'navya_ruda', 'gromovaya_strela', 'tr_visochnoe_koltso', 'tr_kurgannaya_grivna', 'tr_bronzovaya_fibula', 'tr_serebryanoe_koltso', 'tr_obereg']);
+/* ювелирное и близкое: украшение на палец или шею, камень, драгоценный металл, курганное серебро */
+C.isJewelGood = x => { if (!x) return false; if (typeof x === 'string') x = R.item(x); if (!x) return false;
+  if (x.category === 'самоцветы') return true; if (JEWEL_IDS.has(x.id) || (C.MELT && C.MELT[x.id])) return true;
+  if (/^yuvelir_(?!izgotovit)/.test(x.id || '')) return true;
+  const s = slotOf(x); return s === 'ring' || s === 'neck'; };
+const isFood = x => !!(x && ((C.FOOD && C.FOOD[x.id]) || (C.RAW && C.RAW[x.id]) || /^rcp_/.test(x.id) || x.category === 'еда' || x.category === 'припасы'));
+C.TRADE_MASTER = Object.assign({
+  jewel: {title: 'Ювелирная лавка', ident: true, cat: 'gem',
+    buy: x => C.isJewelGood(x) && !(C.isMagic && C.isMagic(x.id)) && !/^tr_/.test(x.id) && !/ед\.$/.test(x.name || '') && x.price <= 40000,
+    sell: x => C.isJewelGood(x),
+    empty: 'Ювелир крутит в пальцах вашу добычу и качает головой: тут ему брать нечего.'},
+  temple: {title: 'Распознание', ident: true, noBuy: true, noSell: true},
+  horse: {title: 'Конюшня', sell: x => !!(C.isHorseGood && C.isHorseGood(x.id)) || x.category === 'корм' || x.category === 'сбруя' || x.category === 'животные' || x.category === 'транспорт',
+    empty: 'Конюх оглядывает ваши сумы: «Мне бы коня, сбрую или овёс. А это несите на торг»'},
+  food: {title: 'Стол корчмы', sell: isFood,
+    empty: 'Корчмарь машет рукой: «Я беру снедь да припасы. С прочим — на торг»'},
+}, C.TRADE_MASTER || {});
+C.tradeOf = g => (g && g.shopMode && C.TRADE_MASTER[g.shopMode]) || null;
+/* кнопки у ювелира: распознание и торг украшениями — первыми в списке (folk.js, crafting.js) */
+const unkN = g => C.alive(g).reduce((n, x) => n + (x.inv || []).filter(y => /^m\?:/.test(y)).length, 0);
+const jewelBag = g => C.alive(g).reduce((n, x) => n + (x.inv || []).filter(y => C.isJewelGood(y)).length, 0);
+C.jewelTradeCh = function (g, back) {
+  const n = unkN(g), ip = C.identPrice ? C.identPrice() : 5000;
+  return [{t: n ? `Распознать находки (${n}) — по ${R.priceText(ip)} за вещь` : 'Распознать находки', free: 1, if: () => n > 0, off: 'нераспознанных находок нет',
+      do: g2 => { g2.shopMode = 'jewel'; g2.shopBack = back; g2.shopIdent = 1; return {shop: true, back}; }},
+    {t: `Торг украшениями и камнями${jewelBag(g) ? ` (ваших ${jewelBag(g)})` : ''}`, free: 1,
+      do: g2 => { g2.shopMode = 'jewel'; g2.shopBack = back; g2.shopIdent = null; return {shop: true, back}; }}];
+};
+C.templeIdentCh = function (g, back) { const n = unkN(g); if (!n) return null;
+  return {t: `Распознать находки (${n}) — по ${R.priceText(C.identPrice ? C.identPrice() : 5000)} за вещь`, free: 1, do: g2 => { g2.shopMode = 'temple'; g2.shopBack = back; g2.shopIdent = 1; return {shop: true, back}; }}; };
+/* продать мастеру можно только то, что он берёт */
+C.tradeSellOk = (g, id) => { const T = C.tradeOf(g); if (!T) return true; if (T.noSell || !T.sell) return false; return !!T.sell(R.item(id)); };
+G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* gods.js */
@@ -43678,7 +43778,7 @@ C.wbCard = function (x, h) { const out = card0 ? card0.apply(this, arguments) : 
 C.wbActs = function (g, h, id) { return C.isDivo(id) ? C.divoActs(g, h, id) : (C.wbActsMore ? C.wbActsMore(g, h, id) : []); };
 C.wbAct = function (g, h, id, k) { return C.isDivo(id) ? C.divoAct(g, h, id, k) : (C.wbActMore ? C.wbActMore(g, h, id, k) : {err: 'не выходит'}); };
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=mwcj8ui3"></script><script>
+</script><script src="world.js?v=mwdi9tbr"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -44493,8 +44593,9 @@ function renderSide() {
   document.body.classList.toggle('wide', on); if (!side) return; side.hidden = !on;
   if (!on) { undockChat(); return; }
   const camp = CAMP_OF(), hs = C.alive(g), ms = g.mercs || [];
+  let MATES = null; const mateOf = id => { if (NETG() || (NET() && !amLeader()) || !C.campMates) return null; if (!MATES) { try { MATES = C.campMates(g); } catch (e) { MATES = []; } } return MATES.find(x => x.id === id && (x.talk || x.want)) || null; };
   const bar = (v, m, cl) => `<div class="sbar ${cl || ''}"><i style="width:${m ? Math.max(0, Math.min(100, Math.round(100 * v / m))) : 0}%"></i><span>${v}/${m}</span></div>`;
-  const card = h0 => { const u = battle && battle.units ? battle.units.find(x => x.ref === h0 || (x.ref && x.ref.id === h0.id && x.side === 'party')) : null; const h = u ? Object.assign({}, h0, {hp: u.dead ? 0 : u.hp, hpMax: u.hpMax, power: u.power != null ? u.power : h0.power}) : h0; return `<div class="scard${g.net && ownerOf(h.id) === myPid() ? ' mine' : ''}" data-hero="${h.id}"${g.net && ownerOf(h.id) ? ` style="--pc:${pcol(ownerOf(h.id))}"` : ''}>${heroFace(h, 'face')}<div class="sc-b"><div class="sc-n"><b>${esc(h.name)}</b><span>${h.kind === 'merc' ? 'наёмник' : esc((R.CLASSES[h.cls] || {name: ''}).name.toLowerCase() + ', ' + h.level + '-й ур.')}</span></div>${h.lessons > 0 && C.teacherWhere ? `<div class="sc-o" title="Новое заклинание можно выучить у наставника">Урок: учат ${esc(C.teacherWhere(h.cls))}</div>` : ''}${h.profPts > 0 && h.kind !== 'merc' ? `<div class="sc-o" title="Тратятся у наставников">Очков профессий: ${h.profPts}</div>` : ''}${C.spiritOf && C.spiritOf(h) ? `<div class="sc-o sp${C.spiritOf(h) > 0 ? ' up' : ' bad'}" title="${esc(C.spiritText(h))}">Дух: ${C.SPIRIT_RU[C.spiritOf(h)]}</div>` : ''}${C.foodDays && !C.FOOD_OFF && h.kind !== 'merc' ? `<div class="sc-o food ${h.hunger ? 'bad' : C.foodDays(h) < 1 ? 'bad' : C.foodDays(h) < 3 ? 'warn' : ''}">Еда: ${h.hunger ? `голод, ${h.hunger}-й день` : String(C.foodDays(h)).replace('.', ',') + ' дн.'}<i class="fbar"><i style="width:${Math.min(100, Math.round(C.foodDays(h) / 7 * 100))}%"></i></i></div>` : ''}
+  const card = h0 => { const u = battle && battle.units ? battle.units.find(x => x.ref === h0 || (x.ref && x.ref.id === h0.id && x.side === 'party')) : null; const h = u ? Object.assign({}, h0, {hp: u.dead ? 0 : u.hp, hpMax: u.hpMax, power: u.power != null ? u.power : h0.power}) : h0; return `<div class="scard${g.net && ownerOf(h.id) === myPid() ? ' mine' : ''}" data-hero="${h.id}"${g.net && ownerOf(h.id) ? ` style="--pc:${pcol(ownerOf(h.id))}"` : ''}>${heroFace(h, 'face')}<div class="sc-b"><div class="sc-n"><b>${esc(h.name)}</b><span>${h.kind === 'merc' ? 'наёмник' : esc((R.CLASSES[h.cls] || {name: ''}).name.toLowerCase() + ', ' + h.level + '-й ур.')}</span></div>${h.kind === 'merc' && !battle && mateOf(h.id) ? (() => { const x = mateOf(h.id); return `<div class="sc-talk">${x.want ? `<span class="sc-want">${esc(x.want)}</span>` : ''}<button class="btn small" data-mtalk="${h.id}" ${!x.want && x.why ? `disabled title="${esc(x.why)}"` : ''}>${x.want ? 'Выслушать' : 'Поговорить'}</button></div>`; })() : ''}${h.lessons > 0 && C.teacherWhere ? `<div class="sc-o" title="Новое заклинание можно выучить у наставника">Урок: учат ${esc(C.teacherWhere(h.cls))}</div>` : ''}${h.profPts > 0 && h.kind !== 'merc' ? `<div class="sc-o" title="Тратятся у наставников">Очков профессий: ${h.profPts}</div>` : ''}${C.spiritOf && C.spiritOf(h) ? `<div class="sc-o sp${C.spiritOf(h) > 0 ? ' up' : ' bad'}" title="${esc(C.spiritText(h))}">Дух: ${C.SPIRIT_RU[C.spiritOf(h)]}</div>` : ''}${C.foodDays && !C.FOOD_OFF && h.kind !== 'merc' ? `<div class="sc-o food ${h.hunger ? 'bad' : C.foodDays(h) < 1 ? 'bad' : C.foodDays(h) < 3 ? 'warn' : ''}">Еда: ${h.hunger ? `голод, ${h.hunger}-й день` : String(C.foodDays(h)).replace('.', ',') + ' дн.'}<i class="fbar"><i style="width:${Math.min(100, Math.round(C.foodDays(h) / 7 * 100))}%"></i></i></div>` : ''}
     ${bar(Math.max(0, h.hp), h.hpMax)}${h.power != null && R.powerMax && R.powerMax(h) ? bar(h.power, R.powerMax(h), 'pw') : ''}${g.net && ownerOf(h.id) ? `<div class="sc-o">${esc(pname(ownerOf(h.id)))}${h.gold != null ? ' · ' + esc(R.priceText(h.gold || 0)) : ''}</div>` : ''}</div></div>`; };
   SIDE_CARDS = () => hs.concat(ms).map(card).join('');
   let goals = '';
@@ -44558,7 +44659,13 @@ document.addEventListener('keydown', e => {
   if (TYPING && (/^[1-9]$/.test(e.key) || e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); TYPING.finish(); return; }
   if (/^[1-9]$/.test(e.key)) { const bs = [...document.querySelectorAll('.choices .btn, .side .btn')].filter(b => !b.disabled && b.offsetParent !== null); const b = bs[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } }
 });
-document.addEventListener('click', e => { const c = e.target.closest('[data-hero]'); if (c && !e.target.closest('#modal')) showParty(c.dataset.hero); });
+document.addEventListener('click', e => { const t = e.target.closest('[data-mtalk]'); if (t && !e.target.closest('#modal')) { e.stopPropagation(); mercTalkGo(t.dataset.mtalk); return; }
+  const c = e.target.closest('[data-hero]'); if (c && !e.target.closest('#modal')) showParty(c.dataset.hero); });
+/* разговор с наёмником с карточки отряда и со сцены: кто ждёт ответа — к тому, иначе по душам */
+function mercTalkGo(id) { if (!g || !$('#modal').hidden && $('#rp')) return; const x = (C.campMates ? C.campMates(g) : []).find(y => y.id === id); if (!x) return showParty(id);
+  if (x.kind === 'spor') { const sp = C.sporNext && C.sporNext(g); if (sp) return showSpor(sp); }
+  if (NET()) { if (x.talk && !x.why) return act({a: 'abil', hero: id, arg: x.talk}); return showParty(id); }
+  if (C.mtView) return showMercTalk(id); showParty(id); }
 
 /* ---------- окна ---------- */
 function openModal(html, size, keep) {
@@ -44668,7 +44775,7 @@ const TIPS = {
   spell: ['Чары', 'Книга чар — кнопкой «Заклинания»: круги по вкладкам, щелчок по чарам — описание и цель. Сила тратится и возвращается сном. Колдовать вплотную к врагу опасно.'],
   shop: ['Лавка', 'Здесь продают и покупают. Лишнее из сумы продаётся за полцены. Готовая еда дорогая, сырое — дёшево, но его надо варить на костре.'],
   food: ['Еда', 'Каждый ест раз в сутки. Голодный хуже бьётся и не лечится сном, сытный ужин поднимает дух. Харч и солонина не портятся, мясо и рыба — за пару дней.'],
-  tired: ['Усталость', 'Отряд не спал. Короткий отдых лишь перевязывает раны — нужен сон: «Привал» на 8 часов в поле или ночлег под крышей в селе.'],
+  tired: ['Усталость', 'Отряд не спал. Короткий отдых лишь перевязывает раны — нужен сон: «Встать на привал» и лечь до утра в поле или ночлег под крышей в селе.'],
   load: ['Ноша', 'Всё, что несёте, весит — и серебро тоже. Перегруженные идут медленнее и хуже прячутся. Вьючный конь или телега поднимут больше, но с ними тайком не пройти.'],
   level: ['Новый уровень', 'Открой окно героя (щёлкни по портрету справа): там очки профессий, новые чары и что умеет твой класс. Профессиям учат наставники в сёлах и городах.'],
   hero: ['Герой', 'Здесь надевают вещи, смотрят раны, дух и хвори. Внизу — что герой умеет вне боя: лечить, варить, обряды, просьбы наёмников.'],
@@ -44780,7 +44887,7 @@ function heroSheet(h) {
       return `<div class="info hunt">${esc(h.name)} ${(h.hunger || 0) > 0 ? 'голодает' : 'без еды'}. ${donors.map(x => `<button class="btn small" data-feed="${h.id}" data-from="${x.id}">Накормить из сумы ${esc(x.name)}</button>`).join(' ')}</div>`; })()}
     ${C.ABIL_TEXT && (C.ABIL_TEXT[h.cls] || (C.abilOpts && C.abilOpts(g, h).length)) ? `<h4 class="jh">Умения вне боя</h4><p class="note" style="margin:0 0 4px">${esc(C.ABIL_TEXT[h.cls] || '')}</p>${(mineH(h) || hostMw(h)) && !battle ? `<div class="row" style="gap:4px;flex-wrap:wrap">${abilList(h).map(o => `<button class="btn small" data-abil="${esc(o.arg)}" data-h="${h.id}" ${o.why ? `disabled title="${esc(o.why)}"` : ''}>${esc(o.t)}${o.why ? ` — ${esc(o.why)}` : ''}</button>`).join('')}</div>` : ''}` : ''}
     ${C.RECIPES ? (() => { const rcps = [...new Set(h.inv.filter(x => /^rcp_/.test(x)))], ops = C.cookOpts(g, h), known = C.recipesOfHero(h).length;
-      return `<h4 class="jh">Стряпня · рецептов ${known} из ${C.recipeCap(h)}</h4><p class="note" style="margin:0 0 4px">${C.fireHere(g) ? 'Костёр горит — можно готовить.' : 'Готовят у костра: «Короткий отдых» или «Привал» на карте.'} Продуктов в суме: ${h.inv.filter(x => C.RAW[x]).length}.${C.keepText && C.keepText(g) ? ' ' + esc(C.keepText(g)) + '.' : ''}</p>${C.cookWhere ? `<p class="note" style="margin:0 0 4px">${esc(C.cookWhere())}</p>` : ''}
+      return `<h4 class="jh">Стряпня · рецептов ${known} из ${C.recipeCap(h)}</h4><p class="note" style="margin:0 0 4px">${C.fireHere(g) ? 'Костёр горит — можно готовить.' : 'Готовят у костра: «Встать на привал» на карте.'} Продуктов в суме: ${h.inv.filter(x => C.RAW[x]).length}.${C.keepText && C.keepText(g) ? ' ' + esc(C.keepText(g)) + '.' : ''}</p>${C.cookWhere ? `<p class="note" style="margin:0 0 4px">${esc(C.cookWhere())}</p>` : ''}
       ${mineH(h) && !battle ? `<div class="row" style="gap:4px;flex-wrap:wrap">${ops.map(o => `<button class="btn small" data-cook="${o.rid}" data-h="${h.id}" ${o.why ? `disabled title="${esc(o.why)}"` : ''}>${esc(o.t)}${o.why && C.fireHere(g) ? ` <small>— ${esc(o.why)}</small>` : ''}</button>`).join('')}${rcps.map(id => `<button class="btn small" data-rcp="${id}" data-h="${h.id}">Запомнить: ${esc(R.item(id).name.replace(/^Рецепт: /, ''))}</button>`).join('')}</div>` : ''}`; })() : ''}
     ${C.PROF ? profSection(h) : ''}
     ${(() => { const cv = C.caravan && C.caravan(g); if (!cv) return ''; return `<h4 class="jh">Обоз · кони и упряжь · везёт ${cv.cap} кг</h4>
@@ -45575,7 +45682,7 @@ const profIco = (id, cls) => { const i = PROF_ICO[id]; if (i == null) return `<s
 const FOLD = {}; // какие свёрнутые группы игрок раскрыл: {scene|group: true}
 const M_LEAVE = /^(Назад|Уйти|На дорогу|Дальше|Отойти|Вернуться|Проститься|Прощай|Выйти|На карту)(?![а-яё])/;
 const M_PLACE = /^(По городу|По селу|Корчма|Потолкаться|Конюшня|Купить землю|Земля и доля|На торг|Торг|Капище|Храм|Пристань|Баня|Ярмарк|Кузня|Книжня|Гостиный двор|Дружинный двор|Выпить у стойки|Объявления у стойки)/;
-const M_MASTER = /^(Учиться|Мастерская|Перековать|Улучшить стёганку|Посох, лук, щит|Кольца и обереги|Распознать вещь|Посмотреть диковинки|Купить материал|Послушать слухи|Сбыть неопознанное)/;
+const M_MASTER = /^(Распознать находки|Торг украшениями|Учиться|Мастерская|Перековать|Улучшить стёганку|Посох, лук, щит|Кольца и обереги|Распознать вещь|Посмотреть диковинки|Купить материал|Послушать слухи|Сбыть неопознанное)/;
 const M_JOB = /^(Дело|Дело по слуху|Отчитаться|Взять дело|Сдать дело)(?![а-яё])/;
 const M_CRAFT = /→/;
 const M_SELL = /^(В переплавку|Продать|Сбыть)/;
@@ -45633,7 +45740,7 @@ function menuHTML(id, list) {
   const btns = arr => arr.map(c => choiceBtn(id, c)).join('');
   const tiles = (arr, kind) => arr.length ? `<div class="mtiles">${arr.map(c => tileBtn(id, c, typeof kind === 'function' ? kind(c) : kind)).join('')}</div>` : '';
   const placeKind = c => /Корчма|стойк/.test(c.label) ? 'food' : /мастера и люди|По городу|По селу/.test(c.label) ? 'people' : /торг|Торг|лавк/.test(c.label) ? 'market' : /Конюшн/.test(c.label) ? 'keep' : /Земл|долю/.test(c.label) ? 'seal' : /Храм|Капище/.test(c.label) ? 'pray' : 'keep';
-  const masterKind = c => /^Учиться/.test(c.label) ? 'codex' : /диковинки|материал/.test(c.label) ? 'market' : /слухи/.test(c.label) ? 'chat' : /Распознать/.test(c.label) ? 'spyglass' : /Сбыть/.test(c.label) ? 'sell' : 'write';
+  const masterKind = c => /^Учиться/.test(c.label) ? 'codex' : /диковинки|материал|^Торг/.test(c.label) ? 'market' : /слухи/.test(c.label) ? 'chat' : /Распознать/.test(c.label) ? 'spyglass' : /Сбыть/.test(c.label) ? 'sell' : 'write';
   const twoNow = G0.now.length && (G0.place.length || G0.master.length);
   return `<div class="mscroll">${sec(twoNow ? 'Сейчас' : '', btns(G0.now))}
     ${sec('У мастера', tiles(G0.master, masterKind))}
@@ -45865,7 +45972,7 @@ function showSpor(sp, done) {
   const faces = sp.who ? [sp.who.a && sp.who.a.face, sp.who.b && sp.who.b.face] : [...new Set((sp.opts || []).filter(x => !x.hero).map(x => x.face).concat((done || sp.lines || []).filter(x => x.who === 'm').map(x => x.face)))];
   const names = sp.who ? [sp.who.a && sp.who.a.name, sp.who.b && sp.who.b.name].filter(Boolean) : [];
   const hero = sp.hero || ((C.alive(g)[0] && {name: C.alive(g)[0].name, face: C.alive(g)[0].portrait || ''}) || null);
-  const fin = () => { closeModal(); setTimeout(() => showCompTalk(), 300); };
+  const fin = () => { closeModal(); if (cwBack()) return; setTimeout(() => showCompTalk(), 300); };
   let opts;
   if (done) opts = [{t: sp.kind === 'council' ? 'Решено. Расходимся по местам.' : 'На том и порешим.', end: 1, attr: 'id="sp-ok"', on: fin}];
   else {
@@ -45909,7 +46016,7 @@ function showMercTalk(id, log, later) {
   const h = (g.mercs || []).find(x => x.id === id); if (!h || !C.mtView) return;
   const V = C.mtView(g, h); if (!V) return toast('Сейчас не до разговоров.');
   log = log || [{who: 'm', text: V.intro}];
-  const back = () => showParty(id, true), mem = mtMem(id), sx = s => String(s).replace(/<([^|>]*)\|([^>]*)>/g, (_, a, b) => (h.sex === 'f' ? b : a));
+  const back = () => { if (!cwBack()) showParty(id, true); }, mem = mtMem(id), sx = s => String(s).replace(/<([^|>]*)\|([^>]*)>/g, (_, a, b) => (h.sex === 'f' ? b : a));
   const toL = x => x.nar ? {who: 'n', text: x.text} : x.who === 'o' ? {who: 'o', name: x.name, face: x.face, text: x.text} : x.who === 'h' ? {who: 'h', text: x.text} : {who: 'o', text: x.text};
   const recall = () => Object.keys(mem).map(k => mem[k]).filter(r => r && r.lines).sort((a, b) => (a.at || 0) - (b.at || 0)).map(r => ({t: r.t, lines: r.lines.map(toL)}));
   const keep = (qid, t, add) => { if (!qid) return; const r = mem[qid] = mem[qid] || {t, lines: []}; r.at = Date.now(); r.lines.push(...add.map(x => x.nar ? {nar: 1, text: x.text} : x)); r.lines = r.lines.slice(-12); };
@@ -46076,7 +46183,7 @@ function runChoose(id, i, pid) {
 
 /* ---------- лавка ---------- */
 const SHOP_CAT = [['weapon', 'Оружие', x => x._t === 'w' && !['лук', 'самострел', 'праща', 'метательное'].includes(x.group)], ['ranged', 'Стрелковое', x => (x._t === 'w' && ['лук', 'самострел', 'праща', 'метательное'].includes(x.group)) || !!(C.AMMO_PACK && C.AMMO_PACK[x.id])],
-  ['body', 'Доспехи', x => x._t === 'a' && x.slot === 'тело'], ['head', 'Щиты и шлемы', x => x._t === 'a' && ['щит', 'голова'].includes(x.slot)], ['pot', 'Снадобья', x => x.category === 'зелья' || ['zele_lecheniya', 'protivoyadie'].includes(x.id)], ['herb', 'Травы и материалы', x => ['компоненты', 'материалы'].includes(x.category)], ['tool', 'Снасти и инструмент', x => !!(C.isTool && C.isTool(x.id))], ['road', 'Дорожное: свет, верёвки', x => x.category === 'снаряжение' && !(C.isTool && C.isTool(x.id)) && !x.magic && (x.price || 0) <= 2000], ['master', 'Мастерская работа', x => !!x.magic && !(C.isTool && C.isTool(x.id))], ['food', 'Еда и продукты', x => !!((C.FOOD && C.FOOD[x.id]) || (C.RAW && C.RAW[x.id]))], ['rcp', 'Рецепты', x => /^rcp_/.test(x.id)], ['scroll', 'Свитки', x => x.category === 'свитки'], ['wear', 'Одежда и обувь', x => !!(C.wearSlotOf && C.wearSlotOf(x)) && !/^tr_/.test(x.id)], ['horse', 'Кони и сбруя', x => !!(C.isHorseGood && C.isHorseGood(x.id))]];
+  ['body', 'Доспехи', x => x._t === 'a' && x.slot === 'тело'], ['head', 'Щиты и шлемы', x => x._t === 'a' && ['щит', 'голова'].includes(x.slot)], ['pot', 'Снадобья', x => x.category === 'зелья' || ['zele_lecheniya', 'protivoyadie'].includes(x.id)], ['herb', 'Травы и материалы', x => ['компоненты', 'материалы'].includes(x.category)], ['tool', 'Снасти и инструмент', x => !!(C.isTool && C.isTool(x.id))], ['road', 'Дорожное: свет, верёвки', x => x.category === 'снаряжение' && !(C.isTool && C.isTool(x.id)) && !x.magic && (x.price || 0) <= 2000], ['master', 'Мастерская работа', x => !!x.magic && !(C.isTool && C.isTool(x.id))], ['food', 'Еда и продукты', x => !!((C.FOOD && C.FOOD[x.id]) || (C.RAW && C.RAW[x.id]))], ['rcp', 'Рецепты', x => /^rcp_/.test(x.id)], ['scroll', 'Свитки', x => x.category === 'свитки'], ['wear', 'Одежда и обувь', x => !!(C.wearSlotOf && C.wearSlotOf(x)) && !/^tr_/.test(x.id)], ['horse', 'Кони и сбруя', x => !!(C.isHorseGood && C.isHorseGood(x.id))], ['gem', 'Украшения и камни', x => !!(C.isJewelGood && C.isJewelGood(x))]];
 /* продажа — те же разделы, что при покупке, и «Прочее»: трофеи, самоцветы, всё, что не легло в разделы */
 const SELL_CATS = SHOP_CAT.concat([['misc', 'Трофеи и прочее', x => !SHOP_CAT.some(c => c[2](x))]]);
 const sellPrice = (x, h) => x && x.price ? (C.sellPrice ? C.sellPrice(g, h, x) : Math.max(1, Math.floor(x.price / 2))) : 0;
@@ -46103,13 +46210,20 @@ function showShop(back, local) {
   setTimeout(() => tip1('shop'), 300);
   const city = (() => { const n = CAMP_OF().map.nodes[g.loc]; return !!n && ['город', 'книжня', 'башня', 'храм'].includes(n.kind); })();
   const extra = new Set(C.shopExtra ? C.shopExtra(g, city) : []);
-  const rare = !!(C.shopRare && C.shopRare(g)), identOk = rare || !!g.shopIdent;
+  const rare = !!(C.shopRare && C.shopRare(g)), TM = C.tradeOf ? C.tradeOf(g) : null, identOk = rare || !!g.shopIdent || !!(TM && TM.ident);
+  const canBuy = !(TM && TM.noBuy), canSell = !(TM && TM.noSell);
   if (g.shopIdent) SHOP.tab = 'ident'; else if (SHOP.tab === 'ident' && !identOk) SHOP.tab = 'buy';
+  if (SHOP.tab === 'buy' && !canBuy) SHOP.tab = identOk ? 'ident' : 'sell'; if (SHOP.tab === 'sell' && !canSell) SHOP.tab = identOk ? 'ident' : 'buy';
+  if (SHOP.tab === 'lot' && TM) SHOP.tab = canBuy ? 'buy' : 'ident';
   let items = Object.values(DATA.items).filter(x => !rare && (!C.isMagic || !C.isMagic(x.id)) && (x._t === 'w' || (C.wearSlotOf && C.wearSlotOf(x) && !/^tr_/.test(x.id) && (x._t === 'a' || city || x.price <= 2000)) || (x._t === 'a' && ['тело', 'щит', 'голова'].includes(x.slot)) || ['zele_lecheniya', 'protivoyadie'].includes(x.id) || (city && x.category === 'свитки' && C.scrollStock(g).includes(x.id))) && x.price && x.price <= 40000 && !(x.category === 'компоненты' || x.category === 'материалы' || (x.category === 'зелья' && !['zele_lecheniya', 'protivoyadie'].includes(x.id)) || x.category === 'еда' || x.category === 'припасы'))
     .concat([...extra].map(R.item).filter(Boolean)).filter((x, i, a) => a.indexOf(x) === i).sort((a, b) => a.price - b.price);
   if (C.shopVary && !rare) items = C.shopVary(g, items);
   if (g.shopMode === 'horse') { items = [...extra].map(R.item).filter(Boolean); SHOP.cat = 'horse'; }
   if (g.shopMode === 'food') { items = Object.values(DATA.items).filter(x => x.price && (SHOP_CAT.find(c => c[0] === 'food')[2](x) || SHOP_CAT.find(c => c[0] === 'rcp')[2](x))).sort((a, b) => a.price - b.price); SHOP.cat = 'food'; }
+  // мастер торгует своим (master_trade.js): у ювелира — украшения и камни; в храме не торгуют вовсе
+  if (TM && TM.buy) items = Object.values(DATA.items).filter(x => x.price && TM.buy(x)).sort((a, b) => a.price - b.price);
+  if (TM && TM.noBuy) items = [];
+  if (TM && TM.cat) SHOP.cat = TM.cat;
   if (NETH() && !local) { if (back === 'map') showMap(); else showScene(back, TALK && TALK.scene === back ? TALK.who : null); SCR.shop = ++shopTok; publish(); }
   let drawn = false;
   const draw = () => {
@@ -46126,20 +46240,21 @@ function showShop(back, local) {
     const card = (x, sell) => `<div class="sc ${sell && worn(x.id) ? 'worn' : ''}" data-ipop="${esc(x.id)}" data-ih="${h.id}"><canvas class="sico" data-ico="${iconOf(x.id) || ''}" width="56" height="56"></canvas>
       <div class="sn"><b>${esc(x.name)}${sell && cnt(x.id) > 1 ? ` ×${cnt(x.id)}` : ''}</b><span class="note">${esc(itemNote(x))}</span>${!sell && has(x.id) ? `<span class="tag" title="${esc(`У ${h.name}: ${cnt(x.id)}; у отряда всего: ${heroes.reduce((s, hh) => s + hh.inv.filter(v => v === x.id).length, 0)}`)}">уже есть${cnt(x.id) > 1 ? ` (×${cnt(x.id)})` : ''}</span>` : ''}${!sell && C.isWorkshopPiece && C.isWorkshopPiece(g, x.id) ? '<span class="tag" title="Одна вещь на всю седмицу: мастер сделал на заказ, да заказчик не пришёл">работа мастерской</span>' : ''}${!sell && C.shopIsNew && C.shopIsNew(g, x.id) ? '<span class="tag" title="Вчера этого на прилавке не было">новое</span>' : ''}${!sell && C.RAW && C.RAW[x.id] && C.recipesOfHero ? (() => { const ty = C.RAW[x.id], rs = [...new Set(heroes.flatMap(hh => C.recipesOfHero(hh)))].filter(rid => (C.RECIPES[rid].need || []).some(([k]) => k.split('|').includes(ty))); return rs.length ? `<span class="tag rcp" title="${esc('Знакомые рецепты с этим продуктом: ' + rs.map(r => C.RECIPES[r].name).join(', '))}">рецепт: ${esc(rs.slice(0, 2).map(r => C.RECIPES[r].name.toLowerCase()).join(', '))}${rs.length > 2 ? ' и ещё ' + (rs.length - 2) : ''}</span>` : ''; })() : ''}${!sell && C.canEquip && C.canEquip(h, x) ? `<span class="tag" title="${esc(C.canEquip(h, x))}">не для ${esc(h.name)}</span>` : ''}${sell ? wornTag(x.id) : ''}</div>
       <div class="sp"><span class="pr">${esc(R.priceText(sell ? sellPrice(x, h) : buyPrice(x, h)))}</span>${sell ? `<button class="btn small" data-sell="${x.id}">Продать</button>` : `<button class="btn small" data-buy="${x.id}" ${purse < buyPrice(x, h) ? 'disabled title="Не хватает денег"' : ''}>Купить</button>${x.id === 'oves_mera' ? ` <button class="btn small" data-buy="${x.id}" data-n="10" ${purse < 10 * buyPrice(x, h) ? 'disabled title="Не хватает денег"' : ''} title="Десять мер — на десять конских дней">×10</button>` : ''}`}</div></div>`;
-    const bag = [...new Set(h.inv)].map(R.item).filter(x => x && sellPrice(x, h)), bagN = h.inv.filter(id => sellPrice(R.item(id), h)).length;
+    const sellOk = x => !TM || (!!TM.sell && TM.sell(x));
+    const bag = [...new Set(h.inv)].map(R.item).filter(x => x && sellPrice(x, h) && sellOk(x)), bagN = h.inv.filter(id => sellPrice(R.item(id), h) && sellOk(R.item(id))).length;
     const unk = h.inv.filter(id => /^m\?:/.test(id)), ip = C.identPrice ? C.identPrice() : 5000;
     const identTab = () => `<p class="note">Что наложено на находку — не ясно, пока её не распознают. Цена одна за любую вещь: ${esc(R.priceText(ip))}. Что выпадет — то и ваше.</p>
       ${unk.length > 1 ? `<p><button class="btn small primary" data-identall="1" ${purse < ip ? 'disabled title="Не хватает денег"' : ''}>Распознать всё — ${unk.length} × ${esc(R.priceText(ip))}${purse < ip * unk.length ? ` (хватит на ${Math.floor(purse / ip)})` : ''}</button></p>` : ''}
       <div class="sgrid">${unk.map((id, i) => { const x = R.item(id) || {name: id}; return `<div class="sc" data-ipop="${esc(id)}" data-ih="${h.id}"><canvas class="sico" data-ico="${iconOf(id) || ''}" width="56" height="56"></canvas><div class="sn"><b>${esc(x.name)}</b><span class="note">${esc(itemNote(x))}</span>${Object.values(h.eq).includes(id) ? '<span class="tag">надето</span>' : ''}</div><div class="sp"><span class="pr">${esc(R.priceText(ip))}</span><button class="btn small" data-ident="${esc(id)}" ${purse < ip ? 'disabled title="Не хватает денег"' : ''}>Распознать</button></div></div>`; }).join('') || '<p class="note">Нераспознанных вещей в суме нет.</p>'}</div>`;
-    const seller = (rare || g.shopMode === 'folk') && g.folkRole && C.folkPerson ? (() => { try { return C.folkPerson(g, g.folkRole, g.folkAt || g.loc); } catch (e) { return null; } })() : null;
-    openModal(`<h3 class="ttl"><span class="ui-i i-market"></span>${rare ? 'Диковинки' : g.shopIdent ? 'Распознание и торг' : g.shopMode === 'horse' ? 'Конюшня' : 'Лавка'}</h3>${seller ? `<div class="seller">${faceHTML(seller.face)}<div><b>${esc(seller.n)}</b><small>${esc(seller.t)}</small></div></div>` : ''}
+    const seller = (rare || g.shopMode === 'folk' || (TM && g.shopMode === 'jewel' && g.folkRole === 'jewel')) && g.folkRole && C.folkPerson ? (() => { try { return C.folkPerson(g, g.folkRole, g.folkAt || g.loc); } catch (e) { return null; } })() : null;
+    openModal(`<h3 class="ttl"><span class="ui-i i-market"></span>${rare ? 'Диковинки' : TM ? esc(TM.title) : g.shopIdent ? 'Распознание и торг' : g.shopMode === 'horse' ? 'Конюшня' : 'Лавка'}</h3>${seller ? `<div class="seller">${faceHTML(seller.face)}<div><b>${esc(seller.n)}</b><small>${esc(seller.t)}</small></div></div>` : ''}
      <div class="shop${heroes.length > 1 ? '' : ' solo'}">${heroes.length > 1 ? `<div class="swho">${heroes.map(x => `<button class="sh ${x.id === h.id ? 'on' : ''}" data-who="${x.id}">${heroFace(x, 'face')}<span><b>${esc(x.name)}</b><small>${esc(R.priceText(g.net ? x.gold || 0 : g.purse))}</small></span></button>`).join('')}
       <p class="note">${g.net ? 'У каждого свой кошель.' : 'Кошель у отряда общий.'}</p></div>` : ''}
-     <div class="smain"><div class="stabs"><button class="btn small ${SHOP.tab === 'buy' ? 'on' : ''}" data-tab="buy">Купить</button><button class="btn small ${SHOP.tab === 'sell' ? 'on' : ''}" data-tab="sell">Продать${bagN ? ' (' + bagN + ')' : ''}</button>${identOk ? `<button class="btn small ${SHOP.tab === 'ident' ? 'on' : ''}" data-tab="ident">Распознать${unk.length ? ' (' + unk.length + ')' : ''}</button>` : ''}${!NET() && city && window.Net ? `<button class="btn small ${SHOP.tab === 'lot' ? 'on' : ''}" data-tab="lot" title="Оставить вещь на продажу другим игрокам — через корчму">В корчму</button>` : ''}
+     <div class="smain"><div class="stabs">${identOk && TM ? `<button class="btn small ${SHOP.tab === 'ident' ? 'on' : ''}" data-tab="ident">Распознать${unk.length ? ' (' + unk.length + ')' : ''}</button>` : ''}${canBuy ? `<button class="btn small ${SHOP.tab === 'buy' ? 'on' : ''}" data-tab="buy">Купить</button>` : ''}${canSell ? `<button class="btn small ${SHOP.tab === 'sell' ? 'on' : ''}" data-tab="sell">Продать${bagN ? ' (' + bagN + ')' : ''}</button>` : ''}${identOk && !TM ? `<button class="btn small ${SHOP.tab === 'ident' ? 'on' : ''}" data-tab="ident">Распознать${unk.length ? ' (' + unk.length + ')' : ''}</button>` : ''}${!TM && !NET() && city && window.Net ? `<button class="btn small ${SHOP.tab === 'lot' ? 'on' : ''}" data-tab="lot" title="Оставить вещь на продажу другим игрокам — через корчму">В корчму</button>` : ''}
       <span class="spurse" title="${g.net ? 'У каждого героя свой кошель.' : 'Кошель общий на отряд.'} Купленное ложится в суму, надеть — в окне «Отряд». Лавочник берёт вещи за полцены.">${heroes.length > 1 || g.net ? esc(h.name) + ': ' : 'В кошеле '}${esc(R.priceText(purse))}</span></div>
-      ${SHOP.tab === 'ident' && identOk ? identTab() : SHOP.tab === 'lot' && !NET() && city ? lotTab(h) : SHOP.tab === 'buy' ? `<div class="scats">${SHOP_CAT.filter(c => (c[0] !== 'scroll' || city) && (g.shopMode !== 'horse' || c[0] === 'horse') && items.some(c[2])).map(c => `<button class="btn small ${c[0] === cat[0] ? 'on' : ''}" data-cat="${c[0]}">${c[1]}</button>`).join('')}</div>${!rare && !g.shopMode && C.shopCutText && C.shopCutText(g) ? `<p class="note">Здесь торгуют тем, что везут: ${esc(C.shopCutText(g))}. За недостающим — в другое место.${C.shopDailyText && C.shopDailyText(g) ? ' ' + esc(C.shopDailyText(g)) : ''}</p>` : C.shopDailyText && C.shopDailyText(g) ? `<p class="note">${esc(C.shopDailyText(g))}</p>` : ''}<div class="sgrid">${items.filter(cat[2]).map(x => card(x)).join('')}</div>`
+      ${SHOP.tab === 'ident' && identOk ? identTab() : SHOP.tab === 'lot' && !NET() && city ? lotTab(h) : SHOP.tab === 'buy' ? `<div class="scats">${SHOP_CAT.filter(c => (c[0] !== 'scroll' || city) && (g.shopMode !== 'horse' || c[0] === 'horse') && (!TM || !TM.cat || c[0] === TM.cat) && items.some(c[2])).map(c => `<button class="btn small ${c[0] === cat[0] ? 'on' : ''}" data-cat="${c[0]}">${c[1]}</button>`).join('')}</div>${!rare && !g.shopMode && C.shopCutText && C.shopCutText(g) ? `<p class="note">Здесь торгуют тем, что везут: ${esc(C.shopCutText(g))}. За недостающим — в другое место.${C.shopDailyText && C.shopDailyText(g) ? ' ' + esc(C.shopDailyText(g)) : ''}</p>` : C.shopDailyText && C.shopDailyText(g) ? `<p class="note">${esc(C.shopDailyText(g))}</p>` : ''}<div class="sgrid">${items.filter(cat[2]).map(x => card(x)).join('')}</div>`
         : (() => { const sc = SELL_CATS.filter(c => bag.some(c[2])), scat = sc.find(c => c[0] === SHOP.scat) || null, shown = scat ? bag.filter(scat[2]) : bag;
-          return `${sc.length > 1 ? `<div class="scats"><button class="btn small ${!scat ? 'on' : ''}" data-scat="">Всё</button>${sc.map(c => `<button class="btn small ${scat && c[0] === scat[0] ? 'on' : ''}" data-scat="${c[0]}">${c[1]}</button>`).join('')}</div>` : ''}<div class="sgrid">${shown.map(x => card(x, true)).join('') || '<p class="note">В суме нечего продать.</p>'}</div>`; })()}</div></div>`, undefined, keep);
+          return `${sc.length > 1 ? `<div class="scats"><button class="btn small ${!scat ? 'on' : ''}" data-scat="">Всё</button>${sc.map(c => `<button class="btn small ${scat && c[0] === scat[0] ? 'on' : ''}" data-scat="${c[0]}">${c[1]}</button>`).join('')}</div>` : ''}<div class="sgrid">${shown.map(x => card(x, true)).join('') || `<p class="note">${esc(TM && TM.empty ? TM.empty : 'В суме нечего продать.')}</p>`}</div>`; })()}</div></div>`, undefined, keep);
     paintIcons($('#modal')); paintFaces($('#modal'));
     const m = $('#modal');
     m.querySelectorAll('[data-who]').forEach(b => b.onclick = () => { SHOP.who = b.dataset.who; draw(); });
@@ -46168,7 +46283,7 @@ function showShop(back, local) {
       if (NET()) return act({a: 'sell', hero: h.id, item: id});
       sellItem(h, id); save(); renderTop(); toast(`${h.name}: продано — ${x.name}.`); draw();
     });
-    m.querySelector('.x').onclick = () => { closeModal(); g.shopIdent = null; if (NET()) return; back === 'map' ? showMap() : showScene(back); };
+    m.querySelector('.x').onclick = () => { closeModal(); g.shopIdent = null; if (TM) { g.shopMode = null; g.shopBack = null; } if (NET()) return; back === 'map' ? showMap() : showScene(back); };
     if (NET()) MODAL_REFRESH = draw;
   };
   draw();
@@ -46196,7 +46311,7 @@ function showMap() {
    <div class="side"><h3>${esc(here.name)}</h3><div class="info">День ${g.day}, ${C.timeName(g)}. ${C.isNight(g) ? 'Ночью на дорогах опаснее.' : ''}</div>
     <button class="btn primary" id="m-enter">Войти: ${esc(here.name)}</button>
     ${routes.map(r => `<button class="btn" data-go="${r.to}">В ${esc(P(r.to).name)} · ${esc(TER[r.terrain] || r.terrain)}, ${r.time === 1 ? 'четверть дня' : r.time === 2 ? 'полдня' : r.time + ' четв.'}</button>`).join('')}
-    <button class="btn" id="m-camp">Короткий отдых · 2 часа</button>
+    <button class="btn" id="m-camp">${g.restPlan ? 'Вернуться к стоянке' : 'Встать на привал'}</button>
     <div class="info">В пути можно нарваться на зверя или лихих людей, ночью — чаще. Привал не восстанавливает Силу: для неё нужна ночь под крышей.</div></div></div>`;
   const goTo = id => NET() ? act({a: 'mgo', to: id}) : go(id), enter = () => NET() ? act({a: 'enter'}) : showScene(here.scene);
   $('#m-enter').onclick = enter;
@@ -46293,11 +46408,10 @@ function showHexMap() {
     <button class="btn" id="m-forage" ${dis}>Охота и припасы · ${C.hoursText(C.HOURS.hunt)}</button>
     ${W.canFish && W.canFish(g) ? `<button class="btn" id="m-fish" ${dis}>Рыбачить · ${C.hoursText(C.HOURS.fish)}</button>` : ''}
     <button class="btn" id="m-search" ${dis}>Обыскать место · ${C.hoursText(C.HOURS.search)}</button>
-    ${C.fireHere && C.fireHere(g) ? `<div class="grp2">У костра</div>${C.cookAll ? `<button class="btn" id="m-cookall" ${dis || (C.cookAllWhy(g) ? 'disabled' : '')} title="${esc(C.cookAllWhy(g) || 'Лучший повар собирает продукты у всех и варит лучшее, что выходит; еда расходится поровну')}">Сготовить на всех${C.cookAllWhy(g) ? ` <small>— ${esc(C.cookAllWhy(g))}</small>` : ''}</button>` : ''}${C.smoke && C.smokeWhy(g) !== C.REST_HINT ? `<button class="btn" id="m-smoke" ${dis || (C.smokeWhy(g) ? 'disabled' : '')} title="${esc(C.smokeWhy(g) || `Свежее мясо и рыбу — в копчёное, которое не портится; до ${C.smokeCap(g)} кусков, четверть дня`)}">Коптить мясо и рыбу${C.smokeWhy(g) ? ` <small>— ${esc(C.smokeWhy(g))}</small>` : ''}</button>` : ''}` : ''}
-    <div class="grp2">Отдых</div>
-    <button class="btn" id="m-camp" ${dis} title="Каждый выбирает, чем займётся: отдых, стряпня, зелья, долгие чары, охота. Отряд стоит 2 часа или дольше, если дело дольше.">Короткий отдых · 2 часа</button>
+    <div class="grp2">Стоянка</div>
+    ${(() => { const w = !NETG() && C.campMates ? C.campMates(g).filter(x => x.want) : []; return w.length ? `<button class="btn" id="m-want" ${dis} data-mid="${w[0].id}">${esc(w.length > 1 ? nameList(w.map(x => x.name)) + ' хотят поговорить' : `${w[0].name} хочет поговорить`)}</button>` : ''; })()}
+    <button class="btn" id="m-camp" ${dis} title="${esc(W.nightCamp ? (() => { const k = C.campRisk(g); return `Котёл, разговоры у огня, дела и дозор — в одном окне. ${k.why[0].toUpperCase() + k.why.slice(1)}.`; })() : 'Котёл, разговоры у огня и дела — в одном окне.')}">${g.restPlan ? 'Вернуться к стоянке' : 'Встать на привал'}${W.nightCamp && C.campRisk && !g.restPlan ? ' · ' + (C.campRisk(g).p >= 0.25 ? 'опасно' : C.campRisk(g).p >= 0.15 ? 'неспокойно' : 'тихо') : ''}</button>
     ${C.fatigue && C.fatigue(g) ? `<div class="info hunt">Отряд ${esc(C.FATIGUE_RU[C.fatigue(g)])}: проверки и удары с помехой${C.fatigue(g) >= 2 ? ', шаг долой' : ''}. Нужен сон: лагерь или ночлег.</div>` : ''}
-    ${W.nightCamp ? `<button class="btn" id="m-night" ${dis} title="${esc((() => { const k = C.campRisk(g); return `Ужин, шесть часов сна и два на дела, хиты и Сила. ${k.why[0].toUpperCase() + k.why.slice(1)}: ночью может нагрянуть${C.alive(g).length + (g.mercs || []).length > 1 ? '; дозорный с лучшим Поиском заметит гостей' : '; одного спящего могут обобрать'}.`; })())}">Привал · 8 часов${C.campRisk ? ' · ' + (C.campRisk(g).p >= 0.25 ? 'опасно' : C.campRisk(g).p >= 0.15 ? 'неспокойно' : 'тихо') : ''}</button>` : ''}
     <div class="info whint" id="m-hint" title="Щелчок по клетке — отряд пойдёт туда. Лес и холмы медленнее, горы и болото ещё медленнее, по дороге быстрее. «?» — место, где можно найти приключение.">Дорога бережёт ноги, лес и холмы их держат, а в горах и болотах день тает вдвое. Где на карте «?» — там кто-то или что-то ждёт.</div><div class="grp2 wroadh" id="wroadh" hidden>В пути</div><div class="wroad" id="wroad"></div></div></div>`;
   const cv = $('#wmap'); const keepTok = WM && WM.tokAt; WM = {cv, ctx: cv.getContext('2d'), hover: null, path: null, walking: false, tokAt: keepTok}; WM.clockH = null;
   // приближение: колесо, «+/−», щипок; карту можно таскать. Масштаб помнится.
@@ -46335,7 +46449,9 @@ function showHexMap() {
   if ($('#m-folk')) $('#m-folk').onclick = () => { g.folkRole = here.folk || 'temple'; g.folkAt = W.key(here.c, here.r); showScene('folk'); };
   const wact = (f, k) => () => NET() ? act({a: 'wact', k}) : wactRun(f);
   if ($('#m-dropx')) $('#m-dropx').onclick = () => showScene('load_heavy');
-  $('#m-camp').onclick = () => restCmd({op: 'open', kind: 'halt'}); $('#m-scout').onclick = wact(W.scout, 'scout'); $('#m-forage').onclick = wact(W.forage, 'forage'); $('#m-search').onclick = wact(W.search, 'search');
+  $('#m-camp').onclick = () => restCmd({op: 'open', kind: W.nightCamp && W.isHex && W.isHex(g) && g.pos ? 'night' : 'halt'});
+  if ($('#m-want')) $('#m-want').onclick = () => mercTalkGo($('#m-want').dataset.mid);
+  $('#m-scout').onclick = wact(W.scout, 'scout'); $('#m-forage').onclick = wact(W.forage, 'forage'); $('#m-search').onclick = wact(W.search, 'search');
   if ($('#m-cookall')) $('#m-cookall').onclick = wact(W.cookAll, 'cookall'); if ($('#m-smoke')) $('#m-smoke').onclick = wact(W.smoke, 'smoke');
   if ($('#m-fish')) $('#m-fish').onclick = wact(W.fish, 'fish'); if ($('#m-night')) $('#m-night').onclick = () => restCmd({op: 'open', kind: 'night'});
   $('#main').querySelectorAll('[data-march]').forEach(b => b.onclick = () => { if (NET()) return act({a: 'march', k: b.dataset.march}); g.march = b.dataset.march; save(); showHexMap(); });
@@ -46416,6 +46532,11 @@ function restDo(c, pid) {
   if (c.op === 'pot') { const e = C.restPot(g, pid || 'p0', c.v); if (e) return e; save(); return restShow(); }
   if (c.op === 'ready') { g.restPlan.ready[pid || 'p0'] = !!c.v; save(); return restShow(); }
   if (c.op === 'go') { if (!lead) return 'начинает вожатый';
+    // окно стоянки: как провести ночь выбирают внизу — до утра, вдвоём с супругом (супругой) или коротко
+    if (c.kind === 'night' && !nightOk()) return 'здесь до утра не встать';
+    if (c.kind === 'halt' || c.kind === 'night') g.restPlan.kind = c.kind;
+    g.restPlan.pair = null;
+    if (c.pair) { if (g.restPlan.kind !== 'night' || !(C.campPairs ? C.campPairs(g) : []).some(x => x.m.id === c.pair && (!NET() || ownerOf(x.hero.id) === pid))) return 'этой ночью вдвоём не выйдет'; g.restPlan.pair = c.pair; }
     const r = withPurse(pid || leader(), () => C.restRun(g)); save(); closeModal();
     if (r.enc && r.enc.battle) { r.enc.battle.win = 'map'; r.enc.battle.lose = 'map'; toast('К лагерю вышли гости!'); return meetBattle(r.enc.battle); }
     if (r.enc && r.enc.scene) return showScene(r.enc.scene);
@@ -46428,32 +46549,94 @@ function restResult(tries) { const L = g && g.lastRest; if (!L || L.n === REST_S
   if (!$('#modal').hidden) { if ((tries || 0) < 15) setTimeout(() => restResult((tries || 0) + 1), 400); return; } REST_SEEN = L.n;
   openModal(`<h3 class="ttl"><span class="ui-i i-hint"></span>${esc(REST_NAME[L.kind] || 'Привал')}</h3>${L.lines.map(t => `<p>${esc(t)}</p>`).join('')}<div class="row"><button class="btn primary" data-act="close">Дальше</button></div>`, 'sm'); }
 let REST_ALL = false; // показывать ли в сборах привала недоступные дела
+/* окно стоянки: вечер у костра одним экраном — котёл, отряд у огня (разговоры, подарки), дела, дозор и как провести ночь.
+   Модель прежняя (rest.js): у каждого одно дело на стоянку; котёл и дозор — те же дела, только выбираются своим блоком. */
+const CW_FOOD = new Set(['cook', 'cookall', 'smoke']);
+const nightOk = () => !!(W.nightCamp && W.isHex && W.isHex(g) && g.pos);
+let CW_RET = null; // куда вернуться после разговора, подарка, спора: в окно стоянки
+const cwBack = () => { const f = CW_RET; CW_RET = null; if (f && g && g.restPlan) { f(); return true; } return false; };
 function restShow() {
   const P = g.restPlan; if (!P) { if ($('#rp')) closeModal(); return; }
-  const lead = amLeader(), all = C.alive(g).concat(g.mercs || []);
+  const lead = amLeader(), heroes = C.alive(g), mercs = (g.mercs || []).filter(m => !m.dead), all = heroes.concat(mercs);
   const mine = h => !NET() || (h.kind === 'merc' ? lead : mineH(h));
   const ps = NET() ? voters() : [];
   const allReady = !NET() || ps.every(p => P.ready[p] || p === leader());
-  const row = h => { const cur = P.tasks[h.id] || {k: 'rest'}, opts = C.restTasks(g, h, P.kind), my = mine(h);
-    const grp = {}; opts.forEach(o => { (grp[o.grp] = grp[o.grp] || []).push(o); });
-    // недоступное спрятано; в конце списка — «Показать недоступное (N)» (REST_ALL — у этого игрока, на все списки)
-    let nOff = 0; const optH = o => { const w = C.restTaskWhy(g, h.id, o), on = o.k === cur.k && String(o.arg || '') === String(cur.arg || ''); if (w && !on) { nOff++; if (!REST_ALL) return ''; }
-      return `<option value="${esc(o.k + '\u0001' + (o.arg || ''))}" ${on ? 'selected' : ''} ${w && !on ? 'disabled' : ''}>${esc(o.t)}${w && !on ? ' — ' + esc(w) : ''}</option>`; };
-    const body = Object.entries(grp).map(([gname, os]) => { const t = os.map(optH).join(''); return t ? `<optgroup label="${esc(gname)}">${t}</optgroup>` : ''; }).join('');
-    const sel = `<select data-rtask="${h.id}" ${my ? '' : 'disabled'}>${body}${nOff ? `<option value="\u0002">${REST_ALL ? 'Скрыть недоступное' : `Показать недоступное (${nOff})`}</option>` : ''}</select>`;
-    return `<div class="rprow">${heroFace(h, 'tface')}<div class="rpm"><b>${esc(h.name)}</b><small>${esc([h.kind === 'merc' ? 'наёмник' : NET() && !mineH(h) ? pname(ownerOf(h.id)) : '', `хиты ${h.hp}/${h.hpMax}`, R.powerMax && R.powerMax(h) ? `Сила ${h.power || 0}/${R.powerMax(h)}` : ''].filter(Boolean).join(' · '))}</small>${sel}</div></div>`; };
-  openModal(`<div id="rp"><h3 class="ttl"><span class="ui-i i-hint"></span>${esc(REST_NAME[P.kind])} — кто чем займётся</h3>
-    <p class="note">${P.kind === 'night' ? 'Ужин, шесть часов сна, хиты и Сила. Кто в дозоре — тот и заметит гостей.' : 'Раны перевязаны, костёр горит.'} Дела делаются, пока отряд стоит, — время пройдёт один раз на всех.</p>
-    <p><b>Отряд простоит: ${esc(C.hoursText(C.restHours(g)))}</b>${(() => { const mx = Math.max(0, ...Object.values(P.tasks).map(C.taskHours)); return mx > C.HOURS.halt ? ' <span class="note">— дольше из-за самого долгого дела</span>' : ''; })()}</p>
-    <div class="rplist">${all.map(row).join('')}</div>
+  const night = nightOk(), cur = h => P.tasks[h.id] || {k: 'rest'};
+  if (night && P.kind !== 'night' && !NET()) P.kind = 'night'; // сборы из старого сохранения — коротким привалом
+  const optsOf = h => C.restTasks(g, h, night ? 'night' : P.kind);
+  const val = o => o.k + '\u0001' + (o.arg || '');
+  const isCur = (h, o) => o.k === cur(h).k && String(o.arg || '') === String(cur(h).arg || '');
+  // шапка: место, время, погода, сытость, ночь
+  const here = W.pos ? W.pos(g) : null, T0 = here && W.T ? W.T[here.t] || W.T.meadow : null;
+  const foodH = C.foodDays && !C.FOOD_OFF ? heroes : [], fmin = foodH.length ? Math.min(...foodH.map(h => C.foodDays(h))) : null, hungry = foodH.some(h => h.hunger > 0);
+  const fw = fmin == null ? '' : hungry ? 'Отряд голодает.' : fmin < 1 ? 'Еды в сумах — на донышке.' : fmin < 3 ? `Еды осталось дня на ${Math.max(1, Math.floor(fmin))}.` : 'Сумы с едой не пусты.';
+  const rk = night && C.campRisk ? C.campRisk(g) : null;
+  const rw = rk ? `${rk.why[0].toUpperCase() + rk.why.slice(1)}: ночь ${rk.p >= 0.25 ? 'обещает быть опасной' : rk.p >= 0.15 ? 'будет неспокойной' : 'обещает быть тихой'}.` : '';
+  const place = here ? (here.road ? 'У дороги' : T0 ? T0.word[0].toUpperCase() + T0.word.slice(1) : '') : (CAMP_OF().map.nodes[g.loc] || {}).name || '';
+  const sub = [place, `${C.timeName(g)}${C.weatherText ? ', ' + C.weatherText(g) : ''}`].filter(Boolean).join(' · ');
+  // котёл: кто у котла и что варит
+  const cooks = heroes.filter(mine).map(h => ({h, os: optsOf(h).filter(o => CW_FOOD.has(o.k))})).filter(x => x.os.length);
+  const atPot = heroes.find(h => CW_FOOD.has(cur(h).k));
+  const potOpts = cooks.map(({h, os}) => `<optgroup label="${esc(h.name)}">${os.map(o => { const w = C.restTaskWhy(g, h.id, o), on = isCur(h, o); if (w && !on && !REST_ALL) return '';
+    return `<option value="${esc(h.id + '\u0004' + val(o))}" ${on ? 'selected' : ''} ${w && !on ? 'disabled' : ''}>${esc(o.t)}${w && !on ? ' — ' + esc(w) : ''}</option>`; }).join('')}</optgroup>`).join('');
+  const potWhy = C.cookAllWhy && !atPot ? (() => { const w = C.cookAllWhy(g); return w && !/костёр/.test(w) ? w : ''; })() : '';
+  const potHTML = `<section class="cw-b"><h4>У котла</h4>${cooks.length ? `<select id="cw-pot"><option value="">${atPot ? 'Никто не кашеварит' : 'Никто не кашеварит — каждый ест своё'}</option>${potOpts}</select>` : '<p class="note">Стряпать некому.</p>'}
+    <p class="note">${atPot ? `${esc(atPot.name)} у котла: ${esc(String(cur(atPot).t || '').replace(/ · .*$/, '').replace(/^Сготовить: /, ''))}.` : potWhy ? `Котёл пуст: ${esc(potWhy)}.` : 'Лучший повар соберёт продукты у всех и сварит на отряд — или кто-то сготовит своё по рецепту.'}</p></section>`;
+  // отряд у огня
+  const mates = C.campMates ? C.campMates(g) : [];
+  const mateHTML = `<section class="cw-b"><h4>Отряд у огня</h4>${mates.length ? `<div class="cw-mates">${mates.map(x => { const m = mercs.find(y => y.id === x.id); const canTalk = !!x.talk && (!NET() || lead);
+      return `<div class="cw-mate${x.want ? ' want' : ''}">${m ? heroFace(m, 'tface') : faceHTML(x.face, 'tface')}<div class="cw-mn"><b>${esc(x.name)}</b>${x.want ? `<small class="cw-want">${esc(x.want)}</small>` : `<small>${esc(x.why ? (x.why === 'сегодня уже говорили' ? 'сегодня уже говорили по душам' : x.why) : 'можно посидеть рядом, поговорить')}</small>`}
+        <div class="cw-acts">${x.want ? `<button class="btn small primary" data-cwwant="${x.id}">Выслушать</button>` : ''}${x.talk ? `<button class="btn small" data-cwtalk="${x.id}" ${!canTalk || x.why ? `disabled title="${esc(x.why || 'разговоры ведёт вожатый')}"` : ''}>Поговорить</button>` : ''}${x.gift !== null && !NET() ? `<button class="btn small" data-cwgift="${x.id}" ${x.gift ? `disabled title="${esc(x.gift)}"` : ''}>Подарить</button>` : ''}</div></div></div>`; }).join('')}</div>`
+    : '<p class="note">У огня только свои: наёмников в отряде нет.</p>'}</section>`;
+  // дела стоянки: всё, что не котёл и не дозор
+  let nOff = 0;
+  const workRow = h => { const os = optsOf(h).filter(o => !CW_FOOD.has(o.k) && o.k !== 'watch'), my = mine(h), c = cur(h);
+    const grp = {}; os.forEach(o => { (grp[o.grp] = grp[o.grp] || []).push(o); });
+    const optH = o => { const w = C.restTaskWhy(g, h.id, o), on = isCur(h, o); if (w && !on) { nOff++; if (!REST_ALL) return ''; } return `<option value="${esc(val(o))}" ${on ? 'selected' : ''} ${w && !on ? 'disabled' : ''}>${esc(o.t)}${w && !on ? ' — ' + esc(w) : ''}</option>`; };
+    const busy = CW_FOOD.has(c.k) ? `<option value="\u0003" selected>У котла</option>` : c.k === 'watch' ? `<option value="\u0003" selected>В дозоре</option>` : '';
+    const body = Object.entries(grp).map(([gn, xs]) => { const t = xs.map(optH).join(''); return t ? `<optgroup label="${esc(gn)}">${t}</optgroup>` : ''; }).join('');
+    return `<div class="rprow">${heroFace(h, 'tface')}<div class="rpm"><b>${esc(h.name)}</b><small>${esc([NET() && !mineH(h) ? pname(ownerOf(h.id)) : '', `хиты ${h.hp}/${h.hpMax}`, R.powerMax && R.powerMax(h) ? `Сила ${h.power || 0}/${R.powerMax(h)}` : ''].filter(Boolean).join(' · '))}</small><select data-rtask="${h.id}" ${my ? '' : 'disabled'}>${busy}${body}</select></div></div>`; };
+  const rows = heroes.map(workRow).join('');
+  const workHTML = `<section class="cw-b"><h4>Дела стоянки</h4><div class="rplist">${rows}</div>${nOff || REST_ALL ? `<button class="btn small" id="cw-all">${REST_ALL ? 'Скрыть недоступное' : `Показать недоступное (${nOff})`}</button>` : ''}</section>`;
+  // дозор
+  const watchHTML = night ? `<section class="cw-b"><h4>Дозор</h4><div class="cw-watch">${all.map(h => { const on = cur(h).k === 'watch'; return `<button class="btn small${on ? ' on' : ''}" data-cwwatch="${h.id}" ${mine(h) ? '' : 'disabled'}>${esc(h.name)}${on ? ' — в дозоре' : ''}</button>`; }).join('')}</div>
+    <p class="note">${all.some(h => cur(h).k === 'watch') ? 'Дозорные не спят по очереди и заметят гостей раньше.' : 'Никого не выставили: первым не спит тот, у кого глаз острее.'}${rw ? ' ' + esc(rw) : ''}</p></section>` : '';
+  // как провести ночь
+  const pairs = night && C.campPairs ? C.campPairs(g).filter(x => !NET() || (lead && ownerOf(x.hero.id) === myPid())) : [];
+  const hN = C.restHours(g, Object.assign({}, P, {kind: 'night'})), hH = C.restHours(g, Object.assign({}, P, {kind: 'halt'}));
+  const wait = allReady ? '' : ` <small>— не дожидаясь: ${esc(ps.filter(p => !P.ready[p] && p !== leader()).map(pname).join(', '))}</small>`;
+  const decl = (n, sx) => (C.Q && C.Q.decl ? C.Q.decl(n, sx).i : n);
+  const foot = lead ? `<div class="cw-foot">${night ? `<button class="btn primary" id="rp-go" data-kind="night">Лечь спать до утра · ${esc(C.hoursText(hN))}${wait}</button>${pairs.map(x => `<button class="btn primary" data-cwpair="${x.m.id}">Провести ночь с ${esc(decl(x.m.name, x.m.sex))}</button>`).join('')}
+      <button class="btn" id="rp-short" data-kind="halt">Отдохнуть коротко · ${esc(C.hoursText(hH))}</button>` : `<button class="btn primary" id="rp-go" data-kind="halt">Отдохнуть · ${esc(C.hoursText(hH))}${wait}</button>`}<button class="btn" id="rp-x">Сняться со стоянки</button></div>`
+    : `<div class="cw-foot"><button class="btn primary" id="rp-ready">${P.ready[myPid()] ? 'Не готов' : 'Готов'}</button><span class="note">Начинает вожатый — ${esc(pname(leader()))}.</span></div>`;
+  openModal(`<div id="rp" class="campw"><h3 class="ttl"><span class="ui-i i-hint"></span>Стоянка</h3>
+    <p class="cw-sub">${esc(sub)}${fw ? ' · ' + esc(fw) : ''}${C.fatigue && C.fatigue(g) ? ` · Отряд ${esc(C.FATIGUE_RU[C.fatigue(g)])}, нужен сон.` : ''}</p>
+    <div class="cw-grid"><div class="cw-col">${potHTML}${mateHTML}</div><div class="cw-col">${workHTML}${watchHTML}</div></div>
     ${NET() && Object.values(P.tasks).some(t => t.k === 'cookall') ? `<label class="note" style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="rp-pot" ${(P.pot || {})[myPid()] ? 'checked' : ''}> Скинуть своё сырьё в общий котёл (иначе ваши герои готовят себе сами)</label>` : ''}
     ${NET() ? `<p class="note">Готовы: ${ps.map(p => `${esc(pname(p))} ${P.ready[p] || p === leader() ? '✓' : '…'}`).join(' · ')}</p>` : ''}
-    <div class="row" style="gap:8px;margin-top:8px">${lead ? `<button class="btn primary" id="rp-go">${P.kind === 'night' ? 'Встать на привал' : 'Отдохнуть'}${allReady ? '' : ` <small>— не дожидаясь: ${esc(ps.filter(p => !P.ready[p] && p !== leader()).map(pname).join(', '))}</small>`}</button><button class="btn" id="rp-x">Отменить</button>` : `<button class="btn primary" id="rp-ready">${P.ready[myPid()] ? 'Не готов' : 'Готов'}</button><span class="note">Начинает вожатый — ${esc(pname(leader()))}.</span>`}</div></div>`, 'lg');
+    ${foot}</div>`, 'lg', {sticky: true, keep: true});
   paintFaces($('#modal'));
   MODAL_REFRESH = restShow;
   const M = $('#modal');
-  M.querySelectorAll('[data-rtask]').forEach(sl => sl.onchange = () => { if (sl.value === '\u0002') { REST_ALL = !REST_ALL; return restShow(); } const [k, arg] = sl.value.split('\u0001'); restCmd({op: 'task', hero: sl.dataset.rtask, k, arg: arg || null}); });
-  if ($('#rp-go')) $('#rp-go').onclick = () => restCmd({op: 'go'}); if ($('#rp-x')) $('#rp-x').onclick = () => restCmd({op: 'cancel'});
+  M.querySelectorAll('[data-rtask]').forEach(sl => sl.onchange = () => { if (sl.value === '\u0003') return; const [k, arg] = sl.value.split('\u0001'); restCmd({op: 'task', hero: sl.dataset.rtask, k, arg: arg || null}); });
+  const pot = $('#cw-pot'); if (pot) pot.onchange = () => { const v = pot.value;
+    if (!v) { if (atPot) restCmd({op: 'task', hero: atPot.id, k: 'rest', arg: null}); return; }
+    const [hid, rest] = v.split('\u0004'), [k, arg] = rest.split('\u0001');
+    if (atPot && atPot.id !== hid) { if (NET()) act({a: 'rest', op: 'task', hero: atPot.id, k: 'rest', arg: null}); else { const P0 = g.restPlan; if (P0) P0.tasks[atPot.id] = {k: 'rest'}; } }
+    restCmd({op: 'task', hero: hid, k, arg: arg || null}); };
+  M.querySelectorAll('[data-cwwatch]').forEach(b => b.onclick = () => { const h = all.find(x => x.id === b.dataset.cwwatch); if (!h) return; restCmd({op: 'task', hero: h.id, k: cur(h).k === 'watch' ? 'rest' : 'watch', arg: null}); });
+  const ca = $('#cw-all'); if (ca) ca.onclick = () => { REST_ALL = !REST_ALL; restShow(); };
+  M.querySelectorAll('[data-cwtalk]').forEach(b => b.onclick = () => { const id = b.dataset.cwtalk, x = mates.find(y => y.id === id); if (!x) return;
+    if (NET()) { act({a: 'abil', hero: id, arg: x.talk}); return; }
+    CW_RET = restShow; if (C.mtView) return showMercTalk(id); const hh = mercs.find(y => y.id === id), r = C.abil(g, hh, x.talk); if (r.err) { CW_RET = null; return toast(r.err); } save(); renderTop(); if (r.talk) return sayWin(r.talk, () => cwBack()); cwBack(); });
+  M.querySelectorAll('[data-cwwant]').forEach(b => b.onclick = () => { const id = b.dataset.cwwant, x = mates.find(y => y.id === id); if (!x) return; CW_RET = restShow;
+    if (x.kind === 'spor') { const sp = C.sporNext && C.sporNext(g); if (sp) return showSpor(sp); }
+    if (NET()) { CW_RET = null; return showParty(id); } showMercTalk(id); });
+  M.querySelectorAll('[data-cwgift]').forEach(b => b.onclick = () => { CW_RET = restShow; showTrade(b.dataset.cwgift, null, {gift: 1, after: () => { if (!cwBack()) showParty(b.dataset.cwgift); }}); });
+  M.querySelectorAll('[data-cwpair]').forEach(b => b.onclick = () => restCmd({op: 'go', kind: 'night', pair: b.dataset.cwpair}));
+  if ($('#rp-go')) $('#rp-go').onclick = () => restCmd({op: 'go', kind: $('#rp-go').dataset.kind});
+  if ($('#rp-short')) $('#rp-short').onclick = () => restCmd({op: 'go', kind: 'halt'});
+  if ($('#rp-x')) $('#rp-x').onclick = () => restCmd({op: 'cancel'});
   if ($('#rp-pot')) $('#rp-pot').onchange = e => restCmd({op: 'pot', v: e.target.checked});
   if ($('#rp-ready')) $('#rp-ready').onclick = () => restCmd({op: 'ready', v: !P.ready[myPid()]});
 }
@@ -48852,7 +49035,7 @@ function showTrade(fromId, preId, opt) {
     M.querySelectorAll('[data-g]').forEach(b => b.onchange = () => { st[b.dataset.g] = Math.max(0, Math.min(Math.floor(+b.value || 0), (b.dataset.g === 'gg' ? A : Bh).gold || 0)); draw(); });
     $('#t-go').onclick = () => { const A2 = heroById(st.from), B2 = heroById(st.to), give = list(st.give), want = list(st.want);
       if (!give.length && !st.gg && !want.length && !st.wg) return toast('Ничего не выбрано.');
-      if (B2 && B2.kind === 'merc' && !NET()) { const e = giftMerc(A2, B2, give, opt.gift); if (typeof e === 'string') return toast(e); if (e && e.err) return toast(e.err); closeModal(); renderTop(); if (e && e.talk) return sayWin(e.talk, () => showParty(B2.id)); return showParty(B2.id); }
+      if (B2 && B2.kind === 'merc' && !NET()) { const e = giftMerc(A2, B2, give, opt.gift); if (typeof e === 'string') return toast(e); if (e && e.err) return toast(e.err); closeModal(); renderTop(); if (e && e.talk) return sayWin(e.talk, () => (opt.after ? opt.after() : showParty(B2.id))); return opt.after ? opt.after() : showParty(B2.id); }
       act({a: 'offer', from: st.from, to: st.to, give: {items: give, gold: st.gg}, want: {items: want, gold: st.wg}, gift: opt.gift ? 1 : 0});
       if (!NET() || mineH(B2)) { closeModal(); renderTop(); toast('Передано.'); return showParty(A2.id); } closeModal(); };
   };

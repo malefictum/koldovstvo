@@ -43978,8 +43978,7 @@ if (ao0 && ab0) {
       if (M.tier === 'drug' && M.eye && !ownLove(h)) { const e = alive(g, M.eye); if (e && canLove(g, h, e)) out.push({t: `${e.name}: ответить на ${C.compSay(g, h, '[его|её]')} взгляды`, arg: 'mw_ans:' + e.id, why: ''}); }
       if (M.tier === 'drug' && M.pts >= ptsOf(h, 'BRAT') && gate(g, h, 'brat')) C.alive(g).filter(x => canBrat(g, h, x)).forEach(x => out.push({t: `${x.name}: ${h.sex === 'f' ? 'стать посестрами' : 'побрататься'}`, arg: 'mw_brat:' + x.id, why: ''}));
       if (M.tier === 'blizk' && who && M.pts >= ptsOf(h, 'WED') && gate(g, h, 'wed')) out.push({t: `${who.name}: сыграть свадьбу`, arg: 'mw_wed', why: C.compSay(g, h, C.mwWedWhy(g, h))});
-      if (M.tier === 'wed' && who) { const fire = C.fireHere ? C.fireHere(g) : !!g.fire;
-        out.push({t: 'Ночь у костра вдвоём', arg: 'mw_fire', why: M.fireDay === day ? 'сегодня уже были вдвоём' : !fire ? 'нужен костёр: привал или ночлег в походе' : ''}); }
+      // «Ночь у костра вдвоём» — не отдельной кнопкой, а выбором в окне стоянки: «Провести ночь с …» (rest.js C.campPairs, ui.js restShow)
     } catch (e) {}
     return out;
   };
