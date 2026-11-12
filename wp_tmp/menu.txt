@@ -1,0 +1,127 @@
+Меню сайта (wp_navigation 334) — новая структура. Два уровня, у каждого подменю не меньше двух пунктов.
+Прочитано из публичного API (отрисованное меню); блок-разметка ниже собрана заново по нему.
+Новое: пункт «Для ведущего» перед «Играть», 8 подпунктов. Остальное без изменений.
+
+Истории  ->  https://witchcraftrpg.wordpress.com/istorii/
+Мир Порубежья  ->  https://witchcraftrpg.wordpress.com/mir/
+    История края  ->  https://witchcraftrpg.wordpress.com/mir/istoriya/
+    Веры и боги  ->  https://witchcraftrpg.wordpress.com/mir/vera/
+    Ольшанский край  ->  https://witchcraftrpg.wordpress.com/mir/olshanka/
+    Коровинское княжество  ->  https://witchcraftrpg.wordpress.com/mir/korovino/
+    Эдвин  ->  https://witchcraftrpg.wordpress.com/mir/edvin/
+    Теракские горы  ->  https://witchcraftrpg.wordpress.com/mir/terak/
+    Гиблое болото  ->  https://witchcraftrpg.wordpress.com/mir/boloto/
+    Дикие пущи  ->  https://witchcraftrpg.wordpress.com/mir/pushchi/
+    Империя  ->  https://witchcraftrpg.wordpress.com/mir/imperiya/
+    Великая Степь  ->  https://witchcraftrpg.wordpress.com/mir/step/
+    Пар-Насс  ->  https://witchcraftrpg.wordpress.com/mir/parnass/
+    Поморье  ->  https://witchcraftrpg.wordpress.com/mir/pomorye/
+    Подземье  ->  https://witchcraftrpg.wordpress.com/mir/podzemye/
+Правила игры  ->  https://witchcraftrpg.wordpress.com/rules/
+    Введение  ->  https://witchcraftrpg.wordpress.com/rules/
+    Бой  ->  https://witchcraftrpg.wordpress.com/rules/combat/
+    Монстропедия  ->  https://witchcraftrpg.wordpress.com/class/npc/
+    Дорога и выживание  ->  https://witchcraftrpg.wordpress.com/rules/travel/
+    Подземелья  ->  https://witchcraftrpg.wordpress.com/rules/dungeons/
+    Города, люди и молва  ->  https://witchcraftrpg.wordpress.com/rules/towns/
+    Игра с друзьями  ->  https://witchcraftrpg.wordpress.com/rules/friends/
+    Свободная игра  ->  https://witchcraftrpg.wordpress.com/rules/free/
+    Содержание  ->  https://witchcraftrpg.wordpress.com/main/
+Персонажи  ->  https://witchcraftrpg.wordpress.com/class/
+    Народы и классы  ->  https://witchcraftrpg.wordpress.com/class/
+    Основные характеристики  ->  https://witchcraftrpg.wordpress.com/rules/main-stats/
+    Уровни, опыт и навыки  ->  https://witchcraftrpg.wordpress.com/class/newclasses/
+    Профессии персонажей  ->  https://witchcraftrpg.wordpress.com/class/skills/
+    Экипировка  ->  https://witchcraftrpg.wordpress.com/rules/equipment/
+    Создание волшебных предметов  ->  https://witchcraftrpg.wordpress.com/rules/create-magic-item/
+    Список цен  ->  https://witchcraftrpg.wordpress.com/rules/prices/
+Магия  ->  https://witchcraftrpg.wordpress.com/magic/
+    Боги и вера  ->  https://witchcraftrpg.wordpress.com/magic/vera/
+    Святая магия  ->  https://witchcraftrpg.wordpress.com/magic/holy/
+    Магия Волхвов  ->  https://witchcraftrpg.wordpress.com/magic/druid/
+    Магия Велеса  ->  https://witchcraftrpg.wordpress.com/magic/veles/
+    Магия Мокоши  ->  https://witchcraftrpg.wordpress.com/magic/mokosh/
+    Магия Сварога  ->  https://witchcraftrpg.wordpress.com/magic/svarog/
+    Магия Стрибога  ->  https://witchcraftrpg.wordpress.com/magic/stribog/
+    Магия Чернобога  ->  https://witchcraftrpg.wordpress.com/magic/chernobog/
+    Астрология  ->  https://witchcraftrpg.wordpress.com/magic/mental/
+    Белая магия  ->  https://witchcraftrpg.wordpress.com/magic/sorcery/
+    Алхимия  ->  https://witchcraftrpg.wordpress.com/magic/alchem/
+    Некромантия  ->  https://witchcraftrpg.wordpress.com/magic/necromancy/
+    Чёрная магия  ->  https://witchcraftrpg.wordpress.com/magic/witchcraft/
+Для ведущего  ->  https://witchcraftrpg.wordpress.com/master/
+    Книга мастера  ->  https://witchcraftrpg.wordpress.com/master/   [НОВОЕ]
+    Рост героя: закулисье  ->  https://witchcraftrpg.wordpress.com/master/rost/   [НОВОЕ]
+    Встречи и враги  ->  https://witchcraftrpg.wordpress.com/master/vstrechi/   [НОВОЕ]
+    Большие поля  ->  https://witchcraftrpg.wordpress.com/master/bolshie-polya/   [НОВОЕ]
+    Устройство подземелий  ->  https://witchcraftrpg.wordpress.com/master/podzemelya/   [НОВОЕ]
+    Тайны вещей  ->  https://witchcraftrpg.wordpress.com/master/veshchi/   [НОВОЕ]
+    Люди и отношения  ->  https://witchcraftrpg.wordpress.com/master/lyudi/   [НОВОЕ]
+    Устройство мира  ->  https://witchcraftrpg.wordpress.com/master/ustroystvo-mira/   [НОВОЕ]
+Играть  ->  https://malefictum.itch.io/witchcraftrpg
+
+Для новых страниц (Книга мастера) в разметке стоит kind "custom" без id: после создания страниц можно заменить на {"type":"page","id":<новый ID>,"kind":"post-type"} — работает и так.
+
+===== block-HTML навигации (content записи wp_navigation 334) =====
+<!-- wp:navigation-link {"label": "Истории", "type": "page", "id": 342, "url": "https://witchcraftrpg.wordpress.com/istorii/", "kind": "post-type", "isTopLevelLink": true} /-->
+<!-- wp:navigation-submenu {"label": "Мир Порубежья", "type": "page", "id": 1165, "url": "https://witchcraftrpg.wordpress.com/mir/", "kind": "post-type"} -->
+<!-- wp:navigation-link {"label": "История края", "type": "page", "id": 1166, "url": "https://witchcraftrpg.wordpress.com/mir/istoriya/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Веры и боги", "type": "page", "id": 1167, "url": "https://witchcraftrpg.wordpress.com/mir/vera/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Ольшанский край", "type": "page", "id": 1168, "url": "https://witchcraftrpg.wordpress.com/mir/olshanka/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Коровинское княжество", "type": "page", "id": 1169, "url": "https://witchcraftrpg.wordpress.com/mir/korovino/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Эдвин", "type": "page", "id": 1170, "url": "https://witchcraftrpg.wordpress.com/mir/edvin/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Теракские горы", "type": "page", "id": 1171, "url": "https://witchcraftrpg.wordpress.com/mir/terak/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Гиблое болото", "type": "page", "id": 1172, "url": "https://witchcraftrpg.wordpress.com/mir/boloto/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Дикие пущи", "type": "page", "id": 1173, "url": "https://witchcraftrpg.wordpress.com/mir/pushchi/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Империя", "type": "page", "id": 1174, "url": "https://witchcraftrpg.wordpress.com/mir/imperiya/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Великая Степь", "type": "page", "id": 1175, "url": "https://witchcraftrpg.wordpress.com/mir/step/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Пар-Насс", "type": "page", "id": 1176, "url": "https://witchcraftrpg.wordpress.com/mir/parnass/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Поморье", "type": "page", "id": 1177, "url": "https://witchcraftrpg.wordpress.com/mir/pomorye/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Подземье", "type": "page", "id": 1178, "url": "https://witchcraftrpg.wordpress.com/mir/podzemye/", "kind": "post-type"} /-->
+<!-- /wp:navigation-submenu -->
+<!-- wp:navigation-submenu {"label": "Правила игры", "type": "page", "id": 2, "url": "https://witchcraftrpg.wordpress.com/rules/", "kind": "post-type"} -->
+<!-- wp:navigation-link {"label": "Введение", "type": "page", "id": 2, "url": "https://witchcraftrpg.wordpress.com/rules/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Бой", "type": "page", "id": 247, "url": "https://witchcraftrpg.wordpress.com/rules/combat/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Монстропедия", "type": "page", "id": 64, "url": "https://witchcraftrpg.wordpress.com/class/npc/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Дорога и выживание", "type": "page", "id": 260, "url": "https://witchcraftrpg.wordpress.com/rules/travel/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Подземелья", "type": "page", "id": 1019, "url": "https://witchcraftrpg.wordpress.com/rules/dungeons/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Города, люди и молва", "type": "page", "id": 261, "url": "https://witchcraftrpg.wordpress.com/rules/towns/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Игра с друзьями", "type": "page", "id": 1020, "url": "https://witchcraftrpg.wordpress.com/rules/friends/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Свободная игра", "type": "page", "id": 1021, "url": "https://witchcraftrpg.wordpress.com/rules/free/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Содержание", "type": "page", "id": 165, "url": "https://witchcraftrpg.wordpress.com/main/", "kind": "post-type"} /-->
+<!-- /wp:navigation-submenu -->
+<!-- wp:navigation-submenu {"label": "Персонажи", "type": "page", "id": 14, "url": "https://witchcraftrpg.wordpress.com/class/", "kind": "post-type"} -->
+<!-- wp:navigation-link {"label": "Народы и классы", "type": "page", "id": 14, "url": "https://witchcraftrpg.wordpress.com/class/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Основные характеристики", "type": "page", "id": 7, "url": "https://witchcraftrpg.wordpress.com/rules/main-stats/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Уровни, опыт и навыки", "type": "page", "id": 116, "url": "https://witchcraftrpg.wordpress.com/class/newclasses/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Профессии персонажей", "type": "page", "id": 70, "url": "https://witchcraftrpg.wordpress.com/class/skills/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Экипировка", "type": "page", "id": 122, "url": "https://witchcraftrpg.wordpress.com/rules/equipment/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Создание волшебных предметов", "type": "page", "id": 127, "url": "https://witchcraftrpg.wordpress.com/rules/create-magic-item/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Список цен", "type": "page", "id": 130, "url": "https://witchcraftrpg.wordpress.com/rules/prices/", "kind": "post-type"} /-->
+<!-- /wp:navigation-submenu -->
+<!-- wp:navigation-submenu {"label": "Магия", "type": "page", "id": 23, "url": "https://witchcraftrpg.wordpress.com/magic/", "kind": "post-type"} -->
+<!-- wp:navigation-link {"label": "Боги и вера", "type": "page", "id": 1018, "url": "https://witchcraftrpg.wordpress.com/magic/vera/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Святая магия", "type": "page", "id": 38, "url": "https://witchcraftrpg.wordpress.com/magic/holy/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Магия Волхвов", "type": "page", "id": 41, "url": "https://witchcraftrpg.wordpress.com/magic/druid/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Магия Велеса", "type": "page", "id": 952, "url": "https://witchcraftrpg.wordpress.com/magic/veles/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Магия Мокоши", "type": "page", "id": 953, "url": "https://witchcraftrpg.wordpress.com/magic/mokosh/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Магия Сварога", "type": "page", "id": 954, "url": "https://witchcraftrpg.wordpress.com/magic/svarog/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Магия Стрибога", "type": "page", "id": 955, "url": "https://witchcraftrpg.wordpress.com/magic/stribog/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Магия Чернобога", "type": "page", "id": 956, "url": "https://witchcraftrpg.wordpress.com/magic/chernobog/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Астрология", "type": "page", "id": 47, "url": "https://witchcraftrpg.wordpress.com/magic/mental/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Белая магия", "type": "page", "id": 54, "url": "https://witchcraftrpg.wordpress.com/magic/sorcery/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Алхимия", "type": "page", "id": 51, "url": "https://witchcraftrpg.wordpress.com/magic/alchem/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Некромантия", "type": "page", "id": 56, "url": "https://witchcraftrpg.wordpress.com/magic/necromancy/", "kind": "post-type"} /-->
+<!-- wp:navigation-link {"label": "Чёрная магия", "type": "page", "id": 59, "url": "https://witchcraftrpg.wordpress.com/magic/witchcraft/", "kind": "post-type"} /-->
+<!-- /wp:navigation-submenu -->
+<!-- wp:navigation-submenu {"label": "Для ведущего", "url": "https://witchcraftrpg.wordpress.com/master/", "kind": "custom"} -->
+<!-- wp:navigation-link {"label": "Книга мастера", "url": "https://witchcraftrpg.wordpress.com/master/", "kind": "custom"} /-->
+<!-- wp:navigation-link {"label": "Рост героя: закулисье", "url": "https://witchcraftrpg.wordpress.com/master/rost/", "kind": "custom"} /-->
+<!-- wp:navigation-link {"label": "Встречи и враги", "url": "https://witchcraftrpg.wordpress.com/master/vstrechi/", "kind": "custom"} /-->
+<!-- wp:navigation-link {"label": "Большие поля", "url": "https://witchcraftrpg.wordpress.com/master/bolshie-polya/", "kind": "custom"} /-->
+<!-- wp:navigation-link {"label": "Устройство подземелий", "url": "https://witchcraftrpg.wordpress.com/master/podzemelya/", "kind": "custom"} /-->
+<!-- wp:navigation-link {"label": "Тайны вещей", "url": "https://witchcraftrpg.wordpress.com/master/veshchi/", "kind": "custom"} /-->
+<!-- wp:navigation-link {"label": "Люди и отношения", "url": "https://witchcraftrpg.wordpress.com/master/lyudi/", "kind": "custom"} /-->
+<!-- wp:navigation-link {"label": "Устройство мира", "url": "https://witchcraftrpg.wordpress.com/master/ustroystvo-mira/", "kind": "custom"} /-->
+<!-- /wp:navigation-submenu -->
+<!-- wp:navigation-link {"label": "Играть", "url": "https://malefictum.itch.io/witchcraftrpg", "kind": "custom", "isTopLevelLink": true} /-->
