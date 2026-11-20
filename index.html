@@ -45745,7 +45745,7 @@ if (R.check) { const rc0 = R.check; R.check = function (h, stat, skill) {
   if (!h || stat !== 'cha' || !RUB_SK.includes(skill) || !(h.inv || []).includes('rubaha_vyshitaya') || !h.stats) return rc0.apply(this, arguments);
   const r = rc0.apply(this, arguments); if (r && typeof r.total === 'number') { r.total += 1; r.ok = r.roll === 20 || (r.roll !== 1 && r.total >= r.dc); } return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611201644"></script><script>
+</script><script src="world.js?v=202611201710"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

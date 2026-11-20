@@ -35947,7 +35947,7 @@ G.C = C;
 
 /* w2_fest.js */
 /* Колдовство — праздники Вечного мира заметнее: сказания к праздникам, весть заранее, больше выборов на месте. Без DOM.
-   • Сказание с need.fest ('kupala' или список) видно с festPre дней до праздника (по умолчанию 3) и до его последнего дня,
+   • Сказание с need.fest ('kupala' или список) видно с festPre дней до праздника (по умолчанию 7) и до его последнего дня,
      и только там, где праздник справляют (C.holidayMode у места сказания). На месте такие сказания показываются первыми.
    • Весть: за 2–3 дня до праздника в журнал ложится «молва» о человеке, который ждёт к празднику; в корчме и у колодцев
      о нём шепчутся (C.taleRumor предпочитает праздничные сказания своего края).
@@ -35971,7 +35971,7 @@ const cal = g => { const s = g.w2cal = g.w2cal || {}; s.done = s.done || {}; s.n
 /* ---------- сказания к празднику ---------- */
 C.festOf = T => (T && T.need && T.need.fest ? arr(T.need.fest) : []);
 /* окно праздника для сказания: за pre дней и сам праздник */
-C.festWindow = (g, h, pre) => { if (!h) return false; if (C.holidayActive(g, h)) return true; const d = C.holidayDaysTo(g, h); return d >= 1 && d <= (pre == null ? 3 : pre); };
+C.festWindow = (g, h, pre) => { if (!h) return false; if (C.holidayActive(g, h)) return true; const d = C.holidayDaysTo(g, h); return d >= 1 && d <= (pre == null ? 7 : pre); };
 C.festTaleOk = (g, T) => { const F = C.festOf(T); if (!F.length) return true; const N = T.need;
   return F.some(id => { const h = C.HOLIDAY[id]; return h && C.festWindow(g, h, N.festPre) && (!N.festDay || C.holidayActive(g, h)) && arr(T.at).some(a => C.holidayMode(g, h, a)); }); };
 const ok0 = C.taleOk;
@@ -54619,7 +54619,7 @@ const kinBonus = (g, p) => { let b = 0; const D = C.TRD[p.role], hs = alive(g);
   if ((D.craft || []).some(pid => hs.some(h => T(h, pid) > 0))) b += 6;
   return b; };
 const facAdj = (g, p) => { if (!isFree(g) || !C.FACTIONS || !C.facStep) return 0; const loc = locOf(p.at); let b = 0;
-  Object.keys(C.FACTIONS).forEach(id => { const F = C.FACTIONS[id]; if (!F || !(F.at || []).includes(loc)) return; const s = C.facStep(g, id); if (s <= -2) b = Math.min(b, -20); else if (s <= -1) b = Math.min(b, -10); else if (s >= 2 && b >= 0) b = Math.max(b, 5); });
+  Object.keys(C.FACTIONS).forEach(id => { const F = C.FACTIONS[id]; if (!F || !(F.at || []).includes(loc)) return; const s = C.facStep(g, id); if (s <= -3) b = Math.min(b, -20); else if (s <= -2) b = Math.min(b, -10); else if (s >= 2 && b >= 0) b = Math.max(b, 5); });
   return b; };
 /* ступень: 0 враг, 1 обидчик, 2 чужак, 3 знакомый, 4 постоянный, 5 свой, 6 друг дома */
 C.trdTier = function (g, key) {
@@ -54826,12 +54826,12 @@ C.trdShopLine = function (g, key) { const p = C.trdPerson(g, key); if (!p) retur
 /* ---------- торг ---------- */
 /* Книга мастера: Очарование + Торговля против 12 (лавочник) или 15 (купец лиги, ростовщик). Удача — десятая часть долой
    до вечера; чистая удача — ещё и 5% на всё в этом месте до вечера. Неудача — цена прежняя, в тот же день не торгуются. */
-C.TRD_HAGGLE = {dc: 12, dcBig: 15, ok: 0.1, clean: 0.05, by: 5, nrav: {zhadny: 3, dobryak: -2, gordy: 1, hitry: 1, rovny: 0}};
+C.TRD_HAGGLE = {dc: 11, dcBig: 14, ok: 0.1, clean: 0.05, by: 5, nrav: {zhadny: 3, dobryak: -2, gordy: 1, hitry: 1, rovny: 0}};
 const HG_WAYS = {trade: {stat: 'cha', skill: 'Торговля', add: 0}, talk: {stat: 'cha', skill: 'Дипломатия', add: 0}, press: {stat: 'cha', skill: 'Запугивание', add: -1}, trick: {stat: 'cha', skill: 'Обман', add: 1}};
 C.TRD_HG_WAYS = HG_WAYS;
 C.trdHaggleDC = function (g, key, way) { const p = C.trdPerson(g, key), H = C.TRD_HAGGLE, t = C.trdTier(g, key);
   let dc = (p.role === 'kupec' && (p.reg === 'ber' || CITY.includes((nodeAt(g, locOf(p.at)) || {}).kind)) ? H.dcBig : H.dc) + (H.nrav[p.nrav] || 0) + ((HG_WAYS[way] || HG_WAYS.trade).add || 0);
-  if (t <= 2) dc += 2; else if (t >= 4) dc -= t - 3;
+  if (t <= 1) dc += 2; else if (t === 2) dc += 1; else if (t >= 4) dc -= t - 3;
   if (p.nrav === 'hitry' && C.trdScales(g)) dc -= 3;
   return dc; };
 C.trdHaggleOk = (g, key) => { const s = peekSt(g, key); return C.trdTier(g, key) > 0 && !(s && (s.hgDay === g.day)); };
@@ -54862,7 +54862,7 @@ C.trdHaggle = function (g, key, way) {
   }
   if (way === 'press') { text = fill(HG_TXT.pressBad, p, g); C.trdRelAdd(g, key, -8, 'грубость'); }
   else if (way === 'trick') { text = fill(HG_TXT.trickBad, p, g); C.trdRelAdd(g, key, -10, 'обман'); s.lied = (s.lied || 0) + 1; }
-  else { text = fill(HG_TXT.fail[p.nrav] || HG_TXT.fail.rovny, p, g); C.trdRelAdd(g, key, p.nrav === 'gordy' ? -6 : -3, 'обида'); }
+  else { text = fill(HG_TXT.fail[p.nrav] || HG_TXT.fail.rovny, p, g); C.trdRelAdd(g, key, p.nrav === 'gordy' ? -3 : -1, 'обида'); }
   return {ok: false, text, r};
 };
 
@@ -54873,7 +54873,7 @@ C.onShopBuy = function (g, h, id, price, n) {
   n = n || 1; const key = curKey(g); let said = '';
   if (key) { const s = st(g, key), wk = Math.floor(((g.day || 1) - 1) / 7); if (s.wk !== wk) { s.wk = wk; s.wn = 0; }
     const p = C.trdPerson(g, key), mul = p && p.nrav === 'dobryak' ? 1.2 : p && p.nrav === 'gordy' ? 0.8 : 1;
-    for (let i = 0; i < n; i++) { C.trdRelAdd(g, key, mul * Math.min(2.5, 0.4 + (price || 0) / 2500) / (1 + 0.4 * (s.wn || 0)), 'покупка'); s.wn = (s.wn || 0) + 1; }
+    for (let i = 0; i < n; i++) { C.trdRelAdd(g, key, mul * Math.min(3, 1.2 + (price || 0) / 1500) / (1 + 0.4 * (s.wn || 0)), 'покупка'); s.wn = (s.wn || 0) + 1; }
     s.spent = (s.spent || 0) + (price || 0) * n; s.last = g.day;
     if (C.trdKept(g, key) === id) s.keptWk = wk; }
   if (SVC[id]) { for (let i = 0; i < n; i++) { const k = h.inv.lastIndexOf(id); if (k >= 0) h.inv.splice(k, 1); } try { said = SVC[id](g, h, n) || ''; } catch (e) { said = ''; } if (said) C.note(g, said); }
@@ -54885,7 +54885,7 @@ C.onShopSell = function (g, h, id, price) { const key = curKey(g); if (!key) ret
 /* ---------- молва и кража (rogue.js) ---------- */
 if (C.repAdd) { const ra0 = C.repAdd; C.repAdd = function (g, node, d, why) {
   const r = ra0.apply(this, arguments);
-  try { if (g && node && d && g.heroes) C.trdRoster(g, node).forEach(role => { const k = C.trdKey(role, node); C.trdRelAdd(g, k, d > 0 ? 2 * d : 3 * d, why || 'молва'); }); } catch (e) {}
+  try { if (g && node && d && g.heroes) C.trdRoster(g, node).forEach(role => { const k = C.trdKey(role, node); C.trdRelAdd(g, k, d, why || 'молва'); }); } catch (e) {}
   return r; }; }
 
 /* ---------- заказ ---------- */
