@@ -70733,3 +70733,300 @@ C.taleHtml = (g, esc) => { const L = tales(g); if (!L.length) return '';
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* close_life.js */
+/* Колдовство — живые люди рядом: баня, ночлег в корчме, ночь на привале (Ник 25.11: «как живые люди… игра ролевая и моделирует всё»).
+   • БАНЯ ОЖИВАЕТ: после «Помыться», «Попариться», реки — беседа спутников о бане (w2_banter, повод 'banya'); дух и дружба
+     от общего пара (мелкие, как ужин у костра). Не взял банщицу (а она тут была) — спутник твоего пола подначит или похвалит
+     по нраву; влюблённый спутник иного пола тихо рад; жена (муж) в отряде — капля в чашу мира (divorce.js: обиды отливаются).
+   • ГЛУПОСТЬ: спутник иного пола, тайно неравнодушный к герою (ступени int/flirt/court — герой может и не знать), изредка
+     решается: в парной «по ошибке», ночью со свечой у двери горницы, у догоревшего костра. Выбор героя: не прогонять (ночь —
+     как уединение на привале: C.kvAfter, kind 'camp'), мягко остановить, обратить в шутку. Братья Ока, обетники, набожные — нет;
+     однополых — нет; супруг в отряде — нет.
+   • СОМНЕНИЕ: спутник иного пола, просто друг (ступень «друг», без романтики), после бани или ночи рядом начинает
+     поглядывать — с него начинается интерес (merc_romance, st 'int'), а куда повернёт — как живые люди.
+   • ТАЙНА МЕЖДУ МНОГИМИ: кто был рядом и заметил — хранит тайну (g.clSecret). Обиженный, ушедший из отряда, разругавшийся —
+     может проболтаться: до супруга дойдёт сплетня (kvGossip), влюблённые узнают и обидятся.
+   Числа — C.CL (тайна мастера). Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.CAMPS || !C.kvAfter || !C.mwOf || !C.mwAdd) return;
+C.CL = Object.assign({
+  SLIP: {banya: 0.14, inn: 0.08, camp: 0.07}, SLIP_GAP: 12, NO_GAP: 30,
+  DOUBT: {banya: 0.08, inn: 0.03, camp: 0.04}, DOUBT_GAP: 20,
+  SEE: {banya: 0.7, inn: 0.35, camp: 0.5}, LEAK_DAY: 0.03, LEAK_LOW: 2, LEAK_GONE: 0.5,
+  BANTER_P: 70, PLACE_GAP: 1}, C.CL || {});
+const K = () => C.CL;
+const day = g => (g && g.day) || 1;
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const mercs = g => ((g && g.mercs) || []).filter(m => m && !m.dead && m.hp > 0 && m.loyal);
+const heroById = (g, id) => heroes(g).find(x => x.id === id) || null;
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const VOW = ['chernets', 'obetnik'];
+const fill = (s, h, m) => { const H = decl(h.name, h.sex), M = decl(m.name, m.sex);
+  return s.replace(/\{h(_([gdaip]))?\}/g, (x, a, c) => (c ? H[c] : h.name)).replace(/\{m(_([gdaip]))?\}/g, (x, a, c) => (c ? M[c] : m.name))
+    .replace(/\[([^|\]]*)\|([^\]]*)\]/g, (x, a, b) => (m.sex === 'f' ? b : a)).replace(/<([^|>]*)\|([^>]*)>/g, (x, a, b) => (h.sex === 'f' ? b : a)); };
+const spouseMerc = (g, h) => { const s = h && h.spouse; const id = s && s.mw && s.mw.id; return id ? mercs(g).find(m => m.id === id) || null : null; };
+const mrOf = m => (C.mrOf ? C.mrOf(m) : (m.mr || {}));
+const secretly = (m, h) => { const S = mrOf(m); return S.who === h.id && ['int', 'flirt', 'court'].includes(S.st); };
+const okPair = (g, m, h) => m && h && m.sex !== h.sex && !VOW.includes(m.cls) && m.nrav !== 'nabozhny' && m.kvNo !== 'oko' && !(m.mw && ['wed', 'widow'].includes(m.mw.tier)) && !spouseMerc(g, h);
+
+/* ---------- тексты ---------- */
+const TX = {
+  slip: {
+    banya: {f: ['Когда мужики уже вывалились в предбанник, в парную заходит {m} с веником: «Ой. Я думала, тут пусто…» — и почему-то не уходит.',
+        '{m} заглядывает в парную, когда {h} остаётся один: «Спину тебе попарить? Сам ведь не достанешь». Голос у неё нарочито весёлый, а глаза — нет.'],
+      m: ['Когда женщины уже ушли одеваться, в парную заходит {m}: «Я думал, ты давно вышла». Стоит в пару и не уходит.',
+        '{m} ждёт {h_a} в тёмном предбаннике, у кадки с холодной водой: «Не пугайся. Мне… сказать надо. Или не сказать. Сам не знаю».']},
+    inn: {f: ['Ночью скрипит дверь горницы. На пороге — {m} со свечой, в одной рубахе: «Не спится. Можно… посижу?»',
+        'Под утро {m} скребётся в дверь: «Там мыши. Правда мыши». И стоит, не уходя, пока {h} не откроет.'],
+      m: ['Ночью в дверь горницы тихо стучат. {m} стоит со свечой и не знает, куда деть руки: «Я только спросить… а, ладно. Пустишь?»',
+        '{m} садится на край лавки у твоей двери и говорит в темноту: «Не гони. Я ничего не прошу. Посижу и уйду».']},
+    bar: {f: ['{m} хмелеет на глазах: щёки горят, коса растрепалась. Вдруг наклоняется к {h_d} через стол: «А пойдём наверх? Ну что ты смотришь. Пойдём»',
+        '{m} пьяно смеётся и садится {h_d} на колени, будто так и надо: «Скажи что-нибудь. Только не умное»'],
+      m: ['{m} навалился на стол и смотрит на {h_a} мутно и нежно: «Ты… знаешь, кто ты? Ты — лучше всех. Вот. Пойдём наверх, а?»',
+        '{m} пьяно берёт {h_a} за руку и не отпускает: «Я трезвый такого не скажу. Так что слушай сейчас»']},
+    camp: {f: ['Костёр догорает, все спят. {m} перебирается поближе, кутается в один плащ с {h_i} и кладёт голову на плечо: «Холодно… И вообще».',
+        '{m} будит {h_a} среди ночи: «Тише. Пойдём к ручью, я покажу… Да ничего я не покажу. Просто пойдём».'],
+      m: ['Костёр догорает, все спят. {m} подсаживается к {h_d} и долго молчит, а потом вдруг берёт за руку: «Скажи — убери. И я уберу».',
+        '{m} отдаёт {h_d} свой плащ, хотя ночь не холодная, и садится так близко, что слышно, как стучит сердце.']},
+  },
+  yes: {f: ['Свеча гаснет. Ночь проходит… Утром {m} делает вид, что ничего не было, — только напевает всю дорогу.', 'Ночь проходит… Наутро {m} краснеет до ушей, но смотрит на {h_a} так, что всё понятно без слов.'],
+    m: ['Ночь проходит… Утром {m} молча седлает {h_d} коня и улыбается в бороду.', 'Ночь проходит… Наутро {m} смотрит на {h_a} так, будто впервые увидел, и весь день не отходит ни на шаг.']},
+  stop: {f: ['{h} мягко отводит её руку. {m} кивает, слишком быстро: «Да. Да, конечно. Забудь. Я дура». И уходит, не оглядываясь.',
+      '«Не надо», — говорит {h}. {m} опускает глаза: «Я поняла. Только не смотри на меня завтра так, будто жалеешь».'],
+    m: ['{h} качает головой. {m} отступает на шаг: «Понял. Не держи зла. Дурак я». И уходит, ссутулившись.',
+      '«Не надо», — говорит {h}. {m} долго молчит, потом усмехается: «Ну хоть честно. И на том спасибо».']},
+  joke: {f: ['{h} смеётся: «Иди спать, лиса». {m} фыркает, бросает в <него|неё> веником или подушкой — и тоже смеётся. Обошлось.'],
+    m: ['{h} смеётся: «Иди спать, медведь». {m} хмыкает, машет рукой — и уходит. Обошлось — кажется.']},
+  doubt: {
+    banya: ['{m} после бани весь вечер избегает смотреть {h_d} в глаза и отвечает невпопад.', 'В предбаннике {m} вдруг замолкает на полуслове и уходит к лошадям — проверить то, что уже проверено.'],
+    inn: ['Утром {m} долго смотрит, как {h} умывается у колодца, а когда <тот|та> оборачивается — делает вид, что считает облака.'],
+    camp: ['Ночью {m} не спит: лежит у огня и смотрит то на звёзды, то на спящ<его|ую> {h_a}.'],
+  },
+  glad: {f: ['{m} весь вечер в хорошем духе и подливает {h_d} квасу, хотя никто не просил.', '{m} ничего не говорит, только улыбается украдкой — будто узнала добрую весть.'],
+    m: ['{m} весь вечер в хорошем духе и сам вызывается чистить {h_d} коня.', '{m} хмыкает в усы — довольно, будто выиграл спор сам с собой.']},
+  spouse: {f: ['{m} встречает {h_a} у бани с полотенцем и говорит тихо: «Видела я ту банщицу. И видела, как ты мимо прошёл. Спасибо».'],
+    m: ['{m} встречает {h_a} у бани и говорит, не глядя: «Банщик-то хорош был. А ты на него и не глянула. Запомню».']},
+  leak: ['{k} не удерживает языка — и по отряду ползёт шёпот: что было между {h_i} и {m_i} в ту ночь.', 'Ссора выходит громкой: {k} в сердцах выкрикивает то, что обещал{a} молчать, — про {h_a} и {m_a}.'],
+};
+const TB = {
+  open: {lihoy: ['{m} пьяно хлопает {h_a} по плечу: «Знаешь, я за тебя — в огонь. Нет, правда. Ты не смейся»', '{m} вдруг затягивает песню про родные края — и обрывает на полуслове, отвернувшись.'],
+    trus: ['{m} шепчет, оглядываясь: «Я ведь каждую ночь боюсь. Каждую. А с вами — меньше». И опрокидывает чарку.'],
+    zhadny: ['{m} пересчитывает монеты и вдруг двигает горсть {h_d}: «На. Бери. Ты ж мне как родн[ой|ая]… Только завтра не напоминай»'],
+    chestny: ['{m} говорит тяжело, по слову: «Я тебе не всё про себя рассказал[|а]. Как-нибудь… трезв[ым|ой] — расскажу».'],
+    nabozhny: ['{m} чертит на столе восьмилучевую звезду пальцем в пролитом пиве и долго молчит: «Око всё видит. И это видит. Пусть»'],
+    star: ['{m} пьяно плачет, не стесняясь: «Мать моя такую же похлёбку варила… Где она теперь, мать…»'],
+    any: ['{m} разговорил[ся|ась]: про детство, про первую драку, про то, как чуть не стал[|а] кузнецом. {h} слушает — и узнаёт о спутнике больше, чем за месяц дороги.']},
+  local: ['Из-за соседнего стола поднимается здоровенный детина, пьяный в дым, и плюхается рядом с {v_i}: «Ох, какая… Пойдём, красавица, угощу — не пожалеешь»', 'Пьяный приказчик лезет к {v_d} с медовухой и с руками: «Не ломайся, не боярыня»'],
+  mate: ['{m} нализал[ся|ась] и пристаёт к {v_d}: тянет за рукав, лезет целоваться, несёт какую-то чушь про «судьбу».', '{m}, красный как рак, громко зовёт {v_a} «лебёдушкой» и пытается усадить к себе на колени. Корчма хохочет.'],
+  saveOk: ['{h} встаёт и кладёт ладонь детине на плечо — тяжело. Тот оглядывается, трезвеет на глазах и бормочет: «Да я чего… я ничего». {v} благодарно кивает.'],
+  saveBad: ['{h} встаёт между ними — и детина, не думая, бьёт. Корчма только этого и ждала.'],
+  self: {lihoy: ['{v} без лишних слов выплёскивает кружку пива ему в лицо и добавляет кулаком. Корчма ревёт от восторга.'], trus: ['{v} бледнеет и пятится к {h_d}, глазами прося помощи. Не дождалась — и смотрит теперь обиженно.'], any: ['{v} отвечает так ядовито, что пьяный сникает и уползает к своему столу под общий хохот.']},
+  buy: ['{h} ставит детине кувшин пива: «Выпей за её здоровье — за своим столом». Тот довольно гогочет и отваливает.'],
+  mateStop: ['{h} отводит {m_a} в сторону и говорит что-то короткое. {m} трезвеет, мрачнеет и наутро извиняется перед {v_i} — неловко, глядя в пол.'],
+  mateLaugh: ['{h} хохочет вместе со всей корчмой. {v} не смеётся — и долго потом не садится рядом с {m_i}.'],
+};
+const sx = x => (x.sex === 'f' ? 'f' : 'm');
+
+/* ---------- тайна между многими ---------- */
+const secrets = g => (g.clSecret = g.clSecret || []);
+const witnesses = (g, h, m, place) => {
+  const out = [];
+  heroes(g).concat(mercs(g)).forEach(x => { if (x === h || x === m) return; if (R.rand() < K().SEE[place]) out.push({id: x.id, n: x.name, sex: x.sex, merc: x.kind === 'merc' ? 1 : 0}); });
+  return out;
+};
+const leak = (g, s, k) => {
+  const h = heroById(g, s.hid); s.out = day(g);
+  const txt = pick(TX.leak).replace('{k}', k.n).replace('{a}', k.sex === 'f' ? 'а' : '').replace(/\{h_([ia])\}/g, (x, c) => decl(s.hn, s.hs)[c]).replace(/\{m_([ia])\}/g, (x, c) => decl(s.mn, s.ms)[c]);
+  C.note(g, txt);
+  if (h && h.spouse) g.kvGossip = (g.kvGossip || []).concat({hid: h.id, day: day(g) + 2 + Math.floor(R.rand() * 5), kind: 'camp'});
+  if (h && C.kvLovers) C.kvLovers(g, h).filter(x => x.id !== s.mid).forEach(x => { if (C.mwAdd) C.mwAdd(g, x, -((C.KV || {}).HURT || 3)); x.kvHurt = day(g); });
+};
+C.clTick = function (g) {
+  if (!g || !g.clSecret || !g.clSecret.length) return;
+  g.clSecret.forEach(s => { if (s.out) return;
+    for (const k of s.keep) {
+      const m = (g.mercs || []).find(x => x.id === k.id), hero = heroById(g, k.id);
+      if (!m && !hero) { if (!k.gone) { k.gone = 1; if (R.rand() < K().LEAK_GONE) { leak(g, s, k); return; } } continue; }
+      if (m && (!m.loyal || ((m.mw && m.mw.pts) || 0) < K().LEAK_LOW) && R.rand() < K().LEAK_DAY) { leak(g, s, k); return; }
+    } });
+  g.clSecret = g.clSecret.filter(s => !s.out || day(g) - s.out < 30).slice(-12);
+};
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments); try { if (g && g.heroes && g.day > d0) C.clTick(g); } catch (e) {} return r; }; }
+
+/* ---------- что случается после бани, ночлега, привала ---------- */
+C.clAfter = function (g, place, o) {
+  o = o || {}; const out = [];
+  if (!g || !g.heroes || !heroes(g).length) return out;
+  const st = g.clDay = g.clDay || {};
+  if (st[place] === day(g)) return out; st[place] = day(g);
+  const hs = heroes(g), ms = mercs(g);
+  if (place === 'banya') {
+    if (C.banterTry) try { C.banterTry(g, 'banya', {salt: 'cl'}); } catch (e) {}
+    ms.forEach(m => { try { C.mwAdd(g, m, 0.3); } catch (e) {} });
+    if (o.maidHere) hs.forEach(h => {
+      ms.filter(m => m.sex !== h.sex && secretly(m, h)).slice(0, 1).forEach(m => { C.mwAdd(g, m, 0.5); const t = fill(pick(TX.glad[sx(m)]), h, m); out.push(t); C.note(g, t); });
+      const sp = h.spouse && h.spouse.mw && mercs(g).find(m => m.id === h.spouse.mw.id);
+      if (sp && R.rand() < 0.5) { const t = fill(pick(TX.spouse[sx(sp)]), h, sp); out.push(t); C.note(g, t); try { if (C.heCupAdd && sp.mw && sp.mw.key) C.heCupAdd(g, sp.mw.key, -1, 'верность в бане'); } catch (e) {} } });
+  }
+  /* сомнение: друг иного пола начинает поглядывать */
+  if (!o.noDoubt) for (const h of R.shuffle(hs.slice())) {
+    const m = R.shuffle(ms.filter(x => okPair(g, x, h) && x.mw && x.mw.tier === 'drug' && !mrOf(x).st && !(x.clDoubt && day(g) - x.clDoubt < K().DOUBT_GAP)).slice())[0];
+    if (!m || R.rand() >= K().DOUBT[place]) continue;
+    if (C.kvAgeGate && !C.kvAgeGate(g, m, h)) continue;
+    m.clDoubt = day(g); const S = mrOf(m), M = C.mwOf(m);
+    S.st = 'int'; S.who = h.id; S.since = day(g); S.n = 0; S.pos = day(g); S.last = day(g) - (((C.MR || {}).GAP) || 4) + 1; S.court = {}; S.tk = 0;
+    if (M) { M.eye = h.id; M.eyeN = h.name; M.eyeS = h.sex; }
+    const t = fill(pick(TX.doubt[place]), h, m); out.push(t); C.note(g, t); break;
+  }
+  /* глупость: тайно неравнодушный решается */
+  if (!o.noSlip && !g.clSlip) for (const h of R.shuffle(hs.slice())) {
+    const m = R.shuffle(ms.filter(x => okPair(g, x, h) && secretly(x, h) && x.id !== o.pairId && !(x.clSlip && day(g) - x.clSlip < K().SLIP_GAP) && !(x.clNo && day(g) - x.clNo < K().NO_GAP)).slice())[0];
+    if (!m || R.rand() >= K().SLIP[place]) continue;
+    m.clSlip = day(g);
+    g.clSlip = {place, hid: h.id, mid: m.id, text: fill(pick(TX.slip[place][sx(m)]), h, m), back: o.back || 'map', pre: o.pre || null};
+    break;
+  }
+  return out;
+};
+
+/* ---------- у стойки: чем пьянее — тем веселее ---------- */
+const party = g => heroes(g).concat(mercs(g));
+const ofSex = (x, sx0) => x && x.sex === sx0;
+C.clDrink = function (g, d) {
+  if (!g || !g.heroes || !d || g.clBar) return null;
+  const st = g.clBarDay && g.clBarDay.d === day(g) ? g.clBarDay : (g.clBarDay = {d: day(g), n: 0}); if (st.n >= 2) return null;
+  const L = Math.min(1.3, (d.drunk || 0) / Math.max(1, C.drunkLimit ? C.drunkLimit(d) : 4));
+  if (R.rand() >= 0.12 + 0.35 * Math.min(1, L)) return null;
+  const hs = heroes(g), ms = mercs(g); // пьёт герой — отряд пьёт с ним: чем пьянее стол, тем смелее спутники
+  const opts = [];
+  if (ms.length && L >= 0.4) opts.push(['open', 3]);
+  { const pr = []; ms.forEach(m => hs.forEach(h0 => { if (okPair(g, m, h0) && secretly(m, h0) && !(m.clNo && day(g) - m.clNo < K().NO_GAP) && !(m.clSlip && day(g) - m.clSlip < K().SLIP_GAP)) pr.push([m, h0]); }));
+    if (pr.length && L >= 0.6) opts.push(['slip', 4, pick(pr)]); }
+  { const men = ms.filter(m => m.sex === 'm' && m.nrav !== 'nabozhny'), fem = party(g).filter(x => ofSex(x, 'f'));
+    const pr = []; men.forEach(m => fem.forEach(v => { if (v !== m && !(v.kind === 'merc' && v.mw && v.mw.tier === 'wed') && !(m.mw && m.mw.tier === 'wed')) pr.push([m, v]); }));
+    if (pr.length && L >= 0.8) opts.push(['mate', 3, pick(pr)]); }
+  if (L >= 0.5) { const v = R.shuffle(party(g).filter(x => ofSex(x, 'f')).slice())[0]; if (v) opts.push(['local', 3, v]); }
+  if (!opts.length) return null;
+  let tot = opts.reduce((a, o) => a + o[1], 0), x = R.rand() * tot, o = opts[0]; for (const q of opts) { x -= q[1]; if (x < 0) { o = q; break; } }
+  st.n++;
+  if (o[0] === 'open') { const m = pick(ms), h = d.kind === 'merc' ? pick(hs) : d; const P = TB.open[m.nrav] || TB.open.any;
+    const t = fill(pick(R.rand() < 0.5 ? P : TB.open.any), h, m); C.mwAdd(g, m, 0.5); C.note(g, t); return t; }
+  if (o[0] === 'slip') { const [m, h] = o[2]; m.clSlip = day(g); g.clSlip = {place: 'bar', hid: h.id, mid: m.id, text: fill(pick(TX.slip.bar[sx(m)]), h, m), back: 'tavern_drink'}; return null; }
+  if (o[0] === 'mate') { g.clBar = {k: 'mate', a: o[2][0].id, v: o[2][1].id, back: 'tavern_drink'}; return null; }
+  g.clBar = {k: 'local', a: null, v: o[2].id, back: 'tavern_drink'}; return null;
+};
+const dr0 = C.drink;
+if (dr0) C.drink = function (g, h) { const r = dr0.apply(this, arguments); try { if (r && r.ok) { const t = C.clDrink(g, h); if (t) { g.drinkLast = (g.drinkLast || '') + ' ' + t; r.text = (r.text || '') + ' ' + t; } } } catch (e) { if (C.BF_DEBUG) console.error(e); } return r; };
+const nm = (x, c) => (x ? (c ? decl(x.name, x.sex)[c] : x.name) : '');
+const fillB = (s0, h, m, v) => fill(s0.replace(/\{v(_([gdaip]))?\}/g, (x, a, c) => nm(v, c)).replace(/\{m_([gdaip])\}/g, (x, c) => nm(m, c)), h || v, m || v);
+
+/* ---------- сцена ---------- */
+const SC = {};
+SC.cl_slip = g => {
+  const S = g.clSlip, h = S && heroById(g, S.hid), m = S && (g.mercs || []).find(x => x.id === S.mid);
+  const back = g2 => { const b = (g2.clSlip && g2.clSlip.back) || 'map'; g2.clSlip = null; return b; };
+  if (!S || !h || !m) return {title: 'Ночь', bg: 'camp_night_two', lines: [['n', 'Тихо.']], choices: [{t: 'Дальше', do: back}]};
+  const bg = S.place === 'banya' ? 'banya_steam' : S.place === 'inn' ? 'noble_chamber' : S.place === 'bar' ? 'tavern_night_song' : 'camp_night_two';
+  const lines = []; (S.pre || []).forEach(t => lines.push(['n', t]));
+  lines.push(['n', S.text]);
+  if (S.res) { lines.push(['n', S.res]); return {title: m.name, bg, art: bg, face: m.portrait, faceName: m.name, lines, choices: [{t: 'Дальше', do: back}]}; }
+  const done = (g2, txt) => { if (g2.clSlip) g2.clSlip.res = txt; return 'cl_slip'; };
+  return {title: m.name, bg, art: bg, face: m.portrait, faceName: m.name, lines, choices: [
+    {own: h.id, t: 'Не прогонять', do: g2 => { const hh = heroById(g2, S.hid), mm = (g2.mercs || []).find(x => x.id === S.mid); if (!hh || !mm) return back(g2);
+      mm.kvDay = day(g2); mm.kvN = (mm.kvN || 0) + 1; if (C.mrBig) C.mrBig(g2, mm, 2); const P = mrOf(mm); P.n = (P.n || 0) + 1; P.pos = day(g2);
+      if (C.spiritAdd) { C.spiritAdd(g2, 1, '', mm); C.spiritAdd(g2, 1, '', hh); }
+      let txt = fill(pick(TX.yes[sx(mm)]), hh, mm);
+      const more = C.kvAfter(g2, hh, {kind: 'camp', p: {n: mm.name, sex: mm.sex}, m: mm, spirit: 1, know: 0.15}); if (more.length) txt += ' ' + more.join(' ');
+      const keep = witnesses(g2, hh, mm, S.place); if (keep.length) { secrets(g2).push({id: 'cs' + day(g2) + '_' + mm.id, hid: hh.id, hn: hh.name, hs: hh.sex, mid: mm.id, mn: mm.name, ms: mm.sex, day: day(g2), place: S.place, keep}); txt += ` Наутро ${keep.length > 1 ? keep.map(k => k.n).join(', ') + ' делают вид' : keep[0].n + ' делает вид'}, что ничего не заметил${keep.length > 1 ? 'и' : keep[0].sex === 'f' ? 'а' : ''}. Тайна теперь не только ваша.`; }
+      C.note(g2, txt); return done(g2, txt); }},
+    {own: h.id, t: 'Мягко остановить', do: g2 => { const hh = heroById(g2, S.hid), mm = (g2.mercs || []).find(x => x.id === S.mid); if (!hh || !mm) return back(g2);
+      mm.clNo = day(g2); if (C.mwAdd) C.mwAdd(g2, mm, -1); const txt = fill(pick(TX.stop[sx(mm)]), hh, mm); C.note(g2, txt); return done(g2, txt); }},
+    {own: h.id, t: 'Обратить в шутку', do: g2 => { const hh = heroById(g2, S.hid), mm = (g2.mercs || []).find(x => x.id === S.mid); if (!hh || !mm) return back(g2);
+      const txt = fill(pick(TX.joke[sx(mm)]), hh, mm); C.note(g2, txt); return done(g2, txt); }},
+  ]};
+};
+SC.cl_bar = g => {
+  const B = g.clBar, all = g.heroes ? party(g) : [], a = B && all.find(x => x.id === B.a), v = B && all.find(x => x.id === B.v);
+  const back = g2 => { const b = (g2.clBar && g2.clBar.back) || 'tavern_drink'; g2.clBar = null; return b; };
+  if (!B || !v) return {title: 'Корчма', bg: 'tavern', lines: [['n', 'Шумно.']], choices: [{t: 'Дальше', do: back}]};
+  const hs = heroes(g).filter(x => x !== v), h0 = hs[0] || heroes(g)[0];
+  const lines = [['n', B.k === 'mate' ? fillB(pick(TB.mate), h0, a, v) : fillB(pick(TB.local), h0, null, v)]];
+  if (B.res) { lines.push(['n', B.res]); return {title: 'Корчма', bg: 'tavern', art: 'tavern', lines, choices: [{t: 'Дальше', do: back}]}; }
+  const done = (g2, t) => { if (g2.clBar) g2.clBar.res = t; C.note(g2, t); return 'cl_bar'; };
+  const ch = [];
+  if (B.k === 'local') {
+    hs.forEach(h => ch.push({own: h.id, t: `${h.name}: заступиться`, do: g2 => { const hh = heroById(g2, h.id), vv = party(g2).find(x => x.id === B.v); if (!hh || !vv) return back(g2);
+      const r = R.check(hh, 'str', 'Запугивание', 12); if (vv.kind === 'merc' && C.mwAdd) C.mwAdd(g2, vv, r.ok ? 1 : 0.5);
+      if (r.ok) return done(g2, fillB(pick(TB.saveOk), hh, null, vv));
+      const t = fillB(pick(TB.saveBad), hh, null, vv); C.note(g2, t); g2.clBar = null;
+      try { if (C.tlForce) { const sc = C.tlForce(g2, 'draka', {ret: 'tavern_drink'}); if (sc) return sc; } } catch (e) {}
+      g2.drinkLast = t; return 'tavern_drink'; }}));
+    ch.push({t: 'Пусть сама разберётся', do: g2 => { const vv = party(g2).find(x => x.id === B.v); if (!vv) return back(g2); const P = TB.self[vv.nrav] || TB.self.any;
+      if (vv.kind === 'merc' && vv.nrav === 'trus' && C.mwAdd) C.mwAdd(g2, vv, -1); return done(g2, fillB(pick(P), h0, null, vv)); }});
+    if (h0) ch.push({own: h0.id, t: 'Угостить его, чтобы отстал — 2 см', if: g2 => (g2.purse || 0) >= 20, off: 'не хватает денег', do: g2 => { g2.purse -= 20; return done(g2, fillB(pick(TB.buy), heroById(g2, h0.id) || h0, null, v)); }});
+  } else {
+    hs.forEach(h => ch.push({own: h.id, t: `${h.name}: осадить ${nm(a, 'a')}`, do: g2 => { const hh = heroById(g2, h.id), aa = (g2.mercs || []).find(x => x.id === B.a), vv = party(g2).find(x => x.id === B.v); if (!hh || !aa || !vv) return back(g2);
+      if (vv.kind === 'merc' && C.mwAdd) C.mwAdd(g2, vv, 1); return done(g2, fillB(pick(TB.mateStop), hh, aa, vv)); }}));
+    ch.push({t: 'Посмеяться со всеми', do: g2 => { const aa = (g2.mercs || []).find(x => x.id === B.a), vv = party(g2).find(x => x.id === B.v); if (!aa || !vv) return back(g2);
+      if (vv.kind === 'merc' && C.mwAdd) C.mwAdd(g2, vv, -1); return done(g2, fillB(pick(TB.mateLaugh), h0, aa, vv)); }});
+  }
+  return {title: 'Корчма', bg: 'tavern', art: 'tavern', lines, choices: ch};
+};
+Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+
+/* ---------- куда встроено ---------- */
+/* баня: «Помыться всем», «Попариться», река */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try { if (sc && id === 'kv_banya' && Array.isArray(sc.choices)) {
+    const maidHere = sc.choices.some(c => /банщиц|банщик/i.test(c.label || ''));
+    sc.choices = sc.choices.map(c => { if (!/^(Помыться всем|Попариться|Сходить на реку)/.test(c.label || '') || typeof c.do !== 'function') return c;
+      const d0 = c.do; return Object.assign({}, c, {do: (g2, ctx) => { const r = d0(g2, ctx);
+        try { if (r === 'kv_banya') { const lines = C.clAfter(g2, 'banya', {maidHere, back: 'kv_banya'}); if (lines.length) g2.kvLast = [g2.kvLast].concat(lines).filter(Boolean).join(' ');
+          if (g2.clSlip) { g2.clSlip.pre = g2.kvLast ? [g2.kvLast] : null; return 'cl_slip'; } } } catch (e) {}
+        return r; }}); });
+  } } catch (e) {}
+  return sc;
+};
+/* ночлег: после выбора комнаты — если кто-то решится, ночь начинается со стука в дверь */
+if (C.lodge) { const lo0 = C.lodge; C.lodge = function (g) { const r = lo0.apply(this, arguments); try { if (g && g.heroes) { const L = C.clAfter(g, 'inn'); g._clInn = L; } } catch (e) {} return r; }; }
+const ch0 = C.choose;
+C.choose = function (g) {
+  const r = ch0.apply(this, arguments);
+  try { if (g && g.clSlip && !g.clSlip.shown && r && typeof r.scene === 'string' && r.scene !== 'cl_slip' && (g.clSlip.place === 'inn' || g.clSlip.place === 'bar')) { g.clSlip.shown = 1; g.clSlip.back = r.scene; return Object.assign({}, r, {scene: 'cl_slip'}); }
+    if (g && g.clBar && !g.clBar.shown && r && typeof r.scene === 'string' && r.scene !== 'cl_bar') { g.clBar.shown = 1; g.clBar.back = r.scene; return Object.assign({}, r, {scene: 'cl_bar'}); }
+    if (g && g._clInn) { delete g._clInn; } } catch (e) {}
+  return r;
+};
+/* привал: ночь у костра; вдвоём с кем-то — его не трогаем */
+if (C.restRun) { const rr0 = C.restRun; C.restRun = function (g) {
+  const pair = g && g.restPlan && g.restPlan.pair, kind = g && g.restPlan && g.restPlan.kind;
+  const r = rr0.apply(this, arguments);
+  try { if (g && g.heroes && r && !r.enc && kind === 'night') { const L = C.clAfter(g, 'camp', {pairId: pair, back: 'map'}); if (L.length && Array.isArray(r.lines)) r.lines = r.lines.concat(L);
+    if (g.clSlip) { g.clSlip.pre = (r.lines || []).slice(-4); g.clSlip.shown = 1; r.enc = {scene: 'cl_slip'}; } } } catch (e) {}
+  return r; }; }
+
+/* ---------- беседы в бане ---------- */
+if (C.BANTER && C.BANTER_TALKS) {
+  C.BANTER.P = Object.assign({banya: K().BANTER_P}, C.BANTER.P || {});
+  const T = (id, o, L) => Object.assign({id, t: ['banya'], L}, o || {});
+  C.BANTER_TALKS.push(
+    T('b_shram', {h: 1}, [['a', '{B}, это у тебя откуда? Шрам через всю спину.'], ['b', 'Медведь. Или жена. Уже не помню, кто страшнее был.'], ['a', 'Врёшь ведь.'], ['b', 'Конечно, вру. Но красиво же.']]),
+    T('b_par', {}, [['a', 'Поддай ещё!'], ['b', 'Куда ещё — уши в трубочку сворачиваются!'], ['a', 'Вот и славно. Значит, жив[|а].']]),
+    T('b_venik', {h: 1}, [['a', 'Дай-ка я тебя веником, {B}. По-нашему, с оттягом.'], ['b', 'Только не насмерть.'], ['a', 'Насмерть — это в бою. А тут — для здоровья.']]),
+    T('b_bansh', {h: 1}, [['a', 'Видал<|а>, как банщица на {B:a} поглядывала?'], ['b', 'Пусть глядит. Глаза — не руки.'], ['a', 'Ох, святая душа…']]),
+    T('b_holod', {}, [['a', 'Кто первым в прорубь — тому пиво.'], ['b', 'А кто вторым?'], ['a', 'Тому насморк.']]),
+    T('b_gryaz', {h: 1}, [['a', 'С {B:g} грязи сошло — на огород хватит.'], ['b', 'Своё бы посчитал[|а]. Я тебя сперва и не узнал[|а] — думал[|а], леший.']]),
+    T('b_tishina', {}, [['a', 'Хорошо… Вот так бы сидеть и не вставать.'], ['b', 'Посидишь — а завтра опять сапоги, опять дорога.'], ['a', 'Не порть. Сейчас — хорошо.']]),
+    T('b_bannik', {}, [['a', 'Третьим паром не мойся — банник задушит.'], ['b', 'Банник — сказки.'], ['a', 'Ага. Вот и проверим, кто третьим пойдёт.']]),
+  );
+}
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
