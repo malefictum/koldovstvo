@@ -49858,7 +49858,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611241947"></script><script>
+</script><script src="world.js?v=202611242000"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54278,8 +54278,9 @@ document.addEventListener('click', e => { const c = battle && e.target.closest('
 const BMORE = {open: false}; // «Ещё приёмы» в бою: раскрыто ли (помнится до перезагрузки)
 const BMORE2 = {open: false}; // «Ещё на поле» — группы приёмов модулей (B.bfPanel)
 /* порядок групп B.bfPanel в панели боя — одним местом (меньше — выше); неизвестные группы — внизу */
-const BF_GRP_W = {'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
-const BF_GRP_TOP = new Set(['Скрытно', 'Бегущие', 'Побег']);
+const BF_GRP_W = {'Прогулка': 1, 'Люди': 2, 'Тёмное дело': 3, 'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
+const BF_GRP_WAR = new Set(['Приёмы', 'Бегущие', 'Побег', 'Бой', 'Удаль']); // на прогулке без боя этих групп нет
+const BF_GRP_TOP = new Set(['Прогулка', 'Люди', 'Тёмное дело', 'Скрытно', 'Бегущие', 'Побег']);
 /* лента очерёдности (waveA): лица в порядке хода от текущего; текущий выделен, следующий подписан, невидимый враг — пустой силуэт */
 let TL_KEY = '';
 function drawTurnLine() {
@@ -54378,6 +54379,8 @@ function drawPanel() {
       ${mode === 'scrolls' ? `<div class="spells">${scs.map(id => { const s = C.scrollSpell(id); const sw = bw(id, false); return `<button class="btn" data-scr="${id}" ${sw ? 'disabled' : ''} title="${esc(sw || s.effect)}">Свиток: ${esc(s.name)}${bl(id)}${u.ref.inv.filter(x => x === id).length > 1 ? ' ×' + u.ref.inv.filter(x => x === id).length : ''}</button>`; }).join('')}</div>` : ''}
       <div class="bfoot">${mode ? `<button class="btn small" id="b-cancel">${bookOpen ? 'Закрыть книгу' : 'Отмена'}</button>` : ''}<button class="btn small primary" id="b-next">Конец хода</button></div>
 `;
+    // прогулка по месту без боя (town_walk.js): ни ударов, ни малых действий — только её кнопки; «Конец хода» — «Дальше»
+    if (S.walk && !S.walk.fight) { [...acts.children].forEach(el => { if (!el.matches('.hint, .budget, .bfoot')) el.remove(); }); const bud = acts.querySelector('.budget'); if (bud) bud.innerHTML = `<span>Шаги ${left}/${u.steps}</span>`; const nb = acts.querySelector('#b-next'); if (nb) nb.textContent = 'Дальше'; }
     const on = (id, f) => { const b = $(id); if (b) b.onclick = f; };
     const go = (op, a, keep) => { if (!keep) mode = null; bdo(op, a || {}); };
     on('#b-shoot', () => { mode = mode === 'shoot' ? null : 'shoot'; bdo('look', {r: mode === 'shoot' ? 1 : 0}); });
@@ -54428,7 +54431,7 @@ function drawPanel() {
     on('#b-next', () => go('next'));
     { const dm = $('#b-more'); if (dm) dm.ontoggle = () => { BMORE.open = dm.open; }; }
     if (NET() && g && g.net) { try { S.leadIds = C.alive(g).filter(h => g.net.own[h.id] === leader()).map(h => h.id); } catch (e) {} } // «Сдаться» — решение вожатого (captive.js)
-    if (B.bfPanel) { const L = B.bfPanel(S, u, mode); if (L.length) { const grp = {}; L.forEach(x => { (grp[x.grp || 'Рядом'] = grp[x.grp || 'Рядом'] || []).push(x); });
+    if (B.bfPanel) { const L = B.bfPanel(S, u, mode).filter(x => !(S.walk && !S.walk.fight && BF_GRP_WAR.has(x.grp))); if (L.length) { const grp = {}; L.forEach(x => { (grp[x.grp || 'Рядом'] = grp[x.grp || 'Рядом'] || []).push(x); });
       // порядок групп — одним местом: сверху основное и малое действие (их рисует панель), ниже группы модулей по весу;
       // всегда на виду — скрытность, бегущие и побег; прочее, если его много, — в раскрывающемся «Ещё на поле»
       const gw = k => BF_GRP_W[k] != null ? BF_GRP_W[k] : 60, gl = Object.keys(grp).sort((a, b) => gw(a) - gw(b));
