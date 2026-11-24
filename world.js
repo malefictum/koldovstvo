@@ -66148,12 +66148,25 @@ C.sceneOf = function (g, id) {
   } catch (e) {}
   return sc;
 };
+/* ---------- положение дома замужней (женатого) — чем выше, тем дороже ответ за связь (Ник 25.11) ---------- */
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+C.KV_RANK = {
+  muzhik: {w: {v: 60, t: 35}, m: 1, t: ['', '']}, master: {w: {v: 25, t: 25}, m: 1.3, t: ['мастер', 'мастерица']},
+  kupec: {w: {v: 0, t: 25}, m: 2, t: ['купец', 'купчиха']}, starosta: {w: {v: 15, t: 0}, m: 2.5, t: ['староста', 'жена старосты'], power: 1},
+  tiun: {w: {v: 0, t: 10}, m: 3, t: ['тиун', 'жена тиуна'], power: 1}, boyar: {w: {v: 0, t: 5}, m: 4, t: ['боярин', 'боярыня'], power: 1}};
+C.kvRankRoll = function (g, at) { const n = (nodes(g)[at] || {}), town = n.kind === 'город' ? 't' : 'v';
+  const L = Object.entries(C.KV_RANK).map(([k, v]) => [k, v.w[town] || 0]), tot = L.reduce((a, x) => a + x[1], 0); let x = R.rand() * tot;
+  for (const [k, w] of L) { x -= w; if (x < 0) return k; } return 'muzhik'; };
+const rankOf = r => C.KV_RANK[(r && r.rank) || 'muzhik'] || C.KV_RANK.muzhik;
+C.kvRankWord = (r, who) => { const R0 = rankOf(r); return who === 'hb' ? (R0.t[0] || '') : ''; };
+
 /* новая знакомая — именной человек места */
 const makeLoc = (g, G0, rel) => {
   g.kvSeq = (g.kvSeq || 0) + 1; const id = 'kl' + g.kvSeq;
   const hbSex = G0.sex === 'f' ? 'm' : 'f';
   const r = {id, camp: g.camp, at: G0.at, hid: G0.hid, n: G0.n, sex: G0.sex, face: G0.face, ppl: G0.ppl, st: G0.st, t: G0.t, rel: rel, met: day(g), nights: 0};
   if (G0.st === 'wife') { const hn = nameOf(g, hbSex, G0.ppl); r.hb = {n: hn, sex: hbSex, face: faceOf(hbSex, hn + '|' + G0.at)}; }
+  if (G0.st === 'wife') r.rank = C.kvRankRoll(g, G0.at); // чей дом: мужик, мастер, купец, староста, тиун, боярин (Ник 25.11)
   locs(g)[id] = r; return r;
 };
 C.kvMakeLoc = (g, G0, rel) => makeLoc(g, G0, rel);
@@ -66204,7 +66217,7 @@ const tierOf = r => (r.rel < 40 ? 0 : r.rel < 75 ? 1 : 2);
 const greetOf = r => { const P = T.greet[r.st] || T.greet.widow, L = P[r.sex === 'f' ? 'f' : 'm']; return L[tierOf(r)] || L[0]; };
 const stWord = r => {
   const f = r.sex === 'f';
-  if (r.st === 'wife') return f ? 'замужем' : 'женат';
+  if (r.st === 'wife') { const rk = rankOf(r).t[0]; return (f ? 'замужем' : 'женат') + (rk && f ? ` (муж — ${rk})` : rk ? ` (сам — ${rk})` : ''); }
   if (r.st === 'left') return f ? 'ушла от мужа' : 'ушёл от жены';
   if (r.st === 'freed') return f ? 'ждёт ребёнка, бросила ремесло' : 'бросил ремесло';
   const w = ['знакомы', 'привечает', f ? 'сердце тянется' : 'сердце тянется'][tierOf(r)];
@@ -66285,7 +66298,7 @@ SC.kv_local = g => {
       const x = C.kvLocOf(g2, r.id), hh = heroById(g2, r.hid); if (!x || !hh) return 'kv_local';
       x.st = 'left'; x.leftDay = day(g2); if (x.hb) x.hb.knows = 1;
       g2.kvLast = fill(T.husb.runaway[x.sex === 'f' ? 'f' : 'm'], {h: hh, p});
-      repAdd(g2, x.at, -2, 'скандал: увели от мужа'); C.note(g2, g2.kvLast);
+      const RK2 = rankOf(x); repAdd(g2, x.at, -Math.round(2 * RK2.m), 'скандал: увели от мужа'); if (RK2.power && x.hb) { g2.kvGrudge = g2.kvGrudge || {}; g2.kvGrudge[x.at] = {until: day(g2) + 60 * RK2.m, hid: hh.id, n: x.hb.n, t: RK2.t[0], camp: g2.camp}; g2.kvLast += ` Только ${x.hb.n} — ${RK2.t[0]}. Увести жену у такого — нажить врага на годы.`; } C.note(g2, g2.kvLast);
       if (hh.spouse) g2.kvGossip = (g2.kvGossip || []).concat({hid: hh.id, day: day(g2) + 3, kind: 'local'});
       return 'kv_local'; }}); }
   ch.push({own: h.id, t: 'Порвать с ней', label: r.sex === 'f' ? 'Порвать с ней' : 'Порвать с ним', do: g2 => {
@@ -66305,12 +66318,13 @@ SC.kv_husb = g => {
   const p = {n: r.n, sex: r.sex}, o = {h, p, hb, place: placeName(g, r.at)}, man = hb.sex !== 'f';
   const lines = []; if (g.kvLast) lines.push(['n', g.kvLast]);
   if (!r.husbDone) lines.push(['n', fill(T.husb.caught[man ? 'm' : 'f'], o)]);
-  const ch = [], vira = K().VIRA * Math.max(1, Math.ceil((h.level || 1) / 2));
+  const RK = rankOf(r), M = RK.m, ch = [], vira = Math.round(K().VIRA * Math.max(1, Math.ceil((h.level || 1) / 2)) * M / 10) * 10;
+  if (RK.power && !r.husbDone) lines.push(['n', man ? `И это не простой мужик: ${hb.n} — ${RK.t[0]}. Такой обиды здесь не прощают — за ним люди, и слово его в ${placeName(g, r.at)} весит больше твоего.` : `И это не простая баба: ${hb.n} — ${RK.t[1]}. Такой скандал здесь запомнят надолго.`]);
   const fin = (g2, txt, rep) => { const x = C.kvLocOf(g2, r.id); if (x) { x.husbDone = 1; x.caught = (x.caught || 0) + 1; if (x.hb) x.hb.knows = 1; }
-    if (rep) repAdd(g2, r.at, rep, man ? 'ревнивый муж, драка и сплетня' : 'скандал на всю улицу'); g2.kvLast = txt; C.note(g2, txt);
+    if (rep) repAdd(g2, r.at, Math.round(rep * M) - (RK.power ? 2 : 0), man ? 'ревнивый муж, драка и сплетня' : 'скандал на всю улицу'); if (RK.power) { g2.kvGrudge = g2.kvGrudge || {}; g2.kvGrudge[r.at] = {until: day(g2) + 30 * M, hid: r.hid, n: hb.n, t: RK.t[0], camp: g2.camp}; txt += ` ${hb.n} ${man ? 'этого не забудет' : 'этого не простит'}: в ${placeName(g2, r.at)} теперь надо ходить с оглядкой.`; } g2.kvLast = txt; C.note(g2, txt);
     const hh = heroById(g2, r.hid); if (hh && hh.spouse && R.rand() < 0.6) g2.kvGossip = (g2.kvGossip || []).concat({hid: hh.id, day: day(g2) + 3, kind: 'local'}); return 'kv_husb'; };
   if (!r.husbDone) {
-    if (man) ch.push({own: h.id, t: `${h.name}: драться`, do: g2 => { const hh = heroById(g2, r.hid); if (!hh) return 'kv_husb'; const c = R.check(hh, 'str', 'Атлетика', K().FIGHT_DC); g2.lastCheck = Object.assign({}, c, {hero: hh});
+    if (man) ch.push({own: h.id, t: `${h.name}: драться${RK.power ? ' — с ним и его людьми' : ''}`, do: g2 => { const hh = heroById(g2, r.hid); if (!hh) return 'kv_husb'; const c = R.check(hh, 'str', 'Атлетика', K().FIGHT_DC + (RK.power ? 4 : 0)); g2.lastCheck = Object.assign({}, c, {hero: hh});
       if (c.ok) return fin(g2, fill(T.husb.win, o), -1); hh.hp = Math.max(1, hh.hp - Math.ceil((hh.hpMax || 10) / 3)); return fin(g2, fill(T.husb.lose, o), -1); }});
     else ch.push({own: h.id, t: `${h.name}: выдержать скандал`, do: g2 => fin(g2, fill(T.husb.bear, o), -1)});
     ch.push({own: h.id, t: `${h.name}: ${man ? 'откупиться вирой' : 'откупиться подарком'} — ${R.priceText(vira)}`, if: g2 => canPay(g2, vira), off: 'не хватает денег', do: g2 => { if (!canPay(g2, vira)) return 'kv_husb'; g2.purse -= vira; return fin(g2, fill(T.husb.vira[man ? 'm' : 'f'], o), 0); }});
@@ -68214,7 +68228,7 @@ const moodOf = (g, o) => {
 };
 C.HE_HOT_HOME = Object.assign({freed: 1, poor: 0.5, peasant: 0.35, merchant: 0.15, noble: 0.08, WARM: 0.15, WARM_REP: 90, LONG: 0.2, PREG: -0.1, GAP: 2, MAX: 0.85}, C.HE_HOT_HOME || {});
 C.heOrigin = function (g, key) { try { const [role] = String(key).split('@'), sp = (g.homeSp || {})[role], base = String(role).replace(/^sp_/, '');
-    if (sp && sp.kv && C.kvLocOf) { const r = C.kvLocOf(g, sp.kv); if (r && r.freed) return 'freed'; }
+    if (sp && sp.kv && C.kvLocOf) { const r = C.kvLocOf(g, sp.kv); if (r && r.freed) return 'freed'; const RK = r && r.rank && C.KV_RANK ? C.KV_RANK[r.rank] : null; if (RK && RK.power) return 'noble'; if (r && r.rank === 'kupec') return 'merchant'; }
     if (['trade', 'jewel'].includes(base)) return 'merchant'; if (/boyar|knyaz|noble/.test(base)) return 'noble';
     const t = C.heTier ? C.heTier(g, key) : 'peasant'; return t === 'poor' ? 'poor' : 'peasant'; } catch (e) { return 'peasant'; } };
 C.heHotHome = function (g, o, mood) {
@@ -71206,7 +71220,7 @@ if (C.kvLocalWed) { const lw0 = C.kvLocalWed; C.kvLocalWed = function (g, r) { c
 /* запросы жены — по её прежнему положению и достатку */
 C.heNeed = function (g, key) {
   try { const [role] = String(key).split('@'), sp = (g.homeSp || {})[role], base = String(role).replace(/^sp_/, '');
-    if (sp && sp.kv && C.kvLocOf) { const r = C.kvLocOf(g, sp.kv); if (r && r.freed) return K().NEED.freed; }
+    if (sp && sp.kv && C.kvLocOf) { const r = C.kvLocOf(g, sp.kv); if (r && r.freed) return K().NEED.freed; const RK = r && r.rank && C.KV_RANK ? C.KV_RANK[r.rank] : null; if (RK && RK.power) return K().NEED.noble; if (r && r.rank === 'kupec') return K().NEED.merchant; } // бывшая жена старосты, тиуна, боярина — вершина требований
     if (['trade', 'jewel'].includes(base)) return K().NEED.merchant;
     if (/boyar|knyaz|noble/.test(base)) return K().NEED.noble;
   } catch (e) {}
@@ -71227,6 +71241,11 @@ if (C.kidsNight && C.KIDS) { const kn0 = C.kidsNight; C.kidsNight = function (g,
     else if (C.heOrigin && C.heOrigin(g, key) === 'freed') { K0.MAX = Math.max(K0.MAX, K().KIDS_FREED.MAX); K0.P += K().KIDS_FREED.P; K0.P2 = (K0.P2 || K0.P) + K().KIDS_FREED.P; }
     return kn0.apply(this, arguments);
   } finally { Object.assign(K0, keep); } }; }
+
+/* обида властного мужа: его люди поджидают героя в том месте (town_life: драка, задира — чаще) */
+C.kvGrudgeAt = g => { const x = g && g.kvGrudge && g.kvGrudge[g.loc]; return x && x.camp === g.camp && day(g) <= x.until && heroById(g, x.hid) ? x : null; };
+['draka', 'zadira'].forEach(id => { const E = C.TL_EV && C.TL_EV[id]; if (!E || typeof E.w !== 'function') return; const w0 = E.w;
+  E.w = function (x) { let w = w0.apply(this, arguments); try { if (x && x.g && C.kvGrudgeAt(x.g)) w = (w || 1) * 6 + 4; } catch (e) {} return w; }; });
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
