@@ -225,13 +225,13 @@ button{font:inherit;cursor:pointer}
 .battle canvas.bmini{width:150px;height:auto;border:1px solid var(--rim);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:crosshair;touch-action:none}
 .bzoom{display:flex;gap:4px}.bzoom .btn{min-width:32px;padding:2px 8px;font-size:16px;line-height:1.4}
 .bside{background:url(img/oak.webp) center/256px;border-left:2px solid var(--rim);display:grid;grid-template-rows:auto auto minmax(0,auto) minmax(90px,1fr);min-height:0}
-.bside .acts{overflow-y:auto;min-height:0;align-content:start}
+.bside .acts{overflow-y:auto;overflow-x:hidden;min-height:0;align-content:start}.acts .btn{min-width:0;overflow-wrap:anywhere}
 .finfo{padding:6px 12px;font-size:13px;line-height:1.35;background:rgba(90,20,16,.28);border-bottom:1px solid var(--rim)}.finfo:empty{padding:0;border:0}.finfo small{opacity:.75}.finfo b{font-family:var(--t-label)}
 .ucard{padding:10px 12px;display:grid;grid-template-columns:56px 1fr;gap:10px;border-bottom:1px solid var(--rim)}
 .ucard .face{width:56px;height:56px;box-shadow:0 2px 8px rgba(0,0,0,.6);border-radius:6px;border:1px solid var(--rim)}
 .ucard .nm{font:700 16px var(--t-label);color:var(--brass-2)}
 .ucard .st{font-size:13px;color:var(--paper-2)}
-.acts{display:grid;grid-template-columns:1fr 1fr;gap:6px;padding:10px 12px;border-bottom:1px solid var(--rim);background:rgba(0,0,0,.25)}
+.acts{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;padding:10px 12px;border-bottom:1px solid var(--rim);background:rgba(0,0,0,.25)}
 .acts .btn{font-size:14px;padding:8px 10px;display:flex;align-items:center}
 .acts #b-next,.acts #b-end{grid-column:1/-1;justify-content:center}
 .acts #b-next.half{grid-column:auto}.acts #b-cancel.half{justify-content:center}
@@ -49903,7 +49903,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611242051"></script><script>
+</script><script src="world.js?v=202611242101"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54376,7 +54376,7 @@ function drawPanel() {
     const left = Math.max(0, u.steps - S.moved - (u.conds.slow ? Math.ceil(u.steps / 2) : 0));
     const btn = (id, label, dis, title, cls) => `<button class="btn small ${cls || ''}" id="${id}" ${dis ? 'disabled' : ''} title="${esc(title || '')}">${label}</button>`;
     const tgtHint = {mark: 'Выбери врага для метки.', cut: 'Выбери врага рядом, чтобы подрезать.', trick_steal: 'Выбери врага рядом: стащить.', trick_disarm: 'Выбери врага рядом: выбить оружие.', trick_dust: 'Выбери врага рядом: пыль в глаза.', trick_trip: 'Выбери врага рядом: подножка.', hands: 'Выбери раненого: себя (свою клетку) или соседа.', help: 'Выбери врага рядом: следующий удар своих по нему +4.', offhand: 'Выбери врага рядом для удара второй рукой.', shove: 'Выбери врага рядом, чтобы толкнуть щитом.'};
-    const hint = mode && mode.pot ? (mode.tgm === 'area' ? `Куда бросить «${esc(R.item(mode.pot).name)}»: клетка не дальше пяти.` : `Кому: союзник в соседней клетке.`) : mode && mode.spell ? `Цель для «${esc(mode.spell.name)}»: ${esc(mode.spell.effect.slice(0, 120))}` : mode === 'shoot' ? `Выбери цель для выстрела: ${esc(u.ranged.name)}.` : tgtHint[mode] || `Клетка — идти. Враг — подойти и ударить: ${esc(u.attacks[0].name.replace(/\s*\(.*\)/, ''))}.${u.ranged ? ' Для выстрела нажми «Стрелять».' : ''}`;
+    const hint = mode && mode.pot ? (mode.tgm === 'area' ? `Куда бросить «${esc(R.item(mode.pot).name)}»: клетка не дальше пяти.` : `Кому: союзник в соседней клетке.`) : mode && mode.spell ? `Цель для «${esc(mode.spell.name)}»: ${esc(mode.spell.effect.slice(0, 120))}` : mode === 'shoot' ? `Выбери цель для выстрела: ${esc(u.ranged.name)}.` : tgtHint[mode] || `Клетка — идти. Враг — подойти и ударить: ${esc(u.attacks[0].name.replace(/\s*\(.*\)/, '').replace(/\s*«[^»]*»?/g, '').trim())}.${u.ranged ? ' Для выстрела нажми «Стрелять».' : ''}`;
     const tat = u.cls === 'tat', CL = R.CLASSES[u.cls] || {};
     const bookOpen = mode === 'spells' || !!(mode && mode.book); if (bookOpen) setTimeout(() => tip1('spell'), 200);
     const hideWhy = B.canHide(S, u) ? '' : B.enemiesOf(S, u).some(e => B.dist(e, u) <= 1) ? 'Рядом враг — на глазах не спрятаться.' : 'Нужно укрытие рядом: кусты, дерево, камень, могила.';
@@ -54409,8 +54409,8 @@ function drawPanel() {
         const grid = `<div class="sgrid">${all.filter(x => x.circle === cc).map(x => { const w = why(x), cst = spellCost(u.ref, x); return `<button class="sch ${bs && bs.id === x.id ? 'on' : ''} ${w ? 'off' : ''}" data-bsp="${x.id}" title="${esc(w || '')}">${sigil(x.school)}<span>${esc(x.name)}</span><i>${cst || '·'}</i></button>`; }).join('')}</div>`;
         return `<div class="grp">Книга заклинаний · Сила ${u.power}/${u.powerMax}</div><div class="sbook bb"><div class="stabs">${tabs}</div>${grid}${bs ? `<div class="spcard sm">${spellCard(u.ref, bs, true)}<div class="sc-b">${btn('b-cast', 'Сотворить', A || !okIds.has(bs.id), why(bs) || usedA, 'primary')}</div></div>` : '<div class="hint">Выбери заклинание — откроется, как оно работает.</div>'}</div>`; })() : `
       <div class="grp">Основное действие</div>
-      ${btn('b-melee', 'Ударить: ' + (S && S.tlFist ? 'кулаком' : esc(u.attacks[0].name.replace(/\s*\(.*\)/, ''))), A, tip(usedA, 'Ближний бой: нажми на врага — рядом или вдали, герой подойдёт сам' + (u.nAtt > 1 ? `; ударов за ход: ${u.nAtt}` : '')), mode !== 'shoot' && !(mode && mode.spell) && !tgtHint[mode] ? 'on' : '')}
-      ${u.ranged ? btn('b-shoot', 'Стрелять: ' + esc(u.ranged.name) + (u.ammoKind && u.ref ? ` (${C.ammoCount(u.ref, u.ammoKind)})` : ''), A, tip(usedA, 'Выстрел: нажми на врага' + (u.shots > 1 ? '; два выстрела за действие' : '')), mode === 'shoot' ? 'on' : '') : ''}
+      ${btn('b-melee', 'Ударить: ' + (S && S.tlFist ? 'кулаком' : esc(u.attacks[0].name.replace(/\s*\(.*\)/, '').replace(/\s*«[^»]*»?/g, '').trim())), A, tip(usedA, 'Ближний бой: нажми на врага — рядом или вдали, герой подойдёт сам' + (u.nAtt > 1 ? `; ударов за ход: ${u.nAtt}` : '')), mode !== 'shoot' && !(mode && mode.spell) && !tgtHint[mode] ? 'on' : '')}
+      ${u.ranged ? btn('b-shoot', 'Стрелять: ' + esc(u.ranged.name.replace(/\s*\(.*\)/, '').replace(/\s*«[^»]*»?/g, '').trim()) + (u.ammoKind && u.ref ? ` (${C.ammoCount(u.ref, u.ammoKind)})` : ''), A, tip(usedA, 'Выстрел: нажми на врага' + (u.shots > 1 ? '; два выстрела за действие' : '')), mode === 'shoot' ? 'on' : '') : ''}
       ${sp.length || spellWhy ? btn('b-spells', sp.length ? `Чары (${sp.length})` : 'Чары', A || !sp.length, tip(spellWhy || usedA, 'Сотворить заклинание'), mode && (mode.spell || mode.book) || mode === 'spells' ? 'on' : '') : ''}
       ${pots.length || healN ? btn('b-pots', `Снадобья (${pots.length + (healN ? 1 : 0)})`, A && Bn, tip(A && Bn ? 'Действия на этот ход потрачены.' : '', 'Выпить (малое действие), дать соседу или швырнуть склянку (действие)'), mode === 'pots' || (mode && mode.pot) ? 'on' : '') : ''}
       ${scs.length ? btn('b-scrolls', `Свиток (${scs.length})`, A, tip(usedA, 'Прочесть свиток: заклинание сработает без Силы, а свиток сгорит'), mode === 'scrolls' || (mode && mode.scroll) ? 'on' : '') : ''}
