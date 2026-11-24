@@ -68200,9 +68200,22 @@ const moodOf = (g, o) => {
   if (kids.length && R.rand() < 0.5) { const k = kids[Math.floor(R.rand() * kids.length)]; return {m: 'kids', t: pick(T.morning.kids[sx]).replace(/\{kid\}/g, k.n)}; }
   return {m: 'plain', t: pick(T.morning[sx][nravOf(o)])};
 };
+C.HE_HOT_HOME = Object.assign({freed: 0.6, poor: 0.35, peasant: 0.3, merchant: 0.15, noble: 0.08, WARM: 0.15, WARM_REP: 90, LONG: 0.2, PREG: -0.1, GAP: 2, MAX: 0.85}, C.HE_HOT_HOME || {});
+C.heOrigin = function (g, key) { try { const [role] = String(key).split('@'), sp = (g.homeSp || {})[role], base = String(role).replace(/^sp_/, '');
+    if (sp && sp.kv && C.kvLocOf) { const r = C.kvLocOf(g, sp.kv); if (r && r.freed) return 'freed'; }
+    if (['trade', 'jewel'].includes(base)) return 'merchant'; if (/boyar|knyaz|noble/.test(base)) return 'noble';
+    const t = C.heTier ? C.heTier(g, key) : 'peasant'; return t === 'poor' ? 'poor' : 'peasant'; } catch (e) { return 'peasant'; } };
+C.heHotHome = function (g, o, mood) {
+  const k = C.HE_HOT_HOME; if (!o || ['cold', 'sore'].includes(mood)) return 0;
+  const Hm = (st(g).home || {})[o.key] || {}; if (Hm.hotDay && day(g) - Hm.hotDay < k.GAP) return 0;
+  let p = k[C.heOrigin(g, o.key)] != null ? k[C.heOrigin(g, o.key)] : k.peasant;
+  if ((o.r.rep || 0) >= k.WARM_REP) p += k.WARM; if (mood === 'long') p += k.LONG; if (mood === 'preg') p += k.PREG;
+  return Math.max(0, Math.min(k.MAX, p)); };
 const startNight = (g, o) => {
   const S = st(g), tier = C.heTier(g, o.key), art = C.heNightArt(g, tier), nk = tier === 'peasant' && art === 'hayloft' ? 'hay' : tier;
   const mood = moodOf(g, o);
+  /* жаркая ночь не только за поручение (Ник 25.11): когда рада, давно не видела, тепло относится; чем проще её положение — тем легче */
+  try { const ph = C.heHotHome(g, o, mood.m); if (ph > 0 && R.rand() < ph) { const Hm0 = S.home[o.key] = S.home[o.key] || {}; Hm0.hotDay = day(g); return hotNight(g, o, null); } } catch (e) {}
   const Hm = S.home[o.key] = S.home[o.key] || {}; Hm.last = day(g); Hm.n = (Hm.n || 0) + 1;
   S.night = {key: o.key, hero: o.h.id, tier, art, text: pick(T.night[nk] || T.night.peasant), mood: mood.m, say: mood.t, n: o.p.n, sex: o.p.sex, face: o.p.face, ask: null};
   if (mood.m !== 'cold') { const E = C.heOffer(g, o.key); if (E) S.night.ask = E; }
@@ -71190,6 +71203,17 @@ C.heNeed = function (g, key) {
 if (C.heCupAdd) { const ca0 = C.heCupAdd; C.heCupAdd = function (g, key, d, why) {
   if (d > 0 && why === 'нищета') { const m = C.heNeed(g, key); if (!m) return 0; d = d * m; }
   return ca0.call(this, g, key, d, why); }; }
+
+/* дети в браке: холодный вечер — к стене, без дитя; спасённая — рада и ватаге детей (Ник 25.11) */
+C.KVR.KIDS_FREED = {MAX: 9, P: 0.05};
+if (C.kidsNight && C.KIDS) { const kn0 = C.kidsNight; C.kidsNight = function (g, key) {
+  const K0 = C.KIDS, keep = {MAX: K0.MAX, P: K0.P, P2: K0.P2};
+  try { const r = (g.folkRel || {})[key] || {}, HE = C.HE || {};
+    const cold = (r.kvBetray && day(g) - r.kvBetray < (HE.COLD || 30)) || (C.heCupOf && C.heCupOf(g, key) >= (HE.CUP_WARN1 || 5));
+    if (cold) { K0.P = 0; K0.P2 = 0; }
+    else if (C.heOrigin && C.heOrigin(g, key) === 'freed') { K0.MAX = Math.max(K0.MAX, K().KIDS_FREED.MAX); K0.P += K().KIDS_FREED.P; K0.P2 = (K0.P2 || K0.P) + K().KIDS_FREED.P; }
+    return kn0.apply(this, arguments);
+  } finally { Object.assign(K0, keep); } }; }
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
