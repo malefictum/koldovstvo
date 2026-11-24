@@ -66372,7 +66372,7 @@ if (!R || !C || !C.CAMPS || !C.KVT || !C.kvAfter) return;
 const T = C.KVT, fill = C.kvFill;
 Object.assign(C.KV, {
   CAMP_YES: {lihoy: 0.9, star: 0.85, zhadny: 0.7, trus: 0.6, chestny: 1}, CAMP_NO_DAYS: 6, CAMP_PTS: 1,
-  KID: {bansh: 0.02, vesely: 0.03, guest: 0.05, local: 0.08, camp: 0.07}, TERM: 270, NEWS: 20, LATE: 90, KIN: 30, BEAT: 30, FAR_GAP: [10, 60],
+  KID: {bansh: 0.01, vesely: 0.01, guest: 0.05, local: 0.05, camp: 0.07}, KID_LOVE: 0.07, /* к100 (Ник 25.11): в бане и весёлом доме берегутся — 1; в чужом доме — 5; где есть чувства — 7; с женой — своё, w2_kids */ TERM: 270, NEWS: 20, LATE: 90, KIN: 30, BEAT: 30, FAR_GAP: [10, 60],
 }, C.KV.INT || {});
 const K = () => C.KV;
 const decl = (n, sex) => (Q && Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
@@ -66452,7 +66452,9 @@ C.kvMaybeKid = function (g, h, o, force) {
   if (p.sex === h.sex) return null;
   const heroMom = h.sex === 'f';
   if (!heroMom && (kind === 'bansh' || kind === 'vesely')) return null;
-  if (!force && R.rand() >= (K().KID[kind] || 0)) return null;
+  let pk = K().KID[kind] || 0;
+  if (kind === 'local' && o.loc && C.kvLocOf) { const r = C.kvLocOf(g, o.loc); if (r && (r.rel || 0) >= 75) pk = Math.max(pk, K().KID_LOVE || pk); }
+  if (!force && R.rand() >= pk) return null;
   if (heroMom && heroPreg(g, h)) return null;
   const ppl = o.m ? (o.m.people || 'nolgrim') : C.kvPpl ? C.kvPpl(g) : 'nolgrim';
   let pid, sp, mom, father = 'known', at = g.loc;
