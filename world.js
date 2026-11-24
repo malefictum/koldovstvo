@@ -69409,9 +69409,9 @@ if (FREE.scenes.folk_tavern) { const ft0 = FREE.scenes.folk_tavern; FREE.scenes.
     const back = sc.choices.findIndex(c => c.t === 'Назад'), ins = c => { if (back >= 0) sc.choices.splice(back, 0, c); else sc.choices.push(c); };
     if (T_(g)) { ins({t: 'Вернуться за карточный стол', go: 'trk_table'}); return sc; }
     const key = g.loc + '|' + slot(g);
-    if (C.trkBanned(g)) { sc.lines.push(['n', TX.tableBan]); return sc; }
-    if (!C.trkBusy(g)) { sc.lines.push(['n', TX.tableEmpty[hsh(key) % TX.tableEmpty.length]]); return sc; }
-    const who = C.trkWho(g); if (!who.length) return sc;
+    if (C.trkBanned(g)) { sc.lines.push(['n', TX.tableBan]); ins({t: 'Карточный стол: тринька', dis: 'шулеров здесь не забывают — за стол не пустят'}); return sc; }
+    if (!C.trkBusy(g)) { sc.lines.push(['n', TX.tableEmpty[hsh(key) % TX.tableEmpty.length]]); ins({t: 'Карточный стол: тринька', dis: 'за столом пусто — картёжники сходятся к вечеру'}); return sc; }
+    const who = C.trkWho(g); if (!who.length) { ins({t: 'Карточный стол: тринька', dis: 'сыграть не с кем'}); return sc; }
     sc.lines.push(['n', TX.tableBusy[hsh(key) % TX.tableBusy.length]]);
     const names = who.map(p => p.name.split(' ')[0]);
     ins({t: `Сыграть в триньку: за столом ${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}`, do: g2 => C.trkOpen(g2) || 'folk_tavern'});

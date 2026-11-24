@@ -28278,6 +28278,21 @@ const NM = {
 };
 const NICK = {m: ['Седой', 'Кривоглаз', 'Безбровый', 'Гудок', 'Молчун', 'Рябой', 'Сухорукий', 'Пересмешник', 'Тихоня', 'Бородач', 'Косой', 'Горбун', 'Медведь', 'Сыч', 'Ворон'],
   f: ['Белоручка', 'Тихая', 'Рябина', 'Говорунья', 'Вострая', 'Синеглазка', 'Сорока', 'Ласточка']};
+/* лица людей места: у каждого своё (решение Ника 24.11 «лиц много — хоть покрась их»). Пул — взрослые лица листов 80–89 и старые;
+   травница и книжник — могут быть в летах. Внутри одного места лица не повторяются; у человека лицо постоянное (зависит от места). */
+const facePool = (sex, role) => { const all = (sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M) || [], kid = (C.FACE_KID || []).concat(C.D1_YOUNG || []), old = C.FACE_ELDER || [];
+  const own = ((FACES[role] && FACES[role][sex]) || []).filter(p => !kid.includes(p)), elderOk = /^(herb|book|temple|song)$/.test(role);
+  const base = all.filter(p => !kid.includes(p) && (elderOk || !old.includes(p)) && !/^p(k|l)/.test(p));
+  return {own, P: own.concat(base.filter(p => !own.includes(p)))}; };
+const FCACHE = {};
+/* лица считаются для обоих полов каждой роли (пол мастера может смениться — hearts.js), внутри пола без повторов */
+const placeFaces = (g, at) => { const key = g.camp + '|' + at + '|' + ((C.PORTRAITS_F || []).length + (C.PORTRAITS_M || []).length); if (FCACHE[key]) return FCACHE[key];
+  const used = {m: new Set(), f: new Set()}, out = {m: {}, f: {}}, hp = hash(g.camp + '|' + at);
+  ['m', 'f'].forEach(sex => ROLES.forEach((role, ri) => { const {own, P} = facePool(sex, role); if (!P.length) return;
+    const start = own.length && (hp >>> 2) % 3 === 0 ? hp % own.length : (hp + ri * 37 + (hash(role + sex) >>> 3)) % P.length;
+    for (let k = 0; k < P.length; k++) { const f = P[(start + k) % P.length]; if (!used[sex].has(f)) { used[sex].add(f); out[sex][role] = f; return; } }
+    out[sex][role] = P[start % P.length]; }));
+  return (FCACHE[key] = out); };
 C.folkPerson = function (g, role, at) {
   const F = C.FOLK[role], h = hash(g.camp + '|' + at + '|' + role);
   let sex = F.sex; if (role === 'temple') sex = (h >>> 3) % 3 === 0 ? 'f' : 'm';
@@ -28285,8 +28300,7 @@ C.folkPerson = function (g, role, at) {
   const pool = impOk ? NM[sex === 'f' ? 'imf' : 'im'] : teOk && h % 3 === 0 ? NM[sex === 'f' ? 'tef' : 'te'] : NM[sex];
   const hp = hash(g.camp + '|' + at), ri = ROLES.indexOf(role); const name = pool[(hp + ri * 7) % pool.length], nick = NICK[sex][((hp >>> 5) + ri * 4) % NICK[sex].length];
   const t = role === 'temple' ? (sex === 'f' ? 'жрица' : impOk ? 'брат Ока' : 'служитель') : role === 'weave' && sex === 'f' ? 'швея' : F.t;
-  const FP = FACES[role] && FACES[role][sex] || (sex === 'f' ? ['p36', 'p37', 'p38', 'p44', 'p45'] : ['p32', 'p33', 'p34', 'p35', 'p41', 'p43']);
-  return {n: impOk ? (sex === 'f' ? 'сестра ' : 'брат ') + name : name + ' ' + nick, t, sex, face: FP[hp % FP.length], ppl: impOk ? 'imperets' : teOk && h % 3 === 0 ? 'terak' : 'nolgrim'};
+  return {n: impOk ? (sex === 'f' ? 'сестра ' : 'брат ') + name : name + ' ' + nick, t, sex, face: placeFaces(g, at)[sex === 'f' ? 'f' : 'm'][role] || (sex === 'f' ? 'p36' : 'p32'), ppl: impOk ? 'imperets' : teOk && h % 3 === 0 ? 'terak' : 'nolgrim'};
 };
 /* лица мастеров: по ремеслу, где есть подходящее, иначе — горожане по полу */
 const FACES = {war: {m: ['p25', 'p14', 'p30']}, hunt: {m: ['p29', 'p31']}, herb: {f: ['p46', 'p23']}, book: {m: ['p40', 'p28']},
@@ -28586,6 +28600,8 @@ SC.folk_craft = g => {
 SC.folk_tavern = g => {
   const ch = injected(g).filter(c => TAVERN.includes(c.go)).map(c => ({t: c.label === 'Спросить, нет ли работы' ? 'Объявления у стойки: кому нужна помощь' : c.label, go: c.go}));
   if (C.drinksHere) ch.unshift({t: 'Выпить у стойки: хмельное и слухи', go: 'tavern_drink'});
+  /* ночлег — и из корчмы (Ник 24.11: «во многих тавернах нет места для ночлега»): те же комнаты, что у места */
+  try { if (g.camp === 'free' && C.placeSplit && C.placeFull && C.placeSplit(g, C.placeFull(g)).inn.length) ch.push({t: 'Ночлег: спросить комнату у корчмаря', do: g2 => { g2.innBack = 'folk_tavern'; return 'place_inn'; }}); } catch (e) {}
   ch.push({t: 'Назад', go: g2 => nodeScene(g2)});
   return {title: 'Корчма', bg: 'tavern', art: 'tavern', lines: [['n', 'Дымно, людно. У стойки — доска с зарубками и записками, в углу — наёмники с кружками, у печи — место для песни.']], choices: ch};
 };
@@ -40497,7 +40513,7 @@ C.placeSplit = function (g, sc) {
   if (out.hub.length) out.top.push({i: hubE ? hubE.i : freeI(ch, 880), label: hubLabel(n), free: 1, placeHub: 1, do: g2 => { g2.folkAt = null; g2.folkRole = null; return 'folk_hub'; }});
   else if (hubE) out.top.push(Object.assign({}, hubE, {placeHub: 1}, /^По городу/.test(hubE.label) ? {label: hubLabel(n)} : {}));
   // ночлег: разряды — в одно подменю
-  if (out.inn.length) out.top.push({i: freeI(ch, 884), label: 'Заночевать…', placeInn: out.inn.length, do: () => 'place_inn'});
+  if (out.inn.length) out.top.push({i: freeI(ch, 884), label: 'Заночевать…', placeInn: out.inn.length, do: g2 => { g2.innBack = null; return 'place_inn'; }});
   const kOf = c => (c.placeHub ? 'hub' : c.placeAsks ? 'asks' : c.placeInn ? 'inn' : grpOf(c));
   const rk = c => RANK[kOf(c)] != null ? RANK[kOf(c)] : RANK.other;
   // сколько кнопок останется на виду: w2-кнопок распорядитель оставляет не больше btnMax
@@ -40548,7 +40564,7 @@ camp.scenes.place_inn = g => {
   try { list = C.placeSplit(g, C.placeFull(g)).inn; } catch (e) {}
   const ch = list.map((c, k) => fwd(c, 700 + k, 'free_place')).map(c => Object.assign({}, c, {t: c.label}));
   ch.forEach(c => { delete c.i; delete c.label; if (c.dis) { const why = c.dis; c.if = () => false; c.off = why; delete c.dis; } });
-  ch.push({t: 'Назад', free: 1, go: 'free_place'});
+  ch.push({t: 'Назад', free: 1, go: g2 => { const b = g2.innBack; g2.innBack = null; return b || 'free_place'; }});
   return {title: n.name ? `${n.name}: ночлег` : 'Ночлег', bg: 'village',  /* не 'tavern': иначе camp_life добавит «Стол» */ lines: [['n', list.length ? 'Хозяин загибает пальцы: есть угол подешевле, есть и почище, с ужином получше — что возьмёте?' : 'Ночлега здесь не сыскать: ни угла, ни лавки под крышей.']], choices: ch};
 };
 /* выбор по номеру из полной сцены места (старые сохранённые голоса, тесты): если наверху его нет — ищем в полной */
@@ -47964,11 +47980,27 @@ BF.houseLit = function (S, h) {
   return S.units.some(u => u.torch && !u.dead && !u.gone && u.c != null && BF.inHouse(S, u) === h.id);
 };
 /* видно ли внутрь дома: свой внутри или открытая клетка пола на виду */
+/* ---------- обзор «моих» героев (решение Ника 24.11: в игре с друзьями дом и то, что внутри, — как видят МОИ герои, не весь отряд) ----------
+   BF.viewMine(u) — ставит интерфейс (в сети: герой этого игрока; в одиночной — весь отряд). BF.visView — обзор только моих героев
+   (только для рисования: разведку и обзор отряда для правил не трогает). */
+BF.viewMine = BF.viewMine || null;
+const mineV = u => !BF.viewMine || BF.viewMine(u);
+const VISV = new WeakMap();
+BF.visView = function (S) {
+  const v0 = BF.vis ? BF.vis(S) : null; if (!v0 || !BF.viewMine) return v0;
+  const ps = S.units.filter(u => u.side === 'party' && !u.dead && !u.gone && u.c != null && !u.down), my = ps.filter(mineV);
+  if (my.length === ps.length) return v0;
+  const stamp = my.map(u => u.id + '@' + u.c + ',' + u.r).join(';') + '|' + (S.bfTerrV || 0) + '|' + (S.round || 0) + '|' + Object.keys(v0).length;
+  const c0 = VISV.get(S); if (c0 && c0.k === stamp) return c0.v;
+  const v = {}; my.forEach(u => { Object.keys(v0).forEach(k => { if (v0[k] !== 1 || v[k]) return; const [c, r] = k.split(',').map(Number), x = B.cell(S, c, r); if (x && (B.dist(u, x) <= 1 || BF.sees(S, u, x))) v[k] = 1; }); });
+  Object.keys(v).forEach(k => { const [c, r] = k.split(',').map(Number); B.neigh(c, r).forEach(p => { const y = B.cell(S, p.c, p.r), kk = key(p.c, p.r); if (y && B.LOS_BLOCK[y.t] && !v[kk]) v[kk] = 2; }); });
+  VISV.set(S, {k: stamp, v}); return v;
+};
 BF.houseOpen = function (S, h) {
-  if (S.units.some(u => u.side === 'party' && !u.dead && !u.gone && u.c != null && (() => { const x = B.cell(S, u.c, u.r); return x && x.hb === h.id && (x.hin || x.t === 'hdoor_o' || x.t === 'hdoor_b'); })())) return true;
-  const v = BF.vis ? BF.vis(S) : null;
+  if (S.units.some(u => u.side === 'party' && mineV(u) && !u.dead && !u.gone && u.c != null && (() => { const x = B.cell(S, u.c, u.r); return x && x.hb === h.id && (x.hin || x.t === 'hdoor_o' || x.t === 'hdoor_b'); })())) return true;
+  const v = BF.visView ? BF.visView(S) : BF.vis ? BF.vis(S) : null;
   if (v) return foot(h).some(p => { const x = B.cell(S, p.c, p.r); return x && x.hin && v[key(p.c, p.r)] === 1; });
-  const ps = S.units.filter(u => u.side === 'party' && B.active(u) && u.c != null);
+  const ps = S.units.filter(u => u.side === 'party' && mineV(u) && B.active(u) && u.c != null);
   return foot(h).some(p => { const x = B.cell(S, p.c, p.r); return x && x.hin && ps.some(u => B.dist(u, x) <= 16 && BF.sees(S, u, x)); });
 };
 
@@ -48673,8 +48705,11 @@ BF.hbRoofs = function (S, things, hexXY, off) {
     if (BF.houseOpen(S, h)) { open[h.id] = 1; state[h.id] = 'b'; things.push({y: yT - 0.5, hr: {house: h, part: 'b', sk3: 1}}); return; }
     const fog = S.field.fog;
     if (fog && !cs.some(x => BF.explored(S, x.c, x.r))) return;
-    if (fog && cs.some(x => x.hin && BF.explored(S, x.c, x.r))) { state[h.id] = 'c'; things.push({y: yT - 0.5, hr: {house: h, part: 'cdark', sk3: 1}}); things.push({y: yB + 0.6, hr: {house: h, part: 'c', sk3: 1}}); return; }
-    state[h.id] = 'a'; things.push({y: yB + 0.6, hr: {house: h, part: 'a', sk3: 1}});
+    // глубина: дом режется на ряды; кусок ряда k рисуется перед фигурами этого ряда, после фигур рядов выше (см. sliceClip)
+    const rowY = k => { const q = hc(h, 0, k); return hexXY(q.c, q.r).y; };
+    const slices = part => { if (BF._hbNoSlice) return things.push({y: yB + 0.6, hr: {house: h, part, sk3: 1}}); /* прежний порядок — для сравнения */ for (let k = 0; k < h.H; k++) things.push({y: rowY(k) - 1, hr: {house: h, part, sk3: 1, slice: k}}); };
+    if (fog && cs.some(x => x.hin && BF.explored(S, x.c, x.r))) { state[h.id] = 'c'; things.push({y: yT - 0.5, hr: {house: h, part: 'cdark', sk3: 1}}); slices('c'); return; }
+    state[h.id] = 'a'; slices('a');
   });
 };
 /* ряд кусков листа 91 по северной стене (лицом к нам), дверь и окна на местах */
@@ -48702,6 +48737,15 @@ const marks = (X, S, h, base, s) => {
     if (cell.hd != null && cur && cur.side === 'party' && !cur.ai && B.dist(cur, cell) <= 1) { poly(X, hexV(hexXY0(base, h, p, s).x, hexXY0(base, h, p, s).y, s * 0.9)); X.strokeStyle = 'rgba(255,215,120,.95)'; X.lineWidth = 2.2; X.stroke(); } });
 };
 const hexXY0 = (base, h, p, s) => PT(h, base, s, p.x, p.y);
+/* кусок дома для ряда k (рисование по глубине): всё, что над полосой ряда k (столбом вверх), кроме того, что над рядами ниже (ближе к нам).
+   Так у косой западной стены фигура снаружи стоит перед своим рядом стены и за рядами, что южнее; у северо-западного угла — тоже. */
+const sliceClip = (X, h, base, s, k) => {
+  const K = h.H - 1, mx = 0.22, mr = 1.4, TOP = -1e5, P = (u, v) => PT(h, base, s, u, v);
+  const TL = P(-0.5 - mx, k === 0 ? -4 : k - 0.5), BL = P(-0.5 - mx, k === K ? K + 4 : k + 0.5), BR = P(h.W - 0.5 + mr, k === K ? K + 4 : k + 0.5);
+  X.beginPath(); X.moveTo(TL.x, TL.y); X.lineTo(BL.x, BL.y); X.lineTo(BR.x, BR.y); X.lineTo(BR.x, TOP); X.lineTo(TL.x, TOP); X.closePath(); X.clip();
+  if (k < K) { const T1 = P(-0.5 - mx, k + 0.5), B1 = P(-0.5 - mx, K + 4), B2 = P(h.W - 0.5 + mr, K + 4);
+    X.beginPath(); X.rect(-1e5, -1e5, 2e5, 2e5); X.moveTo(T1.x, T1.y); X.lineTo(B1.x, B1.y); X.lineTo(B2.x, B2.y); X.lineTo(B2.x, TOP); X.lineTo(T1.x, TOP); X.closePath(); X.clip('evenodd'); }
+};
 const hbRoof2 = BF.hbRoof;
 BF.hbRoof = function (X, hr, s, hexXY, S, img) {
   if (!hr || !hr.sk3 || !img || !AT()) return hbRoof2.apply(this, arguments);
@@ -48709,6 +48753,7 @@ BF.hbRoof = function (X, hr, s, hexXY, S, img) {
   const A = PT(h, base, s, -0.5, -0.5), Bp = PT(h, base, s, h.W - 0.5, -0.5), Cp = PT(h, base, s, h.W - 0.5, h.H - 0.5), D = PT(h, base, s, -0.5, h.H - 0.5);
   const up = (p, k) => ({x: p.x, y: p.y - k});
   X.save();
+  if (hr.slice != null) sliceClip(X, h, base, s, hr.slice);
   if (hr.part === 'b') { // крыши нет: контур, северная стена, отметки дверей и окон
     X.strokeStyle = 'rgba(30,18,6,.9)'; X.lineWidth = Math.max(2, s * 0.09); X.beginPath(); X.moveTo(A.x, A.y); X.lineTo(Bp.x, Bp.y); X.lineTo(Cp.x, Cp.y); X.lineTo(D.x, D.y); X.closePath(); X.stroke();
     marks(X, S, h, base, s);
@@ -49858,7 +49903,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611242030"></script><script>
+</script><script src="world.js?v=202611242051"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53460,6 +53505,7 @@ function drawField(noFollow) {
   const seenObj = {};
   cells.forEach(c => { if (F.fog && bfFogOf(S, c) === 0) return; if (c.o != null && F.objs && F.objs[c.o]) { if (seenObj[c.o]) return; seenObj[c.o] = 1; const o = F.objs[c.o], ys = o.cells.map(x => hexXY(x.c, x.r)); if (ys.every(off)) return; things.push({y: Math.max(...ys.map(q => q.y)), o}); return; }
     if (['tree', 'rock', 'brush', 'grave', 'fence', 'house', 'wall', 'idol', 'log', 'hay', 'wood', 'barrels', 'well', 'fire', 'shelter', 'rye'].includes(c.t) || (F.big && BF_PROPS.has(c.t)) || (c.hb != null && c.t !== 'hfloor') || (c.vy === 'pali' || c.vy === 'gate')) { if (c.t === 'wall' && F.bf && F.bf.kind === 'dungeon') return; const p = hexXY(c.c, c.r); if (!off(p)) things.push({y: p.y, c}); } });
+  if (B.BF) B.BF.viewMine = B.BF._viewForce || (NET() ? mineU : null); // в сети дом и что внутри — по обзору МОИХ героев (bf_house.js)
   if (F.big && B.BF && B.BF.hbRoofs) B.BF.hbRoofs(S, things, hexXY, off); // крыши домов (снимаются, когда внутрь видно)
   const HBX = {fprop, cur, img: IMG.house};
   // павшие враги остаются на поле: кровь и тело под живыми
@@ -53935,6 +53981,7 @@ let BF_FOGK = null, BF_FOGV = null, BF_FOGE = null;
 function bfFogOf(S, c) { /* 0 — не разведано, 1 — разведано, но не видно сейчас, 2 — видно */
   const BF = B.BF; if (!BF || !S.field.fog) return 2;
   const v = BF.vis(S); if (BF_FOGV !== v) { BF_FOGV = v; } const kk = c.c + ',' + c.r;
+  if (c.hb != null && BF.viewMine && BF.visView) { const w = BF.visView(S); if (w && !w[kk]) return BF.explored(S, c.c, c.r) ? 1 : 0; } // внутри дома — как видят мои герои
   if (v && v[kk]) return 2; return BF.explored(S, c.c, c.r) ? 1 : 0; }
 function bfCell(c, p, s, F, k, tex) {
   const dg = F.bf && F.bf.kind === 'dungeon';
@@ -54009,7 +54056,11 @@ function bfOver(S, cur) {
   X.restore();
 }
 /* враг, которого не видит никто из отряда (за деревьями и камнями, затаился, невидим), — не рисуется вовсе */
+/* в сети: видят ли клетку мои герои (bf_house.js BF.visView); союзник, которого мои не видят, — силуэтом */
+function mineSeesCell(S, c, r) { const BF = B.BF; if (!BF || !BF.viewMine || !BF.visView || !S.field.fog) return true; const w = BF.visView(S); return !w || w[c + ',' + r] === 1; }
+let SIL_NOW = false;
 function seenByParty(S, u) {
+  if (S && u && u.side !== 'party' && !u.dead && u.c != null && B.BF && B.BF.viewMine) { const x = B.cell(S, u.c, u.r); if (x && x.hb != null && !mineSeesCell(S, u.c, u.r)) return false; } // враг в доме, которого мои не видят
   if (S && u && u.side !== 'party' && !u.dead && B.bfHidden && B.bfHidden(S, u)) return false;
   if (!S || !u || u.side !== 'foe' || u.dead || u.down) return true;
   const ps = S.units.filter(x => x.side === 'party' && !x.dead && !x.down && !x.gone && x.c != null);
@@ -54144,6 +54195,8 @@ function auraTick() {
 function drawUnit(u) {
   const p = unitXY(u), s = geo.s, S = battle, cur = B.current(S);
   if (!seenByParty(S, u)) return;
+  if (!SIL_NOW && u.side === 'party' && !u.dead && u.c != null && B.BF && B.BF.viewMine && !B.BF.viewMine(u) && !mineSeesCell(S, u.c, u.r)) { // союзник за стеной — силуэтом, без подробностей
+    ctx.save(); ctx.filter = 'grayscale(1) brightness(0.3)'; ctx.globalAlpha = 0.42; SIL_NOW = true; try { drawUnit(u); } finally { SIL_NOW = false; ctx.restore(); } return; }
   const isCur = !u.dead && !u._noUi && u.id != null && u.id === curShowId(S);
   if (u.horseOnly && B.BF && B.BF.horseDraw && B.BF.horseDraw(ctx, u, p, s, IMG.mounts, ATLAS.mounts, isCur)) return; // конь без седока (village.js)
   if ((u.dead || u.down) && !u._dieDone && !u._noUi && u.kind !== 'monster') { const q = dieQ(u); if (q < 1) { drawDying(u, q); return; } }
