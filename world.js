@@ -66039,7 +66039,7 @@ const T = C.KVT, fill = C.kvFill;
 Object.assign(C.KV, Object.assign({
   GUEST_CH: [0.1, 0.25, 0.45], GUEST_GAP: 3, LOCAL_V: 0.55, LOCAL_T: 0.35, LOCAL_ST: {widow: 0.35, maid: 0.35, wife: 0.3},
   LATER: 0.6, LATER_DAYS: [6, 25], REL_GUEST: 40, REL_NO: 20, REL_TALK: 6, REL_GIFT: 8, REL_NIGHT: 5, NIGHT_MIN: 35,
-  SVAT_REL: 80, SVAT_PREG: 50, SVAT_DAYS: 7, RUN_REL: 85, GIFT_P: 50, HUSB: 0.12, HUSB_N: 0.06, HUSB_KNOWS: 0.3, VIRA: 150, FIGHT_DC: 13,
+  SVAT_REL: 80, SVAT_PREG: 50, SVAT_DAYS: 7, RUN_REL: 85, GIFT_P: 50, HUSB: 0.12, HUSB_N: 0.06, HUSB_KNOWS: 0.3, HUSB_MAX: 0.45, VIRA: 150, FIGHT_DC: 13,
 }, C.KV.VES || {}));
 const K = () => C.KV;
 const decl = (n, sex) => (Q && Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
@@ -66224,7 +66224,7 @@ SC.kv_local = g => {
     const x = C.kvLocOf(g2, r.id), hh = heroById(g2, r.hid); if (!x || !hh || C.kvLocalWhy(g2, x, 'night')) return 'kv_local';
     x.nightDay = day(g2); x.nights = (x.nights || 0) + 1; x.rel = Math.min(100, x.rel + K().REL_NIGHT);
     freeNight(g2, 'peasant', placeName(g2, x.at));
-    const caught = !!(x.hb && R.rand() < K().HUSB + K().HUSB_N * (x.nights - 1) + (x.hb.knows ? K().HUSB_KNOWS : 0));
+    const caught = !!(x.hb && x.st === 'wife' && R.rand() < Math.min(K().HUSB_MAX, K().HUSB + K().HUSB_N * (x.nights - 1) + (x.hb.knows ? K().HUSB_KNOWS : 0))); // ушла от мужа — муж больше не ходит (Ник 25.11); и при живом муже не каждую ночь
     let txt = pick(T.nightLocal) + (caught ? '' : ' ' + fill(pick(T.guestMorning.local), {h: hh, p}));
     const more = C.kvAfter(g2, hh, {kind: 'local', p, spirit: 1, loc: x.id}); if (more.length) txt += ' ' + more.join(' ');
     g2.kvLast = txt; g2.kvArt = x.st === 'maid' ? 'hayloft' : 'morning_after';
