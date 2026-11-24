@@ -65577,8 +65577,13 @@ greet: {
     m: ['{n} ночует теперь в сторожке у мельницы. Увидев {h_a}, поднимается: «Ушёл я от неё. Теперь — как скажешь»',
       '{n} колет дрова у сторожки и бросает топор, едва завидев {h_a}: «Пришла. Я каждый вечер на дорогу гляжу»',
       '{n} берёт {h_a} за руку при всех, у самого колодца: «Пусть болтают. Я своё отболтал, когда молчал»']},
+  freed: {f: ['{n} снимает теперь угол у старой вдовы и шьёт на людей. Увидев {h_a}, бросает шитьё: «Пришёл! Садись, я сейчас — щи горячие»',
+      '{n} выскакивает на крыльцо в простом платке, без бус и румян: «Видишь — честная теперь. Твоими стараниями. Заходи»',
+      '{n} кладёт ладонь на живот и улыбается: «Толкается. Как тебя услышал — так и толкается»'],
+    m: ['{n} работает теперь у кузнеца молотобойцем. Увидев {h_a}, вытирает руки: «Пришла. Я уж думал — передумала»']},
 },
 /* ---------- местная: что она (он) говорит ночью и под утро — по положению ---------- */
+/* (freed — бывшая банщица / весёлая девица, чьё дитя герой признал) — ниже, в nightSay.freed */
 nightSay: {
   widow: {f: ['Ночью {n} долго не спит, гладит {h_a} по плечу и шепчет: «Я и забыла, как это — не одной… Не уходи до свету, ладно?»',
       'Под утро {n} смеётся в подушку: «Соседка завтра спросит, отчего я пою. А я скажу — весна». За окном — какая угодно, только не весна.',
@@ -65595,6 +65600,9 @@ nightSay: {
       '{n} целует {h_a} на прощанье и шепчет: «С ним я живу. А с тобой — дышу. Только не говори ничего, я сама знаю, как это звучит»'],
     m: ['Ночью {n} говорит глухо: «Не жалей меня. Сам выбрал — сам и отвечу». И отворачивается к стене.',
       'Под утро {n} выводит {h_a} задами: «Жена к обеду вернётся. Иди. И приходи»']},
+  freed: {f: ['Ночью {n} шепчет, прижавшись: «Я ведь думала — так и сгину в той бане. А ты пришёл и сказал — моё. Никто мне такого не говорил»',
+      'Под утро {n} штопает {h_d} рубаху и напевает: «Хоть бы и в бедности. Хоть бы и в шалаше. Лишь бы свой угол и ты в нём»'],
+    m: ['Ночью {n} говорит в темноту: «Я ремесло своё бросил — и не жалею. Ты не пожалеешь тоже. Слово»']},
   left: {f: ['Ночью {n} плачет — тихо, без всхлипов, а потом вдруг смеётся: «Знаешь, впервые за десять лет сплю, не боясь, что кто-то придёт пьяный»',
       'Под утро {n} говорит, глядя в потолок: «Тётка ворчит, соседи шипят, {hb}, говорят, грозится. А мне хорошо. Вот как такое бывает?»',
       'На рассвете {n} гладит {h_a} по волосам: «Я ведь не за тебя от него ушла. От него — за себя. А с тобой — потому что хочу»',
@@ -65612,6 +65620,7 @@ talk: {f: ['Разговор течёт сам собой: про дорогу, 
 nightLocal: ['Огонь в печи прогорает, лучина гаснет. Ночь проходит…', 'За окном шумит ветер, в избе тепло. Ночь проходит…'],
 svatYes: {widow: {f: '{n} молчит долго, комкая платок. Потом кивает: «Вдовья свадьба тихая. Мне громкой и не надо — лишь бы ты был рядом»', m: '{n} встаёт, роняя табурет: «Да! То есть… да. Я думал — не решусь сам спросить, а ты взяла и спросила первая»'},
   maid: {f: '{n} вспыхивает до ушей и бежит звать отца. Отец долго глядит на {h_a} из-под бровей, потом достаёт из сундука рушник: «Ну, коли так — по рукам»', m: '{n} подхватывает {h_a} на руки и кружит по двору: «Мать! Мать, выходи — сватаюсь я! То есть меня сватают!»'},
+  freed: {f: '{n} падает {h_d} в ноги, а потом смеётся сквозь слёзы: «Своя изба… Свой дом… Да хоть землянка, хоть хлеб пополам — лишь бы свой». ', m: '{n} молча кланяется в пояс: «Ты мне жизнь другую дал. Чем отплатить — не знаю. Буду рядом»'},
   left: {f: '{n} плачет и смеётся сразу: «Пусть болтают. Пусть хоть весь край болтает. Я — твоя»', m: '{n} кивает коротко, по-мужски: «Срам на мне уже есть. Пусть будет и счастье»'}},
 wedLocal: {f: 'Свадьбу играют в селе: {n} в венке, гусли звенят до рассвета, соседи, что вчера шептались, сегодня пьют за молодых. {h} теперь женат — и есть дом, куда возвращаться.',
   m: 'Свадьбу играют в селе: {n} не отходит от невесты ни на шаг, гусли звенят до рассвета, соседи, что вчера шептались, сегодня пьют за молодых. {h} теперь замужем — и есть дом, куда возвращаться.'},
@@ -66148,6 +66157,7 @@ const makeLoc = (g, G0, rel) => {
   locs(g)[id] = r; return r;
 };
 C.kvMakeLoc = (g, G0, rel) => makeLoc(g, G0, rel);
+C.kvMakeLoc = (g, G0, rel) => makeLoc(g, G0, rel);
 const guestP = G0 => ({n: G0.n, sex: G0.sex});
 const laterPush = (g, G0) => {
   if (R.rand() >= K().LATER) return;
@@ -66196,6 +66206,7 @@ const stWord = r => {
   const f = r.sex === 'f';
   if (r.st === 'wife') return f ? 'замужем' : 'женат';
   if (r.st === 'left') return f ? 'ушла от мужа' : 'ушёл от жены';
+  if (r.st === 'freed') return f ? 'ждёт ребёнка, бросила ремесло' : 'бросил ремесло';
   const w = ['знакомы', 'привечает', f ? 'сердце тянется' : 'сердце тянется'][tierOf(r)];
   return w;
 };
@@ -66204,10 +66215,11 @@ C.kvLocalWhy = function (g, r, what) {
   const h = heroById(g, r.hid); if (!h) return 'нет героя';
   if (what === 'night') { if (r.nightDay === day(g)) return 'сегодня уже'; if (r.rel < K().NIGHT_MIN) return `${r.sex === 'f' ? 'она' : 'он'} пока не зовёт остаться`; return ''; }
   if (what === 'svat') {
-    if (!['widow', 'maid', 'left'].includes(r.st)) return 'нельзя';
+    if (!['widow', 'maid', 'left', 'freed'].includes(r.st)) return 'нельзя';
     if (C.mwHeroWed && C.mwHeroWed(g, h)) return `${h.name} уже в браке`;
     if (C.grimeStage && C.grimeStage(h) >= 2) return T.svatDirty;
     const pr = pregWith(g, r);
+    if (r.st === 'freed') return ''; // признал дитя — она согласна сразу (Ник 25.11)
     if (r.rel < (pr ? K().SVAT_PREG : K().SVAT_REL)) return 'рано: ещё не время для такого слова';
     if (!pr && day(g) - (r.met || 0) < K().SVAT_DAYS) return 'рано: слишком мало знакомы';
     return '';
@@ -66262,8 +66274,8 @@ SC.kv_local = g => {
     g2.kvLast = txt; g2.kvArt = x.st === 'maid' ? 'hayloft' : 'morning_after';
     if (caught) { g2.kvHusb = x.id; return 'kv_husb'; }
     return 'kv_local'; }});
-  if (['widow', 'maid', 'left'].includes(r.st)) { const sw = C.kvLocalWhy(g, r, 'svat');
-    if (r.rel >= K().SVAT_PREG || pr) ch.push({own: h.id, t: 'Посвататься', if: g2 => !C.kvLocalWhy(g2, C.kvLocOf(g2, r.id), 'svat'), off: sw || 'нельзя', do: g2 => {
+  if (['widow', 'maid', 'left', 'freed'].includes(r.st)) { const sw = C.kvLocalWhy(g, r, 'svat');
+    if (r.rel >= K().SVAT_PREG || pr || r.st === 'freed') ch.push({own: h.id, t: r.st === 'freed' ? 'Взять в жёны — свой дом' : 'Посвататься', if: g2 => !C.kvLocalWhy(g2, C.kvLocOf(g2, r.id), 'svat'), off: sw || 'нельзя', do: g2 => {
       const x = C.kvLocOf(g2, r.id), hh = heroById(g2, r.hid); if (!x || !hh) return 'kv_local';
       const say = fill((T.svatYes[x.st] || T.svatYes.widow)[x.sex === 'f' ? 'f' : 'm'], {h: hh, p}); const t = C.kvLocalWed(g2, x);
       if (!t) { g2.kvLast = 'Свататься сейчас не выйдет.'; return 'kv_local'; }
@@ -71038,6 +71050,146 @@ if (C.BANTER && C.BANTER_TALKS) {
     T('b_bannik', {}, [['a', 'Третьим паром не мойся — банник задушит.'], ['b', 'Банник — сказки.'], ['a', 'Ага. Вот и проверим, кто третьим пойдёт.']]),
   );
 }
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* kv_regular.js */
+/* Колдовство — постоянная банщица (весёлая девица) и признанное дитя (Ник 25.11). Без DOM.
+   • ПОСТОЯННАЯ: ходишь в одну баню (один весёлый дом) — с третьего раза она уже не безымянная: имя, лицо, «ты у неё свой».
+   • ДИТЯ: от постоянной — по шансам C.KV.KID (баня 2, весёлый дом 1 на к100, хмель прибавляет). Через несколько седмиц
+     она просит прийти: «Может, и твой — а может, и нет». Выбор героя:
+       признать — она бросает ремесло, становится местной знакомой (vesely.js, st 'freed'), рада всему, лишь бы свой дом:
+         «Взять в жёны» — сразу, без ожиданий; весёлую девицу прежде выкупают у хозяйки; дитя — как у местной (intimacy.js);
+       дать денег — дитя не твоё по бумагам, она благодарна; отвернуться — молва в месте падает, к тебе она больше не выйдет.
+   • СВАДЬБА С БЫВШЕЙ: молва в месте падает (пересуды), набожные спутники хмурятся.
+   • ЗАПРОСЫ ЖЕНЫ — по её прежнему положению и достатку (Ник 25.11): бывшая банщица на нищету не жалуется вовсе;
+     купеческая дочь, ювелирша — нищета ранит в полтора раза сильнее; прочие — как было (divorce.js, «нищета»).
+   Состояние: g.kvReg[key] = {key, camp, at, kind, hid, n, sex, face, ppl, visits, news, done}. Героине — пока без этого. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !C.kvAfter || !C.kvMakeLoc || !C.kvMaybeKid) return;
+C.KVR = Object.assign({VISITS: 3, NEWS: [20, 40], GIFT: 1000, BUY: 5000, REP_WED: -3, REP_COLD: -2, NEED: {freed: 0, merchant: 1.5, noble: 2}}, C.KVR || {});
+const K = () => C.KVR;
+const day = g => (g && g.day) || 1;
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const heroById = (g, id) => heroes(g).find(x => x.id === id) || null;
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const regs = g => (g.kvReg = g.kvReg || {});
+const keyOf = (g, h, kind) => [g.camp, g.loc, kind, h.id].join('|');
+const decl = (n, sex) => (Q && Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const fill = (s, h, r) => { const H = decl(h.name, h.sex), P = decl(r.n, r.sex); return s.replace(/\{h(_([gdaip]))?\}/g, (x, a, c) => (c ? H[c] : h.name)).replace(/\{n(_([gdaip]))?\}/g, (x, a, c) => (c ? P[c] : r.n)); };
+const T = {
+  named: {bansh: ['На этот раз банщица говорит своё имя — {n}. И смеётся: «Ты уж третий раз ко мне. Своим стал»', '{n} — так её зовут, оказывается. «Других не зови. Я тебя и так узнаю — по шагам»'],
+    vesely: ['Девица в этот раз называет себя — {n}. «Раз ты всё ко мне да ко мне — знай хоть, как звать»', 'Хозяйка дома подмигивает: «Опять к {n_d}? Ну, ступай — она тебя ждёт»']},
+  again: ['{n} встречает {h_a}, как своего.', '{n} узнаёт {h_a} с порога и улыбается.'],
+  news: ['Из {place} весточка: {n} просит прийти. Говорит — дело важное, не на словах.'],
+  ask: {bansh: '{n} встречает {h_a} у бани, бледная, без улыбки, комкает в руках полотенце: «Под сердцем у меня. Может, и твой — а может, и нет. Сама не знаю, врать не стану. Я ничего не прошу. Просто… чтоб ты знал».',
+    vesely: '{n} выходит к {h_d} не в шелках, а в простом платке, и говорит тихо, чтоб хозяйка не слышала: «Тяжёлая я. Может, и от тебя — а может, и нет. Хозяйка велит вытравить. А я не хочу. Вот и всё».'},
+  yes: {bansh: '{h} берёт её за руки: «Моё дитя. Слышишь? Моё». {n} сперва не понимает, а потом плачет — в голос, по-бабьи, впервые за много лет. «Ты мне судьбу изменил… Я — что хочешь. В бедности, в нужде — лишь бы свой угол»',
+    vesely: '{h} кладёт перед хозяйкой кошель: «Выкуп. Она уходит со мной». Хозяйка считает долго, ворчит, но отпускает. {n} выходит за ворота и долго стоит, будто не верит, что можно просто уйти. «Ты мне судьбу изменил… Я теперь — всё ради тебя»'},
+  coin: '{h} оставляет {n_d} серебро: «На дитя. Чем смогу — помогу». {n} кивает и прячет глаза: «Спасибо. Больше, чем другие…»',
+  cold: '{h} отворачивается и уходит. {n} не плачет — только смотрит вслед. А к вечеру по месту уже шепчутся: был у неё один, да бросил.',
+  wed: ['Свадьбу играют тихо. Соседи шепчутся — «из бани взял», «из весёлого дома» — но {n} в простом венке так светится, что шёпот к вечеру стихает.'],
+  frown: '{m} хмурится на свадьбе и молчит весь вечер: не по Оку это, такую в жёны брать.',
+};
+const placeName = (g, at) => (nodes(g)[at] || {}).name || 'села';
+
+/* ---------- постоянная ---------- */
+const ka0 = C.kvAfter;
+C.kvAfter = function (g, h, o) {
+  const out = ka0.apply(this, arguments);
+  try { if (g && h && o && o.paid && (o.kind === 'bansh' || o.kind === 'vesely') && h.kind !== 'merc' && Array.isArray(out)) {
+    const R0 = regs(g), k = keyOf(g, h, o.kind); const r = R0[k] = R0[k] || {key: k, camp: g.camp, at: g.loc, kind: o.kind, hid: h.id, visits: 0};
+    if (r.cold || r.done) return out;
+    r.visits++; r.last = day(g);
+    if (r.visits === K().VISITS && !r.n) {
+      const sx = h.sex === 'f' ? 'm' : 'f'; let p = null; try { p = Q.person(g, sx, C.kvPpl ? C.kvPpl(g) : 'nolgrim'); } catch (e) {}
+      r.n = (p && p.n) || (sx === 'f' ? 'Любава' : 'Ратша'); r.sex = sx; r.ppl = (p && p.ppl) || 'nolgrim';
+      try { const L = sx === 'f' ? (C.NEW_F || C.PORTRAITS_F || []) : (C.NEW_M || C.PORTRAITS_M || []); r.face = L.length ? L[(r.n.length * 7 + day(g)) % L.length] : ''; } catch (e) { r.face = ''; }
+      const t = fill(pick(T.named[o.kind]), h, r); out.push(t); C.note(g, t);
+    } else if (r.n) out.push(fill(pick(T.again), h, r));
+  } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return out;
+};
+/* дитя от постоянной: герою весть через несколько седмиц */
+const mk0 = C.kvMaybeKid;
+C.kvMaybeKid = function (g, h, o, force) {
+  try { if (g && h && o && h.sex !== 'f' && (o.kind === 'bansh' || o.kind === 'vesely')) {
+    const r = regs(g)[keyOf(g, h, o.kind)];
+    if (r && r.n && !r.news && !r.done && !r.cold) {
+      let pk = ((C.KV || {}).KID || {})[o.kind] || 0; const hd = h.drunk || 0, lim = C.drunkLimit ? C.drunkLimit(h) : 4;
+      if (hd > 0.2 && pk > 0) pk += ((C.KV || {}).KID_DRUNK || 0) * Math.min(1, hd / lim);
+      if (force || R.rand() < pk) { const [a, b] = K().NEWS; r.news = day(g) + a + Math.floor(R.rand() * (b - a + 1)); r.conceived = day(g); }
+    }
+    return null; } } catch (e) {}
+  return mk0.apply(this, arguments);
+};
+/* весть, когда пришло время */
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments);
+  try { if (g && g.kvReg && g.day > d0) Object.values(g.kvReg).forEach(x => { if (x.news && !x.told && g.day >= x.news && !x.done && !x.cold && x.camp === g.camp) { x.told = 1; const h = heroById(g, x.hid); if (h) C.note(g, fill(T.news[0].replace('{place}', placeName(g, x.at)), h, x)); } }); } catch (e) {}
+  return r; }; }
+/* в сцене места — кнопка «{n} просит прийти» */
+const inj0 = Q && Q.inject;
+if (inj0) Q.inject = function (g, sceneId, choices) {
+  let out = inj0.apply(this, arguments);
+  try { const n = nodes(g)[g.loc]; if (!n || n.scene !== sceneId || !g.kvReg) return out;
+    const here = Object.values(g.kvReg).filter(x => x.camp === g.camp && x.at === g.loc && x.news && g.day >= x.news && !x.done && !x.cold && heroById(g, x.hid));
+    if (!here.length) return out; out = out.slice(); let i = out.length ? Math.max(...out.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1 : 0;
+    here.forEach(x => out.unshift({i: i++, own: x.hid, label: `${x.n} просит прийти — дело важное`, do: g2 => { g2.kvRegCur = x.key; return 'kv_reg'; }}));
+  } catch (e) {}
+  return out;
+};
+const SC = {};
+SC.kv_reg = g => {
+  const x = g.kvReg && g.kvReg[g.kvRegCur], h = x && heroById(g, x.hid);
+  const back = g2 => { g2.kvRegCur = null; g2.kvRegLast = null; const n = nodes(g2)[g2.loc]; return (n && n.scene) || 'map'; };
+  if (!x || !h) return {title: 'Тишина', bg: 'village', lines: [['n', 'Никого.']], choices: [{t: 'Уйти', do: back}]};
+  const bg = x.kind === 'bansh' ? 'banya_outside' : 'pleasure_house', lines = [['n', fill(T.ask[x.kind], h, x)]];
+  if (g.kvRegLast) { lines.push(['n', g.kvRegLast]); return {title: x.n, bg, art: bg, face: x.face, faceName: x.n, lines, choices: [{t: 'Дальше', do: back}]}; }
+  const buy = x.kind === 'vesely' ? K().BUY : 0, gift = K().GIFT;
+  return {title: x.n, bg, art: bg, face: x.face, faceName: x.n, lines, choices: [
+    {own: h.id, t: buy ? `Признать дитя своим и выкупить её у хозяйки — ${R.priceText(buy)}` : 'Признать дитя своим', if: g2 => (g2.purse || 0) >= buy, off: 'не хватает денег на выкуп', do: g2 => {
+      const xx = g2.kvReg[g2.kvRegCur], hh = heroById(g2, xx.hid); if (!xx || !hh || (g2.purse || 0) < buy) return 'kv_reg';
+      g2.purse -= buy; xx.done = 'yes';
+      const r = C.kvMakeLoc(g2, {at: xx.at, hid: hh.id, n: xx.n, sex: xx.sex, face: xx.face, ppl: xx.ppl, st: 'freed', t: xx.kind === 'bansh' ? 'бывшая банщица' : 'бывшая весёлая девица'}, 100);
+      r.freed = 1; r.from = xx.kind; xx.loc = r.id;
+      try { const F = C.kvMaybeKid(g2, hh, {kind: 'local', p: {n: r.n, sex: r.sex}, loc: r.id}, true); if (F && F.kvPreg) { F.kvPreg.start = xx.conceived || day(g2); F.kvPreg.due = F.kvPreg.start + ((C.KV || {}).TERM || 270); } } catch (e) {}
+      if (C.spiritAdd) C.spiritAdd(g2, 2, '', hh);
+      g2.kvRegLast = fill(T.yes[xx.kind], hh, xx) + ` Теперь в ${placeName(g2, xx.at)} у тебя есть кого навестить.`; C.note(g2, g2.kvRegLast); return 'kv_reg'; }},
+    {own: h.id, t: `Дать денег на дитя — ${R.priceText(gift)}`, if: g2 => (g2.purse || 0) >= gift, off: 'не хватает денег', do: g2 => {
+      const xx = g2.kvReg[g2.kvRegCur], hh = heroById(g2, xx.hid); if (!xx || !hh || (g2.purse || 0) < gift) return 'kv_reg';
+      g2.purse -= gift; xx.done = 'coin'; g2.kvRegLast = fill(T.coin, hh, xx); C.note(g2, g2.kvRegLast); return 'kv_reg'; }},
+    {own: h.id, t: 'Отвернуться и уйти', do: g2 => { const xx = g2.kvReg[g2.kvRegCur], hh = heroById(g2, xx.hid); if (!xx || !hh) return back(g2);
+      xx.cold = 1; try { if (C.repAdd) C.repAdd(g2, xx.at, K().REP_COLD, 'бросил свою'); } catch (e) {} g2.kvRegLast = fill(T.cold, hh, xx); C.note(g2, g2.kvRegLast); return 'kv_reg'; }},
+  ]};
+};
+Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+/* отвернулся — к нему она больше не выйдет: «Банщица» у этой бани для него — чужая (без имени, как прежде) */
+
+/* свадьба с бывшей: пересуды, набожные хмурятся */
+if (C.kvLocalWed) { const lw0 = C.kvLocalWed; C.kvLocalWed = function (g, r) { const t = lw0.apply(this, arguments);
+  try { if (t && r && r.freed) { const h = heroById(g, r.hid); if (C.repAdd) C.repAdd(g, r.at, K().REP_WED, 'взял в жёны бывшую ' + (r.from === 'vesely' ? 'весёлую девицу' : 'банщицу'));
+    const extra = [fill(pick(T.wed), h || {name: '', sex: 'm'}, r)];
+    const nb = ((g.mercs || []).filter(m => m && m.loyal && !m.dead && m.nrav === 'nabozhny'))[0]; if (nb) extra.push(T.frown.replace('{m}', nb.name));
+    extra.forEach(x => C.note(g, x)); return t + ' ' + extra.join(' '); } } catch (e) {}
+  return t; }; }
+
+/* запросы жены — по её прежнему положению и достатку */
+C.heNeed = function (g, key) {
+  try { const [role] = String(key).split('@'), sp = (g.homeSp || {})[role], base = String(role).replace(/^sp_/, '');
+    if (sp && sp.kv && C.kvLocOf) { const r = C.kvLocOf(g, sp.kv); if (r && r.freed) return K().NEED.freed; }
+    if (['trade', 'jewel'].includes(base)) return K().NEED.merchant;
+    if (/boyar|knyaz|noble/.test(base)) return K().NEED.noble;
+  } catch (e) {}
+  return 1;
+};
+if (C.heCupAdd) { const ca0 = C.heCupAdd; C.heCupAdd = function (g, key, d, why) {
+  if (d > 0 && why === 'нищета') { const m = C.heNeed(g, key); if (!m) return 0; d = d * m; }
+  return ca0.call(this, g, key, d, why); }; }
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
