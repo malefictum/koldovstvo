@@ -651,7 +651,8 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .acts .bfoot #b-next{font-size:15px;padding:10px 12px}
 @media (max-width:860px){
   .bside{display:flex;flex-direction:column}
-  .bside #ucard{order:1}.bside #finfo{order:2}.bside #blog{order:3}.bside #acts{order:4}
+  .bside #ucard{order:1}.bside #acts{order:2}.bside #finfo{order:3}.bside #blog{order:4} /* на телефоне действия сразу под карточкой бойца: основное видно без прокрутки */
+  .bside>*{flex:none} /* все блоки в потоке: не сжимаются и не наползают друг на друга */
   .bside .acts,body:not(.blog-side) .bside .acts{max-height:none;overflow:visible}
   .bside .log{max-height:84px;flex:none;border-bottom:1px solid var(--rim)}
   .ucard{grid-template-columns:44px 1fr;padding:8px 12px;gap:8px}.ucard .face{width:44px;height:44px}
@@ -47522,18 +47523,25 @@ B.bfPanel = function (S, u, mode) {
     // скрылся — «Сбежать» на виду, а не в «Ещё приёмах»
     if (B.fleeWhy(S, u) === '') out.unshift({k: 'esc', v: 'flee', label: 'Сбежать', dis: '', title: 'Основное действие: тебя не видят, враги не ближе шести шагов — уйти с поля. Упавшего соседа унесёшь с собой', grp: 'Побег'});
     const runs = S.units.filter(t => t.side === 'foe' && t.bfRout && B.active(t) && seenByParty0(S, t));
-    runs.forEach(t => {
-      const lab = u.mount ? 'Сбить конём: ' : 'Повалить: ';
-      if (B.dist(u, t) === 1) out.push({k: 'esc', v: 'tackle', t: t.id, label: lab + nameOf(t), dis: BF.tackleWhy(S, u, t), title: 'Основное действие: беглец к тебе спиной — свалить его наземь и схватить (Атлетика против Атлетики или Акробатики, с преимуществом). Не вышло — он бежит дальше, а ты теряешь равновесие', grp: 'Бегущие'});
-      else if (BF.chaseCell(S, u, t)) out.push({k: 'esc', v: 'chase', t: t.id, label: (u.mount ? 'Нагнать и сбить конём: ' : 'Догнать и повалить: ') + nameOf(t), dis: BF.tackleWhy(S, u, t, true), title: 'Основное действие: рывком догнать беглеца и свалить его (с преимуществом — он спиной)', grp: 'Бегущие'});
-      if (isPerson(t)) out.push({k: 'esc', v: 'halt', t: t.id, label: 'Крикнуть «Стой!»: ' + nameOf(t), dis: BF.haltWhy(S, u, t), title: 'Малое действие: Запугивание — испугается и сдастся, или побежит дальше', grp: 'Бегущие'});
-    });
+    // не по кнопке на каждого: действия — на выбранного беглеца (последний, на кого показали, иначе ближний)
+    if (runs.length) {
+      const sel = runs.find(t => t.id === S.bfRunSel) || runs.slice().sort((a, b) => B.dist(a, u) - B.dist(b, u))[0];
+      const T = 'Бегущие', lab = u.mount ? 'Сбить конём: ' : 'Повалить: ';
+      if (B.dist(u, sel) === 1) out.push({k: 'esc', v: 'tackle', t: sel.id, label: lab + nameOf(sel), dis: BF.tackleWhy(S, u, sel), title: 'Основное действие: беглец к тебе спиной — свалить его наземь и схватить (Атлетика против Атлетики или Акробатики, с преимуществом). Не вышло — он бежит дальше, а ты теряешь равновесие', grp: T});
+      else if (BF.chaseCell(S, u, sel)) out.push({k: 'esc', v: 'chase', t: sel.id, label: (u.mount ? 'Нагнать и сбить конём: ' : 'Догнать и повалить: ') + nameOf(sel), dis: BF.tackleWhy(S, u, sel, true), title: 'Основное действие: рывком догнать беглеца и свалить его (с преимуществом — он спиной)', grp: T});
+      if (isPerson(sel)) out.push({k: 'esc', v: 'halt', t: sel.id, label: 'Крикнуть «Стой!»: ' + nameOf(sel), dis: BF.haltWhy(S, u, sel), title: 'Малое действие: Запугивание — испугается и сдастся, или побежит дальше', grp: T});
+      if (runs.length > 1) out.push({k: 'esc', v: 'pick', label: (u.mount ? 'Сбить конём…' : 'Догнать и повалить…'), mode: 'bfx_esc_chase', dis: S.acted ? 'Основное действие уже потрачено.' : '', title: 'Покажи на поле, кого из бегущих догнать и свалить', grp: T});
+    }
   } catch (e) {}
   return out;
 };
 const bo0 = B.bfOp;
+/* выбор беглеца кликом по полю (ui.js: режим bfx_… шлёт {k: 'dnd', v, t}) */
+const hint0 = B.bfHint;
+B.bfHint = m => m === 'bfx_esc_chase' ? 'Кого догнать и свалить: покажи бегущего на поле.' : hint0 ? hint0(m) : '';
 B.bfOp = function (S, u, a) {
-  if (a && a.k === 'esc') { const t = a.t ? B.U(S, a.t) : null;
+  if (a && a.k === 'dnd' && a.v === 'esc_chase') { const t = a.t ? B.U(S, a.t) : null; if (!t || !t.bfRout || !B.active(t)) return 'Это не беглец: покажи того, кто бежит.'; S.bfRunSel = t.id; return BF.tackle(S, u, t, B.dist(u, t) > 1); }
+  if (a && a.k === 'esc') { const t = a.t ? B.U(S, a.t) : null; if (t && t.bfRout) S.bfRunSel = t.id;
     if (a.v === 'flee') { const w = B.fleeWhy(S, u); if (w) return w; B.flee(S, u); return ''; }
     if (a.v === 'tackle') return BF.tackle(S, u, t, false);
     if (a.v === 'chase') return BF.tackle(S, u, t, true);
@@ -49501,7 +49509,7 @@ BF.fromPlace = function (o) {
 
 G.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611241853"></script><script>
+</script><script src="world.js?v=202611241911"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51791,6 +51799,7 @@ function showScene(id, talk) {
   const sc = talk !== undefined || view ? C.sceneOf(g, id) : C.enter(g, id); if (!sc) return showMap();
   if (!view && sc.id && sc.id !== id && g.scene === sc.id) id = sc.id; // сцена перенаправила (годы, корни): выборы — от показанной сцены
   if (!view && !NET() && sc.raw && sc.raw.talk) return showTalkScene(id, sc); // волна D1: пир, дух павшего — окном разговора
+  if (!view && !NET() && sc.raw && sc.raw.trk && window.__trkUI) { renderTop(); save(); if (window.__trkUI(id, sc, {choose: i => choose(id, i), faceHTML, paintFaces, toast})) return; } // тринька: стол в корчме (trinka_ui.js)
   if (!view && (talkScene(id, sc) || g.w2rest)) { TALK_OK = true; setTimeout(showCompTalk, 650); } // реплики наёмников — в корчме, на ночлеге, после отдыха
   { const nd = CAMP_OF().map.nodes[g.loc]; if (nd && nd.scene === id && ['село', 'город', 'подворье', 'стан'].includes(nd.kind)) setTimeout(() => tip1('town'), 600); if (/^tavern|^folk|^shop/.test(id)) setTimeout(() => tip1('food'), 600); }
   // личное: учёба, кузня, ювелир — решает игрок своего героя, без голосования
@@ -53918,6 +53927,10 @@ function fxPop(u) {
 }
 document.addEventListener('click', e => { const c = battle && e.target.closest('#side-main .scard[data-hero]'); if (!c) return; const u = battle.units.find(x => x.ref && x.ref.id === c.dataset.hero && x.side === 'party'); if (u) { e.stopPropagation(); e.preventDefault(); fxPop(u); } }, true);
 const BMORE = {open: false}; // «Ещё приёмы» в бою: раскрыто ли (помнится до перезагрузки)
+const BMORE2 = {open: false}; // «Ещё на поле» — группы приёмов модулей (B.bfPanel)
+/* порядок групп B.bfPanel в панели боя — одним местом (меньше — выше); неизвестные группы — внизу */
+const BF_GRP_W = {'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
+const BF_GRP_TOP = new Set(['Скрытно', 'Бегущие', 'Побег']);
 /* лента очерёдности (waveA): лица в порядке хода от текущего; текущий выделен, следующий подписан, невидимый враг — пустой силуэт */
 let TL_KEY = '';
 function drawTurnLine() {
@@ -54065,9 +54078,17 @@ function drawPanel() {
     on('#b-next', () => go('next'));
     { const dm = $('#b-more'); if (dm) dm.ontoggle = () => { BMORE.open = dm.open; }; }
     if (NET() && g && g.net) { try { S.leadIds = C.alive(g).filter(h => g.net.own[h.id] === leader()).map(h => h.id); } catch (e) {} } // «Сдаться» — решение вожатого (captive.js)
-    if (B.bfPanel) { const L = B.bfPanel(S, u, mode); if (L.length) { const grp = {}; L.forEach(x => { (grp[x.grp] = grp[x.grp] || []).push(x); });
-      const html = Object.entries(grp).map(([gname, xs]) => `<div class="grp">${esc(gname === 'Скрытно' ? 'Скрытно — вас не видят' : gname || 'Рядом')}</div>` + xs.map((x, i) => `<button class="btn small ${x.on || (mode === x.mode && x.mode) ? 'on' : ''}" data-bfi="${L.indexOf(x)}" ${x.dis ? 'disabled' : ''} title="${esc(x.dis || x.title || '')}">${esc(x.label)}${x.ck && !x.dis ? chkSmall(x.ck.stat, x.ck.skill, x.ck.dc, x.ck.who, x.ck.bonus) : ''}</button>`).join('')).join('');
-      const box = document.createElement('div'); box.className = 'bfacts'; box.innerHTML = html; const bud = acts.querySelector('.budget'); if (bud && bud.nextSibling) acts.insertBefore(box, bud.nextSibling); else acts.appendChild(box);
+    if (B.bfPanel) { const L = B.bfPanel(S, u, mode); if (L.length) { const grp = {}; L.forEach(x => { (grp[x.grp || 'Рядом'] = grp[x.grp || 'Рядом'] || []).push(x); });
+      // порядок групп — одним местом: сверху основное и малое действие (их рисует панель), ниже группы модулей по весу;
+      // всегда на виду — скрытность, бегущие и побег; прочее, если его много, — в раскрывающемся «Ещё на поле»
+      const gw = k => BF_GRP_W[k] != null ? BF_GRP_W[k] : 60, gl = Object.keys(grp).sort((a, b) => gw(a) - gw(b));
+      const bhtml = xs => xs.map(x => `<button class="btn small ${x.on || (mode === x.mode && x.mode) ? 'on' : ''}" data-bfi="${L.indexOf(x)}" ${x.dis ? 'disabled' : ''} title="${esc(x.dis || x.title || '')}">${esc(x.label)}${x.ck && !x.dis ? chkSmall(x.ck.stat, x.ck.skill, x.ck.dc, x.ck.who, x.ck.bonus) : ''}</button>`).join('');
+      const ghtml = k => `<div class="grp">${esc(k === 'Скрытно' ? 'Скрытно — вас не видят' : k)}</div>` + bhtml(grp[k]);
+      const top = gl.filter(k => BF_GRP_TOP.has(k)), rest = gl.filter(k => !BF_GRP_TOP.has(k)), nRest = rest.reduce((n, k) => n + grp[k].length, 0);
+      const restOn = rest.some(k => grp[k].some(x => x.on || (x.mode && mode === x.mode))), fold = nRest > 3;
+      const html = top.map(ghtml).join('') + (!rest.length ? '' : fold ? `<details class="bmore" id="b-more2" ${BMORE2.open || restOn ? 'open' : ''}><summary>Ещё на поле <i>${rest.reduce((n, k) => n + grp[k].filter(x => !x.dis).length, 0)}</i></summary><div class="bmore-g">${rest.map(ghtml).join('')}</div></details>` : rest.map(ghtml).join(''));
+      const box = document.createElement('div'); box.className = 'bfacts'; box.innerHTML = html; const foot = acts.querySelector('.bfoot'); if (foot) acts.insertBefore(box, foot); else acts.appendChild(box);
+      { const dm = box.querySelector('#b-more2'); if (dm) dm.ontoggle = () => { BMORE2.open = dm.open; }; }
       box.querySelectorAll('[data-bfi]').forEach(b => b.onclick = () => { const x = L[+b.dataset.bfi]; if (x.mode) { mode = mode === x.mode ? null : x.mode; redraw(); return; } go('bf', {k: x.k, t: x.t, p: x.p, pa: x.a, v: x.v, s: x.s}, !x.reset); }); } }
     if (mode === 'bf_stone') { const h0 = acts.querySelector('.hint'); const t0 = 'Куда бросить камешек: клетка на виду, не дальше восьми шагов.'; if (h0) h0.textContent = t0; else acts.insertAdjacentHTML('afterbegin', `<div class="hint">${t0}</div>`); }
     else if (typeof mode === 'string' && B.bfHint && B.bfHint(mode)) { const h0 = acts.querySelector('.hint'), t0 = B.bfHint(mode); if (h0) h0.textContent = t0; else acts.insertAdjacentHTML('afterbegin', `<div class="hint">${esc(t0)}</div>`); }
