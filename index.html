@@ -27144,7 +27144,7 @@ if (W) {
 const rest0 = C.rest;
 C.rest = function (g, full) {
   rest0(g, full);
-  const pv = best(g, 'povar'); if (pv && !full) party(g).forEach(h => { h.hp = Math.min(h.hpMax, h.hp + 2 * pv); });
+  const pv = best(g, 'povar'); if (pv && full) party(g).forEach(h => { h.hp = Math.min(h.hpMax, h.hp + 2 * pv); });
 };
 
 /* ---------- лавка: торговля, ювелир, распознание ---------- */
@@ -46605,7 +46605,7 @@ const bs0 = B.start;
 B.start = function (o) { const S = bs0.apply(this, arguments); LS = S; return S; };
 G.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611240924"></script><script>
+</script><script src="world.js?v=202611240928"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
