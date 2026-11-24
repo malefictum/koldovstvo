@@ -225,7 +225,7 @@ button{font:inherit;cursor:pointer}
 .battle canvas.bmini{width:150px;height:auto;border:1px solid var(--rim);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:crosshair;touch-action:none}
 .bzoom{display:flex;gap:4px}.bzoom .btn{min-width:32px;padding:2px 8px;font-size:16px;line-height:1.4}
 .bside{background:url(img/oak.webp) center/256px;border-left:2px solid var(--rim);display:grid;grid-template-rows:auto auto minmax(0,auto) minmax(90px,1fr);min-height:0}
-.bside .acts{overflow-y:auto;overflow-x:hidden;min-height:0;align-content:start}.acts .btn{min-width:0;overflow-wrap:anywhere}
+.bside .acts{overflow-y:auto;overflow-x:hidden;min-height:0;align-content:start}.acts .btn{min-width:0;overflow-wrap:break-word}.acts>details,.acts>.bmore{grid-column:1/-1}
 .finfo{padding:6px 12px;font-size:13px;line-height:1.35;background:rgba(90,20,16,.28);border-bottom:1px solid var(--rim)}.finfo:empty{padding:0;border:0}.finfo small{opacity:.75}.finfo b{font-family:var(--t-label)}
 .ucard{padding:10px 12px;display:grid;grid-template-columns:56px 1fr;gap:10px;border-bottom:1px solid var(--rim)}
 .ucard .face{width:56px;height:56px;box-shadow:0 2px 8px rgba(0,0,0,.6);border-radius:6px;border:1px solid var(--rim)}
@@ -28602,6 +28602,13 @@ SC.folk_tavern = g => {
   if (C.drinksHere) ch.unshift({t: 'Выпить у стойки: хмельное и слухи', go: 'tavern_drink'});
   /* ночлег — и из корчмы (Ник 24.11: «во многих тавернах нет места для ночлега»): те же комнаты, что у места */
   try { if (g.camp === 'free' && C.placeSplit && C.placeFull && C.placeSplit(g, C.placeFull(g)).inn.length) ch.push({t: 'Ночлег: спросить комнату у корчмаря', do: g2 => { g2.innBack = 'folk_tavern'; return 'place_inn'; }}); } catch (e) {}
+  /* доп. кампании: ночлег той же кнопкой, что в сцене места («Заночевать … (3 см на каждого)») — inn.js сам разложит по разрядам */
+  try { if (g.camp !== 'free') { const camp = C.CAMPS[g.camp], n = camp && camp.map && camp.map.nodes && camp.map.nodes[g.loc]; const raw = n && camp.scenes[n.scene];
+    const sc0 = typeof raw === 'function' ? raw(g) : raw; const ctx = C.ctx ? C.ctx(g) : {};
+    const lc = sc0 && (sc0.choices || []).find(c => typeof c.do === 'function' && /C\.lodge\(/.test(String(c.do)) && /ночев|ночлег/i.test(typeof c.t === 'function' ? c.t(g, ctx) : c.t || '') && (!c.need || C.who(g, c.need)) && (!c.if || c.if(g, ctx)));
+    if (lc) ch.push({t: typeof lc.t === 'function' ? lc.t(g, ctx) : lc.t, do: lc.do});
+    else if (n && /город|село|подворье|застава|лагерь|стан|мельница/.test(n.kind || '')) { const town = n.kind === 'город', back = n.scene, nm = n.name || 'Корчма';
+      ch.push(town ? {t: 'Заночевать в корчме (3 см на каждого)', do: g2 => { C.lodge(g2, 30, nm); return back; }} : {t: 'Заночевать в корчме (2 см на каждого)', do: g2 => { C.lodge(g2, 20, nm); return back; }}); } } } catch (e) {}
   ch.push({t: 'Назад', go: g2 => nodeScene(g2)});
   return {title: 'Корчма', bg: 'tavern', art: 'tavern', lines: [['n', 'Дымно, людно. У стойки — доска с зарубками и записками, в углу — наёмники с кружками, у печи — место для песни.']], choices: ch};
 };
@@ -49903,7 +49910,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611242101"></script><script>
+</script><script src="world.js?v=202611242134"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

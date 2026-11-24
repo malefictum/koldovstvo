@@ -68784,6 +68784,8 @@ const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul
 const r10 = v => Math.max(10, Math.round(v / 10) * 10);
 const price = v => (R.priceText ? R.priceText(v) : v + ' мм');
 const isFree = g => !!(g && g.camp === 'free' && g.heroes);
+/* стол — и в доп. кампаниях (Ник 24.11), прочие связи (услуги друзей, суд) — только в вольном мире */
+const canPlay = g => !!(g && g.heroes && !g.net && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes);
 const alive = g => (g && g.heroes ? C.alive(g) : []);
 const heroes = g => alive(g).filter(h => h.kind !== 'merc');
 const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
@@ -68946,7 +68948,7 @@ C.trkRel = (g, p) => relGet(g, p); C.trkRelAdd = (g, p, d, why) => relAdd(g, p, 
 const slot = g => (g.day || 1) + '|' + (g.time || 0);
 C.trkBanned = g => { const L = (S(g).loc || {})[g.loc]; return !!(L && L.ban && (g.day || 1) < L.ban); };
 C.trkBusy = function (g) {
-  if (!K().ON || !isFree(g) || g.net || !C.tlClass || !C.tlClass(g)) return false;
+  if (!K().ON || !canPlay(g) || !C.tlClass || !C.tlClass(g)) return false;
   const p = (K().BUSY[C.timeName(g)] || 0.3) * (cls(g) === 'village' ? K().VILLAGE_BUSY : 1);
   return (hsh('trkbusy|' + g.camp + '|' + g.loc + '|' + slot(g)) % 1000) / 1000 < p;
 };
@@ -69295,7 +69297,7 @@ C.trkClose = function (g) {
 
 /* ======================= открыть стол ======================= */
 C.trkOpen = function (g) {
-  if (!isFree(g) || g.net) return null;
+  if (!canPlay(g)) return null;
   const who = C.trkWho(g); if (!who.length) return null;
   const ante = C.trkAnte(g, who);
   const seats = [{hero: 1, name: 'вы', kosh: 0}].concat(who.map((p, i) => seatOf(g, p, ante, i + 1)));
@@ -69398,11 +69400,12 @@ SC.trk_lost = g => Object.assign(SC.trk_table(g), {onEnter: g2 => afterFight(g2,
 { const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
   try { if (sc && /^trk_/.test(String(id)) && sc.raw) { sc.choices = (sc.choices || []).filter(c => c.trk); sc.people = []; } } catch (e) {} return sc; }; }
 Object.entries(SC).forEach(([id, sc]) => { FREE.scenes[id] = sc; });
+Object.values(C.CAMPS).forEach(c => { if (c && c.scenes && c !== FREE) Object.entries(SC).forEach(([id, sc]) => { if (!c.scenes[id]) c.scenes[id] = sc; }); });
 
 /* ======================= корчма: кнопка «Сыграть в триньку» ======================= */
-if (FREE.scenes.folk_tavern) { const ft0 = FREE.scenes.folk_tavern; FREE.scenes.folk_tavern = function (g) {
+const wrapT = ft0 => { if (ft0._trk) return ft0; const f = function (g) {
   const sc = ft0.apply(this, arguments);
-  try { if (!sc || !isFree(g) || g.net || !K().ON || !C.tlClass || !C.tlClass(g)) return sc;
+  try { if (!sc || !canPlay(g) || !K().ON || !C.tlClass || !C.tlClass(g)) return sc;
     const T = T_(g);
     if (T && (T.loc !== g.loc || T.camp !== g.camp)) { leave(g, T); S(g).cur = null; }
     sc.lines = (sc.lines || []).slice(); sc.choices = (sc.choices || []).slice();
@@ -69416,7 +69419,9 @@ if (FREE.scenes.folk_tavern) { const ft0 = FREE.scenes.folk_tavern; FREE.scenes.
     const names = who.map(p => p.name.split(' ')[0]);
     ins({t: `Сыграть в триньку: за столом ${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}`, do: g2 => C.trkOpen(g2) || 'folk_tavern'});
   } catch (e) { if (C.BF_DEBUG) console.error(e); }
-  return sc; }; }
+  return sc; }; f._trk = 1; return f; };
+Object.values(C.CAMPS).forEach(c => { if (c && c.scenes && c.scenes.folk_tavern) c.scenes.folk_tavern = wrapT(c.scenes.folk_tavern); });
+if (C.register) { const rg1 = C.register; C.register = function (camp) { const r = rg1.apply(this, arguments); try { if (camp && camp.scenes && camp.scenes.folk_tavern) camp.scenes.folk_tavern = wrapT(camp.scenes.folk_tavern); } catch (e) {} return r; }; }
 
 /* ======================= молва «везунчик»: грабители ночью ======================= */
 if (C.TL_EV && C.TL_EV.grab) { const ev = C.TL_EV.grab, w0 = ev.w;
@@ -69880,8 +69885,10 @@ const pick = a => a[Math.floor(R.rand() * a.length)];
 const pickH = (a, k) => (a && a.length ? a[hsh(k) % a.length] : '');
 const nameOf = u => String((u && u.name) || '').split(/[,(]/)[0].trim();
 const isFree = g => !!(g && g.camp === 'free' && g.heroes);
-const nodes = () => FREE.map.nodes;
-const nodeHere = g => (g && !g.pos && nodes()[g.loc]) || null;
+const nodes = g => (g && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || FREE.map.nodes;
+const nodeHere = g => (g && !g.pos && nodes(g)[g.loc]) || null;
+/* доп. кампании (Ник 24.11): прогулка и в их сёлах и городах — карта мест, не гексы */
+const isSaga = g => !!(g && g.heroes && g.camp !== 'free' && !g.net && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes);
 const lvl = g => Math.max(1, C.partyLevel ? C.partyLevel(g) : 1);
 const price = v => (R.priceText ? R.priceText(v) : v + ' мм');
 const decl = (n, sex) => { try { return (Q.decl ? Q.decl(n, sex) : null) || {n, g: n, d: n, a: n, i: n, p: n}; } catch (e) { return {n, g: n, d: n, a: n, i: n, p: n}; } };
@@ -69905,13 +69912,13 @@ const houseOf = (S, id) => BF.houseById ? BF.houseById(S.field, id) : null;
 const kindName = h => (BF.HOUSE_T && BF.HOUSE_T[h.k] ? BF.HOUSE_T[h.k].n : 'дом');
 const hood = h => !!(h && h.eq && h.eq.head && (R.baseId ? R.baseId(h.eq.head) : h.eq.head) === 'kapyushon');
 const disg = (g, h) => !!(g && h && g.crime && g.crime.disg && (g.crime.disg[h.id] || 0) >= g.day);
-const back = g => { const n = nodes()[g.loc]; return (n && n.scene) || 'free_place'; };
+const back = g => { const n = nodes(g)[g.loc]; return (n && n.scene) || 'free_place'; };
 const placeKind = (g, F) => { const n = nodeHere(g) || {}; return n.kind === 'подворье' ? 'yard' : (F && F.vKind === 'town') || n.kind === 'город' ? 'town' : 'village'; };
 let G_ = null; // игра, чья прогулка сейчас идёт (для ходов внутри боя)
 
 /* ---------- можно ли ---------- */
 C.walkOk = function (g) {
-  if (!isFree(g) || !(W && W.isHex && W.isHex(g)) || g.dungeon || g.waCapt) return false;
+  if (!((isFree(g) && W && W.isHex && W.isHex(g)) || isSaga(g)) || g.dungeon || g.waCapt) return false;
   const n = nodeHere(g); if (!n || !K().KINDS.includes(n.kind)) return false;
   if (C.cursedHero && C.cursedHero(g)) return false;
   return C.alive(g).length > 0;
@@ -70391,7 +70398,7 @@ C.walkClose = function (g, S, o) {
     try { C.crimeAdd(g, h, 'razboy', {seen: true, noWit: true, quiet: 0, why: `избит ${nameOf(u)}`, place}); } catch (e) {} });
   delete g.twalk;
   try { if (C.SFX && C.SFX.calm) C.SFX.calm(g); } catch (e) {}
-  if (court && C.crimeCourt) { try { const cc = C.crimeCourt(g, court.rec.reg, court.h.id); if (cc) return {scene: 'cus_court', court: 1}; } catch (e) {} }
+  if (court && C.crimeCourt && isFree(g)) { try { const cc = C.crimeCourt(g, court.rec.reg, court.h.id); if (cc) return {scene: 'cus_court', court: 1}; } catch (e) {} }
   return {scene: back(g), crimes: out};
 };
 /* из ui.js: прогулка кончилась (S.over === 'walk') — куда дальше */
@@ -70463,11 +70470,13 @@ SC.tw_talk = g => {
     talk: {who: {name: nameOf(T), face: T.face || '', sub: T.k === 'trader' ? 'торговый человек' : T.k === 'guard' ? 'стража' : T.sex === 'f' ? 'здешняя' : 'здешний', head: TX.talk.head}, hero: {name: h.name, face: h.portrait || ''}, log: (T.log || []).map(x => Object.assign({}, x))}};
 };
 Object.assign(FREE.scenes, SC);
+Object.values(C.CAMPS).forEach(c => { if (c && c.scenes && c !== FREE) Object.keys(SC).forEach(k => { if (!c.scenes[k]) c.scenes[k] = SC[k]; }); });
+if (C.register) { const rg0 = C.register; C.register = function (camp) { const r = rg0.apply(this, arguments); try { if (camp && camp.scenes) Object.keys(SC).forEach(k => { if (!camp.scenes[k]) camp.scenes[k] = SC[k]; }); } catch (e) {} return r; }; }
 
 /* ---------- в сцену места: «Пройтись» / «Вернуться на улицу» ---------- */
 if (Q.inject) { const inj0 = Q.inject; Q.inject = function (g, sceneId) {
   let out = inj0.apply(this, arguments);
-  try { if (!isFree(g) || sceneId !== 'free_place') return out;
+  try { const nh = isSaga(g) ? nodeHere(g) : null; if (!(isFree(g) && sceneId === 'free_place') && !(nh && nh.scene === sceneId)) return out;
     if (g.twalk && g.twalk.node !== g.loc && !g.pendingBattle) C.walkDrop(g);
     out = out.slice(); let i = out.length ? Math.max(...out.map(c => c.i)) + 1 : 0;
     if (g.twalk && g.twalk.snap) { out.unshift({i: i++, label: TX.go.resume, do: g2 => ({battle: C.walkSpec(g2)})});
