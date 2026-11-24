@@ -68578,6 +68578,9 @@ C.TRK_TX = {
     out: '{X} выходит из раздачи.',
     heroOut: 'Вы выходите из раздачи.',
     tie: 'Поровну, {A}: равная рука предыдущую не бьёт.',
+    svaraBlind: 'Поровну! Свара: банк можно переиграть или поделить.',
+    allShow: 'Ставки упёрлись — дальше гнать некуда. Оставшиеся вскрываются все разом.',
+    allLine: 'У {Xg} — {A}.',
     svara: 'Поровну, {A}. Свара! Банк можно переиграть или поделить.',
     svaraSplit: 'Банк делят поровну: каждому по {P}.',
     svaraRe: 'Решено переиграть: свара.',
@@ -68634,6 +68637,7 @@ C.TRK_TX = {
     master: '{X} подмигивает: «Заходи ко мне по-свойски — для своих и учёба, и работа дешевле».',
     trader: '{X} шепчет: «Будешь на торгу — подойди. Для своих у меня кое-что отложено».',
   },
+  openHint: 'сравнить карты с {X}; слабый выбывает; равная рука — выбываешь ты',
   masterLine: 'С вами — по-свойски: за картами вы сдружились, и за учёбу и работу берут меньше, чем с чужих.',
   vouchBtn: 'Позвать поручителя: {X}',
   vouchSay: '{X} приходит в судную избу, кланяется судьям и ручается за вас своим добрым именем. Судьи переглядываются: виру, пожалуй, можно и скостить.',
@@ -69007,7 +69011,7 @@ const deal = (g, T, sv) => {
   if (!sv && (g.purse || 0) < T.ante) { nar(T, TX.n.noMoney); T.phase = 'between'; return; }
   T.hands++; T.dealer = sv ? T.dealer : (T.dealer + 1) % n; while (!sv && T.seats[T.dealer].gone) T.dealer = (T.dealer + 1) % n;
   const H = T.hand = {n: T.hands, pot: sv ? sv.pot : 0, stake: T.ante, st: T.seats.map((s, i) => (sv ? (sv.who.includes(i) ? 'in' : 'sit') : (s.gone ? 'out' : 'in'))), cards: T.seats.map(() => null),
-    put: {}, raises: {}, circle: 0, steps: 0, firstDone: false, shown: {}, svara: sv ? 1 : 0, cheat: null, heroCheat: 0, opener: null, pot0: sv ? sv.pot : 0};
+    put: {}, raises: {}, circle: 0, steps: 0, firstDone: false, shownTo: {}, capAt: null, svara: sv ? 1 : 0, cheat: null, heroCheat: 0, opener: null, pot0: sv ? sv.pot : 0};
   const dl = T.seats[T.dealer];
   if (sv) nar(T, TX.n.dealSvara);
   else { inIdx(H).forEach(i => pay(g, T, i, T.ante)); T.seats.forEach(s => { s.said = ''; }); nar(T, TX.n.deal, {Xc: cs_(T, T.dealer), P: T.ante}); if (H.st[0] === 'in') sinCheck(g, T); }
@@ -69038,17 +69042,43 @@ const openUp = (g, T, i) => {
   pay(g, T, i, H.stake);
   nar(T, T.seats[i].hero ? TX.n.heroOpen : TX.n.open, {X: NM(T, i), Yc: cs_(T, j), P: H.stake});
   if (!T.seats[i].hero) say(g, T, i, 'open', 0.7);
-  const a = C.trkScore(H.cards[i]), b = C.trkScore(H.cards[j]); H.shown[i] = 1; H.shown[j] = 1;
+  const a = C.trkScore(H.cards[i]), b = C.trkScore(H.cards[j]); showTo(H, [i, j], [i, j]);
   const A = C.trkScoreWord(H.cards[i]), B2 = C.trkScoreWord(H.cards[j]);
-  const n = inIdx(H).length;
-  nar(T, TX.n.cmp, {Xc: cs_(T, i), Yc: cs_(T, j), A, B: B2});
-  if (a === b && n === 2) { nar(T, TX.n.svara, {A}); return svara(g, T, [i, j]); }
-  if (a === b) nar(T, TX.n.tie, {A});
+  const n = inIdx(H).length, seen = i === 0 || j === 0;   // очки видят только двое из пары
+  if (seen) nar(T, TX.n.cmp, {Xc: cs_(T, i), Yc: cs_(T, j), A, B: B2});
+  if (a === b && n === 2) { nar(T, seen ? TX.n.svara : TX.n.svaraBlind, {A}); return svara(g, T, [i, j]); }
+  if (a === b && seen) nar(T, TX.n.tie, {A});
   const lo = a > b ? j : i; H.st[lo] = 'fold';
   nar(T, T.seats[lo].hero ? TX.n.heroOut : TX.n.out, {X: NM(T, lo)}); if (!T.seats[lo].hero) say(g, T, lo, 'lose', 0.5);
   const left = inIdx(H); if (left.length === 1) return award(g, T, left[0]);
   advance(T, i);
 };
+/* кто чьи карты видел: H.shownTo[место] = [кто видел]; герой — место 0 */
+const showTo = (H, whose, viewers) => { H.shownTo = H.shownTo || {}; whose.forEach(w => { const L = H.shownTo[w] = H.shownTo[w] || []; viewers.forEach(v => { if (!L.includes(v)) L.push(v); }); }); };
+C.trkSeen = (H, whose, viewer) => whose === viewer || !!(H && H.shownTo && (H.shownTo[whose] || []).includes(viewer == null ? 0 : viewer));
+/* все разом: ставка у потолка или повышать не на что — круг прошёл, и оставшиеся вскрываются одновременно */
+const noRaise = (g, T) => { const H = T.hand; return inIdx(H).every(i => H.stake >= T.ceil || purseOf(g, T, i) < Math.min(T.ceil, H.stake + T.ante)); };
+const noOpen = (g, T) => { const H = T.hand; return inIdx(H).every(i => purseOf(g, T, i) < H.stake); };
+const allCheck = (g, T) => {
+  const H = T.hand; if (!H || H.over || T.phase !== 'hand' || !H.firstDone) return false;
+  const left = inIdx(H); if (left.length < 2) return false;
+  if (noOpen(g, T)) return allShow(g, T), true;
+  if (!noRaise(g, T)) { H.capAt = null; return false; }
+  if (H.capAt == null) { H.capAt = H.steps; return false; }
+  if (H.steps - H.capAt >= left.length) return allShow(g, T), true;
+  return false;
+};
+const allShow = (g, T) => {
+  const H = T.hand, left = inIdx(H), sc = left.map(i => C.trkScore(H.cards[i])), best = Math.max(...sc), top = left.filter((i, k) => sc[k] === best);
+  showTo(H, left, left); const seen = left.includes(0);
+  nar(T, TX.n.allShow);
+  if (seen) left.forEach(i => nar(T, TX.n.allLine, {Xc: cs_(T, i), A: C.trkScoreWord(H.cards[i])}));
+  left.forEach(i => { if (!top.includes(i)) H.st[i] = 'fold'; });
+  if (top.length > 1) { nar(T, seen ? TX.n.svara : TX.n.svaraBlind, {A: C.trkScoreWord(H.cards[top[0]])}); return svara(g, T, top); }
+  return award(g, T, top[0]);
+};
+C.trkRunTest = g => { const T = T_(g); if (T) run(g, T); }; // для проверок: дать ИИ доходить
+C.trkAllCheck = (g) => { const T = T_(g); return !!(T && allCheck(g, T)); };
 /* свара: двое поровну. Герой в сваре — решает сам; иначе игроки — по нраву */
 const svara = (g, T, two) => {
   const H = T.hand; H.svaraWho = two;
@@ -69102,6 +69132,7 @@ const run = (g, T) => {
     if (T.phase !== 'hand') return;
     const H = T.hand; if (H.over) return;
     const left = inIdx(H); if (left.length <= 1) { if (left.length === 1) award(g, T, left[0], true); else T.phase = 'between'; return; }
+    if (allCheck(g, T)) continue;
     if (H.turn === 0 && H.st[0] === 'in') return;   // ход героя
     if (H.turn < 0) return;
     if (npcTurn(g, T, H.turn) === 'pause') return;
@@ -69298,11 +69329,10 @@ if (C.heroStatus) { const hs0 = C.heroStatus; C.heroStatus = function (g, h) { c
 const SC = {};
 const view = (g, T) => {
   const H = T.hand, hero = heroOf(g, T), heroTurn = heroCan(g, T);
-  const showAll = T.phase !== 'hand' || (H && H.over);
   return {phase: T.phase, ante: T.ante, ceil: T.ceil, pot: H ? H.pot : 0, stake: H ? H.stake : T.ante, hands: T.hands, deck: cls(g) === 'village' ? 'lubok-1850' : 'russian-style', back: cls(g) === 'village' ? 'ua-rushnyk' : 'dondorf-russian',
     turn: H && !H.over ? H.turn : -1, heroTurn, firstDone: H ? H.firstDone : false, place: (nodeOf(g) || {}).name || '',
     seats: T.seats.map((s, i) => { const st = H ? H.st[i] : 'sit', mine = i === 0;
-      const open = mine || (H && (H.shown[i] || (showAll && H.over && st === 'in')));
+      const open = mine || (H && C.trkSeen(H, i, 0));
       return {i, name: s.hero ? (hero ? hero.name : 'вы') : s.name, face: s.hero ? (hero ? hero.portrait || '' : '') : s.face, hero: !!s.hero, sex: s.sex,
         sub: s.hero ? '' : [s.sub, (TX[s.shulerOpen ? 'trait' : 'trait'][s.shulerOpen ? 'shulerOpen' : s.trait] || ['', ''])[s.sex === 'f' ? 1 : 0], s.drunk ? TX.drunk[0] : ''].filter(Boolean).join(', '),
         money: s.hero ? (g.purse || 0) : s.kosh, gone: !!s.gone, st, said: s.said || '',
@@ -69323,7 +69353,8 @@ SC.trk_table = g => {
     ch.push({t: 'Сбросить', trk: 'fold', do: act('fold')});
     ch.push({t: `Поддержать: ${price(H.stake)}`, trk: 'call', if: g2 => (g2.purse || 0) >= H.stake, off: 'не хватает серебра', do: act('call')});
     C.trkRaiseTo(g).forEach(v => ch.push({t: `Повысить до ${price(v)}`, trk: 'raise', v, do: act('raise', v)}));
-    if (H.firstDone) ch.push({t: `Вскрыться: ${price(H.stake)}`, trk: 'open', if: g2 => (g2.purse || 0) >= H.stake, off: 'не хватает серебра', do: act('open')});
+    const pj = prevIn(H, 0), pn = pj > 0 ? decl(T.seats[pj].name, T.seats[pj].sex).i : '';
+    if (H.firstDone) ch.push({t: `Вскрыться: ${price(H.stake)}`, trk: 'open', hint: fmt(TX.openHint, {X: pn}), if: g2 => (g2.purse || 0) >= H.stake, off: 'не хватает серебра', do: act('open')});
     if (C.trkCanCheat(g)) ch.push({t: 'Передёрнуть карту (Ловкость, Ловкость рук)', trk: 'cheat', do: g2 => { const r = C.trkAct(g2, 'cheat'); return 'trk_table'; }});
     ch.push({t: 'Встать из-за стола', trk: 'leave', do: act('leave')});
   } else if (T.phase === 'catch') {
@@ -69433,6 +69464,281 @@ if (C.orderPrice) { const op0 = C.orderPrice; C.orderPrice = function () { const
 { const ps0 = C.pass; C.pass = function (g) { const r = ps0.apply(this, arguments); try { const T = T_(g); if (T && ((g.day || 1) - (T.day || 0) > 1)) { leave(g, T); g.trk.cur = null; } } catch (e) {} return r; }; }
 
 G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* trinka_net.js */
+/* Колдовство — тринька в общем зале корчмы «Три Дороги» (сеть): стол только для живых игроков, без ботов (решение Ника).
+   Без DOM. Связь и экран — trinka_net_ui.js; правила и подсчёт — те же, что у триньки в корчме (trinka.js: C.trkScore,
+   C.trkScoreWord, вскрытие против предыдущего, свара).
+   • Столы трёх видов: малый (вход 1 см), средний (1 зм), большой (5 зм). Потолок ставки — 6 входов, сесть — от 4 входов
+     в кошеле героя. За столом 2–4 игрока; один сидит и ждёт. Играют герои игроков: ставки — из кошеля героя, выигрыш —
+     в кошель героя (запись в сохранение героя после каждого движения денег, это делает экран игрока).
+   • Вскрытие попарное: вскрывают предыдущего в игре по текущей ставке; карты пары видят только эти двое, остальным —
+     лишь кто выбыл. Равная рука предыдущую не бьёт (выбывает вскрывавший); двое последних поровну — свара. Ставка
+     упёрлась в потолок и все её поддержали, или ни у кого нет денег на ставку — оставшиеся вскрываются разом, при всех.
+   • Хозяин стола (тот, кто его открыл) держит настоящую игру: тасует, раздаёт, считает. Остальным он шлёт вид стола,
+     где видны только их собственные карты; чужие — рубашкой, пока их не вскрыли. Колоду не шлёт никому.
+   • Ход — 45 секунд; не успел — карты сбрасываются сами. Трижды подряд проспал ход — встаёт из-за стола.
+   • В минус не уйти: поддержать и вскрыться можно, только если в кошеле хватает на ставку; повысить — не выше кошеля.
+   • Ежедневный подарок корчмаря — раз в сутки (по Киеву) на профиль игрока: уровень героя × 1 зм в кошель выбранного героя;
+     седьмой день подряд — впятеро, и счёт дней начинается заново; пропустил день — счёт сначала.
+   Числа — C.TRKN.K. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.trkScore) return;
+const K = {
+  KINDS: {small: {name: 'малый стол', ante: 10}, mid: {name: 'средний стол', ante: 100}, big: {name: 'большой стол', ante: 500}},
+  CEIL: 6, SIT_MIN: 4, MAX: 4, MIN: 2,
+  TURN_MS: 45000, SVARA_MS: 30000, NEXT_MS: 6000, MISS_STAND: 3,
+  MAX_RAISES: 3, LOG: 30,
+  DAILY: 100, DAILY_STREAK: 7, DAILY_MUL: 5,
+};
+const price = v => (R.priceText ? R.priceText(v) : v + ' мм');
+const pick = a => a[Math.floor(R.rand() * a.length)];
+const r10 = v => Math.max(10, Math.round(v / 10) * 10);
+const SUIT_P = {S: 'пиках', H: 'червях', D: 'бубнах', C: 'трефах'};
+
+/* ---------- тексты стола ---------- */
+const TX = {
+  sit: ['{X} садится к столу и кладёт кошель рядом с собой.', '{X} подсаживается на край скамьи. Стол потесняется.'],
+  wait: 'Ждём второго игрока: вдвоём уже можно сдавать.',
+  deal: ['Сдаёт {X}. В банк — по {P} с каждого, и по три карты ложатся рубашкой вверх.', 'Карты сдаёт {X}. Звенит монета о миску: по {P} в банк с каждого.'],
+  dealSvara: 'Свара: банк остаётся на столе, карты раздают заново тем, кто в сваре.',
+  fold: '{X} сбрасывает карты.', foldAuto: '{X} задумался надолго — карты за него сброшены.',
+  call: '{X} поддерживает: {P} в банк.', raise: '{X} повышает: теперь ставка {P}.',
+  open: '{X} платит {P} и вскрывает {Y}.', cmp: 'У {X} — {A}, у {Y} — {B}.',
+  openOut: '{X} вскрывает {Y}: {Z} выбывает.', openTie: '{X} вскрывает {Y}: поровну, а равная рука предыдущую не бьёт — {Z} выбывает.',
+  all: 'Ставка упёрлась в край — все, кто в игре, вскрываются разом.', allCmp: 'У {X} — {A}.',
+  out: '{X} выходит из раздачи.', tie: 'Поровну, {A}: равная рука предыдущую не бьёт.',
+  svara: 'Поровну, {A}. Свара! Банк можно переиграть или поделить.',
+  svaraSplit: 'Банк делят поровну: каждому по {P}.', svaraRe: 'Решено переиграть: свара.',
+  svaraJoin: '{X} входит в свару и докладывает в банк {P}.', svaraNoJoin: 'В свару больше никто не входит.',
+  win: '{X} забирает банк: {P}.', winLast: 'Все сбросили. {X} забирает банк: {P}.',
+  bust: '{X} пересчитывает остаток: на вход уже не хватает. {X} встаёт из-за стола.',
+  stand: '{X} встаёт из-за стола.', sleep: '{X} трижды проспал{a} ход — место освобождают.',
+  closed: 'Хозяин стола встал — стол закрыт.',
+};
+const fmt = (t, o) => String(Array.isArray(t) ? pick(t) : t).replace(/\{(\w)\}/g, (m, k) => (o[k] != null ? (k === 'P' ? price(o[k]) : String(o[k])) : ''));
+/* строка лога: всем — строкой; только паре вскрытия — {t, only: [места]} */
+const log = (T, t, o, only) => { const x = fmt(t, o || {}); T.log.push(only ? {t: x, only: only.map(i => T.seats[i].uid)} : x); if (T.log.length > K.LOG) T.log.splice(0, T.log.length - K.LOG); };
+const declOf = (n, sex) => { try { const d = C.Q && C.Q.decl ? C.Q.decl(n, sex) : null; if (d && d.g) return d; } catch (e) {} return {n, g: n, d: n, a: n, i: n}; };
+
+/* ---------- стол ---------- */
+const rid = () => Math.random().toString(36).slice(2, 8);
+C.TRKN = {K};
+C.trknNew = function (kind, host, now) {
+  const k = K.KINDS[kind] || K.KINDS.small;
+  return {id: rid(), kind: K.KINDS[kind] ? kind : 'small', name: k.name, ante: k.ante, ceil: k.ante * K.CEIL, host: host.uid, hostName: host.name,
+    seats: [], phase: 'wait', hands: 0, dealer: -1, log: [], hand: null, ver: 1, at: now || Date.now()};
+};
+const seatI = (T, uid) => T.seats.findIndex(s => s.uid === uid && !s.gone);
+C.trknSitMin = T => T.ante * K.SIT_MIN;
+C.trknSit = function (T, p, now) {
+  now = now || Date.now();
+  if (seatI(T, p.uid) >= 0) return {err: 'вы уже за этим столом'};
+  if (T.seats.filter(s => !s.gone).length >= K.MAX) return {err: 'за столом нет свободного места'};
+  const kosh = Math.max(0, Math.floor(+p.kosh || 0));
+  if (kosh < C.trknSitMin(T)) return {err: 'в кошеле героя меньше четырёх входов'};
+  T.seats.push({uid: p.uid, name: String(p.name || 'Гость').slice(0, 16), hero: String(p.hero || '').slice(0, 24), face: String(p.face || ''), sex: p.sex === 'f' ? 'f' : 'm', kosh, miss: 0, gone: 0, won: 0});
+  log(T, TX.sit, {X: p.hero || p.name});
+  if (T.phase === 'wait') { if (T.seats.filter(s => !s.gone).length >= K.MIN) { T.phase = 'between'; T.nextAt = now + 2000; } else log(T, TX.wait); }
+  T.ver++; return {ok: 1};
+};
+const inIdx = H => H.st.map((x, j) => x === 'in' ? j : -1).filter(j => j >= 0);
+const nextIn = (H, i) => { const n = H.st.length; for (let k = 1; k <= n; k++) { const j = (i + k) % n; if (H.st[j] === 'in') return j; } return -1; };
+const prevIn = (H, i) => { const n = H.st.length; for (let k = 1; k <= n; k++) { const j = (i - k + n) % n; if (H.st[j] === 'in') return j; } return -1; };
+const nm = (T, i) => T.seats[i].hero || T.seats[i].name;
+const pay = (T, i, v) => { const s = T.seats[i]; v = Math.max(0, Math.min(v, s.kosh)); s.kosh -= v; T.hand.pot += v; return v; };
+/* встал или выбыл: место убирают между раздачами, чтобы не сбить очерёдность */
+/* ушедшие со стола — в T.out: хозяин скажет им «до свидания» (trinka_net_ui.js) */
+const dropGone = T => { T.seats.forEach(s => { if (s.gone) (T.out = T.out || []).push(s.uid); }); return T.seats.filter(s => !s.gone); };
+const purge = T => { if (T.hand && !T.hand.over && T.phase !== 'between' && T.phase !== 'wait') return; T.seats = dropGone(T); };
+const live = T => T.seats.filter(s => !s.gone);
+C.trknDeal = function (T, now, sv) {
+  now = now || Date.now();
+  if (!sv) {
+    T.hand = null; purge(T);
+    T.seats.forEach(s => { if (s.kosh < T.ante) { s.gone = 1; log(T, TX.bust, {X: s.hero || s.name}); } });
+    T.seats = dropGone(T);
+    if (T.seats.length < K.MIN) { T.phase = 'wait'; log(T, TX.wait); T.ver++; return false; }
+  }
+  const n = T.seats.length;
+  if (!sv) { T.hands++; T.dealer = (T.dealer + 1) % n; }
+  const H = T.hand = {n: T.hands, pot: sv ? sv.pot : 0, stake: T.ante, st: T.seats.map((s, i) => (sv ? (sv.who.includes(i) ? 'in' : 'sit') : 'in')), cards: T.seats.map(() => null),
+    raises: {}, circle: 0, steps: 0, firstDone: false, seen: {}, all: null, ceilAt: -1, svara: sv ? 1 : 0, over: 0};
+  if (sv) log(T, TX.dealSvara); else { inIdx(H).forEach(i => pay(T, i, T.ante)); log(T, TX.deal, {X: nm(T, T.dealer), P: T.ante}); }
+  const deck = C.trkDeck(); for (let i = deck.length - 1; i > 0; i--) { const j = Math.floor(R.rand() * (i + 1)); [deck[i], deck[j]] = [deck[j], deck[i]]; }
+  H.deck = deck;
+  inIdx(H).forEach(i => { H.cards[i] = [deck.pop(), deck.pop(), deck.pop()]; });
+  H.dealt = inIdx(H).length; H.turn = nextIn(H, T.dealer); T.turnAt = now; T.phase = 'hand'; T.ver++;
+  return true;
+};
+const advance = (T, i, now) => { const H = T.hand; H.steps++; if (H.steps >= H.dealt) H.firstDone = true; H.circle = Math.floor(H.steps / Math.max(1, H.dealt)); H.turn = nextIn(H, i); T.turnAt = now;
+  // ставка у потолка и все в игре её уже поддержали, или ни у кого нет денег на ставку — вскрываются все разом
+  // (то же правило, что C.trkAllCheck в trinka.js: повышать некому — ждём полный круг; вскрыться не на что никому — сразу)
+  const L = inIdx(H); if (L.length < 2 || !H.firstDone) return;
+  if (L.every(j => T.seats[j].kosh < H.stake)) return showAll(T, now);
+  if (!L.every(j => H.stake >= T.ceil || T.seats[j].kosh < Math.min(T.ceil, H.stake + T.ante))) { H.ceilAt = -1; return; }
+  if (H.ceilAt < 0) { H.ceilAt = H.steps; return; }
+  if (H.steps - H.ceilAt >= L.length) showAll(T, now); };
+const see = (H, a, b) => { (H.seen[a] = H.seen[a] || []).push(b); (H.seen[b] = H.seen[b] || []).push(a); };
+const showAll = (T, now) => {
+  const H = T.hand, L = inIdx(H); H.all = L.slice(); log(T, TX.all);
+  L.forEach(i => log(T, TX.allCmp, {X: declOf(nm(T, i), T.seats[i].sex).g, A: word(H.cards[i])}));
+  const best = Math.max(...L.map(i => C.trkScore(H.cards[i]))), top = L.filter(i => C.trkScore(H.cards[i]) === best);
+  L.forEach(i => { if (!top.includes(i)) H.st[i] = 'fold'; });
+  if (top.length === 1) return award(T, top[0], false, now);
+  log(T, TX.svara, {A: word(H.cards[top[0]])}); H.svaraWho = top; H.votes = {}; T.phase = 'svara'; T.turnAt = now; };
+const between = (T, now) => { T.phase = 'between'; T.hand.over = 1; T.nextAt = now + K.NEXT_MS; };
+const award = (T, i, last, now) => { const H = T.hand, v = H.pot; H.pot = 0; T.seats[i].kosh += v; T.seats[i].won++; log(T, last ? TX.winLast : TX.win, {X: nm(T, i), P: v}); between(T, now); };
+const word = cards => C.trkScoreWord(cards);
+/* вскрыть предыдущего в игре: цена — текущая ставка; карты пары видят только эти двое, остальным — кто выбыл */
+const openUp = (T, i, now) => {
+  const H = T.hand, j = prevIn(H, i); if (j < 0 || j === i) return;
+  pay(T, i, H.stake); log(T, TX.open, {X: nm(T, i), Y: declOf(nm(T, j), T.seats[j].sex).a, P: H.stake});
+  const a = C.trkScore(H.cards[i]), b = C.trkScore(H.cards[j]); see(H, i, j);
+  log(T, TX.cmp, {X: declOf(nm(T, i), T.seats[i].sex).g, Y: declOf(nm(T, j), T.seats[j].sex).g, A: word(H.cards[i]), B: word(H.cards[j])}, [i, j]);
+  if (a === b && inIdx(H).length === 2) { log(T, TX.svara, {A: word(H.cards[i])}); H.svaraWho = [i, j]; H.votes = {}; T.phase = 'svara'; T.turnAt = now; return; }
+  const lo = a > b ? j : i; H.st[lo] = 'fold';
+  log(T, a === b ? TX.openTie : TX.openOut, {X: nm(T, i), Y: declOf(nm(T, j), T.seats[j].sex).a, Z: nm(T, lo)});
+  const left = inIdx(H); if (left.length === 1) return award(T, left[0], false, now);
+  advance(T, i, now);
+};
+const splitPot = (T, two, now) => { const H = T.hand, v = Math.floor(H.pot / two.length / 10) * 10, rest = H.pot - v * two.length;
+  two.forEach((i, k) => { T.seats[i].kosh += v + (k === 0 ? rest : 0); }); H.pot = 0; log(T, TX.svaraSplit, {P: v}); between(T, now); };
+const svaraHalf = T => r10(T.hand.pot / 2);
+const svaraStart = (T, now) => { const H = T.hand, half = svaraHalf(T);
+  const can = T.seats.map((s, i) => i).filter(i => !H.svaraWho.includes(i) && !T.seats[i].gone && T.seats[i].kosh >= half);
+  log(T, TX.svaraRe);
+  if (!can.length) { log(T, TX.svaraNoJoin); C.trknDeal(T, now, {pot: H.pot, who: H.svaraWho.slice().sort((a, b) => a - b)}); return; }
+  H.svJoin = {can, half, ans: {}}; T.phase = 'svjoin'; T.turnAt = now; };
+const svaraGo = (T, now) => { const H = T.hand, J = H.svJoin, who = H.svaraWho.slice();
+  J.can.forEach(i => { if (J.ans[i] === 'join' && T.seats[i].kosh >= J.half && !T.seats[i].gone) { pay(T, i, J.half); who.push(i); log(T, TX.svaraJoin, {X: nm(T, i), P: J.half}); } });
+  if (who.length === H.svaraWho.length) log(T, TX.svaraNoJoin);
+  C.trknDeal(T, now, {pot: H.pot, who: who.sort((a, b) => a - b)}); };
+/* что может игрок i прямо сейчас */
+C.trknRaiseTo = function (T, i) {
+  const H = T.hand; if (!H || T.phase !== 'hand' || H.turn !== i) return [];
+  const p = T.seats[i].kosh, out = []; if ((H.raises[i] || 0) >= K.MAX_RAISES) return [];
+  [1, 2, 4].forEach(k => { const v = Math.min(T.ceil, H.stake + k * T.ante); if (v > H.stake && v <= p && !out.includes(v)) out.push(v); });
+  if (T.ceil > H.stake && T.ceil <= p && !out.includes(T.ceil)) out.push(T.ceil);
+  return out;
+};
+C.trknOptions = function (T, uid) {
+  const i = seatI(T, uid), out = []; if (i < 0) return out;
+  const H = T.hand, s = T.seats[i];
+  if (T.phase === 'hand' && H && H.turn === i && H.st[i] === 'in') {
+    out.push({a: 'fold', label: 'Сбросить'});
+    out.push({a: 'call', label: 'Поддержать: ' + price(H.stake), dis: s.kosh < H.stake ? 'в кошеле не хватает на ставку' : ''});
+    C.trknRaiseTo(T, i).forEach(v => out.push({a: 'raise', v, label: 'Повысить до ' + price(v)}));
+    const pj = prevIn(H, i), hint = pj >= 0 && C.TRK_TX && C.TRK_TX.openHint ? C.TRK_TX.openHint.replace('{X}', declOf(nm(T, pj), T.seats[pj].sex).i || nm(T, pj)) : '';
+    if (H.firstDone) out.push({a: 'open', hint, label: 'Вскрыться: ' + price(H.stake), dis: s.kosh < H.stake ? 'в кошеле не хватает на ставку' : ''});
+  }
+  if (T.phase === 'svara' && H.svaraWho.includes(i) && !H.votes[i]) { out.push({a: 're', label: 'Переиграть банк'}); out.push({a: 'split', label: 'Поделить банк'}); }
+  if (T.phase === 'svjoin' && H.svJoin.can.includes(i) && !H.svJoin.ans[i]) { out.push({a: 'join', label: 'Войти в свару: ' + price(H.svJoin.half), dis: s.kosh < H.svJoin.half ? 'не хватает' : ''}); out.push({a: 'skip', label: 'Не входить'}); }
+  out.push({a: 'stand', label: T.host === uid ? 'Встать и закрыть стол' : 'Встать из-за стола'});
+  return out;
+};
+const foldI = (T, i, now, auto) => { const H = T.hand; H.st[i] = 'fold'; log(T, auto ? TX.foldAuto : TX.fold, {X: nm(T, i)});
+  const left = inIdx(H); if (left.length === 1) return award(T, left[0], true, now); if (H.turn === i) advance(T, i, now); };
+C.trknAct = function (T, uid, a, v, now) {
+  now = now || Date.now();
+  const i = seatI(T, uid); if (i < 0) return {err: 'вас нет за столом'};
+  const s = T.seats[i], H = T.hand;
+  if (a === 'stand') {
+    if (H && !H.over) {
+      if (T.phase === 'hand' && H.st[i] === 'in') foldI(T, i, now);
+      else if (T.phase === 'svara' && H.svaraWho.includes(i)) splitPot(T, H.svaraWho, now);
+      else if (T.phase === 'svjoin' && H.svJoin.can.includes(i)) { H.svJoin.ans[i] = 'skip'; }
+    }
+    s.gone = 1; log(T, TX.stand, {X: s.hero || s.name}); if (T.host === uid) { T.phase = 'closed'; log(T, TX.closed); }
+    else if (live(T).length < K.MIN && (T.phase === 'between' || T.phase === 'wait')) { purge(T); T.phase = 'wait'; log(T, TX.wait); }
+    else if (T.phase === 'svjoin' && H.svJoin.can.every(j => H.svJoin.ans[j])) svaraGo(T, now);
+    T.ver++; return {ok: 1, kosh: s.kosh};
+  }
+  if (T.phase === 'svara') { if (!H.svaraWho.includes(i) || H.votes[i]) return {err: 'не ваше решение'}; if (a !== 're' && a !== 'split') return {err: 'так нельзя'};
+    H.votes[i] = a; s.miss = 0;
+    if (a === 'split') splitPot(T, H.svaraWho, now); else if (H.svaraWho.every(j => H.votes[j] === 're')) svaraStart(T, now);
+    T.ver++; return {ok: 1}; }
+  if (T.phase === 'svjoin') { const J = H.svJoin; if (!J.can.includes(i) || J.ans[i]) return {err: 'не ваше решение'}; if (a !== 'join' && a !== 'skip') return {err: 'так нельзя'};
+    if (a === 'join' && s.kosh < J.half) return {err: 'не хватает'}; J.ans[i] = a; s.miss = 0;
+    if (J.can.every(j => J.ans[j])) svaraGo(T, now); T.ver++; return {ok: 1}; }
+  if (T.phase !== 'hand' || !H || H.over || H.turn !== i || H.st[i] !== 'in') return {err: 'не ваш ход'};
+  s.miss = 0;
+  if (a === 'fold') foldI(T, i, now);
+  else if (a === 'call') { if (s.kosh < H.stake) return {err: 'в кошеле не хватает на ставку'}; pay(T, i, H.stake); log(T, TX.call, {X: nm(T, i), P: H.stake}); advance(T, i, now); }
+  else if (a === 'raise') { v = Math.floor(+v || 0); if (!C.trknRaiseTo(T, i).includes(v)) return {err: 'так не поднять'}; H.stake = v; H.raises[i] = (H.raises[i] || 0) + 1; pay(T, i, v); log(T, TX.raise, {X: nm(T, i), P: v}); advance(T, i, now); }
+  else if (a === 'open') { if (!H.firstDone) return {err: 'первый круг ещё не прошёл'}; if (s.kosh < H.stake) return {err: 'в кошеле не хватает на ставку'}; openUp(T, i, now); }
+  else return {err: 'так нельзя'};
+  T.ver++; return {ok: 1};
+};
+/* время: проспанный ход — сброс, проспанная свара — делёж, между раздачами — новая сдача */
+C.trknTick = function (T, now) {
+  now = now || Date.now(); const v0 = T.ver, H = T.hand;
+  if (T.phase === 'closed') return false;
+  if (T.phase === 'hand' && H && !H.over && now - T.turnAt >= K.TURN_MS) {
+    const i = H.turn, s = T.seats[i]; s.miss = (s.miss || 0) + 1; foldI(T, i, now, true);
+    if (s.miss >= K.MISS_STAND) { s.gone = 1; log(T, TX.sleep, {X: s.hero || s.name, a: s.sex === 'f' ? 'а' : ''}); }
+    T.ver++;
+  } else if (T.phase === 'svara' && now - T.turnAt >= K.SVARA_MS) { splitPot(T, H.svaraWho, now); T.ver++; }
+  else if (T.phase === 'svjoin' && now - T.turnAt >= K.SVARA_MS) { H.svJoin.can.forEach(j => { if (!H.svJoin.ans[j]) H.svJoin.ans[j] = 'skip'; }); svaraGo(T, now); T.ver++; }
+  else if (T.phase === 'between' && now >= (T.nextAt || 0)) { C.trknDeal(T, now); }
+  else if (T.phase === 'wait' && live(T).length >= K.MIN) { T.phase = 'between'; T.nextAt = now + 1500; T.ver++; }
+  return T.ver !== v0;
+};
+/* вид стола для одного игрока: свои карты — открыто, чужие — рубашкой, пока их не вскрыли; колоды нет */
+C.trknView = function (T, uid, now) {
+  now = now || Date.now(); const H = T.hand, me = seatI(T, uid);
+  const seats = T.seats.map((s, i) => {
+    const has = H && H.cards[i], see = has && (i === me || (H.all && H.all.includes(i)) || (me >= 0 && (H.seen[me] || []).includes(i)));
+    return {name: s.name, hero: s.hero, face: s.face, sex: s.sex, kosh: s.kosh, gone: s.gone, uid: s.uid,
+      st: H ? H.st[i] : 'wait', cards: has ? (see ? H.cards[i].slice() : [null, null, null]) : null, score: see ? word(H.cards[i]) : ''};
+  });
+  const left = H && (T.phase === 'hand') ? Math.max(0, Math.ceil((K.TURN_MS - (now - T.turnAt)) / 1000)) : 0;
+  return {id: T.id, kind: T.kind, name: T.name, host: T.host, hostName: T.hostName, ante: T.ante, ceil: T.ceil, phase: T.phase, hands: T.hands, ver: T.ver,
+    pot: H ? H.pot : 0, stake: H ? H.stake : T.ante, turn: H && T.phase === 'hand' ? H.turn : -1, me, seats, log: T.log.filter(l => typeof l === 'string' || l.only.includes(uid)).map(l => (typeof l === 'string' ? l : l.t)), left,
+    svara: T.phase === 'svara' ? H.svaraWho.slice() : null, opts: C.trknOptions(T, uid)};
+};
+/* сводка для списка столов в зале */
+C.trknSummary = T => ({id: T.id, kind: T.kind, name: T.name, ante: T.ante, ceil: T.ceil, host: T.host, hostName: T.hostName, phase: T.phase,
+  seats: live(T).map(s => ({uid: s.uid, name: s.name, hero: s.hero, face: s.face})), free: K.MAX - live(T).length});
+C.trknLive = live;
+
+/* ---------- можно ли играть героем ---------- */
+C.trknBusy = function (game, h) {
+  if (!game) return '';
+  if (game.pendingBattle) return 'сейчас в бою';
+  if (game.waCapt) return 'сейчас в плену';
+  if (game.waMine) return 'сейчас на руднике';
+  const cr = game.crime || {};
+  if (cr.labor && (!h || !cr.labor.hid || cr.labor.hid === h.id)) return 'сейчас на каторге';
+  if (cr.death) return 'ждёт суда и казни';
+  return '';
+};
+
+/* ---------- подарок корчмаря раз в сутки ---------- */
+const DAYMS = 86400000;
+C.trknKyivDate = function (now) {
+  const d = new Date(now || Date.now());
+  for (const tz of ['Europe/Kyiv', 'Europe/Kiev']) { try { return new Intl.DateTimeFormat('en-CA', {timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit'}).format(d); } catch (e) {} }
+  return new Date(d.getTime() + 2 * 3600e3).toISOString().slice(0, 10);
+};
+const prevDay = s => { const [y, m, d] = s.split('-').map(Number); return new Date(Date.UTC(y, m - 1, d) - DAYMS).toISOString().slice(0, 10); };
+const ORD = ['', 'первый', 'второй', 'третий', 'четвёртый', 'пятый', 'шестой', 'седьмой'];
+/* st — {last, streak} профиля; вернёт null, если сегодня подарок уже был */
+C.trknDaily = function (st, now, level) {
+  st = st && typeof st === 'object' ? st : {};
+  const today = C.trknKyivDate(now);
+  if (st.last === today) return null;
+  const run = st.last && st.last === prevDay(today) && (st.streak || 0) < K.DAILY_STREAK ? (st.streak || 0) + 1 : 1;
+  const big = run === K.DAILY_STREAK, amount = Math.max(1, Math.floor(+level || 1)) * K.DAILY * (big ? K.DAILY_MUL : 1);
+  const text = big
+    ? `Корчмарь ставит перед тобой чарку и выкладывает рядом горсть золотых: «Седьмой вечер кряду ты у нас. За верность дому — от меня, и чтоб дорога не забывалась».`
+    : run === 1 ? 'Корчмарь ставит перед тобой чарку и золотой: за то, что не забываешь дорогу.'
+      : `Корчмарь ставит перед тобой чарку и золотой: «${ORD[run][0].toUpperCase() + ORD[run].slice(1)} день подряд заходишь — за то, что не забываешь дорогу».`;
+  return {st: {last: today, streak: run}, amount, streak: run, big, text};
+};
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* town_walk_data.js */

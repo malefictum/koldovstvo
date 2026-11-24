@@ -49858,7 +49858,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611242000"></script><script>
+</script><script src="world.js?v=202611242030"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50128,6 +50128,11 @@ function hallOnMsg(conn, m) {
     const msg = {name: String(m.name || '?').slice(0, 16), text: t, ts: Date.now(), inv: m.inv || null, room: m.room, cid: m.cid || null, uid: m.uid || null}; pushMsg(msg);
     H.conns.forEach(c => { if (c._ready) send(c, {t: 'hmsg', msg}); });
     if (!(msg.cid && H.sent[msg.cid])) hhook('msg', msg); return; }
+  if (m.t === 'trk') { // тринька в зале (trinka_net_ui.js): держатель только пересылает — кому одному или всем ('*')
+    const from = conn._uid || m.from, msg = {t: 'trk', to: m.to, from, d: m.d};
+    if (m.to === '*') { H.conns.forEach(c => { if (c._ready && c._uid !== from) send(c, msg); }); if (!(H.me && from === H.me.uid)) trkHook(msg); return; }
+    if (H.me && m.to === H.me.uid) return trkHook(msg);
+    const c = connOf(m.to); if (c) send(c, msg); return; }
   if (m.t === 'buy') { // к продавцу
     if (m.seller === (H.me && H.me.uid)) return hhook('buyreq', m, ans => hallOnMsg({}, Object.assign({t: 'buyans', rid: m.rid, to: m.buyer.uid, lot: m.lot, seller: m.seller}, ans)));
     const c = connOf(m.seller); if (c) return send(c, Object.assign({}, m, {t: 'buyreq'}));
@@ -50160,7 +50165,9 @@ function onHallData(m) {
   if (m.t === 'hmsg') { if (m.msg.cid && H.sent[m.msg.cid]) { delete H.sent[m.msg.cid]; return; } pushMsg(m.msg); return hhook('msg', m.msg); }
   if (m.t === 'buyreq') return hhook('buyreq', m, ans => hallSend(Object.assign({t: 'buyans', rid: m.rid, to: m.buyer.uid, lot: m.lot, seller: m.seller}, ans)));
   if (m.t === 'buyres') return hhook('buyres', m);
+  if (m.t === 'trk') return trkHook(m);
 }
+const trkHook = m => { if (Hall.onTrk) try { Hall.onTrk(m); } catch (e) { console.error(e); } };
 H.seenInv = {};
 function hallConnect() {
   return new Promise(res => {
@@ -50221,7 +50228,7 @@ const BUYW = {}, LATE = {};
 function hallBuy(lot, buyer) { return new Promise(res => { if (!H.on) return res({ok: false, why: 'нет связи с корчмой'}); const rid = rnd(8); BUYW[rid] = res;
   hallSend({t: 'buy', rid, lot: lot.id, seller: lot.uid, buyer}); setTimeout(() => { if (BUYW[rid]) { delete BUYW[rid]; LATE[rid] = {lot, buyer}; setTimeout(() => { delete LATE[rid]; }, 600000); res({ok: false, late: true, why: 'продавец пока не ответил; если сделка всё же пройдёт — вещь придёт сама'}); } }, 20000); }); }
 const Hall = {H, join: hallJoin, update: hallUpdate, leave: hallLeave, invite: inv => hallSend({t: 'invite', inv}), uninvite: code => hallSend({t: 'uninvite', code}), chat: hallChat,
-  setLots: hallSetLots, buy: hallBuy, lots: allLots, online: () => Object.keys(H.members).length,
+  setLots: hallSetLots, buy: hallBuy, lots: allLots, trk: (to, d) => hallSend({t: 'trk', to, from: H.me && H.me.uid, d}), online: () => Object.keys(H.members).length,
   state: () => Object.assign(hallState(false), {chat: H.chat}), setHooks: h => { const user = h || {}; hhooks = Object.assign({}, user, {buyres: m => { const f = BUYW[m.rid]; if (f) { delete BUYW[m.rid]; f(m); } else if (LATE[m.rid]) { const x = LATE[m.rid]; delete LATE[m.rid]; if (m.ok && Hall.onLate) Hall.onLate(x.lot, x.buyer, m); } if (user.buyres) user.buyres(m); }}); }, on: () => H.on};
 
 /* ================= ПЕРЕНОС НА ДРУГОЕ УСТРОЙСТВО =================
@@ -55710,7 +55717,7 @@ function showHall(opt) {
       return `<div class="kct"><h3 class="ttl">Столы</h3><span class="kcount">${S0.invites.length}</span></div><div class="invs">${S0.invites.map(i => { const why = meH ? (meH.level > i.hi ? `${meH.name} слишком опытен (${i.lo}–${i.hi})` : meH.level < i.lo ? `нужен ${i.lo}-й уровень` : '') : '';
         return `<div class="inv"><div><b>${esc(i.camp)}</b><span class="note"> · ${i.lo}–${i.hi}-й ур. · мест: ${i.seats}</span></div><div class="note">${esc(i.from)}${i.place ? ' · ' + esc(i.place) + ', день ' + i.day : ''}</div>
           <div class="row"><b class="icode tcode">${esc(i.code)}</b>${why ? `<span class="note why">${esc(why)}</span>` : ''}${mine(i.code) ? '<button class="btn small primary" data-back="1">Вернуться на своё место</button>' : `<button class="btn small primary" data-inv="${esc(i.code)}" ${i.seats ? '' : 'disabled'}>Принять зов</button>`}</div></div>`; }).join('') || '<p class="note">Пока никто не зовёт. Позвать можно из своей игры: «Позвать» вверху. Зов придёт и тем, кто сейчас в походе.</p>'}</div>
-        <div class="kcode"><label for="h-code">Сесть по коду</label><div class="row"><input id="h-code" maxlength="4" style="text-transform:uppercase;width:110px" placeholder="ABCD"><button class="btn primary" id="h-join">Войти</button>${Net.savedBack() ? `<button class="btn primary" id="h-back" data-back="1">Вернуться за стол <b class="tcode">${esc(Net.savedBack().code)}</b></button>` : ''}</div></div>`;
+        <div class="kcode"><label for="h-code">Сесть по коду</label><div class="row"><input id="h-code" maxlength="4" style="text-transform:uppercase;width:110px" placeholder="ABCD"><button class="btn primary" id="h-join">Войти</button>${Net.savedBack() ? `<button class="btn primary" id="h-back" data-back="1">Вернуться за стол <b class="tcode">${esc(Net.savedBack().code)}</b></button>` : ''}</div></div>${window.__trkNet ? window.__trkNet.hallHTML() : ''}`;
     }
     // торговый ряд — как лавка в игре
     const lots = Net.Hall.lots(), myUid = Net.myUid(), wal = KR.hero ? walletOf(KR.hero) : 0, mineL = lotsLoad();
@@ -55762,7 +55769,7 @@ function showHall(opt) {
     bindInv(m); bindCenter();
   }
   function bindCenter() {
-    const c = $('#k-center'); if (!c) return; paintIcons(c); bindInv(c);
+    const c = $('#k-center'); if (!c) return; paintIcons(c); bindInv(c); if (window.__trkNet) try { window.__trkNet.bind(c); } catch (e) { console.error(e); }
     if ($('#h-join')) { $('#h-join').onclick = () => join($('#h-code').value.trim()); $('#h-code').onkeydown = e => { if (e.key === 'Enter') $('#h-join').click(); }; }
     c.querySelectorAll('[data-ktab]').forEach(b => b.onclick = () => { KR.tab = b.dataset.ktab; draw('force'); });
     c.querySelectorAll('[data-ksell]').forEach(b => b.onclick = () => { const id = b.dataset.ksell, inp = c.querySelector(`[data-kp="${CSS.escape(id)}"]`), gold = Math.floor(+(inp && inp.value) || 0);
@@ -55783,6 +55790,7 @@ function showHall(opt) {
       toast(`${hh.name}: куплено — ${R.item(l.item).name} за ${R.priceText(l.price)}.`); draw('force'); });
   }
   KR.draw = draw;
+  window.__kldvHall = {heroMutate, heroWhere, walletOf, poolLoad, myName, toast, faceHTML, paintFaces, hero: () => KR.hero, draw: f => draw(f), show: o => showHall(o)}; // тринька в зале (trinka_net_ui.js)
   KR.msg = '';
   draw();
   korchmaEnsure('hall');
@@ -55987,6 +55995,7 @@ function css() {
 .trk-side{display:flex;flex-direction:column;gap:10px;min-width:0}
 .trk-acts{display:grid;gap:7px}.trk-acts .btn{text-align:center}.trk-acts .btn[disabled]{opacity:.45;cursor:default}
 .trk-raise{display:flex;flex-wrap:wrap;gap:6px}.trk-raise .btn{flex:1 1 auto;font-size:14px;padding:7px 8px}
+.trk-acts .btn .trk-hint{display:block;font:italic 12px/1.25 var(--t-text);letter-spacing:0;text-transform:none;opacity:.85;margin-top:3px}
 .trk-score{font:600 14px var(--t-label);color:var(--brass-2);text-align:center}
 .trk-log{background:rgba(236,224,196,.06);border:1px solid rgba(107,85,55,.7);border-radius:8px;padding:8px 10px;max-height:330px;overflow:auto;font-size:14px;line-height:1.35}
 .trk-log p{margin:0 0 5px}.trk-log p.o{color:#f0e3c2}.trk-log p.o b{color:var(--brass-2);font-weight:600}.trk-log p.n{color:#cfc2a5}
@@ -56045,7 +56054,7 @@ window.__trkUI = function (id, sc, H) {
   const ch = sc.choices || [];
   const raise = ch.filter(c => c.trk === 'raise'), rest = ch.filter(c => c.trk !== 'raise');
   const key = V.hands + '|' + V.phase;
-  const btn = c => `<button class="btn${/^(call|open|deal|sit|catch|svara_re|svjoin|back|fight)$/.test(c.trk) ? ' primary' : ''}" data-tch="${c.i}"${c.dis ? ` disabled title="${esc(c.dis)}"` : ''}>${esc(c.label)}</button>`;
+  const btn = c => `<button class="btn${/^(call|open|deal|sit|catch|svara_re|svjoin|back|fight)$/.test(c.trk) ? ' primary' : ''}" data-tch="${c.i}"${c.dis ? ` disabled title="${esc(c.dis)}"` : c.hint ? ` title="${esc(c.hint)}"` : ''}>${esc(c.label)}${c.hint ? `<small class="trk-hint">${esc(c.hint)}</small>` : ''}</button>`;
   let acts = '';
   rest.forEach(c => { acts += btn(c); if (c.trk === 'call' && raise.length) acts += `<button class="btn" id="trk-up">Повысить…</button><div class="trk-raise"${RAISE ? '' : ' hidden'}>${raise.map(r => `<button class="btn" data-tch="${r.i}">${esc(r.label.replace(/^Повысить до /, 'до '))}</button>`).join('')}</div>`; });
   const me = V.seats[0];
@@ -56063,6 +56072,207 @@ window.__trkUI = function (id, sc, H) {
   main.querySelectorAll('[data-tch]').forEach(b => b.onclick = () => { if (b.disabled) return; RAISE = false; H.choose(+b.dataset.tch); });
   return true;
 };
+})();
+
+/* trinka_net_ui.js */
+/* Колдовство — тринька в общем зале корчмы (браузер): столы живых игроков, связь через зал (Net.Hall.trk), экран стола —
+   тот же, что у триньки в корчме (window.__trkUI из trinka_ui.js). Логика и правила — trinka_net.js (C.trkn*).
+   • Хозяин стола держит игру у себя (C.trknNew/Sit/Act/Tick), раз в секунду смотрит время, после каждого изменения шлёт
+     каждому сидящему его вид стола (C.trknView: свои карты, чужие рубашкой). Колода не уходит никуда.
+   • В зал раз в несколько секунд — сводка стола ('tbl'): вид, хозяин, кто сидит, сколько мест. Сводка пропала — стол разошёлся.
+   • Деньги: за столом играет кошель выбранного героя; каждое движение его денег за столом тут же пишется в сохранение героя
+     (__kldvHall.heroMutate) — перезагрузка не возвращает проигранное. Встал, пропала связь — деньги уже у героя.
+   • Подарок корчмаря — раз в сутки на профиль (kldv-daily-v1; после входа в облако ключ живёт в облаке), в кошель героя.
+   Сообщения (d): tbl{t} · tblx{id} — всем; sit{tid,p} · act{tid,a,v} — хозяину; st{v} · no{tid,why} · bye{tid,why} — игроку. */
+(function () {
+'use strict';
+if (typeof window === 'undefined') return;
+const R = window.R, C = window.C;
+const $ = s => document.querySelector(s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const price = v => (R && R.priceText ? R.priceText(v) : v + ' мм');
+const DKEY = 'kldv-daily-v1';
+const TN = window.__trkNetState = {tables: {}, my: null, seat: null, pend: null, screen: false, notice: '', view: null, loop: null, bc: 0};
+const HB = () => window.__kldvHall || null;
+const ok = () => !!(window.Net && Net.Hall && C && C.trknNew);
+const myUid = () => Net.myUid();
+function send(to, d) { if (to === myUid()) { setTimeout(() => onMsg({from: myUid(), d}), 0); return; } try { Net.Hall.trk(to, d); } catch (e) {} }
+const toast = t => { const H = HB(); if (H) H.toast(t); };
+
+/* ---------- герой ---------- */
+function heroInfo() {
+  const H = HB(); if (!H) return {why: 'выберите героя'};
+  const id = H.hero(); if (!id) return {why: 'выберите героя слева'};
+  const w = H.heroWhere(id); if (!w || !w.h || w.h.dead) return {why: 'героя нет среди живых'};
+  const busy = C.trknBusy(w.game || null, w.h);
+  return {id, h: w.h, game: w.game || null, wallet: H.walletOf(id), why: busy ? `${w.h.name} ${busy}: играть ${w.h.sex === 'f' ? 'ею' : 'им'} нельзя` : ''};
+}
+/* деньги героя: плюс — в кошель, минус — из кошеля (не ниже нуля) */
+function heroMoney(id, d) {
+  const H = HB(); if (!H || !d) return;
+  H.heroMutate(id, (h, game) => { if (game) game.purse = Math.max(0, (game.purse || 0) + d); else h.gold = Math.max(0, (h.gold || 0) + d); });
+}
+
+/* ---------- подарок корчмаря ---------- */
+const dLoad = () => { try { return JSON.parse(localStorage.getItem(DKEY) || 'null') || {}; } catch (e) { return {}; } };
+const dSave = st => { try { localStorage.setItem(DKEY, JSON.stringify(st)); } catch (e) {} };
+function daily() {
+  if (!ok() || !Net.Hall.on()) return;
+  if (window.Cloud && Cloud.user && !Cloud.fresh) return;  // облачный профиль ещё не подтянулся — подождём, чтобы не дарить дважды
+  const I = heroInfo(); if (!I.h || I.why) return;
+  const r = C.trknDaily(dLoad(), Date.now(), I.h.level); if (!r) return;
+  dSave(r.st); heroMoney(I.id, r.amount);
+  TN.notice = `${r.text} ${I.h.name}: в кошель ${price(r.amount)}.`;
+  hallSoft();   toast('Корчмарь: ' + price(r.amount) + ' в кошель ' + (I.h.name || 'героя') + '.');
+}
+
+/* ---------- хозяин стола ---------- */
+function hostOpen(kind) {
+  if (TN.my || TN.seat || TN.pend) return toast('Вы уже за столом.');
+  const I = heroInfo(); if (I.why) return toast(I.why[0].toUpperCase() + I.why.slice(1) + '.');
+  const T = C.trknNew(kind, {uid: myUid(), name: HB().myName()});
+  if (I.wallet < C.trknSitMin(T)) return toast('В кошеле героя меньше четырёх входов этого стола.');
+  TN.my = T; TN.tables[T.id] = {s: C.trknSummary(T), at: Date.now()};
+  clearInterval(TN.loop); TN.loop = setInterval(hostTick, 1000);
+  sit(T.id, myUid());
+}
+function hostPush() {
+  const T = TN.my; if (!T) return;
+  C.trknLive(T).forEach(s => send(s.uid, {k: 'st', v: C.trknView(T, s.uid)}));
+  T.seats.filter(s => s.gone && !s.byed).forEach(s => { s.byed = 1; send(s.uid, {k: 'bye', tid: T.id, why: ''}); });
+  (T.out || []).forEach(u => { if (!C.trknLive(T).some(s => s.uid === u)) send(u, {k: 'bye', tid: T.id, why: ''}); }); T.out = [];
+  hostSummary();
+}
+function hostSummary() { const T = TN.my; if (!T) return; const s = C.trknSummary(T); TN.tables[T.id] = {s, at: Date.now()}; send('*', {k: 'tbl', t: s}); TN.bc = Date.now(); hallSoft(); }
+function hostClose(why) {
+  const T = TN.my; if (!T) return; clearInterval(TN.loop); TN.loop = null;
+  T.seats.forEach(s => { if (!s.byed && s.uid !== myUid()) send(s.uid, {k: 'bye', tid: T.id, why: why || 'Хозяин стола встал — стол закрыт.'}); });
+  send('*', {k: 'tblx', id: T.id}); delete TN.tables[T.id]; TN.my = null;
+}
+function hostTick() {
+  const T = TN.my; if (!T) return;
+  // кто сидит, но пропал из зала дольше минуты — встаёт
+  try { const on = new Set((Net.Hall.state().members || []).map(m => m.uid)); C.trknLive(T).forEach(s => { if (on.has(s.uid)) s.off = 0; else if (!s.off) s.off = Date.now(); else if (Date.now() - s.off > 60000 && s.uid !== myUid()) C.trknAct(T, s.uid, 'stand'); }); } catch (e) {}
+  if (C.trknTick(T, Date.now())) hostPush();
+  else if (Date.now() - TN.bc > 4000) hostSummary();
+  if (T.phase === 'closed') hostClose();
+}
+function hostOn(from, d) {
+  const T = TN.my; if (!T || d.tid !== T.id) { if (d.k === 'sit') send(from, {k: 'no', tid: d.tid, why: 'этого стола уже нет'}); return; }
+  if (d.k === 'sit') { const r = C.trknSit(T, Object.assign({}, d.p || {}, {uid: from}), Date.now()); if (r.err) return send(from, {k: 'no', tid: T.id, why: r.err}); return hostPush(); }
+  if (d.k === 'act') { const r = C.trknAct(T, from, String(d.a || ''), d.v, Date.now()); if (r.err) return send(from, {k: 'st', v: C.trknView(T, from), err: r.err});
+    hostPush(); if (T.phase === 'closed') hostClose(); }
+}
+
+/* ---------- игрок ---------- */
+function sit(tid, host) {
+  const I = heroInfo(); if (I.why) return toast(I.why[0].toUpperCase() + I.why.slice(1) + '.');
+  if (TN.seat || TN.pend) return toast('Вы уже за столом.');
+  const t = TN.tables[tid]; if (t && I.wallet < t.s.ante * C.TRKN.K.SIT_MIN) return toast('В кошеле героя меньше четырёх входов этого стола.');
+  TN.pend = {tid, host, hid: I.id, at: Date.now()};
+  send(host, {k: 'sit', tid, p: {name: HB().myName(), hero: I.h.name, face: I.h.portrait, sex: I.h.sex, kosh: I.wallet}});
+  setTimeout(() => { if (TN.pend && TN.pend.tid === tid && Date.now() - TN.pend.at >= 9000) { TN.pend = null; toast('Хозяин стола не ответил.'); hallSoft(); } }, 9500);
+}
+function onView(v, err) {
+  const P = TN.pend, S = TN.seat;
+  if (P && P.tid === v.id && v.me >= 0) { TN.seat = {tid: v.id, host: v.host, hid: P.hid, lastK: v.seats[v.me].kosh, sin: false}; TN.pend = null; TN.screen = true; }
+  const St = TN.seat; if (!St || St.tid !== v.id) return;
+  if (v.me < 0) return;
+  const me = v.seats[v.me], d = me.kosh - St.lastK;
+  if (d) { heroMoney(St.hid, d); St.lastK = me.kosh; }
+  // брат Ока за картами — грех, как и в корчме у местных
+  if (!St.sin && me.cards && C.faithOf) { St.sin = true; const w = HB().heroWhere(St.hid);
+    if (w && C.faithOf(w.h) === 'oko') { HB().heroMutate(St.hid, (h, game) => { try { C.trkSin(game || {day: 1}, h); } catch (e) {} }); if (C.TRK_TX && C.TRK_TX.sin) toast(C.TRK_TX.sin.replace('{H}', w.h.name)); } }
+  TN.view = v;
+  if (err) toast('Не вышло: ' + err + '.');
+  if (TN.screen) draw();
+  if (!S) hallSoft();
+}
+function onBye(d) {
+  if (d.v) onView(d.v);
+  const St = TN.seat; if (!St || St.tid !== d.tid) return;
+  TN.seat = null; TN.view = null;
+  if (d.why) toast(d.why);
+  if (TN.screen) { TN.screen = false; const H = HB(); if (H) H.show(); } else hallSoft();
+}
+function act(a, v) {
+  const St = TN.seat; if (!St) return;
+  if (a === 'stand' && TN.my && TN.my.id === St.tid) { C.trknAct(TN.my, myUid(), 'stand'); hostPush(); hostClose(); TN.seat = null; TN.view = null; TN.screen = false; const H = HB(); if (H) H.show(); return; }
+  send(St.host, {k: 'act', tid: St.tid, a, v});
+}
+function onMsg(m) {
+  const d = m && m.d; if (!d || typeof d !== 'object') return;
+  if (d.k === 'tbl' && d.t && d.t.id) { if (!(TN.my && TN.my.id === d.t.id)) { TN.tables[d.t.id] = {s: d.t, at: Date.now()}; hallSoft(); } return; }
+  if (d.k === 'tblx') { delete TN.tables[d.id]; gone(d.id); hallSoft(); return; }
+  if (d.k === 'sit' || d.k === 'act') return hostOn(m.from, d);
+  // ответы игроку — только от хозяина того стола
+  if (d.k === 'st' && d.v) { const host = d.v.host; if (m.from !== host) return; return onView(d.v, d.err); }
+  if (d.k === 'no') { if (TN.pend && TN.pend.tid === d.tid) { TN.pend = null; toast('Сесть не вышло: ' + d.why + '.'); hallSoft(); } return; }
+  if (d.k === 'bye') { if (TN.seat && TN.seat.host !== m.from) return; return onBye(d); }
+}
+/* стол разошёлся (хозяин ушёл из сети): деньги уже у героя, проигранное в банке пропало вместе с раздачей */
+function gone(id) {
+  if (!TN.seat || TN.seat.tid !== id) return;
+  TN.seat = null; TN.view = null; toast('Стол разошёлся: хозяин ушёл из корчмы. Деньги, что были перед вами, остались у героя.');
+  if (TN.screen) { TN.screen = false; const H = HB(); if (H) H.show(); }
+}
+setInterval(() => { const now = Date.now(); Object.keys(TN.tables).forEach(id => { if (TN.my && TN.my.id === id) return; if (now - TN.tables[id].at > 15000) { delete TN.tables[id]; gone(id); hallSoft(); } }); }, 3000);
+let softT = null;
+function hallSoft() { clearTimeout(softT); softT = setTimeout(() => { const H = HB(); if (H && $('.screen.korchma')) H.draw(true); }, 120); }
+if (window.Net && Net.Hall) Net.Hall.onTrk = onMsg;
+
+/* ---------- экран стола: сцена триньки из trinka_ui.js ---------- */
+const TRK = {fold: 'fold', call: 'call', raise: 'raise', open: 'open', stand: 'leave', re: 'svara_re', split: 'svara_split', join: 'svjoin', skip: 'svskip'};
+function draw() {
+  const v = TN.view; if (!v || !window.__trkUI) return;
+  const H = HB(), n = v.seats.length, me = Math.max(0, v.me), pos = i => (i - me + n) % n;
+  const V = {phase: v.phase === 'hand' ? 'hand' : v.phase === 'between' ? 'between' : v.phase, ante: v.ante, ceil: v.ceil, pot: v.pot, stake: v.stake, hands: v.hands,
+    deck: 'russian-style', back: 'dondorf-russian', turn: v.turn >= 0 ? pos(v.turn) : -1,
+    place: `общий зал, ${v.name}`, log: v.log.map(t => ({k: 'n', text: t})),
+    seats: v.seats.map((s, i) => ({i: pos(i), name: s.hero || s.name, sub: s.hero ? 'игрок ' + s.name : '', face: s.face, money: s.kosh, cards: s.cards ? s.cards.map(c => c) : null,
+      st: s.st, gone: s.gone, hero: i === v.me, sex: s.sex, said: '', score: s.score}))};
+  V.seats.sort((a, b) => a.i - b.i);
+  const choices = v.opts.map((o, k) => ({i: k, label: o.label, trk: TRK[o.a] || o.a, dis: o.dis || '', hint: o.hint || '', o}));
+  window.__trkUI('trkn', {title: 'trkn-' + v.id, raw: {trk: V}, choices}, {choose: k => { const c = choices[k]; if (c) act(c.o.a, c.o.v); }, faceHTML: H.faceHTML, paintFaces: H.paintFaces, toast});
+  const side = $('.trk-side'); if (!side) return;
+  const who = v.turn >= 0 ? v.seats[v.turn] : null;
+  const st = v.phase === 'wait' ? 'Ждём второго игрока: стол начнётся, когда сядут двое.'
+    : v.phase === 'between' ? 'Сейчас сдадут следующую раздачу.'
+      : v.phase === 'svara' ? 'Свара: решают те, у кого поровну. Кто не решит до срока — банк поделят.'
+        : v.phase === 'svjoin' ? 'Свару переигрывают: остальные могут войти, доложив половину банка.'
+          : who ? (v.turn === v.me ? 'Ваш ход. Думать можно меньше минуты — потом карты сбросятся сами.' : `Ходит ${who.hero || who.name}.`) : '';
+  side.insertAdjacentHTML('afterbegin', `<p class="note trkn-st" style="color:#e8dcc0;margin:0" data-trkn="${esc(v.phase)}">${esc(st)}</p>`);
+  const scr = $('.screen.trk'); if (scr) scr.dataset.trkn = v.id;
+}
+
+/* ---------- блок в общем зале ---------- */
+function hallHTML() {
+  if (!ok()) return '';
+  const I = heroInfo(), K = C.TRKN.K, cloud = window.Cloud && Cloud.user;
+  const mine = TN.seat ? TN.seat.tid : TN.pend ? TN.pend.tid : null;
+  const L = Object.values(TN.tables).map(x => x.s).filter(s => s.phase !== 'closed').sort((a, b) => a.ante - b.ante);
+  const kinds = Object.entries(K.KINDS).map(([k, x]) => { const why = I.why || (I.wallet < x.ante * K.SIT_MIN ? 'в кошеле героя меньше четырёх входов' : mine ? 'вы уже за столом' : '');
+    return `<button class="btn small" data-trko="${k}"${why ? ` disabled title="${esc(why)}"` : ''}>Открыть ${esc(x.name)}: вход ${esc(price(x.ante))}</button>`; }).join('');
+  const rows = L.map(s => { const here = mine === s.id, why = here ? '' : I.why || (I.wallet < s.ante * K.SIT_MIN ? 'в кошеле героя меньше четырёх входов' : !s.free ? 'мест нет' : mine ? 'вы уже за столом' : '');
+    return `<div class="inv trkn-row" data-trkt="${esc(s.id)}"><div><b>Тринька, ${esc(s.name)}</b><span class="note"> · вход ${esc(price(s.ante))}, потолок ${esc(price(s.ceil))} · мест: ${s.free}</span></div>
+      <div class="note">Держит ${esc(s.hostName)}. За столом: ${esc(s.seats.map(x => x.hero ? `${x.hero} (${x.name})` : x.name).join(', ') || 'никого')}${s.phase === 'wait' ? ' — ждут второго игрока' : ''}</div>
+      <div class="row">${here ? '<button class="btn small primary" data-trkback="1">Вернуться к столу</button>' : `<button class="btn small primary" data-trks="${esc(s.id)}" data-trkh="${esc(s.host)}"${why ? ` disabled title="${esc(why)}"` : ''}>Сесть</button>${why ? `<span class="note why">${esc(why)}</span>` : ''}`}</div></div>`; }).join('');
+  return `<div class="trkn" id="trkn"><div class="kct"><h3 class="ttl">Тринька</h3><span class="kcount">${L.length}</span></div>
+    ${TN.notice ? `<p class="note trkn-gift">${esc(TN.notice)}</p>` : ''}
+    <p class="note">Играют только живые игроки, от двух до четырёх за столом; один сидит и ждёт. Ставки идут из кошеля героя, выигрыш — туда же. Сесть можно, когда в кошеле хотя бы четыре входа стола; ставку выше шести входов не поднять.</p>
+    <p class="note">${I.h ? `${esc(I.h.name)}: в кошеле ${esc(price(I.wallet))}.` : ''}${I.why ? ' ' + esc(I.why[0].toUpperCase() + I.why.slice(1)) + '.' : ''}</p>
+    <div class="invs">${rows || '<p class="note">Карточных столов пока нет. Откройте свой — к вам подсядут.</p>'}</div>
+    <div class="row trkn-open">${kinds}</div>
+    <p class="note">Подарок корчмаря раз в сутки ${cloud ? 'помнит ваш облачный профиль' : 'помнит только этот браузер: войдите в облако, чтобы он считался на весь профиль'}.</p></div>`;
+}
+function bind(root) {
+  daily();
+  if (TN.notice && !root.querySelector('.trkn-gift')) { const b = root.querySelector('#trkn .kct'); if (b) b.insertAdjacentHTML('afterend', `<p class="note trkn-gift">${esc(TN.notice)}</p>`); }
+  root.querySelectorAll('[data-trko]').forEach(b => b.onclick = () => { hostOpen(b.dataset.trko); hallSoft(); });
+  root.querySelectorAll('[data-trks]').forEach(b => b.onclick = () => { b.disabled = true; b.textContent = 'Садимся…'; sit(b.dataset.trks, b.dataset.trkh); });
+  root.querySelectorAll('[data-trkback]').forEach(b => b.onclick = () => { if (!TN.view) return; TN.screen = true; draw(); });
+}
+window.__trkNet = {hallHTML, bind, state: TN, draw, act};
 })();
 
 </script>
