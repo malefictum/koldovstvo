@@ -61231,3 +61231,1092 @@ if (C.register) { const reg0 = C.register; C.register = function (camp) { const 
   if ((out || []).some(c => c.trdVklad)) return out; const o2 = (out || []).slice(); const i = o2.length ? Math.max(...o2.map(c => c.i)) + 1 : 0;
   o2.push({i, trdVklad: 1, label: n.kind === 'храм' ? 'Положить вклад в храм' : 'Принести дар на капище', go: 'trd_vklad'}); return o2; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* dnd_d.js */
+/* Колдовство — волна «ДнД», часть D: между делами и чары. Без DOM.
+   По PHB 5e (гл. 5, 8, 10), как утвердил Ник:
+   14. Образ жизни отряда (g.ls). Пять ступеней: нищенски · бедно · скромно · зажиточно · богато — цены по ДнД за день
+       с каждого (нищенский 0, бедный 2 см, скромный 1 зм, зажиточный 2 зм, богатый 4 зм). Платится раз в седмицу —
+       только за дни, прожитые в сёлах и городах (дорога — по-старому: своя еда, костёр, корчма). Что за эту седмицу ушло
+       на ночлег в корчме, из счёта вычитается: не брать дважды. Стол в селе и городе — тоже в счёте: кто живёт хоть бедно,
+       тот ест там не из сумы. Денег нет — ступень опускается сама, с записью в журнале.
+       Чем живут, то и видно: нищим и бедным чаще хворь и усталость, торговцы и знать встречают их хуже, зато воры не трогают;
+       зажиточным и богатым молва и встреча лучше, но к ним чаще лезут воры и вымогатели.
+   15. Между делами (сцена dt_hub в сёлах и городах): изыскания (тварь — ступень бестиария; курган или подземелье —
+       приметы и тайник; находка или реликвия — опознание; сила мира — её тайна), учёба языку или снасти у мастера —
+       по дням, с платой, прерывается и продолжается; а также вход к мастерам (ремесло, науки).
+   16. Обряды: часть мирных чар можно творить обрядом — дольше на четверть суток, без траты Силы, только вне боя,
+       не в спешке и не в недобром месте. У волхвов и жрецов обрядов больше, у братьев Ока — молебен.
+       В Вечном мире на капище и в храме обряд идёт быстрее.
+   Все числа — в C.LS, C.DT, C.RITE. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W, Q = C && C.Q;
+if (!R || !C || !C.pass || typeof DATA === 'undefined') return;
+if (typeof process !== 'undefined' && process.env && process.env.NO_DND_D) return; // для замеров «до» в node
+
+const team = g => C.alive(g).concat(g.mercs || []);
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const nodeOf = g => nodes(g)[g.loc] || null;
+const isFree = g => !!g && g.camp === 'free';
+const qNow = g => (g.day || 1) * 4 + (g.time || 0);
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const v = (h, m, f) => h && h.sex === 'f' ? f : m;
+const say = (g, t) => { C.note(g, t); return t; };
+const pickH = (arr, salt) => arr[Math.abs(Math.floor(salt)) % arr.length];
+const roll01 = str => { let x = 2166136261; for (const ch of String(str)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; x = Math.imul(x, 2246822507); x ^= x >>> 13; return (x >>> 0) / 4294967296; };
+
+/* ================= 14. образ жизни ================= */
+/* цена — за день с каждого (люди отряда и наёмники), в медяках: 1 см = 10, 1 зм = 100 */
+C.LS = {
+  tiers: [
+    {id: 'nishch', name: 'нищенски', day: 0, ail: 0.05, tire: 0.5, trd: -1, first: -10, noble: -14, thief: 0, fame: 0,
+      text: 'Ночуют где пустят, едят что подадут. Денег не тратят, но и вид у отряда такой, что люди сторонятся.'},
+    {id: 'bedno', name: 'бедно', day: 20, ail: 0.02, tire: 0.25, trd: -1, first: -5, noble: -7, thief: 0, fame: 0,
+      text: 'Угол за печью, щи без мяса, латаная одёжа. Кошель цел, да здоровье и уважение тают.'},
+    {id: 'skromno', name: 'скромно', day: 100, ail: 0, tire: 0, trd: 0, first: 0, noble: 0, thief: 0.04, fame: 0,
+      text: 'Чистая горница, сытный стол, крепкая одёжа. Живут как все добрые люди.'},
+    {id: 'zazhit', name: 'зажиточно', day: 200, ail: 0, tire: 0, trd: 1, first: 4, noble: 6, thief: 0.12, fame: 0.5,
+      text: 'Светлица, баня, мясо каждый день, платье по чину. Купцы раскланиваются, а лихие люди примечают.'},
+    {id: 'bogato', name: 'богато', day: 400, ail: 0, tire: 0, trd: 2, first: 8, noble: 12, thief: 0.22, fame: 1,
+      text: 'Палаты, слуги, пиры и меха. О щедрых гостях говорят по всему краю — и не только добрые люди.'},
+  ],
+  def: 'skromno',
+  week: 7,
+  /* «знать» для первой встречи: купец, ювелир, книжник, служители, сотник */
+  nobleRoles: ['trade', 'jewel', 'book', 'temple', 'war', 'charm'],
+  town: ['село', 'город', 'торг', 'подворье', 'хутор', 'площадь', 'дом', 'книжня', 'храм', 'крепость', 'застава', 'мельница'],
+  fameDays: 30,
+};
+const LS_BY = Object.fromEntries(C.LS.tiers.map((t, i) => [t.id, Object.assign({i}, t)]));
+const lsIdx = id => (LS_BY[id] || LS_BY[C.LS.def]).i;
+C.lsState = function (g) {
+  if (!g) return null;
+  const s = g.ls = g.ls && typeof g.ls === 'object' ? g.ls : {};
+  if (!LS_BY[s.t]) s.t = C.LS.def;
+  if (s.since == null) s.since = g.day || 1;
+  s.q = s.q || 0; s.acc = s.acc || 0; s.inn = s.inn || 0; s.show = s.show || {};
+  return s;
+};
+C.lsTier = g => LS_BY[(g && g.ls && LS_BY[g.ls.t]) ? g.ls.t : C.LS.def];
+C.lsHeads = g => team(g).filter(h => h && !h.dead && h.hp > 0).length;
+C.lsWeekPrice = (g, id) => (LS_BY[id] || C.lsTier(g)).day * 7 * Math.max(1, C.lsHeads(g));
+/* где отряд живёт оседло: в селе или городе, и стоит в самом месте (а не рядом на карте) */
+C.lsAtTown = function (g) {
+  if (!g || g.dungeon) return false;
+  const n = nodeOf(g); if (!n || !C.LS.town.includes(n.kind)) return false;
+  if (W && W.isHex && W.isHex(g)) { if (!g.pos) return true; const cell = W.world(g).nodeAt[g.loc]; return !!cell && cell.c === g.pos.c && cell.r === g.pos.r; }
+  return true;
+};
+/* сменить ступень (окно отряда) */
+C.lsSet = function (g, id) {
+  if (!LS_BY[id]) return 'нет такой жизни';
+  const s = C.lsState(g); if (s.t === id) return '';
+  s.t = id; s.want = id; C.note(g, `Отряд решает жить ${LS_BY[id].name}. ${LS_BY[id].text}`); return '';
+};
+/* сколько всего монет у отряда (в сетевой игре — и в кошелях героев) */
+const wealth = g => (g.purse || 0) + (g.net ? C.alive(g).reduce((s, h) => s + (h.gold || 0), 0) : 0);
+const payOut = (g, sum) => { let left = sum; const a = Math.min(g.purse || 0, left); g.purse -= a; left -= a;
+  if (left > 0 && g.net) C.alive(g).forEach(h => { const b = Math.min(h.gold || 0, left); h.gold -= b; left -= b; }); return sum - left; };
+/* сводка для окна отряда: только слова и цена */
+C.lsView = function (g) {
+  const s = C.lsState(g), cur = C.lsTier(g), n = Math.max(1, C.lsHeads(g)), want = LS_BY[s.want];
+  return {cur: cur.id, heads: n, text: cur.text + (want && want.i > cur.i ? ` Хотели бы жить ${want.name} — вернутся к этому, как только серебра хватит на две седмицы такой жизни.` : ''),
+    tiers: C.LS.tiers.map(t => ({id: t.id, name: t.name, week: t.day * 7 * n, price: t.day ? R.priceText(t.day * 7 * n) + ' в седмицу' : 'даром', on: t.id === s.t})),
+    note: 'Платят раз в седмицу за дни, прожитые в сёлах и городах, — стол там тоже в счёте; ночлег в корчме за ту же седмицу из счёта вычитается. В дороге живут по-старому. Не хватит денег — отряд сам опустится ступенью ниже.'};
+};
+/* недельный счёт */
+C.lsBill = function (g) {
+  const s = C.lsState(g); const t0 = C.lsTier(g);
+  const acc = s.acc, inn = s.inn, q = s.q;
+  s.since = g.day; s.acc = 0; s.inn = 0; s.q = 0;
+  if (!(acc > 0) && !q) return null;
+  const dueOf = t => Math.max(0, Math.round((t0.day ? acc * t.day / t0.day : 0) - inn));
+  let t = t0, due = dueOf(t0);
+  if (wealth(g) < due) { for (let i = t0.i - 1; i >= 0; i--) { const tt = LS_BY[C.LS.tiers[i].id]; if (wealth(g) >= dueOf(tt)) { t = tt; break; } } if (wealth(g) < dueOf(t)) t = LS_BY.nishch; due = dueOf(t); }
+  const paid = due ? payOut(g, due) : 0;
+  s.lastBill = {day: g.day, t: t.id, paid};
+  if (t !== t0) { s.t = t.id; C.note(g, `Серебра на то, чтобы жить ${t0.name}, не хватило: седмицу отряд прожил ${t.name}${paid ? ' и отдал за неё ' + R.priceText(paid) : ''}. Как наберётся серебро — отряд вернётся к прежней жизни.`); }
+  else if (paid) C.note(g, `Седмица в сёлах и городах прожита ${t.name}: на стол, ночлег и одёжу ушло ${R.priceText(paid)}.`);
+  // прежняя жизнь — как только серебра хватит на две седмицы
+  const want = LS_BY[s.want || t0.id]; if (!s.want) s.want = t0.id;
+  if (want && want.i > LS_BY[s.t].i && wealth(g) >= 2 * want.day * 7 * Math.max(1, C.lsHeads(g))) { s.t = want.id; C.note(g, `Серебра снова хватает: отряд опять живёт ${want.name}.`); }
+  // молва о щедрых гостях
+  if (t.fame && q >= 8) { const reg = C.lsReg(g); s.show[reg] = {day: g.day, v: t.fame}; }
+  // воры и вымогатели — к тем, у кого есть что взять
+  // (жребий — от дня и места, а не из общего потока случайностей: недельный счёт не должен сдвигать прочие броски игры)
+  if (t.thief && q >= 4 && roll01('thief|' + g.camp + '|' + g.day + '|' + g.loc + '|' + (g.seed || '')) < t.thief) C.lsThief(g, t);
+  return {t: t.id, paid};
+};
+C.lsReg = g => { const n = nodeOf(g); if (n && n.reg) return n.reg; const z = C.zoneOf ? C.zoneOf(g) : null; return z ? z.id : String(g.loc || ''); };
+/* проверка мимо C.bestCheck: недельный счёт может случиться внутри чужого выбора, и его предпросмотр не должен видеть эту проверку */
+const quietCheck = (g, stat, skill, dc) => { const h = C.checkHero ? C.checkHero(g, stat, skill) : C.alive(g)[0]; if (!h) return {ok: false, hero: {}}; const r = R.check(h, stat, skill, dc); r.hero = h; return r; };
+C.lsThief = function (g, t) {
+  const rich = t.i >= LS_BY.bogato.i, purse = wealth(g); if (purse <= 0) return null;
+  if (R.rand() < 0.55) {
+    const r = quietCheck(g, 'wis', 'Поиск', rich ? 15 : 13), h = r.hero || {};
+    if (r.ok) return say(g, `Ночью ${h.name} просыпается от лёгкого шороха: чужая рука уже в суме. Вор вырывается и уходит через двор — пустой.`);
+    const take = Math.min(rich ? 6000 : 2500, Math.max(50, Math.round(purse * (rich ? 0.1 : 0.06) / 10) * 10)); payOut(g, take);
+    return say(g, `Утром недосчитались серебра: кто-то ловкий побывал в сумах, пока все спали, — пропало ${R.priceText(take)}. Видно, приметили, как вы живёте.`);
+  }
+  const fee = rich ? 1000 : 400, r = quietCheck(g, 'str', 'Запугивание', rich ? 15 : 13), h = r.hero || {};
+  if (r.ok) return say(g, `У ворот подходят трое крепких парней: «За спокойствие, гости дорогие, у нас платят». ${h.name} молча кладёт руку на оружие — и парни вспоминают, что им пора.`);
+  payOut(g, Math.min(fee, wealth(g)));
+  return say(g, `У ворот подходят трое крепких парней: «За спокойствие, гости дорогие, у нас платят». Спорить на чужой улице себе дороже — отдали ${R.priceText(Math.min(fee, purse))}.`);
+};
+/* время: копим дни в селе, стол — за счёт образа жизни, усталость бедных, недельный счёт */
+{ const ps0 = C.pass;
+  C.pass = function (g, steps) {
+    if (C.LS_OFF || !g || !g.heroes || !(steps > 0)) return ps0.apply(this, arguments);
+    const s = C.lsState(g), t = C.lsTier(g), town = C.lsAtTown(g), q0 = qNow(g);
+    if (town && t.day > 0) team(g).forEach(h => { if (h.fedDay !== g.day) { h.fedDay = g.day; h.hunger = 0; } });
+    const r = ps0.apply(this, arguments);
+    try {
+      const dq = qNow(g) - q0;
+      if (dq > 0 && town) { s.q += dq; s.acc += t.day * C.lsHeads(g) * dq / 4; s.town = g.day;
+        if (t.tire && !g._sleeping) g.awake = (g.awake || 0) + t.tire * dq; }
+      if (s.since > g.day) s.since = g.day;
+      if (g.day - s.since >= C.LS.week) C.lsBill(g);
+    } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+    return r;
+  }; }
+/* ночлег в корчме: что заплачено — в зачёт недельного счёта; у бедных воры в общем углу не шарят */
+if (C.lodge) { const lo0 = C.lodge;
+  C.lodge = function (g) {
+    if (C.LS_OFF || !g || !g.heroes) return lo0.apply(this, arguments);
+    const s = C.lsState(g), w0 = wealth(g), poor = C.lsTier(g).i <= LS_BY.bedno.i, n0 = C.note; let back = 0;
+    if (poor) C.note = function (gg, t) { if (gg === g && typeof t === 'string' && /пошарил по сумам: пропало/.test(t)) {
+        const p1 = g.purse; for (let k = Math.max(1, Math.floor(p1 / 9) - 2); k <= Math.floor(p1 / 9) + 3; k++) if (Math.max(1, Math.floor((p1 + k) / 10)) === k) { back = k; break; }
+        g.purse += back; return n0.call(this, gg, 'Ночью в общем углу кто-то пошарил по сумам — да у таких, как вы, брать нечего: ушёл ни с чем.'); }
+      return n0.apply(this, arguments); };
+    let r; try { r = lo0.apply(this, arguments); } finally { C.note = n0; }
+    const spent = w0 - wealth(g); if (spent > 0) s.inn += spent;
+    return r;
+  }; }
+/* хвори: у нищих и бедных — сырость, теснота, худая еда */
+if (C.ailTick) { const at0 = C.ailTick;
+  C.ailTick = function (g) {
+    const r = at0.apply(this, arguments);
+    try { if (g && g.heroes && !C.AIL_OFF && !C.LS_OFF && g.ls) { const t = C.lsTier(g); if (t.ail > 0 && (g.ls.town || -9) >= g.day - 1) {
+      C.alive(g).forEach(h => { const id = R.rand() < 0.6 ? 'kashel' : 'ponos', A = C.AILS && C.AILS[id]; if (!A || C.ailsOf(h).some(a => a.id === id)) return;
+        if (R.rand() < t.ail && R.d(20) + R.mod(h.stats.con || 10) < (A.dc || 12)) { C.ailAdd(g, h, id, 1); C.note(g, `${h.name}: ${t.i === 0 ? 'холодный угол и чужие объедки' : 'сырой угол и пустые щи'} — ${String(A.name || 'хворь').toLowerCase()}.`); } }); } } } catch (e) {}
+    return r;
+  }; }
+/* торговцы: как встречают — по виду отряда */
+if (C.trdTier) { const tt0 = C.trdTier;
+  C.trdTier = function (g, key) {
+    const had = !!(g && g.trd && g.trd.rel && g.trd.rel[key]);
+    let t = tt0.apply(this, arguments);
+    if (C.LS_OFF || !g || !g.ls) return t;
+    const L = C.lsTier(g);
+    // первая встреча: свежий знакомый запоминает, как вы выглядели
+    if (!had && g.trd && g.trd.rel && g.trd.rel[key] && L.first) { const o = g.trd.rel[key]; o.rep = Math.max(0, Math.min(100, (o.rep || 0) + L.first)); t = tt0.apply(this, arguments); }
+    if (L.trd < 0 && t >= 2 && t <= (L.i === 0 ? 5 : 3)) return t - 1;
+    if (L.trd > 0 && t >= 2 && t <= (L.trd >= 2 ? 4 : 2)) return t + 1;
+    return t;
+  }; }
+/* мастера и знать: первая встреча */
+if (C.relOf) { const ro0 = C.relOf;
+  C.relOf = function (g, role, at) {
+    const k = role + '@' + (at || g.folkAt || g.loc), had = !!(g.folkRel && g.folkRel[k]);
+    const r = ro0.apply(this, arguments);
+    if (!had && !C.LS_OFF && g.ls && r && C.LS.nobleRoles.includes(role)) { const L = C.lsTier(g); if (L.noble) r.rep = Math.max(0, Math.min(79, (r.rep || 0) + L.noble)); }
+    return r;
+  }; }
+/* молва: о щедрых гостях говорят в том краю, где они жили */
+if (C.fameLand) { const fl0 = C.fameLand;
+  C.fameLand = function (g, reg) {
+    const L = fl0.apply(this, arguments);
+    try { const x = !C.LS_OFF && g && g.ls && g.ls.show && g.ls.show[reg]; if (x && (g.day || 1) - x.day <= C.LS.fameDays) { L.good = Math.round((L.good + x.v) * 10) / 10; L.net = L.good - L.black; } } catch (e) {}
+    return L;
+  }; }
+
+/* ================= 15. между делами ================= */
+C.DT = {
+  research: {
+    beast: {name: 'о твари', days: 2, fee: 300, dc: 12},
+    dg: {name: 'о кургане или подземелье', days: 3, fee: 500, dc: 13},
+    relic: {name: 'о находке или реликвии', days: 2, fee: 400, dc: 14},
+    fac: {name: 'о силе мира', days: 4, fee: 800, dc: 15},
+  },
+  lieP: 0.35,
+  /* где изыскивать: книжник, храм Ока, волхв */
+  place: {город: 'book', книжня: 'book', башня: 'book', торг: 'book', храм: 'oko', капище: 'kap'},
+  /* учёба: плата за день, сколько дней */
+  trainFee: 200,
+  langDays: {2: 21, 3: 35, 4: 56},
+  toolDays: 28,
+  toolWhere: {thief: ['город'], music: ['село', 'город', 'подворье', 'торг'], heal: ['село', 'капище', 'город', 'мельница'], holy: ['храм', 'капище', 'город']},
+  langWhere: ['город', 'книжня', 'башня', 'торг', 'подворье'],
+};
+const DT = g => { const d = g.dt = g.dt && typeof g.dt === 'object' ? g.dt : {}; d.dg = d.dg || {}; d.lies = d.lies || 0; return d; };
+const placeOf = g => { const n = nodeOf(g); return n && !g.dungeon && C.lsAtTown2(g) ? C.DT.place[n.kind] || null : null; };
+const PLACE_W = {book: 'книжник', oko: 'брат Ока при храме', kap: 'старый волхв'};
+
+/* --- изыскания --- */
+const bk = g => C.bkState ? C.bkState(g) : null;
+C.dtBeasts = function (g) {
+  const b = bk(g); if (!b) return [];
+  const by = {}; Object.values(b.e).forEach(e => { if (!e || !e.id || (e.st && !e.o)) return; const s = C.bkEff(b, e); if (by[e.id] == null || s < by[e.id].s) by[e.id] = {id: e.id, n: e.n, s}; });
+  return Object.values(by).filter(x => x.s < 4).sort((a, z) => a.s - z.s || String(a.n).localeCompare(String(z.n), 'ru')).slice(0, 4);
+};
+C.dtSites = function (g) {
+  if (!(W && W.isHex && W.isHex(g))) return [];
+  const w = W.world(g), here = g.pos || W.pos(g), D = DT(g);
+  return Object.values(w.cells).filter(c => c.poi && ['barrow', 'ruins'].includes(c.poi) && c.poiId && g.flags['dg_' + c.poiId] !== 'done' && !D.dg[c.poiId])
+    .sort((a, z) => W.dist(a, here) - W.dist(z, here)).slice(0, 1);
+};
+C.dtFinds = g => C.alive(g).flatMap(h => [...new Set((h.inv || []).filter(x => /^m\?:/.test(x)))].map(id => ({h, id}))).sort((a, z) => ((R.item(z.id) || {}).price || 0) - ((R.item(a.id) || {}).price || 0));
+C.dtFacs = function (g) {
+  if (!isFree(g) || !C.FACTIONS || !C.facVisible) return [];
+  const got = (g.w2fac && g.w2fac.got) || {};
+  return C.facVisible(g).map(id => { const F = C.FACTIONS[id]; const k = (F.secret || []).findIndex((t, i) => !got[id + ':sec' + i]); return k >= 0 ? {id, k, name: F.name} : null; }).filter(Boolean);
+};
+/* что можно изыскать здесь и сейчас: [{k, arg, t, why}] */
+C.dtResearchOpts = function (g) {
+  const P = placeOf(g); if (!P) return [];
+  const out = [], D = C.DT.research, fee = k => R.priceText(D[k].fee), days = k => C.dayText ? C.dayText(D[k].days) : D[k].days + ' дня';
+  const poor = k => wealth(g) < D[k].fee ? 'не хватает серебра' : '';
+  C.dtBeasts(g).forEach(x => out.push({k: 'beast', arg: x.id, t: `Изыскать о твари: ${String(x.n).toLowerCase()} — ${days('beast')}, ${fee('beast')}`, why: poor('beast')}));
+  if (!C.dtBeasts(g).length) out.push({k: 'beast', arg: '', t: `Изыскать о твари — ${days('beast')}, ${fee('beast')}`, why: 'о тех, кого встречали, и так всё известно'});
+  if (W && W.isHex && W.isHex(g)) { const s = C.dtSites(g)[0]; out.push({k: 'dg', arg: s ? s.poiId : 'new', t: `Изыскать ${s ? 'о ближнем кургане или развалинах' : 'о старых курганах округи'} — ${days('dg')}, ${fee('dg')}`, why: poor('dg')}); }
+  else out.push({k: 'dg', arg: 'next', t: `Изыскать о подземельях края — ${days('dg')}, ${fee('dg')}`, why: poor('dg') || (DT(g).dgNext ? 'то, что узнали, ещё не пригодилось' : '')});
+  const f = C.dtFinds(g)[0]; out.push({k: 'relic', arg: f ? f.h.id + '|' + f.id : '', t: `Изыскать о находке${f ? ': ' + String(R.item(f.id).name).toLowerCase() : ''} — ${days('relic')}, ${fee('relic')}`, why: f ? poor('relic') : 'неопознанных находок нет'});
+  if (isFree(g)) { const fx = C.dtFacs(g); out.push({k: 'fac', arg: fx[0] ? fx[0].id : '', t: `Изыскать о силе мира${fx[0] ? ': ' + fx[0].name : ''} — ${days('fac')}, ${fee('fac')}`, why: fx[0] ? poor('fac') : 'о знакомых силах всё, что можно узнать в книгах, уже знаете'}); }
+  return out;
+};
+const BEAST_OK = {book: ['Книжник снимает с полки потрёпанный травник-зверослов, и вы три дня сидите над ним при свече.', 'В книжне находится список с записей ловчих: кто, где, когда и чем бил эту тварь.'],
+  oko: ['Брат Ока приносит из ризницы опись дознаний, где записано всё, что Око узнало о нечисти, — сухо, слово в слово.', 'В храмовом хранилище лежит свиток с наставлением дознавателям: как распознать, чем отпугнуть, где не ходить.'],
+  kap: ['Волхв долго молчит, потом говорит про тварь так, будто сам ходил за ней по следу: «Знамения о ней старые, да верные».', 'Старый волхв раскладывает кости и рассказывает до самой зари: что любит, чего боится, где ждать.']};
+const LIES = {beast: ['Говорят, тварь боится звона медных колокольцев и уходит от него прочь.', 'Будто бы она слепнет на рассвете — бей с восходом, и делу конец.', 'Старики уверяют: стоит бросить ей хлеба с солью, и она не тронет.'],
+  dg: ['В старых записях сказано, что под курганом у дальнего брода зарыт княжий клад и стражи там давно нет.', 'Говорят, развалины за лесом пусты: всё, что было, растащили ещё при дедах.'],
+  relic: ['Книжник клянётся, что вещь заговорена на удачу в торге, — да только не уверен, на чью.', 'Будто бы такие вещи делали для свадебных обрядов, и силы в ней нет никакой.'],
+  fac: ['Шепчут, будто эта сила давно распалась и держится одними слухами.', 'Говорят, у них новый старший, и прежние уговоры больше ничего не стоят.']};
+C.dtResearch = function (g, k, arg) {
+  const o = C.dtResearchOpts(g).find(x => x.k === k && String(x.arg) === String(arg || '')); if (!o) return {err: 'здесь об этом не узнать'};
+  if (o.why) return {err: o.why};
+  const D = C.DT.research[k], P = placeOf(g), Dd = DT(g);
+  payOut(g, D.fee); C.pass(g, D.days * 4);
+  const bonus = (nodeOf(g) && ['книжня', 'башня'].includes(nodeOf(g).kind) ? 2 : 0) + (k === 'beast' && P === 'kap' ? 1 : 0);
+  const b0 = k === 'beast' ? C.bkEff(bk(g), Object.values(bk(g).e).find(e => e.id === arg)) : 0;
+  const r = C.bestCheck(g, 'int', 'Грамота', D.dc + (k === 'beast' ? b0 : 0) - bonus), h = r.hero || C.alive(g)[0] || {};
+  const salt = g.day + (g.time || 0) + String(arg).length;
+  if (!r.ok) {
+    const lie = R.rand() < C.DT.lieP; let t = `${h.name} ${C.dayText ? C.dayText(D.days) : D.days + ' дня'} ${v(h, 'сидел', 'сидела')} над записями и расспросами — и ничего толком не ${v(h, 'нашёл', 'нашла')}.`;
+    if (lie) { Dd.lies++; t = `${h.name} ${v(h, 'выносит', 'выносит')} из изысканий одно: ${pickH(LIES[k], salt)}`; }
+    Dd.last = t; C.note(g, t); return {ok: false, lie, text: t};
+  }
+  let t = '';
+  if (k === 'beast') { const great = r.total >= r.dc + 5; const st = Math.min(4, Math.max(great ? 4 : 3, b0 + 2)); const nm = String(((C.beast && C.beast(arg)) || DATA.beast[arg] || {}).name || arg).toLowerCase();
+    if (C.bkHear) C.bkHear(g, [arg], st, null);
+    t = `${pickH(BEAST_OK[P] || BEAST_OK.book, salt)} Теперь про ${nm} ясно, ${st >= 4 ? 'чем бьёт, чего не терпит и какие у неё повадки' : 'какова в бою и чего не любит'}.`; }
+  if (k === 'dg') {
+    if (arg === 'next') { Dd.dgNext = 1; t = `${h.name} ${v(h, 'находит', 'находит')} в старых записях описи подземных ходов здешнего края: где сторожа, где глухие стены и тайники. В первом же подземелье это пригодится.`; }
+    else { let s = (C.dtSites(g) || []).find(c => c.poiId === arg);
+      if (!s && arg === 'new' && C.rumorAt) { const txt = C.rumorAt(g, 4); const s2 = (g.rumorSites || []).slice(-1)[0]; if (s2 && s2.day === g.day) { Dd.dg[s2.id] = g.day; t = `${txt} Записи подтверждают слух: там и приметы, и тайник за глухой стеной.`; } else t = txt; }
+      if (s) { Dd.dg[s.poiId] = g.day; if (W && W.reveal) W.reveal(g, s, 1); t = `${h.name} ${v(h, 'отыскивает', 'отыскивает')} в записях то место на карте: ${W.POI_NAMES && W.POI_NAMES[s.poi] ? W.POI_NAMES[s.poi].toLowerCase() : 'старое место'}. Сказано, где внутри сторожа, где глухая стена и за ней тайник. Место отмечено на карте.`; } }
+  }
+  if (k === 'relic') { const [hid, id] = String(arg).split('|'), hh = C.alive(g).find(x => x.id === hid);
+    if (hh && hh.inv.includes(id)) { const nk = C.identify(hh, id); const rl = C.wbRelicOf ? C.wbRelicOf(nk) : null;
+      t = `${h.name} по старым описям ${v(h, 'узнаёт', 'узнаёт')}, что за вещь у ${C.Q && C.Q.decl ? C.Q.decl(hh.name, hh.sex).g : hh.name}: ${R.item(nk).name}.${rl ? ' Это не просто находка — реликвия, о ней сложены песни.' : ''}`; } }
+  if (k === 'fac') { const x = C.dtFacs(g).find(f => f.id === arg); if (x) { const F = C.FACTIONS[x.id], S = g.w2fac = g.w2fac || {}; S.got = S.got || {};
+      S.got[x.id + ':sec' + x.k] = g.day || 1; g.taleLore = (g.taleLore || []).concat({id: 'fac:' + x.id + ':' + x.k, title: F.name, land: (F.lands || [])[0], t: F.secret[x.k], day: g.day});
+      if (C.fdgHidden && C.fdgReveal) { for (const land of F.lands || []) { const list = C.fdgHidden(g, land); if (list.length) { C.fdgReveal(g, list[0].id, 'story'); break; } } }
+      t = `${P === 'kap' ? 'Волхв, помолчав, говорит' : P === 'oko' ? 'Брат Ока, оглянувшись на дверь, говорит вполголоса' : 'Книжник, понизив голос, читает из запретного списка'}: ${F.secret[x.k]}`; } }
+  Dd.last = t; C.note(g, t); return {ok: true, text: t};
+};
+/* подземелье, о котором изыскали: сторожа видны, тайные ходы найдены */
+if (C.dungeonEnter) { const de0 = C.dungeonEnter;
+  C.dungeonEnter = function (g, kind, o) {
+    const r = de0.apply(this, arguments);
+    try { const d = g.dungeon, D = g.dt; if (d && D && ((d.poi && D.dg && D.dg[d.poi]) || D.dgNext)) {
+      if (d.poi && D.dg[d.poi]) D.dg[d.poi] = 'used'; else D.dgNext = 0;
+      d.known = d.known || {}; (d.rooms || []).forEach(x => { if ((x.foes || []).length) d.known[x.id] = 1; }); (d.edges || []).forEach(e => { if (e.secret) e.found = 1; });
+      C.note(g, 'Всё как в записях: вы знаете, где сидят сторожа и где за глухой стеной прячется тайник.'); } } catch (e) {}
+    return r;
+  }; }
+
+/* --- учёба: язык или снасть у мастера --- */
+C.dtLangs = h => Object.keys(C.LANG || {}).filter(k => !C.speaks(h, k));
+C.dtToolKinds = h => Object.keys(C.TOOL_KIND || {}).filter(k => !(h.toolKnow || []).includes(k));
+C.dtNeed = key => { const [k, id] = key.split(':'); return k === 'lang' ? C.DT.langDays[(C.LANG[id] || [0, 3])[1]] || 35 : C.DT.toolDays; };
+C.dtTrainName = key => { const [k, id] = key.split(':'); return k === 'lang' ? (C.LANG[id] || [id])[0] : ((C.TOOL_KIND || {})[id] || id) + ' (владение снастью)'; };
+C.dtTrainWhy = function (g, h, key) {
+  if (!h || h.kind === 'merc') return 'наёмники учатся сами';
+  const [k, id] = key.split(':'), n = nodeOf(g); if (!n || g.dungeon || !C.lsAtTown2(g)) return 'учить некому';
+  if (k === 'lang') { if (!C.LANG[id]) return 'нет такого языка'; if (C.speaks(h, id)) return 'уже говорит'; if (!C.DT.langWhere.includes(n.kind)) return 'языкам учат в городе, у книжников и толмачей'; }
+  else if (k === 'tool') { if (!(C.TOOL_KIND || {})[id]) return 'нет такой снасти'; if ((h.toolKnow || []).includes(id)) return 'уже владеет'; if (!(C.DT.toolWhere[id] || []).includes(n.kind)) return 'такого мастера здесь нет';
+    if (id === 'thief' && C.folkRep && !C.folkRep(g)) return 'тихие люди с чужими не говорят'; }
+  else return 'нечему учиться';
+  if (wealth(g) < C.DT.trainFee) return 'не хватает серебра';
+  return '';
+};
+C.dtTrainLeft = (h, key) => Math.max(0, C.dtNeed(key) - (((h.dtProg || {})[key]) || 0));
+C.dtTrainOpts = function (g, h) {
+  if (!h || h.kind === 'merc') return [];
+  const keys = C.dtLangs(h).map(id => 'lang:' + id).concat(C.dtToolKinds(h).map(id => 'tool:' + id));
+  return keys.map(key => ({key, name: C.dtTrainName(key), left: C.dtTrainLeft(h, key), started: !!((h.dtProg || {})[key]), why: C.dtTrainWhy(g, h, key)}))
+    .filter(o => o.why !== 'такого мастера здесь нет' && o.why !== 'языкам учат в городе, у книжников и толмачей' || o.started)
+    .sort((a, z) => (z.started - a.started) || (a.left - z.left));
+};
+C.dtTrain = function (g, h, key, days) {
+  const why = C.dtTrainWhy(g, h, key); if (why) return {err: why};
+  days = Math.max(1, Math.min(7, days | 0 || 1));
+  const left = C.dtTrainLeft(h, key); days = Math.min(days, left); if (days <= 0) return {err: 'уже выучено'};
+  const fee = Math.min(days, Math.floor(wealth(g) / C.DT.trainFee)) ; if (fee <= 0) return {err: 'не хватает серебра'}; days = fee;
+  payOut(g, days * C.DT.trainFee); h.dtProg = h.dtProg || {}; h.dtProg[key] = (h.dtProg[key] || 0) + days;
+  const nm = C.dtTrainName(key), rest = C.spendTime ? C.spendTime(g, h, days * 4, 'учёба: ' + nm) : (C.pass(g, days * 4), '');
+  let text;
+  if (C.dtTrainLeft(h, key) <= 0) { const [k, id] = key.split(':'); delete h.dtProg[key];
+    if (k === 'lang') { h.langs = [...new Set((h.langs || []).concat(id))]; text = `${h.name} ${v(h, 'выучил', 'выучила')} ${nm}: теперь говорит без толмача.`; }
+    else { h.toolKnow = [...new Set((h.toolKnow || []).concat(id))]; text = `${h.name} ${v(h, 'освоил', 'освоила')} ${nm}: со своей снастью работает как мастер.`; } }
+  else text = `${h.name} ${days > 1 ? (C.dayText ? C.dayText(days) : days + ' дней') : 'день'} ${v(h, 'учился', 'училась')}: ${nm}. До конца учёбы — ${C.dayText ? C.dayText(C.dtTrainLeft(h, key)) : C.dtTrainLeft(h, key) + ' дней'}; бросить и продолжить можно в любой день.`;
+  text += rest || ''; C.note(g, text); DT(g).last = text; return {ok: true, text, done: !(h.dtProg || {})[key]};
+};
+/* выученный язык и освоенная снасть */
+if (C.speaks) { const sp0 = C.speaks; C.speaks = (h, lang) => sp0(h, lang) || !!(h && (h.langs || []).includes(lang)); }
+if (C.toolBonus) { const tb0 = C.toolBonus; C.toolBonus = (h, kind) => { const b = tb0(h, kind); return b + (h && (h.toolKnow || []).includes(kind) && C.heroTool(h, kind) ? 1 : 0); }; }
+
+/* --- сцены --- */
+const back = g => { const n = nodeOf(g); return n ? n.scene : 'map'; };
+const SC = {};
+SC.dt_hub = g => {
+  const P = placeOf(g), D = DT(g), lines = [['n', 'Дела подождут день-другой. Можно посидеть над книгами и расспросами, поучиться у мастера или заняться ремеслом.']];
+  if (D.last) lines.push(['n', D.last]);
+  C.alive(g).forEach(h => Object.keys(h.dtProg || {}).forEach(key => lines.push(['n', `${h.name} учится: ${C.dtTrainName(key)} — осталось ${C.dayText ? C.dayText(C.dtTrainLeft(h, key)) : C.dtTrainLeft(h, key)}.`])));
+  const ch = [];
+  ch.push({t: P ? `Изыскания: ${PLACE_W[P]} поможет узнать о тварях, курганах и находках` : 'Изыскания', if: () => !!P, off: 'книг и знающих людей здесь нет', do: g2 => { DT(g2).last = null; return 'dt_research'; }});
+  ch.push({t: 'Учёба: язык или снасть у мастера', do: g2 => { DT(g2).last = null; g2.dtPick = C.alive(g2).length === 1 ? C.alive(g2)[0].id : null; return 'dt_train'; }});
+  if (C.folkHere && C.folkHere(g).length && (C.CAMPS[g.camp].scenes || {}).folk_hub) ch.push({t: 'К мастерам: ремесло и науки', do: g2 => { g2.folkAt = null; const roles = C.folkHere(g2); if (roles.length === 1) { g2.folkRole = roles[0]; return 'folk'; } return 'folk_hub'; }});
+  ch.push({t: 'Назад', do: g2 => { DT(g2).last = null; return back(g2); }});
+  return {title: 'Между делами', bg: 'town', art: P === 'kap' ? 'shrine' : P === 'oko' ? 'edvin_khram' : 'edvin_skriptoriy', lines, choices: ch};
+};
+SC.dt_research = g => {
+  const P = placeOf(g), D = DT(g);
+  const lines = [['n', P === 'kap' ? 'Старый волхв сидит у огня: «Спрашивай. Что знают боги, то и я скажу, а чего не знают — не взыщи».' : P === 'oko' ? 'Брат Ока проводит в хранилище при храме: «Записи Ока полны и точны. Плата — на свечи и на писца».' : 'Книжник сдувает пыль со стола: «Найти можно всё, было бы время и серебро. Поиски не обещаю, обещаю старание».']];
+  if (D.last) lines.push(['n', D.last]);
+  const ch = C.dtResearchOpts(g).map(o => ({t: o.t, if: () => !o.why, off: o.why, do: g2 => { const r = C.dtResearch(g2, o.k, o.arg); if (r.err) DT(g2).last = r.err; return 'dt_research'; }}));
+  ch.push({t: 'Назад', do: g2 => { DT(g2).last = null; return 'dt_hub'; }});
+  return {title: 'Изыскания', bg: P === 'kap' ? 'shrine' : P === 'oko' ? 'church' : 'town', art: P === 'kap' ? 'shrine' : P === 'oko' ? 'edvin_khram' : 'edvin_skriptoriy', lines, choices: ch};
+};
+SC.dt_train = g => {
+  const D = DT(g), hs = C.alive(g), h = hs.find(x => x.id === g.dtPick);
+  const lines = [['n', 'Язык учат у книжников и толмачей в городе, снасть — у мастера: воровскую — у тихих людей, гусли — у гусляров, лекарскую — у знахарей, знак веры — у служителей. Учёба идёт днями; бросить можно в любой день, а продолжить — у любого такого мастера.']];
+  if (D.last) lines.push(['n', D.last]);
+  const ch = [];
+  if (!h) { hs.forEach(x => { const now = Object.keys(x.dtProg || {}); ch.push({t: `${x.name}${now.length ? ' — учится: ' + now.map(C.dtTrainName).join(', ') : ''}`, own: x.id, do: g2 => { g2.dtPick = x.id; return 'dt_train'; }}); }); }
+  else {
+    const opts = C.dtTrainOpts(g, h);
+    if (!opts.length) lines.push(['n', `${h.name}: здесь учиться нечему.`]);
+    opts.forEach(o => { const fee7 = Math.min(7, o.left) * C.DT.trainFee;
+      ch.push({t: `${o.started ? cap(o.name) + ': ещё седмицу' : 'Учить: ' + o.name + ' — седмица'} за ${R.priceText(fee7)}${o.started ? ` (осталось ${C.dayText ? C.dayText(o.left) : o.left})` : ` (всего ${C.dayText ? C.dayText(o.left) : o.left})`}`, if: () => !o.why, off: o.why, do: g2 => { const hh = C.alive(g2).find(x => x.id === h.id); const r = C.dtTrain(g2, hh, o.key, 7); if (r.err) DT(g2).last = r.err; return 'dt_train'; }});
+      if (o.started) ch.push({t: `${cap(o.name)}: ещё день за ${R.priceText(C.DT.trainFee)}`, if: () => !o.why, off: o.why, do: g2 => { const hh = C.alive(g2).find(x => x.id === h.id); const r = C.dtTrain(g2, hh, o.key, 1); if (r.err) DT(g2).last = r.err; return 'dt_train'; }}); });
+    if (hs.length > 1) ch.push({t: 'Другой герой', do: g2 => { g2.dtPick = null; return 'dt_train'; }});
+  }
+  ch.push({t: 'Назад', do: g2 => { DT(g2).last = null; g2.dtPick = null; return 'dt_hub'; }});
+  return {title: h ? `Учёба: ${h.name}` : 'Учёба', bg: 'town', art: 'edvin_skriptoriy', lines, choices: ch, focus: h && hs.length > 1 ? h.id : null};
+};
+Object.values(C.CAMPS).forEach(camp => Object.entries(SC).forEach(([id, sc]) => { if (camp.scenes) camp.scenes[id] = sc; }));
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); Object.entries(SC).forEach(([id, sc]) => { if (camp && camp.scenes) camp.scenes[id] = sc; }); return r; }; }
+if (Q && Q.inject) { const inj0 = Q.inject;
+  Q.inject = function (g, sceneId, choices) {
+    const out = inj0.apply(this, arguments); const n = nodeOf(g);
+    if (!n || n.scene !== sceneId || !(C.LS.town.includes(n.kind) || n.kind === 'капище')) return out;
+    const res = out.slice(); const i = res.length ? Math.max(...res.map(c => c.i || 0)) + 1 : 0;
+    res.push({i, label: 'Между делами: изыскания, учёба, ремесло', go: 'dt_hub'});
+    return res;
+  }; }
+
+/* ================= 16. обряды ================= */
+C.RITE = {
+  base: ['ident', 'identAll', 'identW', 'sense', 'sense2', 'map', 'herbs', 'luck', 'trace', 'scout'],
+  wise: ['heal', 'curse', 'truth', 'veil'],      // волхвы и жрецы иной веры
+  oko: ['heal', 'curse'],                         // братья Ока: молебен (только Святая школа)
+  wiseCls: ['volhv', 'zhrets'], okoCls: ['chernets'],
+  hours: 6,             // на четверть суток дольше
+  holyHours: 2,         // в месте силы (Вечный мир: храм, капище) — лишь на два часа дольше
+  dangerT: 0.08,        // клетка с такой опасностью и выше вне села — недоброе место
+};
+C.riteKinds = h => { if (!h) return []; let L = C.RITE.base.slice(); if (C.RITE.wiseCls.includes(h.cls)) L = L.concat(C.RITE.wise); return L; };
+C.riteOk = (h, id) => { const s = DATA.spellById[id], k = C.OUTCAST && C.OUTCAST[id]; if (!s || !k || !(h.spells || []).includes(id)) return false;
+  if (!(R.spellCost(h, s) > 0)) return false;
+  if (C.riteKinds(h).includes(k)) return true;
+  return C.RITE.okoCls.includes(h.cls) && s.school === 'holy' && C.RITE.oko.includes(k); };
+C.riteWord = h => h && C.RITE.okoCls.includes(h.cls) ? 'Молебен' : 'Обрядом';
+C.riteHoly = g => { if (!isFree(g)) return false; const n = nodeOf(g); if (n && ['храм', 'капище'].includes(n.kind) && C.lsAtTown2(g)) return true;
+  try { if (W && W.isHex(g) && g.pos) { const c = W.world(g).cells[W.key(g.pos.c, g.pos.r)]; return !!c && c.poi === 'shrine'; } } catch (e) {} return false; };
+C.lsAtTown2 = g => { if (!(W && W.isHex && W.isHex(g)) || !g.pos) return true; const cell = W.world(g).nodeAt[g.loc]; return !!cell && cell.c === g.pos.c && cell.r === g.pos.r; };
+C.riteHours = g => C.riteHoly(g) ? C.RITE.holyHours : C.RITE.hours;
+C.riteWhy = function (g) {
+  if (!g) return 'нельзя';
+  if (g.dndFight && qNow(g) - g.dndFight <= 1) return 'идёт бой';
+  if (g.dungeon) return 'под землёй обряд не довести: кругом враги';
+  if (g.march === 'forced') return 'отряд спешит — на обряд нет времени';
+  try { if (W && W.isHex && W.isHex(g) && g.pos && !C.lsAtTown2(g)) { const c = W.world(g).cells[W.key(g.pos.c, g.pos.r)], T = c && (W.T[c.t] || {}); if (T && (T.danger || 0) >= C.RITE.dangerT) return 'место недоброе: долгий обряд здесь не дадут довести'; } } catch (e) {}
+  return '';
+};
+const RITE_P = 'rite:';
+if (C.outCastOpts && C.outCast) {
+  const oo0 = C.outCastOpts, oc0 = C.outCast;
+  const boosted = (h, fn) => { const p = h.power; h.power = (R.powerMax ? R.powerMax(h) : 0) + 999; try { return fn(); } finally { h.power = p; } };
+  C.outCastOpts = function (g, h, id) {
+    const out = oo0.apply(this, arguments);
+    if (!g || !h || !C.riteOk(h, id)) return out;
+    const why = C.riteWhy(g), hrs = C.riteHours(g), word = C.riteWord(h);
+    const rites = boosted(h, () => oo0.call(this, g, h, id)).filter(o => o.arg != null && o.arg !== '' && !/^rite:/.test(String(o.arg)));
+    return out.concat(rites.map(o => ({t: `${word}, без Силы: ${o.t} · дольше на ${C.hoursText ? C.hoursText(hrs) : hrs + ' ч'}`, arg: RITE_P + o.arg, why: o.why || why, rite: 1})));
+  };
+  C.outCast = function (g, h, id, arg) {
+    if (!(typeof arg === 'string' && arg.indexOf(RITE_P) === 0)) return oc0.apply(this, arguments);
+    if (!C.riteOk(h, id)) return {err: 'этих чар обрядом не сотворить'};
+    const why = C.riteWhy(g); if (why) return {err: why};
+    const a = arg.slice(RITE_P.length), hrs = C.riteHours(g), holy = C.riteHoly(g);
+    const opt = (boosted(h, () => oo0.call(this, g, h, id)) || []).find(o => String(o.arg) === a); if (!opt) return {err: 'нельзя'};
+    const real = typeof opt.arg === 'number' ? +a : opt.arg;
+    const p = h.power; let r;
+    h.power = (R.powerMax ? R.powerMax(h) : 0) + 999;
+    try { r = oc0.call(this, g, h, id, real); } finally { h.power = p; }
+    if (!r || r.err) return r || {err: 'не вышло'};
+    if (!g._planRun && C.passH) C.passH(g, hrs);
+    const s = DATA.spellById[id], intro = C.RITE.okoCls.includes(h.cls) ? `${h.name} служит молебен у восьмилучевой звезды` : `${h.name} творит «${s.name}» обрядом — без спешки, со словами и знаками`;
+    const tail = holy ? ' Место силы помогает: обряд сложился быстро.' : ' Сила не тронута, зато ушло время.';
+    const text = `${intro}.${tail} ${r.text || ''}`.trim(); C.note(g, intro + '.' + tail);
+    return Object.assign({}, r, {text, rite: true});
+  };
+}
+/* на привале: обряд долгого дела занимает больше времени */
+if (C.taskHours) { const th0 = C.taskHours; C.taskHours = t => { const v0 = th0(t); if (t && t.k === 'ocast' && /\|rite:/.test(String(t.arg || ''))) return v0 + (C._g ? C.riteHours(C._g) : C.RITE.hours); return v0; }; }
+/* бой: обряд в бою невозможен */
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g) { if (g && g.heroes) g.dndFight = qNow(g); return bs0.apply(this, arguments); }; }
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g) { if (g) delete g.dndFight; return be0.apply(this, arguments); }; }
+/* в книгу: строка о том, что чары можно творить обрядом */
+if (C.peaceText) { const pt0 = C.peaceText; C.peaceText = id => { const t = pt0(id), k = C.OUTCAST && C.OUTCAST[id]; if (!t || !k) return t; 
+  const s = DATA.spellById[id] || {}, tail = ': без Силы, но дольше на четверть суток.';
+  if (C.RITE.base.includes(k)) return t + ' Можно и обрядом' + tail;
+  const out = (C.RITE.wise.includes(k) ? [' Волхвам и жрецам — и обрядом' + tail] : []).concat(s.school === 'holy' && C.RITE.oko.includes(k) ? [' Брату Ока — и молебном' + tail] : []);
+  return t + out.join(''); }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* dnd_b_data.js */
+/* Колдовство — волна «ДнД», агент B: данные к «герою и характеру». Без DOM.
+   • C.DNDB_IDEALS — правда героя (идеал): код нрава (w2_nrav: T правда, M милость, U бескорыстие, H суровость, G корысть, L хитрость),
+     поступок с этим кодом даёт удаль. fit — кому ближе (класс, народ); deny — кому не к лицу.
+   • C.DNDB_BONDS — привязанность: ev — какое событие её задевает (kin свои и корни, comrade поднять павшего товарища,
+     bogi/oko обряд и знак веры, uchitel новая ступень, ugovor доведённое дело, slabye пощада и помощь даром, kray победа
+     в родных местах, veshch безделушка напомнила о прошлом).
+   • C.DNDB_FLAWS — слабость: где берёт своё (фон сцены), что предлагает и чего стоит.
+   • C.DNDB_TRINKETS — безделушки (id вещи bz_<ключ>), значок — из готовых атласов (item:/item2:), hook — зацепка: место
+     или фон сцены, где вещица отзовётся.
+   • C.DNDB_FEATS — особенность корня по id корня (w2_origins): кров у своих, тропы, грамота, лекарская выучка, свои купцы,
+     кузнецы, кони, скупщики, «тебя слушают» у ратных людей.
+   Логика — dnd_b.js. */
+(function (G) {
+'use strict';
+const C = G.C, R = G.R;
+if (!C || !R) return;
+
+/* ---------- правда героя (идеал) ---------- */
+C.DNDB_IDEALS = [
+  {id: 'pravda', code: 'T', t: 'Правда дороже серебра', fit: {cls: ['obetnik', 'chernets', 'knizhnik', 'zhrets'], ppl: ['nolgrim', 'gorets', 'parnass']}},
+  {id: 'slovo', code: 'T', t: 'Что сказал{|а} — то сделаю', fit: {cls: ['druzhinnik', 'yaryi', 'lovchiy'], ppl: ['terak', 'gorets', 'stepnyak']}},
+  {id: 'milost', code: 'M', t: 'Лежачего не бьют', fit: {cls: ['obetnik', 'guslyar', 'volhv', 'druzhinnik'], ppl: ['nolgrim', 'loss']}},
+  {id: 'zhalost', code: 'M', t: 'Всякую живую душу жаль — и вора, и врага', fit: {cls: ['chernets', 'zhrets', 'volhv'], ppl: ['yuzhnober', 'parnass']}},
+  {id: 'beskoryst', code: 'U', t: 'Не за серебро служу', fit: {cls: ['obetnik', 'chernets', 'volhv', 'lovchiy'], ppl: ['nolgrim', 'loss']}},
+  {id: 'shchedrost', code: 'U', t: 'Чем богат{|а}, тем и поделюсь', fit: {cls: ['guslyar', 'zhrets', 'druzhinnik'], ppl: ['stepnyak', 'nolgrim', 'yuzhnober']}},
+  {id: 'zakon', code: 'H', t: 'Закон один для всех, и виноватый ответит', fit: {cls: ['obetnik', 'druzhinnik', 'chernets'], ppl: ['imperets', 'terak']}, deny: {cls: ['tat']}},
+  {id: 'sila', code: 'H', t: 'Кто силён, тот и прав', fit: {cls: ['yaryi', 'dushegub', 'druzhinnik'], ppl: ['terak', 'stepnyak']}, deny: {cls: ['chernets', 'obetnik']}},
+  {id: 'vozmezdie', code: 'H', t: 'Зло должно получить своё', fit: {cls: ['vedmak', 'dushegub', 'lovchiy', 'charovnik'], ppl: ['gorets']}},
+  {id: 'dostatok', code: 'G', t: 'Род должен жить в достатке', fit: {cls: ['tat', 'guslyar', 'lovchiy'], ppl: ['yuzhnober', 'stepnyak', 'gorets']}, deny: {cls: ['chernets', 'obetnik']}},
+  {id: 'vygoda', code: 'G', t: 'Всякое дело — торг', fit: {cls: ['tat', 'charovnik', 'dushegub'], ppl: ['yuzhnober', 'imperets']}, deny: {cls: ['chernets', 'obetnik']}},
+  {id: 'hitrost', code: 'L', t: 'Хитрость сильнее меча', fit: {cls: ['tat', 'charovnik', 'guslyar', 'dushegub'], ppl: ['yuzhnober', 'loss']}, deny: {cls: ['obetnik', 'chernets']}},
+  {id: 'tayna', code: 'L', t: 'Не всякую правду говорят вслух', fit: {cls: ['knizhnik', 'charovnik', 'vedmak', 'dushegub'], ppl: ['parnass', 'imperets']}, deny: {cls: ['obetnik']}},
+];
+/* когда правда героя даёт удаль — словами для окна героя */
+C.DNDB_CODE_WHEN = {T: 'скажет правду или сдержит слово, хоть бы и себе в убыток', M: 'пощадит побеждённого', U: 'откажется от лишнего или отдаст своё даром',
+  H: 'покарает виноватого', G: 'не упустит своего', L: 'перехитрит, где другой полез бы напролом'};
+
+/* ---------- привязанность ---------- */
+C.DNDB_BONDS = [
+  {id: 'kin', ev: 'kin', t: 'Свои люди — превыше всего: кто растил, тех не подведу', when: 'поможет своим людям или вспомнит, откуда родом', fit: {cls: [], ppl: ['nolgrim', 'terak', 'gorets']}},
+  {id: 'comrade', ev: 'comrade', t: 'Товарища в беде не брошу', when: 'поднимет в бою павшего товарища', fit: {cls: ['druzhinnik', 'obetnik', 'yaryi', 'lovchiy', 'chernets'], ppl: ['terak', 'nolgrim']}},
+  {id: 'bogi', ev: 'bogi', t: 'Старые боги смотрят на меня', when: 'поклонится у капища или примет знак бога', fit: {cls: ['volhv', 'zhrets', 'vedmak', 'guslyar'], ppl: ['loss', 'nolgrim', 'stepnyak', 'gorets']}, deny: {cls: ['chernets', 'obetnik']}},
+  {id: 'oko', ev: 'oko', t: 'Звезда Ока ведёт меня', when: 'помолится в храме Ока или примет милость звезды', fit: {cls: ['chernets', 'obetnik'], ppl: ['imperets']}, deny: {cls: ['volhv', 'zhrets']}},
+  {id: 'uchitel', ev: 'uchitel', t: 'Учитель должен мной гордиться', when: 'шагнёт на новую ступень мастерства', fit: {cls: ['knizhnik', 'guslyar', 'vedmak', 'dushegub', 'charovnik'], ppl: ['parnass']}},
+  {id: 'ugovor', ev: 'ugovor', t: 'Взял{ся|ась} за дело — доведу до конца', when: 'доведёт дело до расчёта', fit: {cls: ['druzhinnik', 'lovchiy', 'tat', 'dushegub'], ppl: ['gorets', 'imperets', 'terak']}},
+  {id: 'slabye', ev: 'slabye', t: 'Беззащитных в обиду не дам', when: 'пощадит или поможет даром', fit: {cls: ['obetnik', 'lovchiy', 'yaryi', 'guslyar'], ppl: ['nolgrim', 'loss']}},
+  {id: 'kray', ev: 'kray', t: 'Родная земля — моя, и чужим её не отдам', when: 'одержит победу в родных местах', fit: {cls: ['yaryi', 'druzhinnik'], ppl: ['terak', 'nolgrim', 'imperets', 'gorets']}},
+  {id: 'veshch', ev: 'veshch', t: 'Вещица из дома — всё, что от дома осталось', when: 'безделушка напомнит о прошлом', fit: {cls: [], ppl: ['yuzhnober', 'stepnyak']}},
+];
+
+/* ---------- слабость ----------
+   bg — фоны сцен, где слабость берёт своё; ch — надпись выбора; say — что вышло; cost: coin (медяки × уровень отряда),
+   drunk (единицы хмеля), time (четверти дня), hurt (1d4 хитов, не ниже одного), deed (буквы нрава) */
+C.DNDB_FLAWS = [
+  {id: 'hmel', t: 'Не откажется от лишней чарки', bg: ['tavern'], ch: 'ещё по одной', cost: {drunk: 2.5, coin: 3},
+    say: '{name} заказывает ещё и ещё: за удачу, за отряд, за здоровье корчмаря. Голова тяжелеет, а на душе удало.', fit: {cls: ['yaryi', 'druzhinnik', 'guslyar'], ppl: ['terak', 'nolgrim']}},
+  {id: 'kosti', t: 'Азартн{ый|ая}: кости сами просятся в руку', bg: ['tavern'], ch: 'сыграть в кости по-крупному', cost: {coin: 40},
+    say: '{name} садится к игрокам «на один кон» и встаёт только к ночи, с пустым кошелём и горящими глазами. Проиграл{|а} — а будто победил{|а}.', fit: {cls: ['tat', 'guslyar', 'druzhinnik'], ppl: ['stepnyak', 'yuzhnober']}},
+  {id: 'zhadnost', t: 'Не пройдёт мимо того, что плохо лежит', bg: ['market', 'town'], ch: 'прибрать, что плохо лежит', cost: {deed: 'g'},
+    say: 'Рука у {name:g} сама тянется к чужому лотку. Никто не видел — а сердце колотится, как в детстве.', fit: {cls: ['tat', 'dushegub', 'charovnik'], ppl: ['yuzhnober']}, deny: {cls: ['obetnik', 'chernets']}},
+  {id: 'gnev', t: 'Вспыльчив{|а}: обиды не спустит', bg: ['tavern', 'road', 'market'], ch: 'ответить на грубость кулаком', cost: {hurt: 1, deed: 'h'},
+    say: 'Кто-то толкнул {name:a} плечом и не извинился. Через миг оба катаются в пыли; разняли их не сразу. Скула горит, а кровь кипит весело.', fit: {cls: ['yaryi', 'druzhinnik', 'dushegub'], ppl: ['terak', 'gorets']}},
+  {id: 'hvast', t: 'Любит прихвастнуть', bg: ['tavern', 'village', 'town'], ch: 'рассказать о своих делах — с прибавкой', cost: {time: 1, deed: 'l'},
+    say: '{name} рассказывает, как было дело, и с каждой кружкой врагов в рассказе всё больше. Слушают, раскрыв рты; к концу {name} и сам{|а} почти верит.', fit: {cls: ['guslyar', 'druzhinnik', 'yaryi'], ppl: ['stepnyak', 'imperets']}},
+  {id: 'strah', t: 'Боится мертвецов и темноты', bg: ['cellar', 'graveyard', 'kurgan', 'cave'], ch: 'переждать, пока сердце не уймётся', cost: {time: 1},
+    say: '{name} садится у стены и ждёт, пока перестанут дрожать руки. Отряд ждёт рядом и ничего не говорит. Когда встаёт — страх отпускает, и вместо него приходит злая храбрость.', fit: {cls: ['knizhnik', 'guslyar', 'charovnik'], ppl: ['yuzhnober', 'parnass']}, deny: {cls: ['vedmak', 'obetnik']}},
+  {id: 'lyubop', t: 'Любопытн{ый|ая} сверх меры', bg: ['cellar', 'cave', 'kurgan', 'shrine', 'ruins'], ch: 'сунуть нос, куда не просят', cost: {hurt: 1},
+    say: '{name} лезет туда, куда никто не полез бы, и выбирается ободранн{ым|ой}, но довольн{ым|ой}: теперь-то {он|она} знает, что там было.', fit: {cls: ['knizhnik', 'charovnik', 'tat', 'vedmak'], ppl: ['parnass', 'loss']}},
+  {id: 'shchegol', t: 'Падок на красивое: обновы, украшения', bg: ['market', 'town'], ch: 'купить обнову не по нужде', cost: {coin: 30},
+    say: '{name} уходит с торга с узорным поясом, который совсем не нужен. Зато идёт теперь, как княжий гость.', fit: {cls: ['charovnik', 'guslyar'], ppl: ['imperets', 'yuzhnober']}},
+  {id: 'upryam', t: 'Упрям{|а}: решил{|а} — не свернёт', bg: ['road', 'ford'], ch: 'идти напрямик, как решил{|а}', cost: {time: 1, hurt: 1},
+    say: '{name} не хочет обходить и ведёт отряд напрямик, через бурелом и овраг. Вышло дольше и больнее, но {name} доволен{|ьна}: по-{его|её} вышло.', fit: {cls: ['obetnik', 'lovchiy', 'yaryi'], ppl: ['gorets', 'terak']}},
+  {id: 'doverch', t: 'Доверчив{|а}: всякому верит на слово', bg: ['market', 'village', 'town'], ch: 'поверить первому встречному', cost: {coin: 25},
+    say: 'Прохожий с честными глазами просит в долг «до вечера». {name} даёт — и, конечно, больше его не видит. Отчего-то не жалко.', fit: {cls: ['obetnik', 'chernets', 'volhv'], ppl: ['nolgrim', 'loss']}},
+  {id: 'obzhor', t: 'Жад{ен|на} до еды', bg: ['village', 'market', 'tavern'], ch: 'наесться впрок', cost: {coin: 8, time: 1},
+    say: '{name} ест так, будто завтра голод: пироги, каша, ещё пироги. Потом долго сидит, отдуваясь, и всем вокруг улыбается.', fit: {cls: ['yaryi', 'druzhinnik'], ppl: ['nolgrim', 'gorets']}},
+];
+
+/* ---------- безделушки ----------
+   n — имя, d — история; ico — значок из атласа; hook — где вещица отзовётся: {bg: [фоны сцен], kinds: [виды мест Вечного мира],
+   ids: [места], t: строка} — один раз на героя. */
+C.DNDB_TRINKETS = [
+  {k: 'kosti', n: 'Мечёные кости', ico: 'item:tr_igralnye_kosti', d: 'Две костяные кости с зарубкой на шестёрке. Выиграны в корчме у человека, который потом долго смотрел вслед.',
+    hook: {bg: ['tavern'], t: 'Старик у печи щурится на кости: «Гостятины, мечёные. Он ими полкрая обыграл, пока ему пальцы не переломали. Не играй ими при людях — узнают».'}},
+  {k: 'obereg_mat', n: 'Материн оберег на шнурке', ico: 'item:tr_obereg', d: 'Узелок из красной нити с волчьим зубом. Мать надела его в день, когда вы ушли из дому, и велела не снимать.'},
+  {k: 'kolco', n: 'Медное колечко, тесное на палец', ico: 'item:tr_serebryanoe_koltso', d: 'Носится на шнурке: на палец давно не лезет. Чьё оно было, уже не вспомнить, а выбросить рука не поднимается.'},
+  {k: 'fibula', n: 'Сломанная застёжка', ico: 'item2:fibula', d: 'Бронзовая застёжка с отломанной иглой. Узор — две сплетённые змеи; в здешних краях таких не делают.'},
+  {k: 'visochnoe', n: 'Височное кольцо из бабкиного убора', ico: 'item:tr_visochnoe_koltso', d: 'Серебряное кольцо с тремя лучами. Бабка носила семь таких, это последнее.'},
+  {k: 'pero_chaiki', n: 'Перо белой чайки', ico: 'item2:pero', d: 'Длинное перо, перевязанное ниткой. Его дала девчонка в порту и сказала: вернёшься — отдашь.',
+    hook: {ids: ['ber_gavan', 'ber_svaynaya'], t: 'Рыбачка на пристани замирает, увидев перо: «Это ж я давала… Вернул{ся|ась}, значит. Оставь себе — к удаче».'}},
+  {k: 'zub_volota', n: 'Зуб великана', ico: 'item:tr_volot_zub', d: 'Огромный жёлтый зуб величиной с кулак. Купец клялся, что выкопал его на кургане, и взял за него три медяка.',
+    hook: {kinds: ['курган'], bg: ['kurgan'], t: 'У кургана зуб в суме вдруг становится холодным, как лёд. Земля здесь помнит своих — и, похоже, узнала.'}},
+  {k: 'kolokolchik', n: 'Колокольчик с конской сбруи', ico: 'item2:kolokolchik', d: 'Звенит тонко, по-степному. Остался от коня, которого не уберегли.',
+    hook: {kinds: ['стан', 'торг'], t: 'Табунщик-степняк слышит звон и поворачивает голову: «Такие вешают на коней Белых Юрт. Хороший был конь, раз ты его помнишь».'}},
+  {k: 'svirel', n: 'Ивовая свистулька-соловей', ico: 'item2:svirel', d: 'Если подуть, щёлкает соловьём. Вырезал дед, пока ещё видели глаза.',
+    hook: {bg: ['village'], t: 'Ребятня бежит следом, пока ей не дадут посвистеть. Через час свистулька возвращается — обслюнявленная, но целая, а за ней и пирожок от чьей-то матери.'}},
+  {k: 'zvezdochka', n: 'Медная звёздочка с отломанным лучом', ico: 'item2:znak_zvezdy', d: 'Восьмилучевая звезда, только лучей семь. Такие давали детям из приюта при храме Ока.',
+    hook: {bg: ['church'], kinds: ['храм'], t: 'Сестра Ока у входа узнаёт звёздочку: «Из приюта на Нижнем конце. Мы их сами резали, и у одной луч отломился — вот у этой. Значит, жив{|а} ты, дитя».'}},
+  {k: 'klyuch', n: 'Ключ от сгоревшего дома', ico: 'item:key_storozhka', d: 'Железный ключ с узорной бородкой. Двери, которую он открывал, больше нет.',
+    hook: {kinds: ['пепелище'], t: 'На пепелище ключ сам ложится в ладонь. Замка нет, двери нет, но {name} долго стоит там, где был порог.'}},
+  {k: 'pismo', n: 'Недописанное письмо', ico: 'item2:beresta', d: 'Берестяная грамотка: «Милая, жди к Покрову, привезу…» — и дальше ни слова. Нашлась в суме у павшего на дороге.',
+    hook: {kinds: ['книжня'], t: 'Книжник долго водит пальцем по строкам: «Рука писарская, тарренская. Ждала, значит, и не дождалась. Таких писем сюда что ни год — сотнями несут».'}},
+  {k: 'sol', n: 'Мешочек соли с печатью', ico: 'item2:sol', d: 'Щепоть серой соли в тряпице, с оттиском, похожим на глаз. Говорят, такая соль бережёт от нави.',
+    hook: {kinds: ['промысел'], t: 'Старый солевар нюхает тряпицу и бледнеет: «Ночная варка. Убери и не свети ею тут — за такую соль у нас ноги ломают».'}},
+  {k: 'zhemchug', n: 'Речная жемчужина', ico: 'item:zhemchug_rechnoy', d: 'Кривая, серая, невзрачная. Вынута из раковины в тот день, когда впервые переплыли реку.',
+    hook: {kinds: ['брод'], bg: ['ford'], t: 'У брода {name} по старой привычке трогает жемчужину на счастье. Вода сегодня тихая, будто ждала.'}},
+  {k: 'ruda', n: 'Кусок руды из отцовского забоя', ico: 'item2:mednaya_ruda', d: 'Зелёная медная руда, отбитая отцовским кайлом. Тяжелее, чем кажется.',
+    hook: {kinds: ['рудник'], t: 'Рудокоп щурится на камень: «С нижнего забоя, с того, что засыпало. Твой отец там бил? Помню его. Крепко бил».'}},
+  {k: 'grivna', n: 'Обломок кургановой гривны', ico: 'item:tr_kurgannaya_grivna', d: 'Кусок витой бронзы. Детьми нашли его в осыпи кургана и поклялись вернуть, когда вырастете.'},
+  {k: 'ugolek', n: 'Уголёк из домашней печи', ico: 'item2:ugolek', d: 'Чёрный уголёк в берестяной коробочке. Пока он цел, цел и дом — так говорила мать.'},
+  {k: 'yabloko', n: 'Сушёное райское яблочко', ico: 'item2:yabloko', d: 'Сморщенное, лёгкое, пахнет летом. Сорвано в саду, которого больше нет.'},
+  {k: 'oreh', n: 'Орех-двойчатка', ico: 'item2:orehi', d: 'Два ядра в одной скорлупе — говорят, к любви. Так и не решились отдать его тому, кому надо.'},
+  {k: 'yantar', n: 'Янтарь с мушкой внутри', ico: 'item:yantar', d: 'Капля янтаря, а в ней застыла мушка. Старики говорят, мушке тысяча лет, а янтарю и того больше.'},
+  {k: 'pautinka', n: 'Серебряная паутинка в склянке', ico: 'item2:pautinka', d: 'Ведунья сказала: паутина с купальской ночи. Зачем она — не сказала.'},
+  {k: 'lipa', n: 'Засушенный липовый цвет', ico: 'item2:lipa', d: 'Горсть липового цвета в тряпице. Им пахло в доме, где вас выходили после горячки.'},
+  {k: 'zerkalce', n: 'Медное зеркальце в трещинах', ico: 'item:zerkaltse_mednoe', d: 'Отражает криво, но честно. Купцова дочка обронила, а вернуть так и не вышло.'},
+  {k: 'persten', n: 'Перстень со стёртым гербом', ico: 'item:persten_bez_gerba', d: 'Тяжёлый, мужской. Герб на печатке кто-то стёр напильником — старательно, до гладкого.',
+    hook: {ids: ['imp_villa', 'imp_avreliana', 'imp_trivium'], t: 'Привратник видит перстень и прищуривается: «Знакомая работа: так стирали гербы после опалы. Убери-ка, не дразни людей».'}},
+  {k: 'ogarok', n: 'Огарок поминальной свечи', ico: 'item:svecha_voskovaya', d: 'Огарок с поминок. Зажигать жалко, выбросить страшно.'},
+  {k: 'chesnok', n: 'Чеснок на красной нитке', ico: 'item:chesnok', d: 'Бабкино средство от упырей. Чеснок давно высох, нитка выцвела, а он всё в суме.',
+    hook: {bg: ['graveyard'], kinds: ['погост'], t: 'На погосте рука сама тянется к чесноку. Смешно — а спокойнее.'}},
+  {k: 'ladan', n: 'Пустой пузырёк из-под ладана', ico: 'item:blagovoniya_puzyrek', d: 'Пахнет молельней, даже пустой. Его сунули в руку на пороге, когда вы были совсем малы.'},
+  {k: 'moneta', n: 'Заморская монета с дыркой', ico: 'item:serebro', d: 'Серебряная, с профилем незнакомого царя, пробита, чтобы носить на шее. На торгу за неё дадут меньше, чем она стоит.',
+    hook: {kinds: ['торг'], ids: ['ber_gavan', 'ber_tamozhnya'], t: 'Меняла вертит монету: «Из-за моря, с самого края. Таких тут не ходит. Дорого не возьму — да ты ведь и не продашь».'}},
+  {k: 'nozhik', n: 'Детский ножик-складень', ico: 'item:nozh', d: 'Тупой, с костяной ручкой. Первый свой нож: им вырезали имя на воротах.'},
+  {k: 'kremen', n: 'Кремень, подаренный на дорогу', ico: 'item:ognivo_s_kremnem', d: 'Искрит плохо, но подарен со словами: огонь найдёшь — и дом найдёшь.'},
+  {k: 'pero_vorona', n: 'Чёрное воронье перо', ico: 'item2:pero_temnoe', d: 'Ворон оставил его на окне в ночь, когда вы родились. Повитуха велела перо не выбрасывать.'},
+  {k: 'lenta', n: 'Красная лента из девичьей косы', ico: 'item2:tkan_bogataya', d: 'Подарена на Купалу. Чья была коса, помнится, а где она сама теперь — нет.'},
+  {k: 'busina', n: 'Синяя бусина с белым глазком', ico: 'item:biryuza', d: 'Заморская работа, говорят, от сглазу. Досталась от бабки вместе с наказом беречь глаза.'},
+  {k: 'kurbog', n: 'Камешек с дыркой', ico: 'item:agat', d: 'Найден на берегу. Посмотришь сквозь него — увидишь невидимое, так говорят. Пока ничего не увиделось.'},
+  {k: 'lozhka', n: 'Резная ложка с конской головой', ico: 'item2:derevo', d: 'Своя ложка, резанная отцом: на черенке конская голова. В походе своя ложка — полдома.'},
+  {k: 'znak_peruna', n: 'Громовой знак на ремешке', ico: 'item2:zn_perun', d: 'Шестилучевое колесо на дубовой дощечке. Резал волхв, а дуб был громом бит.',
+    hook: {ids: ['as_dub', 'tk_utes'], t: 'У Перунова дерева знак на груди теплеет. Старый волхв кивает: «Наш. С этого дуба щепа».'}},
+  {k: 'pryaslice', n: 'Пряслице Мокоши', ico: 'item2:zn_mokosh', d: 'Глиняное пряслице с прочерченной спиралью. Бабка пряла на нём, пока не ослепла.',
+    hook: {ids: ['dw_kapishche'], t: 'Служительница капища берёт пряслице в ладони и долго шепчет: «Мокошь своих помнит. И тебя запомнит».'}},
+  {k: 'kogot', n: 'Медвежий коготь с насечками', ico: 'item:tr_kogti_zverya', d: 'Охотник отдал его, когда сам ушёл к Велесу. Насечек на когте девять — столько медведей он взял.'},
+  {k: 'pechat', n: 'Восковая печать с оборванным шнуром', ico: 'item2:vosk', d: 'Печать с грамоты, которой больше нет. На воске — башня и ключ.'},
+  {k: 'oblomok', n: 'Обломок отцовского меча', ico: 'item:tr_rzhavyi_mech', d: 'Пядь ржавого клинка с клеймом кузни. Остальное осталось там, где пал отец.'},
+  {k: 'uzelki', n: 'Шнурок с узелками', ico: 'item2:verevka2', d: 'Узелок за каждую зиму вдали от дома. Узелков всё больше.'},
+  {k: 'smola', n: 'Капля смолы с сосны у родного двора', ico: 'item2:smola', d: 'Пахнет хвоей и солнцем. Пока пахнет — дом недалеко.'},
+  {k: 'pryad', n: 'Прядь волос в ладанке', ico: 'item2:volos', d: 'Светлая прядь, перевязанная ниткой. Чья — знает только хозяин ладанки.'},
+  {k: 'mel', n: 'Кусок мела с синей жилкой', ico: 'item2:mel', d: 'Им писали на доске в Школе Семи Ветров. Взят на память и иногда пишет на стенах корчем чужие имена.',
+    hook: {ids: ['par_shkola'], t: 'Привратник Школы узнаёт мел по синей жилке: «Наш, с нижней залы. Доучиваться пришёл{|ла}?»'}},
+  {k: 'gnilushka', n: 'Гнилушка, что светится ночью', ico: 'item2:gnilushka', d: 'Кусок старого пня, светится зеленовато. Найден в лесу ещё ребёнком — тогда верилось, что это клад.'},
+  {k: 'shipovnik', n: 'Связка сушёного шиповника', ico: 'item2:shipovnik', d: 'Мать вешала шиповник над дверью, чтобы беда шла мимо. Эта связка — с той самой двери.'},
+  {k: 'igla', n: 'Игла с ниткой в отвороте', ico: 'item2:igla_shveynaya', d: 'Мать вколола её в ворот на прощанье: заштопаешь — вспомнишь.'},
+  {k: 'tul', n: 'Пустой тул для грамот', ico: 'item:tul_dlya_gramot', d: 'В нём лежала дарственная на землю. Грамоту отобрали, тул остался.'},
+  {k: 'konek', n: 'Резной костяной конёк', ico: 'item2:h_loshadka', d: 'Игрушка, вырезанная из коровьей кости. Брат делал её всю зиму, а отдал в первый же день весны.'},
+];
+
+/* ---------- особенность корня ----------
+   kind: roof — кров у своих (at: виды мест, regs: края), trail — тропы (regs), word — грамота, heal — лекарская выучка,
+   trade — свои купцы (regs), steel — кузнецы, horse — кони, fence — скупщики, voice — тебя слушают ратные люди.
+   n — имя особенности, t — что она даёт, who — у кого кров (для кнопки). */
+const RATNYE = ['застава', 'крепость', 'башня', 'ворота', 'лагерь', 'стан'];
+C.DNDB_FEATS = {
+  lipovka: {kind: 'roof', at: ['капище'], who: 'волхвы капища', n: 'Кров у капищ', t: 'Служители старых богов не прогонят липовского погорельца: у капища — ночлег и ужин даром.'},
+  melnik: {kind: 'roof', at: ['мельница', 'село'], regs: ['dw', 'as'], who: 'свои, мельничные', n: 'Мельник мельнику свой', t: 'На мельницах и в сёлах Ольшанского края и Коровинского княжества внука Ефима пустят переночевать даром.'},
+  bjarni: {kind: 'voice', at: RATNYE, regs: ['as'], n: 'Сотникова кровь', t: 'Ратные люди помнят Бьярни: на заставах, в крепостях и станах уговоры и угрозы идут с преимуществом.'},
+  perun_vnuk: {kind: 'roof', at: ['капище'], who: 'волхвы капища', n: 'Внук волхва', t: 'Где бы ни стояло капище, волхвы примут внука Велемира: ночлег и ужин даром.'},
+  tihie: {kind: 'fence', n: 'Свой у скупщиков', t: 'Тихие люди держат по городам скупщиков, и должнику они платят честнее, чем чужаку: в городах вещи продаются дороже.'},
+  mstislav: {kind: 'voice', at: RATNYE, n: 'Гриднева кровь', t: 'Старые дружинники уважают детей гридней: на заставах, в крепостях и станах уговоры и угрозы идут с преимуществом.'},
+  zarechye: {kind: 'roof', at: ['село', 'мельница', 'подворье'], regs: ['dw', 'as'], who: 'сельские люди', n: 'Свой среди пахарей', t: 'Сёла помнят, за что взяли отца: в сёлах Ольшанского края и Коровинского княжества ночлег даром.'},
+  skriptoriy: {kind: 'word', n: 'Рука писаря', t: 'Годы в скриптории даром не прошли: Грамота и Знание языков — с преимуществом.'},
+  palata_beg: {kind: 'word', n: 'Палатская выучка', t: 'Палата учит читать всё, что пишут, даже то, что пишут тайно: Грамота и Знание языков — с преимуществом.'},
+  mednyy: {kind: 'trail', regs: ['ed'], n: 'Лазы Медного конца', t: 'Кто прятался в мор по подвалам Эдвина, знает в его землях каждый лаз: Выживание, Поиск и Поиск пути там — с преимуществом.'},
+  legioner: {kind: 'voice', at: RATNYE, n: 'Легионерская кровь', t: 'Легионеры и теракские хирдманы говорят с полукровкой, как со своим: на заставах, в крепостях и станах уговоры и угрозы идут с преимуществом.'},
+  villa_klyuchnik: {kind: 'trade', regs: ['imp'], n: 'Свои у виноторговцев', t: 'Ключников сын знает, кому и как платят в Империи: в имперских землях всё простое — дешевле.'},
+  orm: {kind: 'roof', at: ['стан', 'подворье', 'перевал', 'башня', 'крепость', 'пастбище'], regs: ['tk'], who: 'люди рода Орма', n: 'Род Орма', t: '«Позовёте — придём»: в Теракских горах род даёт кров даром — в ставках, на подворьях и заставах.'},
+  halvdan_rog: {kind: 'trail', regs: ['tk'], n: 'Тропы Теракских гор', t: 'Дед водил по горам, где ходят только свои: в Теракских горах Выживание, Поиск и Поиск пути — с преимуществом.'},
+  einar: {kind: 'roof', at: ['город', 'село'], who: 'корчмари', n: 'Скальда кормят', t: 'Ученика скальда корчмари кормят за песню: в сёлах и городах — ночлег и ужин даром.'},
+  garnizon: {kind: 'voice', at: RATNYE, n: 'Гарнизонное дитя', t: 'Для ратных людей вы свой, кем бы ни звали вас другие: на заставах, в крепостях и станах уговоры и угрозы идут с преимуществом.'},
+  torvald: {kind: 'trail', regs: ['dw', 'as'], n: 'Ивняк за бродом', t: 'Торвальд научил ходить так, чтобы не находили: в Ольшанском краю и Коровинском княжестве Выживание, Поиск и Поиск пути — с преимуществом.'},
+  mokosh_les: {kind: 'heal', n: 'Ленты Мокоши', t: 'Выросшего при капище Мокоши травы слушаются: Медицина и Знахарство — с преимуществом.'},
+  lichina: {kind: 'trail', regs: ['as', 'dw', 'wd'], n: 'Лесная тропа', t: 'Кто вырос в личине, тот видит лес, как лесные: в Ольшанском краю, Коровинском княжестве и Диких пущах Выживание, Поиск и Поиск пути — с преимуществом.'},
+  stan_vedunya: {kind: 'heal', n: 'Бабкины травы', t: 'Ведунья учила с малых лет: Медицина и Знахарство — с преимуществом.'},
+  mankar: {kind: 'trail', regs: ['wd', 'sw'], n: 'Тропы манкаров', t: 'Манкары ходят тропами, которых нет на картах: в Диких пущах и на Гиблом болоте Выживание, Поиск и Поиск пути — с преимуществом.'},
+  pesnopevets: {kind: 'roof', at: ['лес', 'подворье', 'капище'], regs: ['wd', 'as', 'dw'], who: 'лесные люди', n: 'Песнопевец своих', t: 'Лесные люди пускают ученика песнопевца к огню: в лесных станах, зимовьях и у капищ — ночлег даром.'},
+  rudnik: {kind: 'steel', n: 'Кузнечья кровь', t: 'Кузнецы узнают своего по рукам: оружие и доспехи в лавках — дешевле.'},
+  svarog_gorn: {kind: 'steel', n: 'Хранитель горна', t: 'Кто держал Сварожий горн, тому кузнецы уступают: оружие и доспехи в лавках — дешевле.'},
+  borodaty: {kind: 'trail', regs: ['pod', 'tk'], n: 'Отцовы ходы', t: 'Отец учил слушать камень: в Подземье и Теракских горах Выживание, Поиск и Поиск пути — с преимуществом.'},
+  pereval: {kind: 'trail', regs: ['tk', 'par'], n: 'Проводник', t: 'Кто водил караваны через перевал, тот найдёт дорогу и в обвал: в Теракских горах и Пар-Нассе Выживание, Поиск и Поиск пути — с преимуществом.'},
+  tikhomir: {kind: 'steel', n: 'Тихомирова выучка', t: 'Подмастерье знает цену железу: оружие и доспехи в лавках — дешевле.'},
+  polon: {kind: 'trade', regs: ['step'], n: 'Кутлуговы менялы', t: 'Меняла Кутлуг помнит своего должника и велит своим не драть с него лишнего: в Великой Степи всё простое — дешевле.'},
+  nuker: {kind: 'roof', at: ['стан', 'торг', 'подворье'], regs: ['step'], who: 'нукеры хана', n: 'Отцова юрта', t: 'В степи дитя нукера примут у любого огня: в ставках и кочевьях — ночлег и ужин даром.'},
+  kam: {kind: 'trail', regs: ['step'], n: 'Слушает ветер', t: 'Кам учил читать степь по ветру: в Великой Степи Выживание, Поиск и Поиск пути — с преимуществом.'},
+  kolodets: {kind: 'roof', at: ['подворье', 'торг'], who: 'караванщики', n: 'Свой у трёх дорог', t: 'Караванщики знают выросших у Колодца: на подворьях и торгах любого края — ночлег даром.'},
+  konyukh: {kind: 'horse', n: 'Вырос{|ла} в седле', t: 'Сын конюха видит коня насквозь, и барышник это чует: кони и сбруя — дешевле.'},
+  niko: {kind: 'trade', regs: ['dw', 'as', 'ber'], n: 'Обозы Нико', t: 'Приказчики Нико помнят отца: в Ольшанском краю, Коровинском княжестве и Поморье всё простое — дешевле.'},
+  liga_dolg: {kind: 'fence', n: 'Знакомые скупщики', t: 'Кто должен лиге, тот знает всех, кто покупает без вопросов: в городах вещи продаются дороже.'},
+  solevarni: {kind: 'roof', at: ['промысел', 'село', 'город', 'застава'], regs: ['ber'], who: 'солевары', n: 'Солевары своих не гонят', t: 'В Поморье солевары примут своего: ночлег и ужин даром.'},
+  lastochka: {kind: 'trail', regs: ['ber', 'sw'], n: 'Моряцкая сметка', t: 'Юнга знает берег, мели и туманы: в Поморье и на Гиблом болоте Выживание, Поиск и Поиск пути — с преимуществом.'},
+  sukonshchik: {kind: 'trade', regs: ['ed'], n: 'Цеховые', t: 'Суконщики помнят, кто их обворовал на самом деле: в Эдвине и его землях всё простое — дешевле.'},
+  gordey_uchenik: {kind: 'heal', n: 'Гордеева выучка', t: 'Растирали травы у Гордея не зря: Медицина и Знахарство — с преимуществом.'},
+  zvezdochet: {kind: 'word', n: 'Звёздные таблицы', t: 'Кто читал звёзды, прочтёт и любую руку: Грамота и Знание языков — с преимуществом.'},
+  velikiy_gorod: {kind: 'word', n: 'Отцовы книги', t: 'Вы выросли среди трактатов: Грамота и Знание языков — с преимуществом.'},
+  chumnoy: {kind: 'heal', n: 'Лекарь мора', t: 'Кто лечил мор, тот не дрогнет ни у какой раны: Медицина и Знахарство — с преимуществом.'},
+  klyuchi: {kind: 'roof', at: ['подворье', 'башня', 'город', 'книжня', 'перевал', 'капище'], regs: ['par'], who: 'люди Пар-Насса', n: 'Хранителево дитя', t: 'В Пар-Нассе помнят хранителя Тёплых ключей: ночлег и ужин даром.'},
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* dnd_b.js */
+/* Колдовство — волна «ДнД», агент B: удаль, правда-привязанность-слабость, особенность корня, безделушка. Без DOM
+   (кроме строк HTML для окна героя и окна создания: их вставляет ui.js).
+   • УДАЛЬ (вдохновение 5e): у героя она либо есть, либо нет (h.w2insp = 1/0), больше одной не копится. Приходит, когда герой
+     поступает по своей правде (выбор с меткой нрава, w2_nrav), верен привязанности (свои, товарищ, вера, учитель, дело, слабые,
+     родной край, безделушка), шагает к мечте (веха d1_dream), верен корням (личное сказание и свой человек, w2_origins)
+     или поддаётся своей слабости, когда та сама предлагает выбор. Тратится на преимущество в одном броске: в сцене — выбор
+     «Призвать удаль» (следующая проверка с преимуществом), в бою — кнопка (следующий удар или спасбросок). Можно
+     отдать товарищу (окно героя). У наёмников удали нет.
+   • ЧЕРТЫ: h.dndb = {ideal, bond, flaw, trk, got, free, dflt}. У новых — выбор при создании (списки по классу, народу, корню)
+     или «бросить кости»; у уже созданных — стандарт по умолчанию из того, что у героя есть (нрав, корни, класс, народ),
+     и одна бесплатная смена в окне героя. Данные — dnd_b_data.js.
+   • ОСОБЕННОСТЬ КОРНЯ (C.DNDB_FEATS): кров у своих — кнопка ночлега даром в местах Вечного мира; тропы, грамота, лекарская
+     выучка, «тебя слушают» — преимущество в своих проверках; свои купцы, кузнецы, кони, скупщики — цена в лавке.
+   • БЕЗДЕЛУШКА: вещь bz_<ключ> в суме, почти без веса и цены, со значком из готовых атласов; часть — зацепки: в своём месте
+     выбор «Показать …» и строка.
+   • Наружу: C.dndbHas, C.dndbGrant, C.dndbGive, C.dndbOpts, C.dndbFix, C.dndbRoll, C.dndbApply, C.dndbEnsure, C.dndbFeat,
+     C.dndbTraits, C.dndbSheet (HTML окна героя), C.dndbCreateHTML (HTML окна создания), C.DNDB_WORD.
+   • Состояние: h.w2insp, h.dndb; g.dndb = {arm, src, roof, wk, hk, said}. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !C.DNDB_IDEALS) return;
+const FC = C.CAMPS.free, NODES = (FC && FC.map && FC.map.nodes) || {};
+C.DNDB_WORD = 'удаль';
+C.DNDB = Object.assign({ARM_MAX: 4, WEAK_P: 14, WEAK_GAP: 5, ROOF_GAP: 3, OPTS: 7, TRADE: 0.9, STEEL: 0.9, HORSE: 0.85, FENCE: 1.1}, C.DNDB || {});
+const K = () => C.DNDB;
+
+/* ---------- мелочи ---------- */
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; x = Math.imul(x, 2246822507); x ^= x >>> 13; return x >>> 0; };
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'})[c]);
+const sx = (t, sex) => String(t || '').replace(/\{([^{}|]*)\|([^{}|]*)\}/g, (m, a, b) => (sex === 'f' ? b : a));
+const decl = (h, k) => { try { const d = Q && Q.decl ? Q.decl(h.name, h.sex) : null; return (d && d[k]) || h.name; } catch (e) { return h.name; } };
+const fill = (t, h) => sx(String(t || '').replace(/\{name:([gdaip])\}/g, (m, k) => decl(h, k)).replace(/\{name\}/g, h ? h.name : ''), h && h.sex);
+const isFree = g => !!(g && g.camp === 'free' && FC);
+const heroes = g => (g && g.heroes ? C.alive(g).filter(h => h && h.kind !== 'merc' && !h.dead) : []);
+const S = g => { const s = g.dndb = (g.dndb && typeof g.dndb === 'object') ? g.dndb : {}; s.src = s.src || {}; s.roof = s.roof || {}; s.wk = s.wk || {}; s.hk = s.hk || {}; return s; };
+const node = g => (g && NODES[g.loc] && isFree(g)) ? NODES[g.loc] : null;
+const lvl = g => Math.max(1, C.partyLevel ? C.partyLevel(g) : 1);
+const BYID = L => Object.fromEntries(L.map(x => [x.id, x]));
+const IDEAL = BYID(C.DNDB_IDEALS), BOND = BYID(C.DNDB_BONDS), FLAW = BYID(C.DNDB_FLAWS);
+const TRK = Object.fromEntries(C.DNDB_TRINKETS.map(x => [x.k, x]));
+const LISTS = {ideal: C.DNDB_IDEALS, bond: C.DNDB_BONDS, flaw: C.DNDB_FLAWS};
+const BY = {ideal: IDEAL, bond: BOND, flaw: FLAW};
+
+/* ---------- безделушки — вещи ---------- */
+const trkId = k => 'bz_' + k;
+C.DNDB_TRINKETS.forEach(x => { if (typeof DATA === 'undefined' || !DATA.items) return;
+  DATA.items[trkId(x.k)] = {_t: 'g', id: trkId(x.k), name: x.n, price: 5, price_text: '5 мм', weight_kg: 0.05, category: 'безделушки', ico: x.ico, notes: x.d, bz: x.k}; });
+C.dndbTrinketOf = id => { const m = /^bz_([a-z_]+)$/.exec(id || ''); return m && TRK[m[1]] ? TRK[m[1]] : null; };
+C.dndbTrinketRoll = function (cur, seed) {
+  const L = C.DNDB_TRINKETS; if (seed != null) return L[hsh(seed) % L.length].k;
+  let k = cur; for (let i = 0; i < 6 && k === cur; i++) k = L[Math.floor(R.rand() * L.length)].k; return k; };
+
+/* ---------- черты: списки по классу, народу, корню ---------- */
+const score = (x, h) => { const f = x.fit || {}, d = x.deny || {};
+  if ((d.cls || []).includes(h.cls) || (d.ppl || []).includes(h.people)) return -99;
+  return ((f.cls || []).includes(h.cls) ? 3 : 0) + ((f.ppl || []).includes(h.people) ? 2 : 0) + (x.id === 'kin' && h.origin ? 4 : 0); };
+C.dndbOpts = function (h) {
+  const out = {};
+  Object.entries(LISTS).forEach(([k, L]) => {
+    const ok = L.filter(x => score(x, h) > -50).sort((a, b) => (score(b, h) - score(a, h)) || (hsh(h.id + a.id) - hsh(h.id + b.id)));
+    let top = ok.slice(0, K().OPTS);
+    if (k === 'ideal') { // разные правды: не больше двух с одной буквой, чтобы было из чего выбирать
+      const seen = {}; top = []; ok.forEach(x => { if (top.length < K().OPTS && (seen[x.code] || 0) < 2) { top.push(x); seen[x.code] = (seen[x.code] || 0) + 1; } }); }
+    out[k] = top.map(x => ({id: x.id, t: sx(x.t, h.sex)}));
+  });
+  return out;
+};
+/* стандарт по умолчанию — из того, что у героя уже есть */
+const NRAV_CODE = {slovo: ['T', 'L'], ruka: ['M', 'H'], koryst: ['U', 'G']};
+C.dndbDefault = function (h) {
+  const O = C.dndbOpts(h);
+  let ideal = O.ideal[0] && O.ideal[0].id;
+  if (C.nravOf) { const n = C.nravOf(h), ax = Object.keys(NRAV_CODE).filter(a => n[a]).sort((a, b) => Math.abs(n[b]) - Math.abs(n[a]))[0];
+    if (ax) { const code = NRAV_CODE[ax][n[ax] > 0 ? 0 : 1], x = O.ideal.find(o => IDEAL[o.id].code === code) || C.DNDB_IDEALS.filter(o => o.code === code && score(o, h) > -50)[0]; if (x) ideal = x.id; } }
+  let bond = O.bond[0] && O.bond[0].id;
+  if (h.origin) bond = 'kin';
+  else if (['chernets', 'obetnik'].includes(h.cls)) bond = 'oko';
+  else if (['volhv', 'zhrets'].includes(h.cls)) bond = 'bogi';
+  return {ideal, bond, flaw: O.flaw[0] && O.flaw[0].id, trk: C.dndbTrinketRoll(null, h.id + '|bz')};
+};
+/* поправить выбор: то, чего нет в списке, — на стандарт */
+C.dndbFix = function (h, d) {
+  const O = C.dndbOpts(h), D0 = d || {}, out = Object.assign({}, D0); let def = null;
+  ['ideal', 'bond', 'flaw'].forEach(k => { if (!O[k].some(o => o.id === out[k])) { def = def || C.dndbDefault(h); out[k] = def[k]; } });
+  if (!TRK[out.trk]) out.trk = C.dndbTrinketRoll();
+  return out;
+};
+C.dndbRoll = function (h, d) { const O = C.dndbOpts(h), p = L => L[Math.floor(R.rand() * L.length)].id;
+  return {ideal: p(O.ideal), bond: p(O.bond), flaw: p(O.flaw), trk: (d && d.trk) || C.dndbTrinketRoll()}; };
+/* выбранное в окне создания — на героя (до C.addHero) */
+C.dndbApply = function (h, d) {
+  if (!h || h.kind === 'merc') return h; const x = C.dndbFix(h, d);
+  h.dndb = {ideal: x.ideal, bond: x.bond, flaw: x.flaw, trk: x.trk, got: 0, free: 0}; h.w2insp = h.w2insp ? 1 : 0; return h; };
+C.dndbTraits = h => { const D = h && h.dndb; if (!D) return null; return {ideal: IDEAL[D.ideal] || null, bond: BOND[D.bond] || null, flaw: FLAW[D.flaw] || null, trk: TRK[D.trk] || null}; };
+
+/* у героя без черт — стандарт, у героя без безделушки — безделушка (тихо, одна, строкой в летописи) */
+C.dndbEnsure = function (g, h) {
+  if (!h || h.kind === 'merc' || h.dead) return false;
+  let ch = false;
+  if (!h.dndb || typeof h.dndb !== 'object') { const d = C.dndbDefault(h); h.dndb = {ideal: d.ideal, bond: d.bond, flaw: d.flaw, trk: d.trk, got: 0, free: 1, dflt: 1}; ch = true; }
+  if (h.w2insp == null) h.w2insp = 0;
+  if (!h.dndb.got) { const t = TRK[h.dndb.trk] || TRK[C.dndbTrinketRoll(null, h.id)]; h.dndb.trk = t.k; h.dndb.got = 1; h.inv = h.inv || [];
+    if (!h.inv.some(id => /^bz_/.test(id))) h.inv.push(trkId(t.k));
+    if (g && g.journal) C.note(g, h.dndb.dflt ? fill(`{name} вспомнил{|а}, что всё это время носит с собой ${t.n.toLowerCase()}.`, h) : fill(`У {name:g} в суме — ${t.n.toLowerCase()}, мелочь с историей.`, h));
+    ch = true; }
+  return ch;
+};
+const ensureAll = g => { try { heroes(g).forEach(h => C.dndbEnsure(g, h)); } catch (e) {} };
+
+/* ---------- удаль ---------- */
+C.dndbHas = h => !!(h && h.kind !== 'merc' && h.w2insp);
+const SRC_T = {
+  ideal: '{name} поступил{|а} по своей правде — и в груди взыграла удаль.',
+  bond: '{name} верен{|а} тому, что дорого, — и на душе стало удало.',
+  dream: '{name} на шаг ближе к мечте — удаль так и играет.',
+  roots: '{name} не забыл{|а}, откуда родом, — и от этого на сердце удало.',
+  flaw: '{name} дал{|а} слабине волю, зато теперь море по колено.',
+  thing: '{name} вспомнил{|а}, откуда у {него|неё} эта вещица, — и на сердце удало.',
+  gift: '',
+};
+/* дать удаль; key — откуда (один источник — не чаще раза в день) */
+C.dndbGrant = function (g, h, src, key, o) {
+  o = o || {}; if (!g || !h || h.kind === 'merc' || h.dead || h.w2insp) return false;
+  const s = S(g), k = h.id + '|' + (key || src); if (s.src[k] === g.day && !o.force) return false;
+  s.src[k] = g.day; h.w2insp = 1;
+  const t = o.t || SRC_T[src]; if (t && g.journal) C.note(g, fill(t, h));
+  return true;
+};
+C.dndbSpend = function (g, h, why) { if (!h || !h.w2insp) return false; h.w2insp = 0; if (g && S(g).arm === h.id) S(g).arm = null; return true; };
+C.dndbGive = function (g, from, to) {
+  if (!from || !to || from === to || to.kind === 'merc' || to.dead) return 'некому';
+  if (!from.w2insp) return `У ${decl(from, 'g')} нет удали.`;
+  if (to.w2insp) return `У ${decl(to, 'g')} удаль и так есть.`;
+  from.w2insp = 0; to.w2insp = 1; if (S(g).arm === from.id) S(g).arm = null;
+  C.note(g, fill(`{name} хлопает ${decl(to, 'a')} по плечу: «Держи, тебе сейчас нужнее». Удаль теперь у ${decl(to, 'g')}.`, from));
+  return '';
+};
+const hasBond = (h, id) => !!(h && h.dndb && h.dndb.bond === id);
+const bondGrant = (g, id, who, key) => { (who || heroes(g)).forEach(h => { if (hasBond(h, id)) C.dndbGrant(g, h, 'bond', key || ('b:' + id)); }); };
+
+/* ---------- поступок по правде: метки нрава ---------- */
+if (C.nravDeed) { const nd0 = C.nravDeed; C.nravDeed = function (g, codes, o) {
+  const r = nd0.apply(this, arguments);
+  try { const U = String(codes || '').toUpperCase().replace(/C/g, '');
+    if (U && g && g.heroes) heroes(g).forEach(h => { const D = h.dndb; if (!D) return;
+      const I = IDEAL[D.ideal]; if (I && U.includes(I.code)) C.dndbGrant(g, h, 'ideal', 'i:' + I.code);
+      if (D.bond === 'slabye' && /[MU]/.test(U)) C.dndbGrant(g, h, 'bond', 'b:slabye'); });
+  } catch (e) {}
+  return r; }; }
+
+/* ---------- дела: расчёт, личные сказания корня, вехи мечты ---------- */
+if (Q && Q.report) { const rp0 = Q.report; Q.report = function (g, j) {
+  const was = j && j.status, T = j && j.tale && C.TALES ? C.TALES[j.tale] : null, td0 = (g && g.taleDone || []).includes(j && j.tale);
+  const r = rp0.apply(this, arguments);
+  try { if (g && g.heroes && j && j.status === 'paid' && was !== 'paid') {
+    bondGrant(g, 'ugovor', null, 'b:ugovor');
+    if (T && T.w2o) heroes(g).filter(h => h.origin === T.w2o).forEach(h => { if (!C.dndbGrant(g, h, 'roots', 'roots')) return; });
+    if (T && T.w2o) bondGrant(g, 'kin', heroes(g).filter(h => h.origin === T.w2o), 'b:kin');
+    if (T && T.d1d) heroes(g).filter(h => h.dream === T.d1d.dream).forEach(h => C.dndbGrant(g, h, 'dream', 'dream'));
+  } } catch (e) {}
+  return r; }; }
+
+/* ---------- новая ступень: учитель гордится ---------- */
+if (C.giveXP) { const gx0 = C.giveXP; C.giveXP = function (g) {
+  const L0 = g && g.heroes ? heroes(g).map(h => [h, h.level]) : [];
+  const r = gx0.apply(this, arguments);
+  try { L0.forEach(([h, l]) => { if (h.level > l && hasBond(h, 'uchitel')) C.dndbGrant(g, h, 'bond', 'b:uchitel'); }); } catch (e) {}
+  return r; }; }
+
+/* ---------- особенность корня ---------- */
+C.dndbFeat = h => (h && h.origin && C.DNDB_FEATS[h.origin]) || null;
+const featHeroes = (g, kind) => heroes(g).filter(h => { const f = C.dndbFeat(h); return f && f.kind === kind; });
+const inRegs = (f, n) => !f.regs || (n && f.regs.includes(n.reg));
+const atOk = (f, n) => !!n && (!f.at || f.at.includes(n.kind)) && inRegs(f, n);
+const SK = {word: ['Грамота', 'Знание языков'], heal: ['Медицина', 'Знахарство'], trail: ['Выживание', 'Поиск пути', 'Поиск'], voice: ['Дипломатия', 'Запугивание']};
+C.dndbFeatAdv = function (g, h, skill) {
+  if (!g || !g.heroes || !skill) return null;
+  const mine = C.dndbFeat(h);
+  if (mine && (mine.kind === 'word' || mine.kind === 'heal') && SK[mine.kind].includes(skill)) return sx(mine.n, h.sex).toLowerCase();
+  const n = node(g); if (!n) return null;
+  for (const kind of ['trail', 'voice']) { if (!SK[kind].includes(skill)) continue;
+    const x = heroes(g).find(y => { const f = C.dndbFeat(y); return f && f.kind === kind && (kind === 'trail' ? inRegs(f, n) && !!f.regs : atOk(f, n)); });
+    if (x) return sx(C.dndbFeat(x).n, x.sex).toLowerCase(); }
+  return null;
+};
+if (C.checkAdv) { const ca0 = C.checkAdv; C.checkAdv = function (g, h, stat, skill) {
+  const b = ca0.apply(this, arguments) || {a: 0, why: ''};
+  let w = null; try { w = C.dndbFeatAdv(g, h, skill); } catch (e) {}
+  if (!w) return b;
+  const o = Object.assign({}, b, {A: (b.A || []).concat(w)});
+  if (b.a > 0) o.why = (b.why ? b.why + ', ' : '') + w;
+  else if (b.a < 0) { o.a = 0; o.why = ''; }
+  else if (!(b.D || []).length) { o.a = 1; o.why = w; }
+  return o; }; }
+/* цены: свои купцы, кузнецы, кони — в лавке дешевле; скупщики — продать дороже */
+const plain = x => x && !x.magic && !(C.isMagic && C.isMagic(x.id)) && !/^dvx?:/.test(x.id || '');
+const HORSE_RX = /^(kon_|loshadka|osel|sedlo|uzda|podkov|popona|upryazh|homut|povod|shpory|peremetnye)/;
+if (C.buyPrice) { const bp0 = C.buyPrice; C.buyPrice = function (g, h, x) {
+  const p = bp0.apply(this, arguments); if (!p || !g || !g.heroes || !plain(x)) return p;
+  let k = 1;
+  try { const n = node(g);
+    if (n && featHeroes(g, 'trade').some(y => inRegs(C.dndbFeat(y), n))) k *= K().TRADE;
+    if ((R.isWeapon && R.isWeapon(x)) || (R.isArmor && R.isArmor(x))) { if (featHeroes(g, 'steel').length) k *= K().STEEL; }
+    if (HORSE_RX.test(R.baseId ? R.baseId(x.id) : x.id) && featHeroes(g, 'horse').length) k *= K().HORSE;
+  } catch (e) {}
+  return k === 1 ? p : Math.max(1, Math.round(p * k)); }; }
+if (C.sellPrice) { const sp0 = C.sellPrice; C.sellPrice = function (g, h, x) {
+  const p = sp0.apply(this, arguments); if (!p || !g || !g.heroes || !plain(x)) return p;
+  try { const n = node(g); if (n && n.kind === 'город' && featHeroes(g, 'fence').length) return Math.max(p, Math.min(Math.floor((x.price || 0) * 0.9), Math.round(p * K().FENCE))); } catch (e) {}
+  return p; }; }
+
+/* ---------- удаль в проверке: следующий бросок — с преимуществом ---------- */
+let ARM = null;
+const rc0 = R.check;
+R.check = function (h, stat, skill, dc) {
+  if (ARM && !ARM.used) { const a = R._adv || 0;
+    if (a < 1) { ARM.used = 1; const who = ARM.h; C.dndbSpend(ARM.g, who);
+      R._adv = a + 1; R._advWhy = a + 1 > 0 ? ((R._advWhy ? R._advWhy + ', ' : '') + (who === h ? 'удаль' : 'удаль ' + decl(who, 'g'))) : '';
+      try { C.note(ARM.g, who === h ? fill('{name} призывает удаль — и бросает с лёгкой руки.', who) : fill(`{name} подзадоривает ${decl(h, 'a')}: удаль одна на двоих.`, who)); } catch (e) {} } }
+  return rc0.apply(this, arguments);
+};
+if (C.bestCheck) { const bc0 = C.bestCheck; C.bestCheck = function (g) {
+  const s = g && g.dndb, hid = s && s.arm, h = hid && g.heroes ? heroes(g).find(x => x.id === hid && x.w2insp) : null;
+  if (!h) { if (s && s.arm) s.arm = null; return bc0.apply(this, arguments); }
+  const prev = ARM; ARM = {g, h, used: 0};
+  try { return bc0.apply(this, arguments); } finally { ARM = prev; }
+}; }
+
+/* ---------- бой: удаль на удар или спасбросок; поднять павшего товарища ---------- */
+if (B) {
+  const armOf = u => !!(u && u.inspArm && u.ref && u.ref.w2insp && u.kind !== 'monster');
+  const useArm = (S, u, what) => { u.inspArm = 0; if (u.ref) u.ref.w2insp = 0; (S.inspUsed = S.inspUsed || {})[u.id] = 1;
+    B.log(S, `${u.name} — удаль: ${what} с преимуществом.`, 'buff', `удаль: ${what} с преимуществом`); };
+  let CUR = null;
+  const at0 = B.attack; B.attack = function (S, u) { const prev = CUR; CUR = {u, first: true}; try { return at0.apply(this, arguments); } finally { CUR = prev; } };
+  const ad0 = B.advOf; if (ad0) B.advOf = function (S, u) { const r = ad0.apply(this, arguments);
+    if (!CUR || CUR.u !== u || !CUR.first || !armOf(u)) return r; CUR.first = false;
+    if (r.a > 0) return r; // и так с преимуществом — удаль бережётся
+    useArm(S, u, 'удар');
+    const A = (r.A || []).concat('удаль'), D = r.D || [], a = D.length ? 0 : 1;
+    return Object.assign({}, r, {a, A, why: a > 0 ? 'преимущество: ' + A.join(', ') : `преимущество и помеха гасят друг друга (${A.concat(D).join(', ')})`}); };
+  const sv0 = B.saveRoll; B.saveRoll = function (u) {
+    const r = sv0.apply(this, arguments); if (r || !armOf(u)) return r;
+    const S = CUR_S; if (S) useArm(S, u, 'спасбросок'); else { u.inspArm = 0; if (u.ref) u.ref.w2insp = 0; }
+    return sv0.apply(this, arguments); };
+  let CUR_S = null; // поле боя для журнала спасброска: ставится на ход
+  const st0 = B.startTurn; if (st0) B.startTurn = function (S) { CUR_S = S; return st0.apply(this, arguments); };
+  const nx0 = B.next; if (nx0) B.next = function (S) { CUR_S = S; return nx0.apply(this, arguments); };
+  /* поднять павшего: перевязка вышла или зелье подняло */
+  const lift = (S, u, t, was) => { try { if (!u || !t || u === t || u.kind === 'monster' || !u.ref || !was) return;
+    if ((t.stable || !t.down) && hasBond(u.ref, 'comrade') && !u.ref.w2insp) { u.ref.w2insp = 1; B.log(S, `${u.name} не бросил${u.ref.sex === 'f' ? 'а' : ''} товарища — и в груди взыграла удаль.`, 'buff', 'удаль: привязанность «Товарища в беде не брошу»'); }
+  } catch (e) {} };
+  const bd0 = B.bandage; if (bd0) B.bandage = function (S, u, t) { const was = !!(t && t.down && !t.dead && !t.stable); const r = bd0.apply(this, arguments); lift(S, u, t, was); return r; };
+  const po0 = B.potion; if (po0) B.potion = function (S, u, t) { const was = !!(t && t.down && !t.dead); const r = po0.apply(this, arguments); lift(S, u, t, was); return r; };
+  /* кнопка в бою */
+  const bp0 = B.bfPanel; B.bfPanel = function (S, u) {
+    const out = bp0 ? bp0.apply(this, arguments) || [] : [];
+    try { if (u && u.side === 'party' && !u.ai && u.ref && u.kind !== 'monster' && u.ref.kind !== 'merc' && (u.ref.w2insp || u.inspArm)) {
+      out.push(u.inspArm ? {k: 'dndb_insp', label: 'Удаль наготове', dis: 'Следующий удар или спасбросок пойдёт с преимуществом.', grp: 'Удаль'}
+        : {k: 'dndb_insp', label: 'Призвать удаль', title: 'Не тратит хода: следующий удар или спасбросок — с преимуществом', grp: 'Удаль'}); } } catch (e) {}
+    return out; };
+  const bo0 = B.bfOp; B.bfOp = function (S, u, a) {
+    if (a && a.k === 'dndb_insp') { if (!u || !u.ref || !u.ref.w2insp) return 'Удали нет.'; if (u.inspArm) return 'Удаль уже наготове.';
+      u.inspArm = 1; B.log(S, `${u.name} собирается с духом: удаль наготове.`, 'buff', 'удаль: следующий удар или спасбросок — с преимуществом'); return ''; }
+    return bo0 ? bo0.apply(this, arguments) : 'Так нельзя.'; };
+}
+/* родной край: где чей дом */
+const REG_PPL = {dw: ['nolgrim', 'loss'], as: ['nolgrim', 'loss'], ed: ['imperets'], imp: ['imperets'], tk: ['terak', 'gorets'], pod: ['gorets', 'terak'], wd: ['loss'],
+  step: ['stepnyak'], par: ['parnass'], ber: ['yuzhnober'], sw: ['nolgrim'], sea: ['yuzhnober']};
+const atHome = (g, h) => { const n = node(g);
+  if (n) { const o = C.originOf && C.originOf(h), home = o && NODES[o.home]; return (home && home.reg === n.reg) || (REG_PPL[n.reg] || []).includes(h.people); }
+  if (C.homeOf && !isFree(g)) { const p = C.homeOf(g); return p === h.people || (p === 'terak' && h.people === 'gorets'); }
+  return false; };
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, Sx) {
+  const r = be0.apply(this, arguments);
+  try { (Sx && Sx.units || []).forEach(u => { u.inspArm = 0; });
+    Object.keys((Sx && Sx.inspUsed) || {}).forEach(id => { const h = (g.heroes || []).find(x => x.id === id); if (h) h.w2insp = 0; });
+    if (r && r.won && g && g.heroes) heroes(g).filter(h => hasBond(h, 'kray') && atHome(g, h)).forEach(h => C.dndbGrant(g, h, 'bond', 'b:kray'));
+  } catch (e) {}
+  return r; }; }
+
+/* ---------- сцены: призвать удаль, слабость, кров у своих, зацепки безделушек ---------- */
+const STAT_RX = /\((Сила|Ловкость|Телосложение|Мудрость|Интеллект|Очарование)[,)\s]/;
+const FAITH_RX = /помол|поклон|обряд|треб|жертв|возжечь|свеч|дар (богам|звезде|Оку)|принести дар|оставить дар|воздать|благослов/i;
+const choiceAdd = (sc, list) => { let i = sc.choices.length ? Math.max(...sc.choices.map(c => c.i)) + 1 : 0;
+  const out = sc.choices.slice(), k = out.findIndex(c => /^(Уйти на карту|Уйти|Назад|На карту|На дорогу)/.test(c.label || ''));
+  out.splice(k < 0 ? out.length : k, 0, ...list.map(c => Object.assign({i: i++, label: c.t}, c))); sc.choices = out; };
+const costOk = (g, F) => !F.cost.coin || (g.purse || 0) >= F.cost.coin * 10 * lvl(g);
+const payFlaw = (g, h, F) => { const c = F.cost || {};
+  if (c.coin) g.purse = Math.max(0, (g.purse || 0) - c.coin * 10 * lvl(g));
+  if (c.drunk) h.drunk = (h.drunk || 0) + c.drunk;
+  if (c.hurt) h.hp = Math.max(1, (h.hp || 1) - (1 + Math.floor(R.rand() * 4)));
+  if (c.time && C.pass) C.pass(g, c.time);
+  if (c.deed && C.nravDeed) C.nravDeed(g, c.deed, {key: 'dndb_flaw|' + h.id + '|' + g.day}); };
+const weakFor = (g, sc) => { const s = S(g);
+  for (const h of heroes(g)) { const F = h.dndb && FLAW[h.dndb.flaw]; if (!F || h.w2insp || !F.bg.includes(sc.bg)) continue;
+    if (s.wk[h.id] != null && (g.day || 1) - s.wk[h.id] < K().WEAK_GAP) continue;
+    if (hsh(`${g.day}|${sc.id}|${g.loc}|${h.id}|${F.id}`) % 100 >= K().WEAK_P) continue;
+    if (!costOk(g, F)) continue;
+    return {h, F}; }
+  return null; };
+const said = (g, sc) => { const s = S(g); if (s.said && s.said.sc === sc.id && s.said.day === g.day) sc.lines = sc.lines.concat([['n', s.said.t]]); };
+if (C.sceneOf) { const so0 = C.sceneOf; C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  if (!sc || !g || !g.heroes || !Array.isArray(sc.choices) || !Array.isArray(sc.lines)) return sc;
+  try {
+    const s = S(g), hs = heroes(g), add = [];
+    said(g, sc);
+    // 1. удаль у броска
+    if (sc.choices.some(c => !c.dis && STAT_RX.test(c.label || ''))) {
+      const armed = s.arm && hs.find(h => h.id === s.arm && h.w2insp);
+      if (armed) { sc.lines = sc.lines.concat([['n', fill('Удаль у {name:g} наготове: за что {он|она} ни возьмётся следом — пойдёт с преимуществом.', armed)]]);
+        add.push({t: `Поберечь удаль — ${armed.name}`, own: armed.id, free: 1, dndb: 'arm0', do: g2 => { S(g2).arm = null; return id; }}); }
+      else hs.filter(h => h.w2insp).slice(0, K().ARM_MAX).forEach(h => add.push({t: `Призвать удаль — ${h.name}: следующая попытка с преимуществом`, own: h.id, free: 1, dndb: 'arm',
+        do: g2 => { const hh = heroes(g2).find(x => x.id === h.id); if (hh && hh.w2insp) S(g2).arm = hh.id; return id; }}));
+    }
+    // 2. слабость берёт своё
+    const W = weakFor(g, sc);
+    if (W) add.push({t: `Поддаться слабости — ${W.h.name}: ${sx(W.F.ch, W.h.sex)}`, own: W.h.id, free: 1, dndb: 'weak', do: g2 => {
+      const hh = heroes(g2).find(x => x.id === W.h.id); if (!hh) return id; const F = W.F;
+      payFlaw(g2, hh, F); S(g2).wk[hh.id] = g2.day || 1; const t = fill(F.say, hh);
+      C.note(g2, t); S(g2).said = {sc: id, day: g2.day, t}; C.dndbGrant(g2, hh, 'flaw', 'flaw', {force: true}); return id; }});
+    // 3. кров у своих (Вечный мир)
+    const n = id === 'free_place' ? node(g) : null;
+    if (n) hs.forEach(h => { const f = C.dndbFeat(h); if (!f || f.kind !== 'roof' || !atOk(f, n) || add.some(c => c.dndb === 'roof')) return;
+      const ok = s.roof[h.id] == null || (g.day || 1) - s.roof[h.id] >= K().ROOF_GAP;
+      add.push({t: `Заночевать у своих — ${f.who} (${h.name})`, dndb: 'roof', ...(ok ? {} : {dis: 'свои уже принимали вас на днях'}), do: g2 => {
+        const hh = heroes(g2).find(x => x.id === h.id); if (!hh) return id; S(g2).roof[hh.id] = g2.day || 1;
+        const p0 = g2.purse, gold0 = C.alive(g2).map(x => [x, x.gold || 0]), t0 = C._innTier;
+        if (C.INN_BY) C._innTier = C.INN_BY.peasant || t0;
+        try { C.lodge(g2, 0, n.name || 'У своих'); } finally { C._innTier = t0; }
+        g2.purse = Math.max(g2.purse, p0); gold0.forEach(([x, v]) => { if ((x.gold || 0) < v) x.gold = v; });
+        const t = fill(`${cap(f.who)} узнают {name:a} и денег не берут: «Свои — значит, свои». ${sx(f.n, hh.sex)}.`, hh); C.note(g2, t); S(g2).said = {sc: id, day: g2.day, t}; return id; }}); });
+    // 4. зацепки безделушек
+    hs.forEach(h => { const tk = h.dndb && TRK[h.dndb.trk], hk = tk && tk.hook; if (!hk || s.hk[h.id + '|' + tk.k] || !(h.inv || []).includes(trkId(tk.k))) return;
+      const here = (hk.bg || []).includes(sc.bg) || (n && ((hk.kinds || []).includes(n.kind) || (hk.ids || []).includes(g.loc)));
+      if (!here) return;
+      add.push({t: `Показать: ${tk.n.toLowerCase()} (${h.name})`, own: h.id, free: 1, dndb: 'hook', do: g2 => {
+        const hh = heroes(g2).find(x => x.id === h.id); if (!hh) return id; S(g2).hk[hh.id + '|' + tk.k] = 1;
+        let t = fill(hk.t, hh); const rum = C.taleRumor ? (() => { try { return C.taleRumor(g2); } catch (e) { return null; } })() : null;
+        if (rum) t += ' А ещё, говорят, ' + rum;
+        C.note(g2, t); S(g2).said = {sc: id, day: g2.day, t};
+        if (hasBond(hh, 'veshch')) C.dndbGrant(g2, hh, 'thing', 'b:veshch'); return id; }}); });
+    if (add.length) choiceAdd(sc, add);
+  } catch (e) { if (typeof console !== 'undefined') console.error(e); }
+  return sc; }; }
+
+/* ---------- выбор: свои люди, вера ---------- */
+if (C.choose) { const ch0 = C.choose; C.choose = function (g, sceneId, idx) {
+  if (!g || !g.heroes) return ch0.apply(this, arguments);
+  ensureAll(g);
+  const s = S(g); if (s.said && !(s.said.sc === sceneId && s.said.day === g.day)) s.said = null;
+  const help0 = JSON.stringify((g.w2orig && g.w2orig.help) || {}), grace0 = heroes(g).map(h => [h, h.d1g && h.d1g.god]);
+  // вера: обряд у капища или в храме Ока — только если кому-то это дорого
+  let faith = null;
+  if (heroes(g).some(h => !h.w2insp && (hasBond(h, 'bogi') || hasBond(h, 'oko')))) { try { const sc = C.sceneOf(g, sceneId), ch = sc && sc.choices.find(c => c.i === idx);
+    if (ch && !ch.dis && !ch.dndb && FAITH_RX.test(ch.label || '')) faith = sc.bg === 'church' ? 'oko' : ['shrine', 'kurgan'].includes(sc.bg) || /капищ|идол|жертвен/i.test(ch.label || '') ? 'bogi' : /звезд|Ок[аеу]/.test(ch.label || '') ? 'oko' : null; } catch (e) {} }
+  const r = ch0.apply(this, arguments);
+  try {
+    const help1 = JSON.stringify((g.w2orig && g.w2orig.help) || {});
+    if (help1 !== help0 && C.ORIGINS) { const h0 = JSON.parse(help0), h1 = JSON.parse(help1);
+      Object.keys(h1).filter(k => h1[k] !== h0[k]).forEach(oid => { const hs = heroes(g).filter(h => h.origin === oid); hs.forEach(h => C.dndbGrant(g, h, 'roots', 'roots')); bondGrant(g, 'kin', hs, 'b:kin'); }); }
+    grace0.forEach(([h, god]) => { if (h.d1g && h.d1g.god && h.d1g.god !== god) { if (h.d1g.god === 'oko') bondGrant(g, 'oko', [h]); else bondGrant(g, 'bogi', [h]); } });
+    if (faith) bondGrant(g, faith);
+  } catch (e) {}
+  return r; }; }
+
+/* ---------- окно героя: передать удаль, переписать черты ---------- */
+if (C.abil) { const ab0 = C.abil; C.abil = function (g, h, arg) {
+  const m = /^dndb_(give|set):(.+)$/.exec(arg || ''); if (!m) return ab0.apply(this, arguments);
+  if (!h || h.kind === 'merc') return {err: 'не тот герой'};
+  if (m[1] === 'give') { const to = heroes(g).find(x => x.id === m[2]); const e = C.dndbGive(g, h, to); if (e) return {err: e}; return {ok: true, text: `${h.name} отдаёт удаль: теперь она у ${decl(to, 'g')}.`}; }
+  const [k, v] = m[2].split(':'); C.dndbEnsure(g, h);
+  if (!BY[k] || !BY[k][v]) return {err: 'такого нет'};
+  if (!h.dndb.free) return {err: 'черты уже переписаны'};
+  if (!C.dndbOpts(h)[k].some(o => o.id === v)) return {err: 'не к лицу герою'};
+  h.dndb[k] = v; h.dndb.free = 0; delete h.dndb.dflt;
+  const nm = {ideal: 'правда', bond: 'привязанность', flaw: 'слабость'}[k];
+  C.note(g, fill(`{name} думает о себе честно и по-новому: ${nm} — «${sx(BY[k][v].t, h.sex)}».`, h));
+  return {ok: true, text: `${cap(nm)} ${h.name}: «${sx(BY[k][v].t, h.sex)}».`}; }; }
+
+/* ---------- HTML: окно героя ---------- */
+C.dndbSheet = function (g, h, can) {
+  if (!h || h.kind === 'merc') return '';
+  if (g && g.heroes && (!h.dndb || !h.dndb.got) && heroes(g).includes(h)) C.dndbEnsure(g, h);
+  const T = C.dndbTraits(h); if (!T) return '';
+  const has = C.dndbHas(h), f = C.dndbFeat(h), N = x => `«${esc(sx(x.t, h.sex))}»`;
+  const rows = [
+    `<div class="note dndb-u ${has ? 'on' : ''}"><b>Удаль:</b> ${has ? 'есть. Призвать её можно перед любой попыткой — в сцене выбором «Призвать удаль», в бою кнопкой: попытка пойдёт с преимуществом. Можно и отдать товарищу.' : 'нет. Она приходит, когда герой поступает по своей правде, верен тому, что ему дорого, своей мечте и корням, а иногда — когда даёт волю слабости.'}</div>`,
+    T.ideal ? `<div class="note"><b>Правда:</b> ${N(T.ideal)} — удаль, когда ${esc(C.DNDB_CODE_WHEN[T.ideal.code] || '')}.</div>` : '',
+    T.bond ? `<div class="note"><b>Привязанность:</b> ${N(T.bond)} — удаль, когда ${esc(T.bond.when)}.</div>` : '',
+    T.flaw ? `<div class="note"><b>Слабость:</b> ${N(T.flaw)}. Иногда она сама зовёт поддаться — дорого, зато удало.</div>` : '',
+    f ? `<div class="note"><b>Корни дают:</b> «${esc(sx(f.n, h.sex))}». ${esc(sx(f.t, h.sex))}</div>` : '',
+    T.trk ? `<div class="note"><b>Безделушка:</b> ${esc(T.trk.n)}. ${esc(T.trk.d)}</div>` : ''];
+  let btns = '';
+  if (can && has && g && g.heroes) { const to = heroes(g).filter(x => x !== h && !x.w2insp && (!g.net || !g.net.own || g.net.own[x.id]));
+    if (to.length) btns += `<div class="row" style="gap:4px;flex-wrap:wrap;margin-top:4px">${to.map(x => `<button class="btn small" data-abil="dndb_give:${esc(x.id)}" data-h="${esc(h.id)}" title="Удаль перейдёт к товарищу">Передать удаль: ${esc(x.name)}</button>`).join('')}</div>`; }
+  if (can && h.dndb && h.dndb.free) { const O = C.dndbOpts(h), nm = {ideal: 'Правда', bond: 'Привязанность', flaw: 'Слабость'};
+    btns += `<details class="dndb-ch" style="margin-top:4px"><summary class="note" style="cursor:pointer">Переписать правду, привязанность или слабость — один раз, даром</summary>${['ideal', 'bond', 'flaw'].map(k => `<div class="note" style="margin-top:4px"><b>${nm[k]}:</b></div><div class="row" style="gap:4px;flex-wrap:wrap">${O[k].map(o => `<button class="btn small ${h.dndb[k] === o.id ? 'on' : ''}" data-abil="dndb_set:${k}:${o.id}" data-h="${esc(h.id)}" ${h.dndb[k] === o.id ? 'disabled' : ''}>${esc(o.t)}</button>`).join('')}</div>`).join('')}</details>`; }
+  return `<div class="dndb" style="margin:6px 0 4px"><h4 class="jh">Правда, привязанность, слабость</h4>${rows.join('')}${btns}</div>`;
+};
+/* ---------- HTML: окно создания героя ---------- */
+C.dndbCreateHTML = function (hl, d) {
+  const O = C.dndbOpts(hl), f = C.dndbFeat(hl), t = TRK[d && d.trk];
+  const sel = (k, lab) => `<label for="c-dnd-${k}">${lab}</label><select id="c-dnd-${k}" data-dnd="${k}">${O[k].map(o => `<option value="${esc(o.id)}" ${d && d[k] === o.id ? 'selected' : ''}>${esc(o.t)}</option>`).join('')}</select>`;
+  return `${sel('ideal', 'Правда героя')}${sel('bond', 'Привязанность')}${sel('flaw', 'Слабость')}
+    <div style="display:flex;gap:6px;margin-top:6px;align-items:center"><button class="btn small" type="button" id="c-dndroll" title="Правда, привязанность и слабость — как ляжет">Бросить кости</button><span class="note" style="margin:0">Поступки по ним дают удаль.</span></div>
+    ${t ? `<p class="note" style="margin:6px 0 0"><b>Безделушка в суме:</b> ${esc(t.n)}. ${esc(t.d)} <button class="btn small" type="button" id="c-dndtrk">Другая</button></p>` : ''}
+    ${f ? `<p class="note" style="margin:4px 0 0"><b>Корни дают:</b> «${esc(sx(f.n, hl.sex))}». ${esc(sx(f.t, hl.sex))}</p>` : ''}`;
+};
+
+/* ---------- старые сохранения и новые герои: черты и безделушка ---------- */
+if (C.load) { const ld0 = C.load; C.load = function () { const g = ld0.apply(this, arguments); try { if (g && g.heroes && !g.net) ensureAll(g); } catch (e) {} return g; }; }
+if (C.addHero) { const ah0 = C.addHero; C.addHero = function (g, h) { const r = ah0.apply(this, arguments); try { if (g && h && h.kind !== 'merc') C.dndbEnsure(g, h); } catch (e) {} return r; }; }
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
