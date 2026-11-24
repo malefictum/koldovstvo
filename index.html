@@ -28156,9 +28156,11 @@ R.check = function (h, stat, skill, dc) { const r = ck0(h, stat, skill, dc); if 
 /* новый герой — с харчем на три дня */
 const nh0 = R.newHero;
 R.newHero = function (o) { const h = nh0(o); for (let i = 0; i < 7; i++) h.inv.push('harch_v_dorogu_na_den_suhari_vyalenoe_myaso'); return h; };
+/* стол с едой и кухарка — только в самой корчме, не в разговорах и заданиях, что там идут (Ник 24.11) */
+C.foodHub = (g, id) => { if (/^(folk_tavern|korchma|vorony|tavern|inn|tavern_food)$/.test(id)) return true; try { const c = C.CAMPS[g.camp], n = c && c.map && c.map.nodes && c.map.nodes[g.loc]; return !!(n && n.scene === id); } catch (e) { return false; } };
 /* в любой корчме можно взять харч в дорогу: каждый себе, из своего кошеля */
 { const so0 = C.sceneOf; const HARCH = 'harch_v_dorogu_na_den_suhari_vyalenoe_myaso';
-  C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments); if (!sc || C.FOOD_OFF || !(sc.bg === 'tavern' || (sc.raw && sc.raw.bg === 'tavern'))) return sc;
+  C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments); if (!sc || C.FOOD_OFF || !(sc.bg === 'tavern' || (sc.raw && sc.raw.bg === 'tavern')) || !(C.foodHub ? C.foodHub(g, id) : true)) return sc;
     const pr = (R.item(HARCH) || {price: 50}).price; let i = sc.choices.length ? Math.max(...sc.choices.map(c => c.i)) + 1 : 0;
     C.alive(g).forEach(h => [3, 7].forEach(n => { const cost = pr * n;
       sc.choices.push({i: i++, label: `${C.alive(g).length > 1 ? h.name + ': ' : ''}взять харч в дорогу на ${n} ${n < 5 ? 'дня' : 'дней'} — ${R.priceText(cost)} (сейчас еды на ${C.foodDays(h)} дн.)`.replace(/^./, c => c.toUpperCase()), own: h.id, dis: g.purse < cost ? 'не хватает серебра' : null,
@@ -30410,7 +30412,7 @@ if (drop0) C.dropOf = function (u, g) { const out = drop0.apply(this, arguments)
 /* ---------- корчма: всё про еду — одной кнопкой ---------- */
 const so0 = C.sceneOf;
 C.sceneOf = function (g, id) {
-  const sc = so0.apply(this, arguments); if (!sc || C.FOOD_OFF || !(sc.bg === 'tavern' || (sc.raw && sc.raw.bg === 'tavern'))) return sc;
+  const sc = so0.apply(this, arguments); if (!sc || C.FOOD_OFF || !(sc.bg === 'tavern' || (sc.raw && sc.raw.bg === 'tavern')) || !(C.foodHub ? C.foodHub(g, id) : true)) return sc;
   // харч из food.js переезжает в отдельный стол
   sc.choices = sc.choices.filter(c => !/^(.*: )?взять харч в дорогу на \d/i.test(c.label || ''));
   if (id === 'tavern_food') return sc;
@@ -49910,7 +49912,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611242134"></script><script>
+</script><script src="world.js?v=202611242139"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
