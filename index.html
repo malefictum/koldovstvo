@@ -49509,7 +49509,7 @@ BF.fromPlace = function (o) {
 
 G.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611241911"></script><script>
+</script><script src="world.js?v=202611241913"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -55568,4 +55568,144 @@ Object.assign(window.__kldv, {rest: kind => { closeModal(); const e = C.restOpen
 ready.then(() => { showTitle(); });
 window.addEventListener('pagehide', save);
 })();
+/* trinka_ui.js */
+/* Колдовство — тринька: сцена «Стол» в корчме (браузер). Логика и ИИ — trinka.js (сцена trk_table отдаёт raw.trk — вид стола).
+   ui.js в showScene зовёт window.__trkUI(id, sc, H), если у сцены есть raw.trk; H — помощники ui (выбор, лица, фон).
+   Стол сверху: четыре места с лицами и именами, карты героя открыты, чужие — рубашкой, банк монетами; под столом — ходы
+   («Сбросить», «Поддержать», «Повысить…», «Вскрыться», «Встать из-за стола»), справа (на телефоне — ниже) — лог раздачи.
+   Фигуры — картинки колоды (img/cards: лубочная для сёл, боярская для городов), числовые карты и тузы рисуются тут же. */
+(function () {
+'use strict';
+const SUIT = {S: '♠', H: '♥', D: '♦', C: '♣'}, RED = {H: 1, D: 1};
+const RANK = {T: '10', J: 'В', Q: 'Д', K: 'К', A: 'Т'};
+const PIPS = { // положения мастей на поле карты, в долях
+  6: [[.27, .12], [.73, .12], [.27, .5], [.73, .5], [.27, .88], [.73, .88]],
+  7: [[.27, .12], [.73, .12], [.5, .31], [.27, .5], [.73, .5], [.27, .88], [.73, .88]],
+  8: [[.27, .12], [.73, .12], [.5, .31], [.27, .5], [.73, .5], [.5, .69], [.27, .88], [.73, .88]],
+  9: [[.27, .1], [.73, .1], [.27, .37], [.73, .37], [.5, .5], [.27, .63], [.73, .63], [.27, .9], [.73, .9]],
+  10: [[.27, .1], [.73, .1], [.5, .24], [.27, .37], [.73, .37], [.27, .63], [.73, .63], [.5, .76], [.27, .9], [.73, .9]],
+};
+const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;'}[c]));
+const price = v => (window.R && R.priceText ? R.priceText(v) : v + ' мм');
+let CSS = false, LAST = {n: 0, key: ''}, RAISE = false;
+function css() {
+  if (CSS) return; CSS = true;
+  const st = document.createElement('style'); st.id = 'trk-css';
+  st.textContent = `
+.trk{display:grid;grid-template-columns:minmax(0,1fr) minmax(270px,360px);grid-template-rows:auto 1fr;align-content:start;gap:12px 18px;padding:12px 18px 22px;background:radial-gradient(ellipse at 40% 30%,#2c2117,var(--night) 70%)}
+.trk-head{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 16px;border-bottom:1px solid rgba(201,163,92,.35);padding-bottom:6px}
+.trk-head h2{margin:0;font:400 clamp(22px,3.4vw,32px)/1.1 var(--t-display);color:var(--brass-2)}
+.trk-head .pl{color:var(--paper-2);font-size:14px}.trk-head .st{margin-left:auto;color:#e8dcc0;font-size:13.5px}
+.trk-felt{position:relative;border-radius:46% / 38%;background:radial-gradient(ellipse at 50% 45%,#5a3d22,#3b2818 62%,#271a10);border:6px solid #1c130c;box-shadow:inset 0 0 0 2px var(--rim),inset 0 6px 30px rgba(0,0,0,.6),0 10px 30px rgba(0,0,0,.55);
+  display:grid;grid-template-columns:1fr auto 1fr;grid-template-rows:auto 1fr auto;gap:8px;padding:16px 22px;min-height:440px;align-items:center;justify-items:center}
+.trk-seat{display:flex;flex-direction:column;align-items:center;gap:3px;max-width:200px;text-align:center;position:relative}
+.trk-seat .who{display:flex;align-items:center;gap:7px;background:rgba(20,14,8,.72);border:1px solid var(--rim);border-radius:8px;padding:4px 9px 4px 4px;text-align:left}
+.trk-seat canvas.face{width:46px!important;height:46px!important;border-radius:6px;border:1px solid var(--brass);background:#2a2016;flex:none}
+.trk-seat .nm{font:600 14px/1.15 var(--t-text);color:var(--brass-2)}.trk-seat .sb{font-size:11.5px;color:#d9ccaf;line-height:1.2}.trk-seat .mn{font-size:12px;color:#f0e3c2}
+.trk-seat.turn .who{border-color:var(--brass-2);box-shadow:0 0 0 2px rgba(231,201,131,.45),0 0 14px rgba(231,201,131,.35)}
+.trk-seat.fold .cards,.trk-seat.gone{opacity:.45}.trk-seat .tag{font:600 11px var(--t-label);letter-spacing:.04em;color:#f5d58c;min-height:13px}
+.trk-seat .said{font:italic 12.5px/1.25 var(--t-text);color:#f3e7cb;background:rgba(236,224,196,.1);border-radius:8px;padding:3px 8px;max-width:190px}
+.trk-s1{grid-column:1;grid-row:2;justify-self:start}.trk-s2{grid-column:2;grid-row:1}.trk-s3{grid-column:3;grid-row:2;justify-self:end}.trk-s0{grid-column:2;grid-row:3}
+.trk-mid{grid-column:2;grid-row:2;display:flex;flex-direction:column;align-items:center;gap:6px}
+.trk-pot{position:relative;width:120px;height:62px}.trk-pot i{position:absolute;width:26px;height:26px;border-radius:50%;box-shadow:inset 0 -3px 0 rgba(0,0,0,.35),0 2px 3px rgba(0,0,0,.6)}
+.trk-pot i.cu{background:radial-gradient(circle at 35% 30%,#f0b27a,#a0522d 70%)}.trk-pot i.ag{background:radial-gradient(circle at 35% 30%,#fff,#9aa3ad 70%)}.trk-pot i.au{background:radial-gradient(circle at 35% 30%,#fff2b0,#c7961f 70%)}
+.trk-pv{font:600 14px var(--t-label);color:var(--brass-2);text-shadow:0 1px 3px #000;text-align:center}.trk-pv small{display:block;font:12px var(--t-text);color:#e3d6b8}
+.cards{display:flex;gap:4px}.trk-s0 .cards{gap:8px}
+.tc{--cw:46px;width:var(--cw);height:calc(var(--cw) * 1.49);border-radius:calc(var(--cw) * .08);position:relative;flex:none;box-shadow:0 2px 5px rgba(0,0,0,.6);overflow:hidden;color:#1d1a17;font-family:var(--t-label)}
+.trk-s0 .tc{--cw:78px}
+.tc.face{background:var(--pp,#e5e0ce);border:1px solid #6d5a40}
+.tc.lubok-1850{--pp:#d8ccb2}.tc.russian-style{--pp:#e8e2cf}
+.tc.face::before{content:"";position:absolute;inset:calc(var(--cw) * .05);border:1px solid rgba(120,60,30,.55);border-radius:calc(var(--cw) * .05);pointer-events:none}
+.tc.russian-style::before{border-color:rgba(160,120,40,.7);box-shadow:inset 0 0 0 1px rgba(160,120,40,.25)}
+.tc.red{color:#a3241c}
+.tc .ix{position:absolute;left:calc(var(--cw) * .07);top:calc(var(--cw) * .05);font-size:calc(var(--cw) * .2);line-height:.95;text-align:center;font-weight:700}
+.tc .ix b{display:block;font-size:calc(var(--cw) * .17)}.tc .ix.r{left:auto;top:auto;right:calc(var(--cw) * .07);bottom:calc(var(--cw) * .05);transform:rotate(180deg)}
+.tc .pp{position:absolute;inset:calc(var(--cw) * .2) calc(var(--cw) * .17)}.tc .pp span{position:absolute;transform:translate(-50%,-50%);font-size:calc(var(--cw) * .22);line-height:1}
+.tc .pp span.dn{transform:translate(-50%,-50%) rotate(180deg)}
+.tc .ace{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);font-size:calc(var(--cw) * .62);line-height:1}
+.tc .ace::after{content:"";position:absolute;left:50%;top:52%;width:calc(var(--cw) * .82);height:calc(var(--cw) * .82);transform:translate(-50%,-50%);border-radius:50%;border:1px dashed currentColor;opacity:.35}
+.tc.fig{background-size:cover;background-position:center}
+.tc.back{background-size:cover;background-position:center;border:1px solid #2b1d10}
+.tc.none{visibility:hidden}
+.trk-side{display:flex;flex-direction:column;gap:10px;min-width:0}
+.trk-acts{display:grid;gap:7px}.trk-acts .btn{text-align:center}.trk-acts .btn[disabled]{opacity:.45;cursor:default}
+.trk-raise{display:flex;flex-wrap:wrap;gap:6px}.trk-raise .btn{flex:1 1 auto;font-size:14px;padding:7px 8px}
+.trk-score{font:600 14px var(--t-label);color:var(--brass-2);text-align:center}
+.trk-log{background:rgba(236,224,196,.06);border:1px solid rgba(107,85,55,.7);border-radius:8px;padding:8px 10px;max-height:330px;overflow:auto;font-size:14px;line-height:1.35}
+.trk-log p{margin:0 0 5px}.trk-log p.o{color:#f0e3c2}.trk-log p.o b{color:var(--brass-2);font-weight:600}.trk-log p.n{color:#cfc2a5}
+.trk-log p.nw{animation:trkIn .45s ease-out both}
+@keyframes trkIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+.trk-res{background:rgba(236,224,196,.08);border:1px solid var(--rim);border-radius:8px;padding:8px 10px;display:grid;gap:6px;font-size:14px}
+.trk-res h3{margin:0;font:400 18px var(--t-display);color:var(--brass-2)}.trk-res .r{display:flex;gap:8px;align-items:center}
+.trk-res canvas.face{width:34px!important;height:34px!important;border-radius:5px;border:1px solid var(--rim);flex:none}
+@media (max-width:760px){
+  .trk{grid-template-columns:1fr;grid-template-rows:none;grid-auto-rows:auto;align-content:start;padding:8px 10px 18px;gap:8px;height:auto;min-height:100%;box-sizing:border-box}
+  .trk-head .st{margin-left:0;font-size:12.5px}
+  .trk-felt{min-height:auto;align-items:start;padding:10px 8px;border-radius:26px;border-width:4px;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto auto;gap:6px}
+  .trk-s1{grid-column:1;grid-row:1;justify-self:center}.trk-s2{grid-column:2;grid-row:1}.trk-s3{grid-column:3;grid-row:1;justify-self:center}
+  .trk-mid{grid-column:1/-1;grid-row:2}.trk-s0{grid-column:1/-1;grid-row:3}
+  .trk-seat .who{flex-direction:column;padding:3px;gap:2px;text-align:center;width:100%;box-sizing:border-box}
+  .trk-seat canvas.face{width:40px!important;height:40px!important}.trk-seat .nm{font-size:12.5px}.trk-seat .sb{font-size:10.5px}
+  .trk-s0 .who{flex-direction:row;text-align:left}
+  .tc{--cw:30px}.trk-s0 .tc{--cw:64px}.trk-seat .said{font-size:11px;max-width:118px}
+  .trk-pot{width:96px;height:44px}.trk-pot i{width:20px;height:20px}
+  .trk-log{max-height:220px;font-size:13px}
+}`;
+  document.head.appendChild(st);
+}
+/* карта: фигура — картинкой колоды, остальное — кодом */
+function card(c, deck, back) {
+  if (c === undefined) return '<div class="tc none"></div>';
+  if (!c) return `<div class="tc back" style="background-image:url(img/cards/back-${back}.webp)"></div>`;
+  const r = c[0], s = c[1], red = RED[s] ? ' red' : '';
+  if ('JQK'.includes(r)) return `<div class="tc fig" style="background-image:url(img/cards/${deck}-${r}${s}.webp)" title="${esc(RANK[r] + SUIT[s])}"></div>`;
+  const ix = `<div class="ix"><span>${RANK[r] || r}</span><b>${SUIT[s]}</b></div><div class="ix r"><span>${RANK[r] || r}</span><b>${SUIT[s]}</b></div>`;
+  if (r === 'A') return `<div class="tc face ${deck}${red}">${ix}<div class="ace">${SUIT[s]}</div></div>`;
+  const n = r === 'T' ? 10 : +r;
+  const pp = (PIPS[n] || []).map(([x, y]) => `<span class="${y > 0.55 ? 'dn' : ''}" style="left:${x * 100}%;top:${y * 100}%">${SUIT[s]}</span>`).join('');
+  return `<div class="tc face ${deck}${red}">${ix}<div class="pp">${pp}</div></div>`;
+}
+function coins(pot, ante) {
+  if (!pot) return '';
+  const n = Math.max(1, Math.min(14, Math.round(2 + 3 * Math.log2(Math.max(1, pot / Math.max(1, ante)))))), out = [];
+  for (let k = 0; k < n; k++) { const col = k % 5, row = Math.floor(k / 5), kind = pot >= 1000 && k % 3 === 0 ? 'au' : pot >= 100 && k % 2 ? 'ag' : 'cu';
+    out.push(`<i class="${kind}" style="left:${8 + col * 20 + (row % 2) * 9}px;top:${30 - row * 12 + (k * 7 % 5)}px"></i>`); }
+  return out.join('');
+}
+const TAG = {fold: 'сбросил', out: '', sit: 'ждёт', in: ''};
+function seatHTML(V, s, H) {
+  const turn = V.turn === s.i && !['end', 'between'].includes(V.phase);
+  const tag = s.gone ? 'встал из-за стола' : turn ? (s.hero ? 'ваш ход' : 'ходит') : s.st === 'fold' ? (s.sex === 'f' ? 'сбросила' : 'сбросил') : s.st === 'sit' ? 'не в сваре' : '';
+  const cards = s.cards ? s.cards.map(c => card(c, V.deck, V.back)).join('') : [0, 1, 2].map(() => card(undefined)).join('');
+  return `<div class="trk-seat trk-s${s.i}${turn ? ' turn' : ''}${s.st === 'fold' ? ' fold' : ''}${s.gone ? ' gone' : ''}" data-seat="${s.i}">
+    <div class="who">${H.faceHTML(s.face)}<div><div class="nm">${esc(s.name)}</div>${s.sub ? `<div class="sb">${esc(s.sub)}</div>` : ''}<div class="mn">${esc(price(s.money))}</div></div></div>
+    <div class="tag">${esc(tag)}</div><div class="cards">${cards}</div>${s.score ? `<div class="trk-score">${esc(s.score)}</div>` : ''}${!s.hero && s.said ? `<div class="said">«${esc(s.said)}»</div>` : ''}</div>`;
+}
+window.__trkUI = function (id, sc, H) {
+  const V = sc.raw && sc.raw.trk; if (!V) return false;
+  css();
+  const main = document.getElementById('main'); if (!main) return false;
+  const ch = sc.choices || [];
+  const raise = ch.filter(c => c.trk === 'raise'), rest = ch.filter(c => c.trk !== 'raise');
+  const key = V.hands + '|' + V.phase;
+  const btn = c => `<button class="btn${/^(call|open|deal|sit|catch|svara_re|svjoin|back|fight)$/.test(c.trk) ? ' primary' : ''}" data-tch="${c.i}"${c.dis ? ` disabled title="${esc(c.dis)}"` : ''}>${esc(c.label)}</button>`;
+  let acts = '';
+  rest.forEach(c => { acts += btn(c); if (c.trk === 'call' && raise.length) acts += `<button class="btn" id="trk-up">Повысить…</button><div class="trk-raise"${RAISE ? '' : ' hidden'}>${raise.map(r => `<button class="btn" data-tch="${r.i}">${esc(r.label.replace(/^Повысить до /, 'до '))}</button>`).join('')}</div>`; });
+  const me = V.seats[0];
+  const logN = V.log.length, fresh = LAST.key === sc.title ? Math.max(0, logN - LAST.n) : 0; LAST = {n: logN, key: sc.title};
+  const log = V.log.map((l, k) => `<p class="${l.k === 'o' ? 'o' : 'n'}${k >= logN - fresh ? ' nw' : ''}"${k >= logN - fresh ? ` style="animation-delay:${(k - (logN - fresh)) * 0.18}s"` : ''}>${l.k === 'o' ? `<b>${esc(l.who)}:</b> «${esc(l.text)}»` : esc(l.text)}</p>`).join('');
+  const res = V.phase === 'end' && V.res ? `<div class="trk-res"><h3>Игра окончена</h3><div>${esc(V.res.head)}</div>${V.res.rel.map(r => `<div class="r">${H.faceHTML(r.face)}<span>${esc(r.text)}</span></div>`).join('')}${V.res.lines.map(x => `<div>${esc(x)}</div>`).join('')}${V.res.favor ? `<div>${esc(V.res.favor)}</div>` : ''}</div>` : '';
+  const seats = V.seats.map(s => (s.i === 0 && V.phase === 'seat' ? '' : seatHTML(V, s, H))).join('');
+  main.innerHTML = `<div class="screen trk" data-trk="1">
+    <div class="trk-head"><h2>Тринька</h2><span class="pl">${esc(V.place ? 'корчма, ' + V.place : 'корчма')}</span><span class="st">Вход ${esc(price(V.ante))} · ставка ${esc(price(V.stake))} · потолок ${esc(price(V.ceil))}</span></div>
+    <div class="trk-felt">${seats}<div class="trk-mid"><div class="trk-pot">${coins(V.pot, V.ante)}</div><div class="trk-pv">${V.pot ? 'Банк: ' + esc(price(V.pot)) : 'Банк пуст'}<small>${V.hands ? 'раздача ' + V.hands : ''}</small></div></div></div>
+    <div class="trk-side">${res}<div class="trk-acts">${acts}</div><div class="trk-log" id="trk-log">${log}</div></div></div>`;
+  H.paintFaces(main);
+  const lg = document.getElementById('trk-log'); if (lg) lg.scrollTop = lg.scrollHeight;
+  const up = document.getElementById('trk-up'); if (up) up.onclick = () => { RAISE = !RAISE; const r = main.querySelector('.trk-raise'); if (r) r.hidden = !RAISE; };
+  main.querySelectorAll('[data-tch]').forEach(b => b.onclick = () => { if (b.disabled) return; RAISE = false; H.choose(+b.dataset.tch); });
+  return true;
+};
+})();
+
 </script>

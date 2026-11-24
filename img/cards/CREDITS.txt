@@ -1,0 +1,10 @@
+Карты для триньки (src/trinka_ui.js). Взяты из общего модуля колод Malefictum (cards.json, CREDITS.md), уменьшены до 200x298.
+Числовые карты (6-10) и тузы рисует сама игра кодом в стиле колоды.
+
+lubok-1850-*.webp     — колода «Лубочная», сер. XIX в., ручная раскраска, неизвестный мастер. Public domain.
+                        Источник: BnF Gallica btv1b10537197m через Wikimedia Commons. Плашки индексов — Malefictum, 2026.
+russian-style-*.webp  — колода «Русский стиль (боярская)», ок. 1900, Императорская карточная фабрика (по эскизам А. Шарлеманя).
+                        Public domain. Источник: BnF Gallica btv1b10511068r через Wikimedia Commons. Плашки индексов — Malefictum, 2026.
+back-ua-rushnyk.webp  — рубашка «Рушник», своя работа Malefictum, 2026.
+back-dondorf-russian.webp — рубашка Dondorf «Русский стиль», кон. XIX в. Public domain.
+                        Источник: Wikimedia Commons, File:Russian style card back.jpg
