@@ -69918,7 +69918,7 @@ const isFree = g => !!(g && g.camp === 'free' && g.heroes);
 const nodes = g => (g && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || FREE.map.nodes;
 const nodeHere = g => (g && !g.pos && nodes(g)[g.loc]) || null;
 /* доп. кампании (Ник 24.11): прогулка и в их сёлах и городах — карта мест, не гексы */
-const isSaga = g => !!(g && g.heroes && g.camp !== 'free' && !g.net && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes);
+const isSaga = g => !!(g && g.heroes && g.camp !== 'free' && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes);
 const lvl = g => Math.max(1, C.partyLevel ? C.partyLevel(g) : 1);
 const price = v => (R.priceText ? R.priceText(v) : v + ' мм');
 const decl = (n, sex) => { try { return (Q.decl ? Q.decl(n, sex) : null) || {n, g: n, d: n, a: n, i: n, p: n}; } catch (e) { return {n, g: n, d: n, a: n, i: n, p: n}; } };
