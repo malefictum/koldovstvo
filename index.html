@@ -2221,7 +2221,7 @@ B.backScore = function (S, u, x, need, live, mates, front) {
     const inR = need.ts.some(t => { const d = B.dist(x, t); return d <= need.rg && (d <= 1 || !B.los || B.los(S, x, t)); });
     if (inR) v += 20; else v -= 2 * Math.max(0, Math.min(...need.ts.map(t => B.dist(x, t))) - need.rg);
   }
-  if (x.c === 0 || x.r === 0 || x.c === S.field.w - 1 || x.r === S.field.h - 1) v -= 3;
+  if (B.BF && B.BF.edgeCell ? B.BF.edgeCell(S.field, x) : (x.c === 0 || x.r === 0 || x.c === S.field.w - 1 || x.r === S.field.h - 1)) v -= 3;
   return v - 0.3 * (x.cost || 0);
 };
 B.backSpot = function (S, u, need) {
@@ -33899,6 +33899,23 @@ C.sceneOf = function (g, id) {
 };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* faces_age.js */
+/* Колдовство — лица по возрасту. Война — дело молодых: наёмникам, наследникам и сопернику не достаются лица
+   старух, стариков и детей (их лица — для торговок, волхвов, хозяек, сирот). Уже нанятых не трогаем: их лицо — часть ключа
+   человека (C.mercKey «Имя|лицо»), по нему держатся отношения и летопись. */
+(function (G) {
+const R = G.R, C = G.C;
+  C.FACE_ELDER = ['pa04', 'p18', 'p46', 'p15', 'p24', 'p40', 'pa15', 'pb14', 'pb15'];
+  C.FACE_KID = ['pb13', 'p47', 'pb06', 'p37'];
+  C.fightFaces = sex => { const all = sex === 'f' ? (C.PORTRAITS_F || []) : (C.PORTRAITS_M || []);
+    const ok = all.filter(p => !C.FACE_ELDER.includes(p) && !C.FACE_KID.includes(p)); return ok.length ? ok : all; };
+  const hs = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+  C.fightFace = (sex, key) => { const L = C.fightFaces(sex); return L[hs(key) % L.length]; };
+  const bad = p => C.FACE_ELDER.includes(p) || C.FACE_KID.includes(p);
+  if (C.makeRoadMerc) { const m0 = C.makeRoadMerc; C.makeRoadMerc = function (g) { const m = m0.apply(this, arguments);
+    try { if (m && bad(m.portrait)) m.portrait = C.fightFace(m.sex, m.id + m.name); } catch (e) {} return m; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* estate.js */
 /* Колдовство — хозяйство отряда: владения «насовсем» (на всю кампанию). Без DOM.
    • g.estate = [{id, kind, node, level, day, acc, store, last, steward, payDay, trouble, blight, invested}] — надел с избой,
@@ -44221,7 +44238,7 @@ const VIS = new WeakMap();
 BF.vis = function (S) {
   if (!isFog(S)) return null;
   const ps = S.units.filter(u => u.side === 'party' && !u.dead && !u.gone && u.c != null && !u.down);
-  const stamp = ps.map(u => u.c + ',' + u.r + (u.torch ? 't' : '') + (u.conds && u.conds.blind ? 'b' : '')).join(';') + '|' + (S.wx ? S.wx.night : '') + '|' + Object.keys(BF.light(S) || {}).length + '|' + (S.fogs || []).length;
+  const stamp = ps.map(u => u.c + ',' + u.r + (u.torch ? 't' : '') + (u.conds && u.conds.blind ? 'b' : '')).join(';') + '|' + (S.wx ? S.wx.night : '') + '|' + Object.keys(BF.light(S) || {}).length + '|' + (S.fogs || []).length + '|' + S.field.w + 'x' + S.field.h + ',' + (S.field.c0 || 0) + ',' + (S.field.r0 || 0);
   const V0 = VIS.get(S); if (V0 && V0.k === stamp) return V0.v;
   const v = {}, F = S.field;
   ps.forEach(u => { const rad = Math.max(BF.SEE_DAY + 2, 0);
@@ -44230,12 +44247,12 @@ BF.vis = function (S) {
   Object.keys(v).forEach(k => { const [c, r] = k.split(',').map(Number); B.neigh(c, r).forEach(p => { const y = B.cell(S, p.c, p.r); if (y && B.LOS_BLOCK[y.t] && !v[key(p.c, p.r)]) v[key(p.c, p.r)] = 2; }); });
   // разведанное
   const W = F.w, H = F.h; let ex = S.bfEx && S.bfEx.length === W * H ? S.bfEx.split('') : Array(W * H).fill('0'), ch = false;
-  Object.keys(v).forEach(k => { const [c, r] = k.split(',').map(Number); const i = r * W + c; if (ex[i] !== '1') { ex[i] = '1'; ch = true; } });
+  Object.keys(v).forEach(k => { const [c, r] = k.split(',').map(Number); const i = (r - (F.r0 || 0)) * W + (c - (F.c0 || 0)); if (ex[i] !== '1') { ex[i] = '1'; ch = true; } });
   if (ch || !S.bfEx) S.bfEx = ex.join('');
   VIS.set(S, {k: stamp, v});
   return v;
 };
-BF.explored = (S, c, r) => { if (!isFog(S)) return true; BF.vis(S); return !!S.bfEx && S.bfEx[r * S.field.w + c] === '1'; };
+BF.explored = (S, c, r) => { if (!isFog(S)) return true; BF.vis(S); return !!S.bfEx && S.bfEx[(r - (S.field.r0 || 0)) * S.field.w + (c - (S.field.c0 || 0))] === '1'; };
 BF.visible = (S, c, r) => { const v = BF.vis(S); return !v || !!v[key(c, r)]; };
 /* враг скрыт туманом от отряда */
 B.bfHidden = function (S, u) {
@@ -44869,7 +44886,7 @@ const WD = new WeakMap();
 const wd0 = B.walkDist;
 B.walkDist = function (S, t) {
   if (!big(S) || !t) return wd0.apply(this, arguments);
-  const k = S.round + ':' + S.cur + ':' + t.c + ',' + t.r + ':' + S.units.filter(u => !u.dead && !u.gone).length;
+  const k = S.round + ':' + S.cur + ':' + t.c + ',' + t.r + ':' + S.units.filter(u => !u.dead && !u.gone).length + ':' + S.field.w + 'x' + S.field.h;
   const c0 = WD.get(S); if (c0 && c0.k === k) return c0.v;
   const v = wd0.apply(this, arguments); WD.set(S, {k, v}); return v;
 };
@@ -46605,7 +46622,625 @@ const bs0 = B.start;
 B.start = function (o) { const S = bs0.apply(this, arguments); LS = S; return S; };
 G.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611241029"></script><script>
+
+/* bf_grow.js */
+/* Колдовство — поле без края (решение Ника: «чтобы у карты не было условно края карты, она догружалась»). Без DOM.
+   Большое поле (field.big) дорастает, когда любой боец (свой или враг) подходит к краю ближе трёх клеток: в ту сторону
+   добавляется полоса — семь столбцов (восток, запад) или восемь рядов (север, юг; чётное число — гексы odd-r не сдвигаются).
+   Расти может в любую сторону сколько угодно; координаты клеток бывают отрицательными: поле — прямоугольник
+   [c0 .. c0+w-1] × [r0 .. r0+h-1] (field.c0, field.r0; у старых полей их нет — значит 0).
+   • Что в новой полосе — чистая функция зерна боя и координат клетки (field.grow): лес — лесом, берег — берегом, болото — болотом,
+     по той же заливке местности, что и у середины поля (BF.FILL) и по тем же секторам: в сторону соседа — его местность.
+     Дорога и река, уходившие за прежний край, тянутся дальше (на реке — броды). Бревна и выворотни в лесу, борть, валун
+     на пригорке, стог в поле — так же редко, как на исходном поле.
+   • Под землёй (подземелье, пещера, курган, погреб — всё, что строит bf_dungeon, и пещеры на карте) за краем каморы —
+     ходы и пещерные полости: узкие извилистые ходы, боковые полости, завалы, кое-где сталагмиты и лужи, темнота;
+     ходы, что уходили за край окна, тянутся дальше, пока не встретят другой ход.
+   • Одинаково у всех: хозяин стола авторитетен и шлёт поле целиком (ui.js, packBattle) — гости получают выросшие полосы
+     вместе с боем. Зерно — свёртка исходного поля, генератор случайностей игры не тратится.
+   • Дальние пустые полосы (там никого нет, ничего не горит и не тронуто) поле не держит, если оно разрослось сверх меры;
+     вернётся кто-нибудь — полоса восстанавливается по зерну той же самой.
+   Подмога с края (bf_reinf) приходит с нынешнего края — из глубины новых полос. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B;
+if (!B || !B.BF) return;
+const BF = B.BF, key = BF.key;
+BF.GROW = {near: 3, cols: 7, rows: 8, maxCells: 4200, keepFar: 12};
+
+/* ---------- границы поля ---------- */
+const C0 = F => F.c0 || 0, R0 = F => F.r0 || 0;
+BF.bounds = F => ({c0: C0(F), r0: R0(F), c1: C0(F) + F.w - 1, r1: R0(F) + F.h - 1});
+BF.edgeCell = (F, x) => { const b = BF.bounds(F); return x.c === b.c0 || x.r === b.r0 || x.c === b.c1 || x.r === b.r1; };
+BF.cellAt = function (F, x, y) { const b = BF.bounds(F); let r = Math.round(y / 1.5); r = Math.max(b.r0, Math.min(b.r1, r)); let c = Math.round(x / Math.sqrt(3) - 0.5 * (r & 1)); c = Math.max(b.c0, Math.min(b.c1, c)); return F.cells[key(c, r)]; };
+/* номер клетки в строке разведанного (S.bfEx) */
+BF.exIdx = (F, c, r) => (r - R0(F)) * F.w + (c - C0(F));
+
+/* ---------- чистые случайности: хэш от зерна и координат ---------- */
+const mix = (h, x) => { h = Math.imul(h ^ (x | 0), 0x9E3779B1); h ^= h >>> 15; h = Math.imul(h, 0x85EBCA77); h ^= h >>> 13; return h >>> 0; };
+const H = function (seed) { let h = seed >>> 0; for (let i = 1; i < arguments.length; i++) h = mix(h, arguments[i]); h = Math.imul(h ^ (h >>> 16), 0x7feb352d); h ^= h >>> 15; return h >>> 0; };
+const U01 = function () { return H.apply(null, arguments) / 4294967296; };
+BF.hash01 = U01;
+function lcg(seed) { let s = (seed >>> 0) || 1; return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; }; }
+/* гладкий шум как BF.vnoise, но от зерна, без сетки-повтора и без общего генератора */
+const noise = (seed, salt, scale) => {
+  const sm = t => t * t * (3 - 2 * t);
+  return (c, r) => { const p = BF.px(c, r), x = p.x / (scale * 1.7), y = p.y / (scale * 1.5), x0 = Math.floor(x), y0 = Math.floor(y), fx = sm(x - x0), fy = sm(y - y0);
+    const a = U01(seed, salt, x0, y0), b = U01(seed, salt, x0 + 1, y0), cc = U01(seed, salt, x0, y0 + 1), d = U01(seed, salt, x0 + 1, y0 + 1);
+    return a + (b - a) * fx + (cc - a) * fy + (a - b - cc + d) * fx * fy; };
+};
+const NZ = new WeakMap();
+const nz = G0 => { let v = NZ.get(G0); if (!v) { v = {n1: noise(G0.seed, 1, 3.2), n2: noise(G0.seed, 2, 1.6), t1: noise(G0.seed, 3, 2.2), t2: noise(G0.seed, 4, 3.6)}; NZ.set(G0, v); } return v; };
+
+/* ---------- что было у исходного края: дорога, река, проход ---------- */
+const CAVE_DG = ['peshchera', 'shakhta'];
+const codeOf = (F, x, under) => !x ? '' : under ? (B.TERRAIN[x.t] && !B.TERRAIN[x.t].block ? 'p' : '') : x.t === 'road' ? 'r' : (x.river && ['water', 'shallow', 'bridge', 'ice'].includes(x.t)) ? 'w' : '';
+/* записать, из чего растить: вызывается раз, при начале боя */
+BF.growInit = function (S) {
+  const F = S && S.field; if (!F || !F.big || F.grow) return;
+  const cells = Object.values(F.cells); let h = 2166136261;
+  cells.slice().sort((a, b) => a.r - b.r || a.c - b.c).forEach(x => { const s = x.t; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); h = Math.imul(h ^ (x.c * 31 + x.r), 16777619); });
+  const gen = (F.bf && F.bf.gen) || {}, dg = F.bf && F.bf.kind === 'dungeon';
+  const under = dg || gen.caveAll || F.bg === 'cave';
+  const W0 = F.w, H0 = F.h, b = BF.bounds(F);
+  const G0 = {seed: h >>> 0, W0, H0, oc: b.c0, or: b.r0, under: !!under, cave: dg ? CAVE_DG.includes(F.bf.dgKind) : !!gen.caveAll,
+    center: gen.center || 'meadow', nb: gen.nb || [], mid: F.mid || {c: b.c0 + Math.floor(W0 / 2), r: b.r0 + Math.floor(H0 / 2)}, e: {E: '', W: '', N: '', S: ''}};
+  for (let r = b.r0; r <= b.r1; r++) { G0.e.E += codeOf(F, F.cells[key(b.c1, r)], under) || '.'; G0.e.W += codeOf(F, F.cells[key(b.c0, r)], under) || '.'; }
+  for (let c = b.c0; c <= b.c1; c++) { G0.e.N += codeOf(F, F.cells[key(c, b.r0)], under) || '.'; G0.e.S += codeOf(F, F.cells[key(c, b.r1)], under) || '.'; }
+  F.grow = G0; if (F.c0 == null) F.c0 = b.c0; if (F.r0 == null) F.r0 = b.r0;
+};
+/* сторона и отход от исходного прямоугольника: только если клетка вне его ровно по одной оси */
+const sideOf = (G0, c, r) => {
+  const inC = c >= G0.oc && c < G0.oc + G0.W0, inR = r >= G0.or && r < G0.or + G0.H0;
+  if (inC === inR) return null;
+  if (!inC) return c >= G0.oc + G0.W0 ? {s: 'E', i: r - G0.or, a: c - (G0.oc + G0.W0 - 1), n: G0.H0} : {s: 'W', i: r - G0.or, a: G0.oc - c, n: G0.H0};
+  return r >= G0.or + G0.H0 ? {s: 'S', i: c - G0.oc, a: r - (G0.or + G0.H0 - 1), n: G0.W0} : {s: 'N', i: c - G0.oc, a: G0.or - r, n: G0.W0};
+};
+const SIDE_N = {E: 0, W: 1, N: 2, S: 3};
+const back = (sd, c, r, k) => sd.s === 'E' ? [c - k, r] : sd.s === 'W' ? [c + k, r] : sd.s === 'S' ? [c, r - k] : [c, r + k];
+
+/* ---------- клетка за прежним краем: на поверхности ---------- */
+function genPlace(G0, c, r) {
+  const x = {c, r, t: 'grass'}, N = nz(G0), FILL = BF.FILL;
+  const p = BF.px(c, r), m = BF.px(G0.mid.c, G0.mid.r), d = BF.dirOf(p.x - m.x, p.y - m.y);
+  let T = G0.nb[d] || G0.center; if (T === 'water') T = G0.center === 'water' ? 'meadow' : G0.center; if (T === 'town' || T === 'water') T = 'meadow';
+  x.tt = T; x.sec = d;
+  const f = (FILL[T] || FILL.meadow)(x, N.n1(c, r), N.n2(c, r), lcg(H(G0.seed, 7, c, r))); if (f) x.t = f;
+  if (T === 'sea') x.t = 'water';
+  const sd = sideOf(G0, c, r);
+  if (sd) { const E = G0.e[sd.s], code = E[sd.i];
+    if (code === 'r') { x.t = 'road'; }
+    else if (code === 'w') { x.t = U01(G0.seed, 9, SIDE_N[sd.s], sd.a) < 0.14 || sd.a % 11 === 5 ? 'shallow' : 'water'; x.river = 1; }
+    else if ((E[sd.i - 1] === 'r' || E[sd.i + 1] === 'r') && ['tree', 'rock', 'pool'].includes(x.t)) x.t = U01(G0.seed, 10, c, r) < 0.3 ? 'brush' : 'grass';
+    else if ((E[sd.i - 1] === 'w' || E[sd.i + 1] === 'w') && (x.t === 'grass' || x.t === 'tree') && U01(G0.seed, 12, c, r) < 0.3) x.t = U01(G0.seed, 13, c, r) < 0.5 ? 'reeds' : 'brush'; }
+  return x;
+}
+/* ---------- клетка за краем под землёй: ходы, полости, завалы ---------- */
+const tunOpen = (G0, c, r) => { const N = nz(G0); return Math.abs(N.t1(c, r) - 0.5) < 0.052 || N.t2(c, r) > (G0.cave ? 0.7 : 0.75); };
+function genUnder(G0, c, r) {
+  const x = {c, r, t: 'wall'};
+  let open = tunOpen(G0, c, r);
+  if (!open) { const sd = sideOf(G0, c, r);
+    // ход, ушедший за край окна, тянется дальше, пока не встретит другой ход
+    if (sd && G0.e[sd.s][sd.i] === 'p' && sd.a <= 22) { open = true; for (let k = 1; k < sd.a; k++) { const [cc, rr] = back(sd, c, r, k); if (sideOf(G0, cc, rr) && tunOpen(G0, cc, rr)) { open = false; break; } } } }
+  if (open) { const k = U01(G0.seed, 14, c, r); x.t = 'floor';
+    if (k < 0.05) x.t = 'rubble'; else if (G0.cave && k < 0.085 && nz(G0).t2(c, r) > 0.72) x.t = 'stalag'; else if (k > 0.986) x.t = 'shallow'; }
+  return x;
+}
+BF.genCell = (G0, c, r) => G0.under ? genUnder(G0, c, r) : genPlace(G0, c, r);
+
+/* ---------- предметы новой полосы: бревна, борть, валун, стог ---------- */
+const blockOf = (G0, c) => c >= G0.oc + G0.W0 ? 'e' + Math.floor((c - G0.oc - G0.W0) / BF.GROW.cols) : c < G0.oc ? 'w' + Math.floor((G0.oc - 1 - c) / BF.GROW.cols) : 'o';
+const PROP_K = {hive: 'hive', boulder: 'boulder'};
+function furnish(F, made) {
+  const G0 = F.grow; if (G0.under) return;
+  const have = {}; made.forEach(x => { have[key(x.c, x.r)] = x; });
+  F.objs = F.objs || []; F.props = F.props || [];
+  made.forEach(x => {
+    const ev = ((x.c % 2) + 2) % 2 === 0;
+    if (ev && x.tt === 'forest' && x.t === 'grass' && U01(G0.seed, 21, x.c, x.r) < 0.028) { const y = have[key(x.c + 1, x.r)];
+      if (y && y.t === 'grass' && blockOf(G0, x.c) === blockOf(G0, y.c)) BF.obj(F, U01(G0.seed, 22, x.c, x.r) < 0.5 ? 'log' : 'uproot', [x, y], H(G0.seed, 23, x.c, x.r) % 3); }
+  });
+  made.forEach(x => {
+    if (x.o != null) return; const id = 'g' + x.c + '_' + x.r; if (F.props.some(p => p.id === id)) return;
+    const u = U01(G0.seed, 31, x.c, x.r), nb = () => B.neigh(x.c, x.r).map(p => BF.genCell(G0, p.c, p.r));
+    let k = null;
+    if (x.t === 'grass' && x.tt === 'forest' && u < 0.0035 && nb().some(y => y.t === 'tree')) k = 'hive';
+    else if (x.t === 'hill' && u < 0.006 && nb().some(y => y.t !== 'hill' && !B.TERRAIN[y.t].block)) k = 'boulder';
+    else if (x.t === 'grass' && (x.tt === 'field' || x.tt === 'meadow') && u < 0.0012) k = 'hay';
+    if (!k) return;
+    if (PROP_K[k] && BF.PROP_T && BF.PROP_T[k]) x.t = BF.PROP_T[k]; else if (k === 'hay') x.t = 'hay';
+    F.props.push({id, k, c: x.c, r: x.r, st: null, grown: 1});
+  });
+}
+
+/* ---------- разведанное: строка S.bfEx под новый размер ---------- */
+function exRemap(S, ob) {
+  const F = S.field; if (!S.bfEx) return;
+  const ow = ob.c1 - ob.c0 + 1, old = S.bfEx, ex = Array(F.w * F.h).fill('0');
+  for (let i = 0; i < old.length; i++) { if (old[i] !== '1') continue; const c = ob.c0 + (i % ow), r = ob.r0 + Math.floor(i / ow);
+    if (c < F.c0 || c >= F.c0 + F.w || r < F.r0 || r >= F.r0 + F.h) continue; ex[BF.exIdx(F, c, r)] = '1'; }
+  S.bfEx = ex.join('');
+}
+
+/* ---------- вырастить полосу в сторону side: 'E' | 'W' | 'S' | 'N' ---------- */
+BF.grow = function (S, side) {
+  const F = S.field; if (!F || !F.big) return 0; if (!F.grow) BF.growInit(S);
+  const ob = BF.bounds(F), G0 = F.grow, nc = BF.GROW.cols, nr = BF.GROW.rows;
+  let cs, rs;
+  if (side === 'E') { cs = [ob.c1 + 1, ob.c1 + nc]; rs = [ob.r0, ob.r1]; F.w += nc; }
+  else if (side === 'W') { cs = [ob.c0 - nc, ob.c0 - 1]; rs = [ob.r0, ob.r1]; F.c0 = ob.c0 - nc; F.w += nc; }
+  else if (side === 'S') { cs = [ob.c0, ob.c1]; rs = [ob.r1 + 1, ob.r1 + nr]; F.h += nr; }
+  else if (side === 'N') { cs = [ob.c0, ob.c1]; rs = [ob.r0 - nr, ob.r0 - 1]; F.r0 = ob.r0 - nr; F.h += nr; }
+  else return 0;
+  const made = [];
+  for (let r = rs[0]; r <= rs[1]; r++) for (let c = cs[0]; c <= cs[1]; c++) { const k = key(c, r); if (F.cells[k]) continue; const x = BF.genCell(G0, c, r); F.cells[k] = x; made.push(x); }
+  furnish(F, made);
+  exRemap(S, ob);
+  F.grew = (F.grew || 0) + 1;
+  if (BF.touch) BF.touch(S);
+  BF.trim(S);
+  return made.length;
+};
+/* у края ли кто-нибудь: вернёт стороны, куда расти */
+BF.growNeed = function (S) {
+  const F = S.field, b = BF.bounds(F), n = BF.GROW.near, need = {};
+  S.units.forEach(u => { if (u.dead || u.gone || u.c == null) return;
+    if (u.c - b.c0 < n) need.W = 1; if (b.c1 - u.c < n) need.E = 1; if (u.r - b.r0 < n) need.N = 1; if (b.r1 - u.r < n) need.S = 1; });
+  return Object.keys(need);
+};
+BF.growCheck = function (S) {
+  if (!S || !S.field || !S.field.big || S.noGrow) return 0;
+  if (!S.field.grow) BF.growInit(S);
+  let n = 0;
+  for (let guard = 0; guard < 8; guard++) { const need = BF.growNeed(S); if (!need.length) break; need.forEach(sd => { n += BF.grow(S, sd); }); }
+  return n;
+};
+/* ---------- дальние пустые полосы: не держать сверх меры ---------- */
+BF.trim = function (S) {
+  const F = S.field, G0 = F.grow; if (!G0 || Object.keys(F.cells).length <= BF.GROW.maxCells) return 0;
+  const far = BF.GROW.keepFar, us = S.units.filter(u => !u.gone && u.c != null);
+  const touched = (c, r) => (F.props || []).some(p => p.c === c && p.r === r && p.st) || (S.bfFire || []).some(f => f.c === c && f.r === r) || (S.bfSlick || []).some(f => f.c === c && f.r === r);
+  let cut = 0;
+  for (let pass = 0; pass < 4 && Object.keys(F.cells).length > BF.GROW.maxCells; pass++) {
+    const b = BF.bounds(F), oc1 = G0.oc + G0.W0 - 1, or1 = G0.or + G0.H0 - 1, nc = BF.GROW.cols, nr = BF.GROW.rows;
+    const opts = [];
+    if (b.c1 - nc >= oc1) opts.push({s: 'E', cs: [b.c1 - nc + 1, b.c1], rs: [b.r0, b.r1], d: u => b.c1 - nc + 1 - u.c});
+    if (b.c0 + nc <= G0.oc) opts.push({s: 'W', cs: [b.c0, b.c0 + nc - 1], rs: [b.r0, b.r1], d: u => u.c - (b.c0 + nc - 1)});
+    if (b.r1 - nr >= or1) opts.push({s: 'S', cs: [b.c0, b.c1], rs: [b.r1 - nr + 1, b.r1], d: u => b.r1 - nr + 1 - u.r});
+    if (b.r0 + nr <= G0.or) opts.push({s: 'N', cs: [b.c0, b.c1], rs: [b.r0, b.r0 + nr - 1], d: u => u.r - (b.r0 + nr - 1)});
+    const ok = opts.filter(o => us.every(u => o.d(u) >= far)).map(o => Object.assign(o, {gap: Math.min(99, ...us.map(o.d))})).sort((a, b2) => b2.gap - a.gap);
+    let done = false;
+    for (const o of ok) {
+      let busy = false; for (let r = o.rs[0]; r <= o.rs[1] && !busy; r++) for (let c = o.cs[0]; c <= o.cs[1]; c++) if (touched(c, r)) { busy = true; break; }
+      if (busy) continue;
+      const ob = BF.bounds(F);
+      for (let r = o.rs[0]; r <= o.rs[1]; r++) for (let c = o.cs[0]; c <= o.cs[1]; c++) { const k = key(c, r), x = F.cells[k]; if (!x) continue;
+        if (x.o != null && F.objs[x.o]) { F.objs[x.o].cells.forEach(q => { const y = F.cells[key(q.c, q.r)]; if (y) delete y.o; }); F.objs[x.o] = {t: 'gone', cells: []}; }
+        delete F.cells[k]; }
+      F.props = (F.props || []).filter(p => !(p.c >= o.cs[0] && p.c <= o.cs[1] && p.r >= o.rs[0] && p.r <= o.rs[1]));
+      if (o.s === 'E') F.w -= nc; else if (o.s === 'W') { F.c0 += nc; F.w -= nc; } else if (o.s === 'S') F.h -= nr; else { F.r0 += nr; F.h -= nr; }
+      exRemap(S, ob); cut++; done = true; break;
+    }
+    if (!done) break;
+  }
+  if (cut && BF.touch) BF.touch(S);
+  return cut;
+};
+
+/* ---------- откуда растить: поле из места и камора запоминают, из чего они ---------- */
+const fp0 = BF.fromPlace;
+if (fp0) BF.fromPlace = function (o) { const F = fp0.apply(this, arguments); try { o = o || {}; F.bf.gen = {center: o.center || 'meadow', nb: (o.nb || []).slice(0, 6), caveAll: ['caves', 'deep'].includes(o.kind)}; } catch (e) {} return F; };
+const dg0 = BF.dungeon;
+if (dg0) BF.dungeon = function (d) { const F = dg0.apply(this, arguments); try { F.bf.dgKind = d && d.kind; } catch (e) {} return F; };
+
+/* ---------- когда расти: после каждого шага и на каждом ходу ---------- */
+const mv0 = B.move;
+B.move = function (S) { const r = mv0.apply(this, arguments); try { BF.growCheck(S); } catch (e) { if (G.C && G.C.BF_DEBUG) console.error(e); } return r; };
+const nx0 = B.next;
+B.next = function (S) { try { BF.growCheck(S); } catch (e) {} const r = nx0.apply(this, arguments); try { BF.growCheck(S); } catch (e) {} return r; };
+/* подмога с края: с нынешнего края в ту же сторону — из глубины новых полос */
+const ra0 = BF.reinArrive;
+if (ra0) BF.reinArrive = function (S, g) {
+  try { const F = S.field;
+    if (F && F.grow && g && g.room == null && g.at && g.at.length) {
+      if (g.dir == null) { const m = F.grow.mid, q = BF.px(m.c, m.r); let sx = 0, sy = 0; g.at.forEach(([c, r]) => { const p = BF.px(c, r); sx += p.x - q.x; sy += p.y - q.y; }); g.dir = BF.dirOf(sx, sy); }
+      // из самой глубины в ту сторону: край, что дальше всех по направлению
+      const a = BF.DIR_ANG[g.dir] * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a), m = F.grow.mid, q = BF.px(m.c, m.r), far = ([c, r]) => { const p = BF.px(c, r); return (p.x - q.x) * ux + (p.y - q.y) * uy; };
+      const at = BF.edgeToward(F, g.dir).sort((x, y) => far(y) - far(x)).slice(0, 10); if (at.length) g.at = at;
+    } } catch (e) {}
+  const r = ra0.apply(this, arguments); try { BF.growCheck(S); } catch (e) {} return r;
+};
+G.B = B;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* bf_escape.js */
+/* Колдовство — побег с большого поля (решение Ника: «для побега нужно было лишь скрыться от всех убежав на рывке и потом
+   нажать СБЕЖАТЬ»; «это касается и пещер и прочего»). Без DOM.
+   • «Сбежать» — основное действие героя на большом поле, когда: его не видит ни один враг (обзор, туман, укрытия, темнота,
+     затаился, невидим — bf_sight; не ждущие врага в скрытном подходе не видят), рядом нет врага и до ближайшего врага
+     не меньше шести шагов. Звери-следопыты (волки, кабаны, медведи, барсы, псы, песьеглавцы — у кого острый слух или чутьё
+     в бестиарии) ещё три шага после того, как потеряли героя из виду, чуют его — считаются видящими.
+     Упавшего соседа (при смерти) сбежавший уносит с собой. Бой кончен, когда на поле не осталось стоящих героев, а кто-то
+     сбежал; наёмники и союзники уходят следом (flee.js).
+   • Под землёй сбежавший уходит в соседнюю камору — в ту, к чьему ходу он ближе (в сторону, куда ушёл); если рядом ступени
+     наверх — наверх, как прежде (bf_start).
+   • Погоня: сбежал, а враги в последний свой ход не видели героя (ни один, ни на одном шаге) — погони нет; иначе — погоня по карте.
+   • Враги бегут так же: дрогнувший (мораль) или трус (bf_ai) не пропадает сразу и не ищет край, а уходит прочь бегом
+     (u.bfRout); потеряв из виду всех героев и отойдя не меньше чем на шесть шагов — исчезает с поля. Не бьёт, не держит
+     соседство. Когда стоят одни бегущие — бой выигран, они разбежались; опыт за них — как за бежавших.
+   • Конный отрывается легче за счёт шагов — особых правил нет.
+   Старое малое поле (без field.big) — по-старому: уйти с края. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!B || !B.BF) return;
+const BF = B.BF, key = BF.key;
+const big = S => !!(S && S.field && S.field.big);
+const pick = a => a[Math.floor(R.rand() * a.length)];
+const nameOf = u => String((u && u.name) || '').split(',')[0];
+BF.ESC = {far: 6, scent: 3};
+const stealthQuiet = S => !!(S.stealth && S.stealth.on && !S.stealth.alarm);
+
+/* ---------- кто следопыт: чутьё и острый слух ---------- */
+const TRACK_RE = /острый слух|чует|чутьё|чутье|нюх|по запаху|читает следы/i;
+const TRACK_ID = /volk|pyos|pesyeglav|gonch|hort/;
+BF.tracker = function (u) {
+  if (!u || u.side === 'party' && !u.enthralled) return false;
+  const m = u.ref || {}, id = String(m.id || '');
+  if (u.bfTrack != null) return !!u.bfTrack;
+  return TRACK_ID.test(id) || (m.specials || []).some(s => TRACK_RE.test(s));
+};
+
+/* ---------- видит ли враг f героя h (обзор, темнота, укрытие, затаился, невидим) ---------- */
+BF.foeSees = function (S, f, h, at) {
+  if (!f || !h || f.c == null || h.c == null || !B.active(f) || f.bfRout) return false;
+  const cs = f.conds || {};
+  if (cs.blind || cs.charm || cs.sleep || cs.held && cs.held.para || f.bfUnaware) return false;
+  const p = at || h;
+  if (B.dist(f, p) <= 1) return true;
+  if (h.conds && h.conds.hidden && !at) return false;
+  if (h.fx && h.fx.invis && !(f.fx && (f.fx.seeInvis || f.fx.soulSight))) return false;
+  const x = B.cell(S, p.c, p.r); if (!x) return false;
+  return BF.sees ? BF.sees(S, f, x) : (!B.los || B.los(S, f, p));
+};
+/* память врагов: где последний раз видели героя (для чутья) и когда (для погони) */
+const remember = function (S, path) {
+  if (!big(S) || S.over) return;
+  const foes = S.units.filter(f => f.side === 'foe' && B.active(f) && !f.bfRout && f.c != null && !f.bfUnaware);
+  const ps = S.units.filter(h => h.side === 'party' && !h.dead && !h.gone && h.c != null);
+  if (!foes.length || !ps.length) return;
+  S.bfScent = S.bfScent || {};
+  foes.forEach(f => { const tr = BF.tracker(f);
+    ps.forEach(h => {
+      let at = null;
+      if (BF.foeSees(S, f, h)) at = {c: h.c, r: h.r};
+      else if (path && path.u === h && path.cells && path.cells.length) { for (let i = path.cells.length - 1; i >= 0; i--) { const q = path.cells[i]; if (BF.foeSees(S, f, h, q)) { at = {c: q.c, r: q.r}; break; } } }
+      if (!at) return;
+      h.bfSeenT = S.bfTick || 0;
+      if (tr) { const m = S.bfScent[f.id] = S.bfScent[f.id] || {}; m[h.id] = [at.c, at.r]; }
+    }); });
+};
+BF.remember = remember;
+/* чует ли зверь-следопыт героя: не дальше трёх шагов от места, где потерял его из виду */
+BF.smells = function (S, f, h) {
+  if (!BF.tracker(f) || !B.active(f) || f.bfRout || f.bfUnaware) return false;
+  const m = S.bfScent && S.bfScent[f.id] && S.bfScent[f.id][h.id]; if (!m) return false;
+  return B.dist(h, {c: m[0], r: m[1]}) <= BF.ESC.scent;
+};
+/* кто из врагов видит (или чует) героя */
+BF.watchers = function (S, h) {
+  return S.units.filter(f => f.side !== h.side && B.active(f) && f.c != null && !f.bfRout && (BF.foeSees(S, f, h) || BF.smells(S, f, h)));
+};
+
+/* ---------- «Сбежать» ---------- */
+const fw0 = B.fleeWhy;
+B.fleeWhy = function (S, u) {
+  if (!big(S) || !u) return fw0.apply(this, arguments);
+  if (S.noFlee) return 'Отсюда не уйти.';
+  if (S.acted) return 'Основное действие уже потрачено.';
+  if (u.side !== 'party') return 'Некому.';
+  const en = B.enemiesOf(S, u).filter(e => e.c != null && !e.bfRout);
+  if (en.some(e => B.dist(e, u) <= 1)) return 'Рядом враг: повернёшься спиной — зарубят. Сперва оторвись от него.';
+  if (en.some(e => B.dist(e, u) < BF.ESC.far)) return 'Враги слишком близко: оторвись хотя бы на шесть шагов — рывком, если надо.';
+  remember(S);
+  const w = BF.watchers(S, u);
+  if (w.some(f => BF.foeSees(S, f, u))) return `${nameOf(w.find(f => BF.foeSees(S, f, u)))} тебя видит. Скройся с глаз: за деревья, в кусты, в темноту — и тогда беги.`;
+  if (w.length) return `${nameOf(w[0])} идёт по запаху: чует, где тебя видели. Отбеги подальше — на три шага и больше.`;
+  return '';
+};
+/* куда под землёй: камора, к чьему ходу ближе (или ступени наверх) */
+BF.dgExitFor = function (S, u) {
+  const bf = S.field.bf || {}; if (bf.kind !== 'dungeon') return null;
+  const here = B.cell(S, u.c, u.r); if (here && here.room != null && here.room !== bf.room) return here.room;
+  const opts = Object.entries(bf.exits || {}).map(([k, to]) => { const [c, r] = k.split(',').map(Number); return {c, r, to: +to}; })
+    .concat((bf.stairs || []).filter(k => !(bf.exits || {})[k]).map(k => { const [c, r] = k.split(',').map(Number); return {c, r, to: -1}; }));
+  if (!opts.length) return -1;
+  return opts.sort((a, b) => B.dist(a, u) - B.dist(b, u) || a.to - b.to)[0].to;
+};
+const fl0 = B.flee;
+B.flee = function (S, u) {
+  if (!big(S) || !u) return fl0.apply(this, arguments);
+  remember(S);
+  const seenRecently = u.bfSeenT != null && u.bfSeenT >= (u.bfPrevT != null ? u.bfPrevT : -1);
+  const exit = BF.dgExitFor(S, u);
+  const n0 = S.log.length;
+  const r = fl0.apply(this, arguments);
+  if (exit != null) u.bfExit = exit;
+  u.bfTracked = seenRecently || BF.watchers(S, u).length > 0 ? 1 : 0;
+  // слова: не «за край», а «скрылся»
+  const L = S.log.slice(n0).reverse().find(l => l.cls === 'flee');
+  if (L) { const fallen = S.units.find(x => x.carried && x.side === u.side && x.gone && !x._escSaid); if (fallen) fallen._escSaid = 1;
+    const dg = S.field.bf && S.field.bf.kind === 'dungeon';
+    L.t = fallen ? pick([`${nameOf(u)} взваливает ${nameOf(fallen)} на плечи и скрывается${dg ? ' в темноте хода' : ''}.`, `${nameOf(u)} утаскивает ${nameOf(fallen)} прочь, пока никто не смотрит.`])
+      : dg ? pick([`${nameOf(u)} ныряет в темноту хода — и шаги стихают.`, `${nameOf(u)} уходит во тьму, не оглядываясь.`])
+        : pick([`${nameOf(u)} скрывается из виду и уходит.`, `${nameOf(u)}, пока никто не смотрит, уходит прочь.`, `Только ветки качнулись — ${nameOf(u)} ушёл.`.replace('ушёл', (u.sex || (u.ref && u.ref.sex)) === 'f' ? 'ушла' : 'ушёл')]);
+    L.n = 'сбежал'; }
+  return r;
+};
+/* бой кончился побегом: никто не видел, куда ушли, — погони нет */
+const ce0 = B.checkEnd;
+B.checkEnd = function (S) {
+  if (S.over) return ce0.apply(this, arguments);
+  if (big(S)) {
+    // одни бегущие на поле — разбежались, бой выигран
+    const fighters = S.units.filter(x => x.side === 'foe' && B.active(x) && !x.conds.charm && !x.bfRout && !(x.enthralled && !x.enthralled.own && x.enthralled.side0 !== 'foe'));
+    const run = S.units.filter(x => x.side === 'foe' && B.active(x) && x.bfRout);
+    const enthr = S.units.some(x => x.enthralled && !x.enthralled.own && x.enthralled.side0 === 'foe' && B.active(x));
+    if (!fighters.length && run.length && !enthr) { run.forEach(x => { x.gone = true; x.fled = true; }); B.log(S, run.length > 1 ? 'Остальные разбегаются кто куда.' : `${nameOf(run[0])} убегает, и его уже не догнать.`, 'flee'); }
+  }
+  const was = S.over, res = ce0.apply(this, arguments);
+  if (!was && S.over === 'fled' && big(S)) { const esc = S.units.filter(x => x.side === 'party' && x.kind === 'hero' && x.escaped && !x.carried);
+    if (esc.length && esc.every(x => !x.bfTracked)) { S.bfSlipped = 1; const L = S.log[S.log.length - 1]; if (L && /ушёл с поля/.test(L.t)) L.t = 'Отряд ушёл незамеченным: никто не видел, куда.'; } }
+  return res;
+};
+
+/* ---------- память ходов: счётчик ходов, прошлый ход героя, кто кого видел ---------- */
+const nx0 = B.next;
+B.next = function (S) {
+  try { if (big(S) && !S.over) remember(S); } catch (e) {}
+  const r = nx0.apply(this, arguments);
+  try { if (big(S) && !S.over) { S.bfTick = (S.bfTick || 0) + 1; const u = B.current(S); if (u && u.side === 'party') { u.bfPrevT = u.bfCurT != null ? u.bfCurT : S.bfTick; u.bfCurT = S.bfTick; } remember(S); } } catch (e) {}
+  return r;
+};
+const mv0 = B.move;
+B.move = function (S, u) {
+  const r = mv0.apply(this, arguments);
+  try { if (big(S) && u) remember(S, u.side === 'party' && u.lastPath ? {u, cells: u.lastPath} : null); } catch (e) {}
+  return r;
+};
+
+/* ---------- враги бегут так же: видимо и честно ----------
+   Дрогнувший (мораль) или трус (bf_ai, нрав «трус») не исчезает, а убегает по полю: каждый свой ход рывком прочь от героев,
+   к укрытию — в лес, за избы, к воде и в камыши, в темноту, под землёй — в ход. Над ним подпись «бежит» (u.conds.running).
+   Бросает лишнее: человек — щит или тюк с добычей (S.bfDrops; после победы подобрать). Раненый бежит медленнее.
+   Бегущего бьют вдогонку (он не отходит осторожно), хватают, валят («Повалить»), подстреливают; человеку можно крикнуть «Стой!»
+   (Запугивание — сдаётся). Исчезает, когда ни один герой его не видит и до ближайшего не меньше шести шагов.
+   Сбежавший может вернуться с подмогой (если подмога ещё в пути). Вожак, пока стоит, раз за бой окриком возвращает часть беглецов. */
+const isPerson = x => !!(x && x.kind === 'monster' && !x.undead && /люди|дикари|племена|горцы|Подземья|Империи|Ока/.test((x.ref && x.ref.group) || x.group || ''));
+const isBeast = x => ((x.ref && x.ref.group) || x.group) === 'звери';
+const partyUp = S => S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null);
+const lostAll = (S, u) => {
+  const ps = partyUp(S);
+  if (!ps.length) return true;
+  if (ps.some(h => B.dist(h, u) < BF.ESC.far)) return false;
+  return !ps.some(h => BF.foeSees(S, Object.assign({}, h, {bfRout: 0, bfUnaware: 0}), u));
+};
+/* куда бежит: слово для летописи по клетке, куда прибежал */
+const whereTo = (S, x) => {
+  const F = S.field, around = [x].concat(B.neigh(x.c, x.r).map(p => B.cell(S, p.c, p.r))).filter(Boolean), has = ts => around.some(y => ts.includes(y.t));
+  if (F.bf && F.bf.kind === 'dungeon') return 'dg';
+  if (has(['tree', 'brush', 'uproot'])) return 'wood';
+  if (has(['house', 'fence', 'shelter', 'hay', 'barrels', 'wood'])) return 'yard';
+  if (has(['water', 'shallow', 'reeds', 'pool'])) return 'water';
+  if ((F.night || (S.wx && S.wx.night)) && BF.lit && !BF.lit(S, x)) return 'dark';
+  return 'away';
+};
+const RUN_T = {
+  beast: {wood: ['{X} ломится в чащу.', '{X} уходит в кусты, только треск стоит.'], yard: ['{X} мечется за плетни.'], water: ['{X} бросается к воде.', '{X} уходит в камыши.'], dark: ['{X} уходит в темноту.'], dg: ['{X} кидается в тёмный ход.'], away: ['{X} поджимает хвост и бежит прочь.', '{X} уходит прочь, оглядываясь.']},
+  man: {wood: ['{X} бежит к лесу.', '{X} ломится через кусты.'], yard: ['{X} бежит за избы.', '{X} прячется за плетнём и бежит дальше.'], water: ['{X} бежит к воде.', '{X} лезет в камыши.'], dark: ['{X} бежит в темноту.'], dg: ['{X} бежит в тёмный ход.', '{X} ныряет в ход, только шаги гулко стучат.'], away: ['{X} бежит прочь, не оглядываясь.', '{X} улепётывает через поле.']},
+};
+const runLine = (S, u, x, drop) => { const k = whereTo(S, x), set = isBeast(u) || !isPerson(u) ? RUN_T.beast : RUN_T.man; let t = pick(set[k] || set.away).replace('{X}', nameOf(u));
+  if (drop) t = `${nameOf(u)} бросает ${drop} и ${t.replace(nameOf(u) + ' ', '').replace(/^бежит/, 'бежит')}`; return t; };
+BF.routStart = function (S, x, quiet) {
+  if (!x || x.bfRout || !B.active(x)) return;
+  x.bfRout = 1; x.conds = x.conds || {}; x.conds.running = 1; delete x.conds.ready;
+  if (x.conds.grappling && B.U(S, x.conds.grappling)) { const t = B.U(S, x.conds.grappling); if (t && t.conds) delete t.conds.grappled; delete x.conds.grappling; }
+  // бросает лишнее: щит или тюк с добычей (человек)
+  if (isPerson(x) && !x.summonLeft && R.rand() < 0.45) { const shield = R.rand() < 0.5; S.bfDrops = S.bfDrops || [];
+    S.bfDrops.push({c: x.c, r: x.r, k: shield ? 'shield' : 'pack', lvl: x.level || x.lvl || 1}); x.bfDrop = shield ? 'щит' : 'тюк с добычей'; if (shield) x.def = (x.def || 10) - 1; }
+  if (!quiet && x.bfDrop) { B.log(S, `${nameOf(x)} бросает ${x.bfDrop} — бежать налегке.`, 'flee'); x.bfRunSaid = 1; }
+};
+BF.routStop = function (S, x) { if (!x) return; delete x.bfRout; if (x.conds) delete x.conds.running; };
+BF.routGone = function (S, u) {
+  u.gone = true; u.fled = true; BF.routStop(S, u);
+  B.log(S, pick([`${nameOf(u)} скрывается из виду — только ветки качнулись.`, `${nameOf(u)} убегает, и его уже не догнать.`, `${nameOf(u)} пропадает из виду.`]).replace('ветки качнулись', S.field.bf && S.field.bf.kind === 'dungeon' ? 'шаги стихли в ходе' : 'ветки качнулись'), 'flee', 'сбежал');
+  // вернётся с подмогой, если та ещё в пути
+  try { const gr = (S.bfRein || []).find(g => g.side === 'foe' && (g.state === 'wait' || g.state === 'come') && g.foes && g.foes.length < 5);
+    if (gr && u.ref && u.ref.id && u.kind === 'monster' && !u.undead) { gr.foes.push(u.ref.id); u.bfBack = gr.id; } } catch (e) {}
+};
+const mo0 = B.morale;
+B.morale = function (S) {
+  if (!big(S)) return mo0.apply(this, arguments);
+  const before = new Set(S.units.filter(x => x.side === 'foe' && B.active(x)).map(x => x.id));
+  const r = mo0.apply(this, arguments);
+  // кто дрогнул и «исчез» — на поле остаётся и бежит (сдавшиеся — как были)
+  S.units.forEach(x => { if (before.has(x.id) && x.gone && x.fled && !x.waSurr && !x.dead && x.c != null && x.summonLeft == null) { x.gone = false; x.fled = false; BF.routStart(S, x); } });
+  return r;
+};
+/* оценка клетки для бегущего: подальше от героев, в укрытие, с глаз долой */
+const hideAt = (S, x) => { const T = B.TERRAIN[x.t] || {}; let v = T.cover ? 2 : 0;
+  if (B.neigh(x.c, x.r).some(p => { const y = B.cell(S, p.c, p.r); return y && B.LOS_BLOCK[y.t]; })) v += 2;
+  if (B.neigh(x.c, x.r).some(p => { const y = B.cell(S, p.c, p.r); return y && ['water', 'shallow', 'reeds', 'pool'].includes(y.t); })) v += 1;
+  if (x.cor != null) v += 2; if ((S.field.night || (S.wx && S.wx.night)) && BF.lit && !BF.lit(S, x)) v += 2; return v; };
+BF.routTurn = function (S, u) {
+  if (lostAll(S, u)) { BF.routGone(S, u); S.acted = true; return; }
+  // схвачен или сбит — сперва вырваться и встать
+  if (u.conds.grappled && B.gripOf && B.gripOf(S, u)) { if (B.breakFree) B.breakFree(S, u); S.acted = true; return; }
+  if (u.conds.prone) { delete u.conds.prone; S.moved += Math.ceil(u.steps / 2); B.log(S, `${nameOf(u)} вскакивает с земли.`, ''); }
+  const ps = partyUp(S);
+  if (!S.acted && B.dash) { const m0 = S.moved; B.dash(S, u, false); if (S.log.length && /бегом|срывается|прыжков/.test(S.log[S.log.length - 1].t)) S.log.pop(); void m0; }
+  if (u.hp < u.hpMax * 0.5) S.moved += Math.ceil(u.steps / 3); // раненый бежит медленнее
+  const reach = B.reach(S, u); let best = null;
+  const seenBy = x => ps.some(h => BF.foeSees(S, Object.assign({}, h, {bfRout: 0, bfUnaware: 0}), u, x));
+  for (const k in reach) { const x0 = reach[k]; if (B.unitAt(S, x0.c, x0.r) && !(x0.c === u.c && x0.r === u.r)) continue; const x = B.cell(S, x0.c, x0.r); if (!x) continue;
+    const dn = ps.length ? Math.min(...ps.map(h => B.dist(h, x0))) : 9;
+    const v = Math.min(dn, 14) * 3 + hideAt(S, x) * 1.5 + (dn >= BF.ESC.far && !seenBy(x0) ? 14 : 0) - (x0.cost || 0) * 0.1;
+    if (!best || v > best.v) best = {c: x0.c, r: x0.r, v}; }
+  if (best && (best.c !== u.c || best.r !== u.r)) {
+    B.move(S, u, best.c, best.r);
+    if (B.active(u) && !u.bfRunSaid2) { u.bfRunSaid2 = 1; const x = B.cell(S, u.c, u.r); if (x && seenByParty0(S, u)) B.log(S, runLine(S, u, x), 'flee'); } }
+  S.acted = true;
+  if (B.active(u) && lostAll(S, u)) BF.routGone(S, u);
+};
+const seenByParty0 = (S, u) => partyUp(S).some(h => BF.foeSees(S, Object.assign({}, h, {bfRout: 0, bfUnaware: 0}), u));
+
+/* ---------- «Повалить»: догнать бегущего и сбить с ног (захват с преимуществом — он спиной) ---------- */
+const canAct = u => B.active(u) && !(u.conds && (u.conds.held || u.conds.sleep || u.conds.stun || u.conds.ko));
+const nearFoe = (S, h) => { const es = S.units.filter(e => e.side !== h.side && B.active(e) && e.c != null && !e.bfRout); return es.length ? Math.min(...es.map(e => B.dist(e, h))) : 99; };
+/* герой бежит: в этот или прошлый свой ход бросился рывком прочь — от врагов не ближе, чем был */
+const runningHero = (S, h) => !!h && h.side === 'party' && B.active(h) && h.bfRunT != null && h.bfRunT >= (h.bfCurT != null ? h.bfCurT : 0) && nearFoe(S, h) >= (h.bfRunD || 0);
+BF.isRunner = (S, t) => !!t && B.active(t) && (t.bfRout || (t.side === 'party' && runningHero(S, t)));
+BF.tackleWhy = function (S, u, t, chase) {
+  if (!big(S) || !u || !canAct(u)) return 'Сейчас не до того.';
+  if (!t || t.side === u.side || !BF.isRunner(S, t)) return 'Валить можно того, кто бежит.';
+  if (S.acted && !(S.grabLeft > 0)) return 'Основное действие уже потрачено.';
+  if (u.conds.grappling) return 'Руки заняты: ты уже держишь врага.';
+  if (u.conds.grappled) return 'Сперва вырвись сам.';
+  if (t.conds.grappled) return 'Его уже держат.';
+  if (B.sizeOf && B.sizeOf(t) > B.sizeOf(u) + 1 && !u.mount) return 'Слишком велик — не свалить.';
+  if (!chase && B.dist(u, t) !== 1) return 'Беглец не рядом: догони.';
+  if (chase && !BF.chaseCell(S, u, t)) return 'Не догнать даже бегом.';
+  return '';
+};
+/* клетка рядом с беглецом, куда добежать шагами и рывком */
+BF.chaseCell = function (S, u, t) {
+  if (S.acted || B.dist(u, t) <= 1) return null;
+  const m0 = S.moved; S.moved = m0 - u.steps; let reach; try { reach = B.reach(S, u); } finally { S.moved = m0; }
+  let best = null; for (const k in reach) { const x = reach[k]; if (B.dist(x, t) !== 1 || B.unitAt(S, x.c, x.r)) continue; if (!best || (x.cost || 0) < best.cost) best = {c: x.c, r: x.r, cost: x.cost || 0}; }
+  return best;
+};
+const ATH = u => (B.athl ? B.athl(u) : Math.floor((u.level || 1) / 2)), DEF = t => Math.max(ATH(t), B.acro ? B.acro(t) : 0);
+BF.tackle = function (S, u, t, chase) {
+  const w = BF.tackleWhy(S, u, t, chase); if (w) return w;
+  if (chase) { const x = BF.chaseCell(S, u, t); if (B.dash) B.dash(S, u, false); B.move(S, u, x.c, x.r); if (!B.active(u) || B.dist(u, t) !== 1 || !B.active(t)) return ''; }
+  else if (S.grabLeft > 0) { S.grabLeft--; if (!S.grabLeft) S.acted = true; } else S.acted = true;
+  if (B.faceTo) B.faceTo(u, t); u.pose = 'atk'; if (B.ev) B.ev(S, {kind: 'block', tid: t.id, by: u.id});
+  const horse = !!u.mount, r1 = R.d(20), r2 = R.d(20), a = Math.max(r1, r2) + ATH(u) + (horse ? 2 : 0), d = R.d(20) + DEF(t);
+  if (a > d) {
+    t.conds.prone = 1;
+    if (!horse) { t.conds.grappled = {by: u.id}; u.conds.grappling = t.id; }
+    delete t.conds.hidden;
+    if (t.bfRout) { BF.routStop(S, t); t.bfDown = 1; }
+    if (t.side === 'party') delete t.bfRunT;
+    B.log(S, horse ? pick([`${nameOf(u)} нагоняет ${nameOf(t)} конём и сшибает наземь.`, `Конь грудью сбивает ${nameOf(t)} с ног.`])
+      : pick([`${nameOf(u)} настигает ${nameOf(t)} и валит наземь, навалившись сверху.`, `${nameOf(u)} в прыжке сбивает ${nameOf(t)} с ног и прижимает к земле.`, `${nameOf(u)} хватает ${nameOf(t)} за ворот и опрокидывает.`]), 'ctrl',
+      horse ? 'сбил конём: беглец лежит' : 'повалил: беглец лежит и схвачен');
+    // человек, сбитый на бегу, сдаётся (как схваченный дрогнувший — dnd_a)
+    if (t.side === 'foe' && isPerson(t) && C && C.waSurrender && R.rand() < 0.6) { if (B.grabFree) B.grabFree(S, t, true); else { delete t.conds.grappled; delete u.conds.grappling; } delete u.conds.grappling; C.waSurrender(S, t, false); }
+    B.checkEnd(S);
+    return '';
+  }
+  // вырвался: бежит дальше, догнавший теряет равновесие
+  if (a + 5 <= d) { u.conds.prone = 1; B.log(S, `${nameOf(u)} кидается на ${nameOf(t)}, промахивается и сам летит наземь.`, 'miss', 'повалить не вышло: сам упал'); }
+  else { u.conds.atkDown = Math.max(u.conds.atkDown || 0, 1); B.log(S, pick([`${nameOf(t)} выворачивается из рук ${nameOf(u)} и бежит дальше.`, `${nameOf(u)} хватает воздух: ${nameOf(t)} увернулся.`]), 'miss', 'повалить не вышло: равновесие потеряно, следующий удар хуже'); }
+  return '';
+};
+/* «Стой!»: крикнуть бегущему человеку — Запугивание, может сдаться (малое действие) */
+BF.haltWhy = function (S, u, t) {
+  if (!big(S) || !u || !canAct(u) || u.side !== 'party') return 'Сейчас не до того.';
+  if (S.bonus) return 'Малое действие уже потрачено.';
+  if (!t || !t.bfRout || !B.active(t)) return 'Кричать некому.';
+  if (!isPerson(t)) return 'Зверь окрика не поймёт.';
+  if (B.dist(u, t) > 10 || !(BF.lineOK ? BF.lineOK(S, u, t) : true)) return 'Не докричаться: далеко или не видно.';
+  return '';
+};
+BF.halt = function (S, u, t) {
+  const w = BF.haltWhy(S, u, t); if (w) return w; S.bonus = true;
+  const st = u.ref && u.ref.stats, bon = st ? R.mod(st.cha) + R.skill(u.ref, 'Запугивание') : Math.floor((u.level || 1) / 2);
+  const dc = 10 + Math.floor((t.level || t.lvl || 1) / 2) - (t.hp < t.hpMax * 0.5 ? 2 : 0) + (B.dist(u, t) > 5 ? 2 : 0), r = R.d(20);
+  const say = pick(['«Стой! Стой, кому говорю!»', '«Стоять! Догоню — хуже будет!»', '«Куда?! А ну стой!»']);
+  if (r === 20 || (r !== 1 && r + bon >= dc)) { B.log(S, `${nameOf(u)}: ${say}`, 'say party'); BF.routStop(S, t); if (C && C.waSurrender) C.waSurrender(S, t, false); else { t.gone = true; t.waSurr = true; } B.checkEnd(S); }
+  else B.log(S, `${nameOf(u)}: ${say} — ${nameOf(t)} только прибавляет ходу.`, 'say party', 'не остановился');
+  return '';
+};
+/* ---------- кнопки ---------- */
+const bp0 = B.bfPanel;
+B.bfPanel = function (S, u, mode) {
+  const out = bp0 ? bp0.apply(this, arguments) : [];
+  try {
+    if (!big(S) || !u || u.side !== 'party' || u.ai || !B.active(u)) return out;
+    // скрылся — «Сбежать» на виду, а не в «Ещё приёмах»
+    if (B.fleeWhy(S, u) === '') out.unshift({k: 'esc', v: 'flee', label: 'Сбежать', dis: '', title: 'Основное действие: тебя не видят, враги не ближе шести шагов — уйти с поля. Упавшего соседа унесёшь с собой', grp: 'Побег'});
+    const runs = S.units.filter(t => t.side === 'foe' && t.bfRout && B.active(t) && seenByParty0(S, t));
+    runs.forEach(t => {
+      const lab = u.mount ? 'Сбить конём: ' : 'Повалить: ';
+      if (B.dist(u, t) === 1) out.push({k: 'esc', v: 'tackle', t: t.id, label: lab + nameOf(t), dis: BF.tackleWhy(S, u, t), title: 'Основное действие: беглец к тебе спиной — свалить его наземь и схватить (Атлетика против Атлетики или Акробатики, с преимуществом). Не вышло — он бежит дальше, а ты теряешь равновесие', grp: 'Бегущие'});
+      else if (BF.chaseCell(S, u, t)) out.push({k: 'esc', v: 'chase', t: t.id, label: (u.mount ? 'Нагнать и сбить конём: ' : 'Догнать и повалить: ') + nameOf(t), dis: BF.tackleWhy(S, u, t, true), title: 'Основное действие: рывком догнать беглеца и свалить его (с преимуществом — он спиной)', grp: 'Бегущие'});
+      if (isPerson(t)) out.push({k: 'esc', v: 'halt', t: t.id, label: 'Крикнуть «Стой!»: ' + nameOf(t), dis: BF.haltWhy(S, u, t), title: 'Малое действие: Запугивание — испугается и сдастся, или побежит дальше', grp: 'Бегущие'});
+    });
+  } catch (e) {}
+  return out;
+};
+const bo0 = B.bfOp;
+B.bfOp = function (S, u, a) {
+  if (a && a.k === 'esc') { const t = a.t ? B.U(S, a.t) : null;
+    if (a.v === 'flee') { const w = B.fleeWhy(S, u); if (w) return w; B.flee(S, u); return ''; }
+    if (a.v === 'tackle') return BF.tackle(S, u, t, false);
+    if (a.v === 'chase') return BF.tackle(S, u, t, true);
+    if (a.v === 'halt') return BF.halt(S, u, t);
+    return 'Так нельзя.'; }
+  return bo0 ? bo0.apply(this, arguments) : 'Так нельзя.';
+};
+/* рывок героя — он бежит (его можно повалить) */
+const dash0 = B.dash;
+B.dash = function (S, u) { const r = dash0.apply(this, arguments); try { if (big(S) && u && u.side === 'party') { u.bfRunT = S.bfTick || 0; u.bfRunD = nearFoe(S, u) + 1; } } catch (e) {} return r; };
+
+/* ---------- ИИ: бегущие, вожак, валить бегущих ---------- */
+const ai0 = B.ai;
+B.ai = function (S, u) {
+  if (!big(S) || !u || stealthQuiet(S)) return ai0.apply(this, arguments);
+  if (u.side === 'foe') {
+    // трус ватаги (waveA, bf_ai): при ранах и потерях — бежать так же, а не искать край
+    if (!u.bfRout && u.kind === 'monster' && !u.undead && (S.waNrav === 'trus' || u.bfCoward) && u.morale !== false) {
+      const foes = S.units.filter(x => x.side === 'foe' && x.summonLeft == null), lost = foes.filter(x => !B.active(x)).length;
+      if (u.hp < u.hpMax * 0.5 || lost * 2 >= foes.length) { BF.routStart(S, u, true); B.log(S, pick([`${nameOf(u)} бросает своих и бежит.`, `${nameOf(u)} пятится, а потом пускается наутёк.`]), 'flee'); }
+    }
+    if (u.bfRout) { try { BF.routTurn(S, u); } catch (e) { S.acted = true; } return; }
+    // вожак окриком возвращает беглецов — раз за бой
+    if ((u.pchief || u.leader) && !u.bfRallied && canAct(u)) { const runs = S.units.filter(x => x.side === 'foe' && x.bfRout && B.active(x) && B.dist(x, u) <= 10);
+      if (runs.length) { u.bfRallied = 1; const back = runs.filter(x => B.saveRoll(x, 'will', 12)).slice(0, Math.max(1, Math.ceil(runs.length / 2)));
+        B.log(S, `${nameOf(u)}: ${pick(['«Стоять! Назад, псы, кому сказано!»', '«Куда?! Вернуться, или сам догоню!»', '«Назад! Кто побежит — того сам зарежу!»'])}${back.length ? ' — ' + back.map(nameOf).join(', ') + (back.length > 1 ? ' возвращаются.' : ' возвращается.') : ' Беглецы не слушают.'}`, 'say foe');
+        back.forEach(x => BF.routStop(S, x)); } }
+    // свалить бегущего героя: вплотную или догнав рывком
+    if (canAct(u) && !S.acted && !u.conds.grappling && u.kind === 'monster') { const hs = S.units.filter(h => h.side === 'party' && runningHero(S, h) && !BF.tackleWhy(S, u, h, B.dist(u, h) > 1));
+      const t = hs.sort((a, b) => B.dist(a, u) - B.dist(b, u))[0]; if (t && R.rand() < 0.6) { BF.tackle(S, u, t, B.dist(u, t) > 1); if (S.acted || !B.active(u)) return; } }
+  } else if (u.side === 'party' && u.ai && canAct(u) && !S.acted && !u.conds.grappling) {
+    // наёмник валит бегущего человека рядом — пленный лучше мёртвого
+    const t = S.units.find(x => x.side === 'foe' && x.bfRout && B.active(x) && isPerson(x) && B.dist(x, u) === 1);
+    if (t && R.rand() < 0.5 && !BF.tackleWhy(S, u, t)) { BF.tackle(S, u, t, false); if (S.acted) return; }
+  }
+  return ai0.apply(this, arguments);
+};
+const aib0 = B.aiBonus;
+if (aib0) B.aiBonus = function (S, u) { if (u && u.bfRout) return; return aib0.apply(this, arguments); };
+const hz0 = B.holdsZone;
+B.holdsZone = e => !(e && e.bfRout) && hz0(e);
+/* итог: кто ещё бежал по полю — убежал; брошенное подобрать после победы */
+const be0 = C && C.battleEnd;
+if (be0) C.battleEnd = function (g, S) {
+  try { if (big(S)) S.units.forEach(x => { if (x.bfRout && !x.dead && !x.gone) { x.gone = true; x.fled = true; BF.routStop(S, x); } }); } catch (e) {}
+  const res = be0.apply(this, arguments);
+  try { if (big(S) && res && res.won && (S.bfDrops || []).length && C.alive(g).length) {
+    const got = []; let coins = 0;
+    S.bfDrops.forEach(d => { if (d.k === 'pack') coins += R.roll(2, 6) * 5 * Math.max(1, d.lvl); else if (R.item && R.item('shchit_kruglyi')) { const h = C.alive(g)[0]; (h.inv = h.inv || []).push('shchit_kruglyi'); got.push('щит'); } });
+    if (coins) { g.purse += coins; res.loot = (res.loot || 0) + coins; got.push('тюк с добычей'); }
+    if (got.length) { res.dropped = got; if (C.note) C.note(g, `Подобрали брошенное беглецами: ${[...new Set(got)].join(', ')}.`); } } } catch (e) {}
+  return res;
+};
+G.B = B;
+})(typeof window !== 'undefined' ? window : globalThis);
+</script><script src="world.js?v=202611241336"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -48262,7 +48897,9 @@ function afterLoad() {
   if (!NET() && window.Net) setTimeout(() => korchmaEnsure('game'), 300);
   try { const rc = !NET() && !g.pendingBattle && C.recapDue && C.recapDue(g) ? C.recapLines(g) : null; if (rc && rc.length) setTimeout(() => showRecap(rc), 450); } catch (e) {}
   if (g.pendingCreate > 0 && !C.alive(g).length && !g.net) { if (!(C.kidsWipeHeir && C.kidsWipeHeir(g))) return showCreate(); save(); }
-  if (g.pendingBattle) { const spec = rebuildSpec(g.pendingBattle); return startBattle(spec); }
+  if (g.pendingBattle) { const spec = rebuildSpec(g.pendingBattle); const snap = !NET() && battleSnapLoad();
+    if (snap) { try { TALK_OK = false; bspec = spec; battle = unpackBattle(snap); mode = null; sel = null; renderTop(); drawBattleScreen(); runAI(); return; } catch (e) { battle = null; } }
+    return startBattle(spec); }
   if (g.carryDead && !/^carry_dead/.test(g.scene || '')) return showScene('carry_dead');
   if (g.scene === 'map') return showMap();
   showScene(g.scene || startScene());
@@ -49746,9 +50383,12 @@ function rebuildSpec(p) { return Object.assign({}, p); }
 const SETUPS = {};
 /* встреча до боя: разведать, обойти, ударить первыми, договориться */
 function meetBattle(spec) {
+  // разговор со встречными (meet_talk.js): в игре с друзьями — сразу разговор, отвечает вожатый
+  if (NETH() && !spec.camp && C.mtWants && spec.ambush !== 'foe' && C.mtWants(g, spec)) { save(); return showScene(C.mtOpen(g, spec, 'hail')); }
   if (NET() || !C.meetStart || spec.camp) return startBattle(spec);
   const st = C.meetStart(g, spec);
   if (st.ambush) { toast('Засада!'); return startBattle(spec); }
+  if (C.mtWants && C.mtWants(g, spec) === 'hail') { save(); return showScene(C.mtOpen(g, spec, 'hail')); }
   let mchk = null;
   const draw = () => { const v = C.meetView(g, spec);
     openModal(`<h3 class="ttl big"><span class="ui-i i-ev_danger"></span>${spec.hunt ? 'Погоня' : 'Встреча'}</h3>${v.lines.map(l => `<p>${esc(l)}</p>`).join('')}${mchk ? checkHTML(mchk) : ''}
@@ -49757,6 +50397,7 @@ function meetBattle(spec) {
     $('#modal').querySelectorAll('[data-meet]').forEach(b => b.onclick = () => { g.lastMeetCheck = null; const r = C.meetDo(g, spec, b.dataset.meet); mchk = g.lastMeetCheck || null; g.lastMeetCheck = null; save(); renderTop();
       if (r.again) return draw();
       closeModal();
+      if (r.scene) return showScene(r.scene);
       if (r.battle) { const tt = [mchk ? checkText(mchk) : '', r.text || ''].filter(Boolean).join(' '); if (tt) toast(tt); return startBattle(r.battle); }
       if (mchk) toast(checkText(mchk));
       g.road = (g.road || []).concat({d: g.day, tm: C.timeName(g), t: r.away}).slice(-6); save(); showHexMap(); }); };
@@ -49766,7 +50407,7 @@ function startBattle(spec) {
   TALK_OK = false;
   bspec = spec;
   g.pendingBattle = {title: spec.title, foes: spec.foes, allies: spec.allies, setupKey: spec.setupKey, field: spec.field, ambush: spec.ambush, prep: spec.prep, hunt: spec.hunt, xpBonus: spec.xpBonus, win: spec.win, lose: spec.lose, place: spec.place};
-  save();
+  save(); battleSnapClear();
   battle = C.battleStart(g, spec, false);
   mode = null; sel = null;
   if (NETH()) { SCR = {k: 'battle', title: spec.title}; publish(); }
@@ -49787,7 +50428,8 @@ function drawBattleScreen() {
    колесо и щипок — ближе/дальше, а камера сама едет к тому, чей ход */
 let CAM = {cx: null, cy: null, z: 1, drag: null, pts: {}};
 const SQ3 = Math.sqrt(3);
-function fieldUnits(F) { return {X: (F.w + 0.5) * SQ3, Y: F.h * 1.5 + 0.5}; }
+/* поле без края (bf_grow): клетки бывают и с отрицательными номерами — X0, Y0 — где начинается поле */
+function fieldUnits(F) { return {X: (F.w + 0.5) * SQ3, Y: F.h * 1.5 + 0.5, X0: (F.c0 || 0) * SQ3, Y0: (F.r0 || 0) * 1.5}; }
 function layout() {
   const F = battle.field, U = fieldUnits(F);
   const narrow = window.innerWidth <= 860, VW = Math.min(F.w, F.big && narrow ? 9 : 16), VH = Math.min(F.h, F.big && narrow ? 9 : 11); // сколько клеток видно при обычном приближении (большое поле на телефоне — крупнее)
@@ -49798,11 +50440,13 @@ function layout() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const fit = Math.min(W / U.X, H / U.Y) * 0.98, near = Math.min(W / ((VW + 0.5) * SQ3), H / (VH * 1.5 + 0.5)) * 0.98;
   const s = Math.max(fit, Math.min(near * 2, near * CAM.z));
-  if (CAM.cx == null) { CAM.cx = U.X / 2; CAM.cy = U.Y / 2; }
+  if (CAM.cx == null) { CAM.cx = U.X0 + U.X / 2; CAM.cy = U.Y0 + U.Y / 2; }
   const fw = U.X * s, fh = U.Y * s;
   let ox, oy;
-  if (fw <= W + 1) { ox = (W - fw) / 2; CAM.cx = U.X / 2; } else { ox = Math.min(0, Math.max(W - fw, W / 2 - CAM.cx * s)); CAM.cx = (W / 2 - ox) / s; }
-  if (fh <= H + 1) { oy = (H - fh) / 2; CAM.cy = U.Y / 2; } else { oy = Math.min(s * 0.6, Math.max(H - fh, H / 2 - CAM.cy * s)); CAM.cy = (H / 2 - oy) / s; }
+  // большое поле: камера заходит за край с запасом (до половины экрана, не больше четырёх клеток) — крайние клетки не уходят под шапку
+  const mX = F.big ? Math.min(W * 0.5, 4 * SQ3 * s) : 0, mY = F.big ? Math.min(H * 0.5, 4 * 1.5 * s) : s * 0.6;
+  if (fw <= W + 1) { ox = (W - fw) / 2 - U.X0 * s; CAM.cx = U.X0 + U.X / 2; } else { ox = Math.min(mX - U.X0 * s, Math.max(W - mX - (U.X0 + U.X) * s, W / 2 - CAM.cx * s)); CAM.cx = (W / 2 - ox) / s; }
+  if (fh <= H + 1) { oy = (H - fh) / 2 - U.Y0 * s; CAM.cy = U.Y0 + U.Y / 2; } else { oy = Math.min(mY - U.Y0 * s, Math.max(H - (F.big ? mY : 0) - (U.Y0 + U.Y) * s, H / 2 - CAM.cy * s)); CAM.cy = (H / 2 - oy) / s; }
   geo = {s, ox, oy, W, H, big: fw > W + 1 || fh > H + 1, fit, near, zoomable: fit < near * 0.995};
   { const ta = geo.zoomable ? 'none' : ''; if (cv.style.touchAction !== ta) cv.style.touchAction = ta; }
 }
@@ -49836,7 +50480,7 @@ function camWire() {
   cv.onwheel = e => { if (!geo || !geo.zoomable) return; e.preventDefault(); const r = cv.getBoundingClientRect(); camZoom(e.deltaY < 0 ? 1 : -1, e.clientX - r.left, e.clientY - r.top); };
   const box = $('#bcam'); if (!box) return;
   box.querySelectorAll('[data-z]').forEach(b => b.onclick = () => { const z = +b.dataset.z; if (z) camZoom(z); else { CAM.z = 1; layout(); camFollow(B.current(battle), true); } });
-  const mm = $('#bmini'); const go = e => { const r = mm.getBoundingClientRect(), U = fieldUnits(battle.field); CAM.cx = (e.clientX - r.left) / r.width * U.X; CAM.cy = (e.clientY - r.top) / r.height * U.Y; drawField(); };
+  const mm = $('#bmini'); const go = e => { const r = mm.getBoundingClientRect(), U = fieldUnits(battle.field); CAM.cx = U.X0 + (e.clientX - r.left) / r.width * U.X; CAM.cy = U.Y0 + (e.clientY - r.top) / r.height * U.Y; drawField(); };
   mm.onpointerdown = e => { go(e); mm.onpointermove = ev => { if (ev.buttons) go(ev); }; };
 }
 const pdist = P => { const v = Object.values(P); return v.length > 1 ? Math.hypot(v[0].x - v[1].x, v[0].y - v[1].y) : 0; };
@@ -49844,17 +50488,17 @@ const pdist = P => { const v = Object.values(P); return v.length > 1 ? Math.hypo
 function drawMini() {
   const box = $('#bcam'), mm = $('#bmini'); if (!box || !mm) return;
   const F = battle.field, U = fieldUnits(F); box.hidden = !geo.zoomable; if (box.hidden) return;
-  const w = Math.min(190, Math.max(110, geo.W * 0.2)), h = w * U.Y / U.X, dpr = window.devicePixelRatio || 1;
+  let w = Math.min(190, Math.max(110, geo.W * 0.2)), h = w * U.Y / U.X; if (h > w * 1.2) { h = w * 1.2; w = h * U.X / U.Y; } const dpr = window.devicePixelRatio || 1;
   box.style.left = (cv.offsetLeft + cv.clientWidth - w - 10) + 'px'; box.style.top = (cv.offsetTop + 10) + 'px';
   mm.style.width = w + 'px'; mm.style.height = h + 'px'; if (mm.width !== Math.round(w * dpr)) { mm.width = w * dpr; mm.height = h * dpr; }
   const x = mm.getContext('2d'), k = w / U.X; x.setTransform(dpr, 0, 0, dpr, 0, 0); x.fillStyle = 'rgba(22,17,11,.82)'; x.fillRect(0, 0, w, h);
   const COL = {tree: '#2f4a22', brush: '#4f6a32', rock: '#6a6458', wall: '#55504a', water: '#3f6a86', shallow: '#6f93a3', mud: '#4a3f26', house: '#8a6a44', fence: '#7a5f3c', log: '#6a4c2c', road: '#8a7a56', grave: '#6f6a5c', idol: '#9a7a4a', cart: '#7a5f3c', cart_over: '#7a5f3c', ruin: '#6a6458', uproot: '#4a3a24', hay: '#b8a050', wood: '#7a5a36', barrels: '#7a5a36', well: '#7a6a56', fire: '#d07030', shelter: '#3f5a2a', rye: '#b89a48', bridge: '#8a6a44'};
   Object.assign(COL, {floor: '#3a3128', hill: '#6f7a44', ravine: '#4a4030', reeds: '#5f6a3a', pool: '#3f6a86', column: '#6a6458', stalag: '#6a6458', bed: '#6a5232', table: '#6a5232', crate: '#7a5a36', cauldron: '#3a3a3a', door_shut: '#7a4a22', niche: '#2e2620', altar: '#8a7a6a', rubble: '#6a6458', blaze: '#e0702a', ash: '#4a4440', slick: '#2a2218', ice: '#b8d6e6', loft: '#b8a050', tar: '#3a2a1a', gong: '#a08040', lamp: '#e0a040', hive: '#a07a30', boulder: '#7a7468', kennel: '#6a4c2c', hitch: '#6a4c2c', hatch: '#5a4630', pit: '#1a1410', net: '#8a7a5a', door_open: '#5a4630', deep: '#2a4c66'});
-  if (F.big) { const dg = F.bf && F.bf.kind === 'dungeon'; Object.values(F.cells).forEach(c => { const fv = F.fog ? bfFogOf(battle, c) : 2; if (fv === 0) return; const col = c.t === 'wall' && dg ? '#1e1a16' : COL[c.t] || (dg ? '#3a3128' : '#4a5a32'); x.globalAlpha = fv === 1 ? 0.5 : 1; x.fillStyle = col; x.fillRect(SQ3 * (c.c + (c.r & 1) * 0.5) * k, (c.r * 1.5 + 0.25) * k, SQ3 * k + 0.6, 1.5 * k + 0.6); }); x.globalAlpha = 1; }
-  else Object.values(F.cells).forEach(c => { const col = COL[c.t]; if (!col) return; x.fillStyle = col; x.fillRect(SQ3 * (c.c + (c.r & 1) * 0.5) * k, (c.r * 1.5 + 0.25) * k, SQ3 * k + 0.6, 1.5 * k + 0.6); });
+  if (F.big) { const dg = F.bf && F.bf.kind === 'dungeon'; Object.values(F.cells).forEach(c => { const fv = F.fog ? bfFogOf(battle, c) : 2; if (fv === 0) return; const col = c.t === 'wall' && dg ? '#1e1a16' : COL[c.t] || (dg ? '#3a3128' : '#4a5a32'); x.globalAlpha = fv === 1 ? 0.5 : 1; x.fillStyle = col; x.fillRect((SQ3 * (c.c + (c.r & 1) * 0.5) - U.X0) * k, (c.r * 1.5 + 0.25 - U.Y0) * k, SQ3 * k + 0.6, 1.5 * k + 0.6); }); x.globalAlpha = 1; }
+  else Object.values(F.cells).forEach(c => { const col = COL[c.t]; if (!col) return; x.fillStyle = col; x.fillRect((SQ3 * (c.c + (c.r & 1) * 0.5) - U.X0) * k, (c.r * 1.5 + 0.25 - U.Y0) * k, SQ3 * k + 0.6, 1.5 * k + 0.6); });
   const vis = battle.units.filter(u => !u.gone && !u.dead && (u.side === 'party' || seenByParty(battle, u))), cur = B.current(battle);
-  vis.forEach(u => { x.fillStyle = u.side === 'party' ? '#a6d38a' : '#ff6a50'; x.beginPath(); x.arc(SQ3 * (u.c + 0.5 + (u.r & 1) * 0.5) * k, (1 + u.r * 1.5) * k, u === cur ? 3.6 : 2.4, 0, 7); x.fill(); if (u === cur) { x.strokeStyle = '#fff3c4'; x.lineWidth = 1.2; x.stroke(); } });
-  x.strokeStyle = '#e7c983'; x.lineWidth = 1.2; x.strokeRect(-geo.ox / geo.s * k, -geo.oy / geo.s * k, geo.W / geo.s * k, geo.H / geo.s * k);
+  vis.forEach(u => { x.fillStyle = u.side === 'party' ? '#a6d38a' : '#ff6a50'; x.beginPath(); x.arc((SQ3 * (u.c + 0.5 + (u.r & 1) * 0.5) - U.X0) * k, (1 + u.r * 1.5 - U.Y0) * k, u === cur ? 3.6 : 2.4, 0, 7); x.fill(); if (u === cur) { x.strokeStyle = '#fff3c4'; x.lineWidth = 1.2; x.stroke(); } });
+  x.strokeStyle = '#e7c983'; x.lineWidth = 1.2; x.strokeRect((-geo.ox / geo.s - U.X0) * k, (-geo.oy / geo.s - U.Y0) * k, geo.W / geo.s * k, geo.H / geo.s * k);
 }
 const hexXY = (c, r) => ({x: geo.ox + Math.sqrt(3) * geo.s * (c + 0.5 + (r & 1) * 0.5), y: geo.oy + geo.s * (1 + r * 1.5)});
 function pixToHex(px, py) {
@@ -50349,8 +50993,8 @@ function auraKinds(u) {
 /* подпись под полоской хитов: что на бойце важнее всего */
 const COND_SHORT = {held: 'скован', sleep: 'спит', fear: 'страх', charm: 'чары', blind: 'слеп', slow: 'замедлен', atkUp: '+атака', defUp: '+защита', raging: 'ярость', dot: 'яд',
   stun: 'оглушён', prone: 'сбит с ног', rooted: 'опутан', confused: 'в мороке', doomed: 'обречён', atkDown: '−атака', defDown: '−защита', bleed: 'кровь течёт',
-  grappled: 'схвачен', grappling: 'держит', ready: 'ждёт', ko: 'без чувств'};
-const FOE_TAG_PRIO = ['ko', 'grappled', 'held', 'sleep', 'stun', 'fear', 'rooted', 'grappling', 'ready', 'blind', 'confused', 'daze', 'silence', 'noInnate', 'slow', 'curse', 'vuln', 'cmor', 'mor', 'rodPorcha', 'blackMark', 'hexed', 'drained',
+  grappled: 'схвачен', grappling: 'держит', ready: 'ждёт', ko: 'без чувств', running: 'бежит'};
+const FOE_TAG_PRIO = ['ko', 'grappled', 'running', 'held', 'sleep', 'stun', 'fear', 'rooted', 'grappling', 'ready', 'blind', 'confused', 'daze', 'silence', 'noInnate', 'slow', 'curse', 'vuln', 'cmor', 'mor', 'rodPorcha', 'blackMark', 'hexed', 'drained',
   'weak', 'aged', 'chill', 'tangled', 'doomed', 'dot', 'bleed', 'prone', 'blackPr', 'evilEye', 'saveDown', 'hail', 'prayerFoe', 'storm', 'sulfur', 'navChill', 'atkDown', 'defDown',
   'noDmg', 'noWeapon', 'invis', 'stone', 'mirror', 'reflect', 'spellImm', 'antiMagic', 'boneShield', 'krepost', 'fireShield', 'darkVeil'];
 function foeTags(u, max) {
@@ -50980,7 +51624,7 @@ function drawUnit(u) {
 }
 let LABELQ = null;
 /* что действует на своём бойце: чары, состояния, выпитые зелья, свойства — по нажатию на фигуру или карточку */
-const COND_RU = {held: ['скован', 'не двигается и не бьёт'], sleep: ['спит', 'проснётся от удара'], fear: ['страх', 'бежит прочь, не нападает'], charm: ['очарован', 'не поднимет руку на чарующего'], blind: ['ослеплён', 'бьёт почти наугад'],
+const COND_RU = {running: ['бежит', 'бежит прочь с поля; можно ударить вдогонку, повалить или окликнуть'], held: ['скован', 'не двигается и не бьёт'], sleep: ['спит', 'проснётся от удара'], fear: ['страх', 'бежит прочь, не нападает'], charm: ['очарован', 'не поднимет руку на чарующего'], blind: ['ослеплён', 'бьёт почти наугад'],
   slow: ['замедлен', 'половина шагов'], atkUp: ['сильнее бьёт', 'прибавка к попаданию'], defUp: ['крепче стоит', 'прибавка к Защите'], raging: ['ярость', '+2 к урону'], dot: ['яд или ожог', 'теряет хиты каждый ход'], venom: ['яд в крови', 'теряет хиты каждый ход, но не ниже 1 хита; Стойкость каждый ход; лечат противоядие, «Снятие яда», перевязка (Медицина)'],
   hidden: ['затаился', 'следующий удар — со спины'], helped: ['помощь', 'союзник отвлёк врага: легче попасть'], prone: ['сбит с ног', 'встаёт вместо шага'], stun: ['оглушён', 'пропускает ход'], bleed: ['кровотечение', 'теряет хиты, пока не перевяжут'],
   rooted: ['опутан', 'с места не сойти'], confused: ['в мороке', 'не разберёт, где свой, где чужой'], doomed: ['обречён', 'смерть уже стоит за плечом'], atkDown: ['бьёт слабее', 'хуже попадает'], defDown: ['броня ослаблена', 'по нему легче попасть'],
@@ -51060,7 +51704,7 @@ function drawPanel() {
       : btn('b-band', (B.hasPotion(u) ? 'Зелье' : 'Перевязать') + (fallen.length ? ': ' + esc(fallen[0].name) : ''), A || !fallen.length, tip(fallen.length ? usedA : 'Рядом нет упавших союзников.', B.hasPotion(u) ? 'Влить зелье упавшему соседу: 2d4+2 хитов' : 'Перевязать упавшего соседа, чтобы не истёк кровью: Медицина против 10'));
     const rare = [u.mount ? btn('b-unmount', 'Спешиться', false, `Слезть с коня: ${esc(u.mount.name || 'коня')} уведут за край поля, после боя он снова с вами; шаги — пешие`) : '', btn('b-dash', 'Рывок', A, tip(usedA, 'Ещё столько же шагов в этот ход')), btn('b-dis', 'Отход', A, tip(usedA, 'До конца хода уходишь из сшибки без ударов вдогонку')),
       tat ? btn('b-tdash', 'Хитрость: рывок', Bn, tip(usedB, 'Малым действием: ещё 2 шага')) : '', tat ? btn('b-tdis', 'Хитрость: отход', Bn, tip(usedB, 'Отход малым действием')) : '',
-      B.fleeWhy ? (() => { const fw = B.fleeWhy(S, u); return btn('b-flee', 'Уйти с поля', !!fw, tip(fw, 'Покинуть бой. Упавшего соседа унесёшь с собой. Когда уйдут все — бой кончен, а уцелевшие враги пойдут по следу')); })() : '',
+      B.fleeWhy ? (() => { const fw = B.fleeWhy(S, u); return S.field && S.field.big ? btn('b-flee', 'Сбежать', !!fw, tip(fw, 'Основное действие: скрылся с глаз, рядом никого, враги не ближе шести шагов — уйти. Упавшего соседа унесёшь с собой. Когда уйдут все — бой кончен; видели, куда ушли, — пойдут по следу')) : btn('b-flee', 'Уйти с поля', !!fw, tip(fw, 'Покинуть бой. Упавшего соседа унесёшь с собой. Когда уйдут все — бой кончен, а уцелевшие враги пойдут по следу')); })() : '',
       btn('b-help', 'Помощь', A || !adjE.length, tip(adjWhy || usedA, 'Отвлечь врага рядом: следующий удар своих по нему — с преимуществом'), mode === 'help' ? 'on' : ''),
       btn('b-hide', 'Затаиться', A || !!hideWhy, tip(hideWhy || usedA, 'Проверка Ловкости (Скрытность). Спрятанного не видят издали; первый удар из укрытия — со спины')),
       fallen.length ? '' : bandB].concat(u.cls === 'tat' && B.trickWhy ? Object.entries(C.TRICKS).map(([k, x]) => { const w = B.trickWhy(S, u, k); return btn('b-tr-' + k, x.name, !!w, tip(w, x.text + ' Основное действие, только подбежав к врагу в этот ход'), mode === 'trick_' + k ? 'on' : ''); }) : []).filter(Boolean);
@@ -51154,6 +51798,7 @@ function drawPanel() {
     on('#b-cut', () => { mode = mode === 'cut' ? null : 'cut'; redraw(); });
     on('#b-next', () => go('next'));
     { const dm = $('#b-more'); if (dm) dm.ontoggle = () => { BMORE.open = dm.open; }; }
+    if (NET() && g && g.net) { try { S.leadIds = C.alive(g).filter(h => g.net.own[h.id] === leader()).map(h => h.id); } catch (e) {} } // «Сдаться» — решение вожатого (captive.js)
     if (B.bfPanel) { const L = B.bfPanel(S, u, mode); if (L.length) { const grp = {}; L.forEach(x => { (grp[x.grp] = grp[x.grp] || []).push(x); });
       const html = Object.entries(grp).map(([gname, xs]) => `<div class="grp">${esc(gname === 'Скрытно' ? 'Скрытно — вас не видят' : gname || 'Рядом')}</div>` + xs.map((x, i) => `<button class="btn small ${x.on || (mode === x.mode && x.mode) ? 'on' : ''}" data-bfi="${L.indexOf(x)}" ${x.dis ? 'disabled' : ''} title="${esc(x.dis || x.title || '')}">${esc(x.label)}${x.ck && !x.dis ? chkSmall(x.ck.stat, x.ck.skill, x.ck.dc, x.ck.who, x.ck.bonus) : ''}</button>`).join('')).join('');
       const box = document.createElement('div'); box.className = 'bfacts'; box.innerHTML = html; const bud = acts.querySelector('.budget'); if (bud && bud.nextSibling) acts.insertBefore(box, bud.nextSibling); else acts.appendChild(box);
@@ -51178,7 +51823,21 @@ function drawPanel() {
   if (wide) { if (sl.dataset.n !== String(S.log.length) + lh.length) { sl.innerHTML = lh; sl.dataset.n = String(S.log.length) + lh.length; sl.scrollTop = sl.scrollHeight; } log.innerHTML = ''; }
   else { log.innerHTML = lh; log.scrollTop = log.scrollHeight; }
 }
-function redraw() { drawField(); drawPanel(); renderTopLite(); if (NETH() && battle) publish(); }
+function redraw() { drawField(); drawPanel(); renderTopLite(); if (NETH() && battle) publish(); battleSnapSave(); }
+/* бой сохраняется по ходу: обновил вкладку — вернулся в тот же круг, а не в начало боя (иначе смерть можно было «отмотать») */
+const BSNAP = () => SAVE_KEY + '-battle';
+let bsnapT = 0;
+function battleSnapSave(force) {
+  if (!battle || !g || NETG() || battle.over) return;
+  const now = Date.now(); if (!force && now - bsnapT < 800) { clearTimeout(battleSnapSave.tm); battleSnapSave.tm = setTimeout(() => battleSnapSave(true), 900); return; }
+  bsnapT = now;
+  try { localStorage.setItem(BSNAP(), JSON.stringify({t: (g.pendingBattle || {}).title || '', day: g.day, time: g.time, s: packBattle(battle)})); localStorage.setItem(SAVE_KEY, C.save(g)); } catch (e) {}
+}
+function battleSnapClear() { try { localStorage.removeItem(BSNAP()); } catch (e) {} }
+function battleSnapLoad() { try { const o = JSON.parse(localStorage.getItem(BSNAP()) || 'null'); if (!o || !g || !g.pendingBattle) return null;
+  if (o.t !== (g.pendingBattle.title || '') || o.day !== g.day) return null; return o.s; } catch (e) { return null; } }
+window.addEventListener('pagehide', () => { try { battleSnapSave(true); } catch (e) {} });
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') try { battleSnapSave(true); } catch (e) {} });
 function renderTopLite() { /* в бою — живые хиты и Сила отряда в боковой колонке */
   const sc = document.querySelector('#side-main .scards'); if (!sc || !battle || !SIDE_CARDS) return;
   const html = SIDE_CARDS(); if (sc.dataset.h === html) return; sc.innerHTML = html; sc.dataset.h = html; paintFaces(sc); }
@@ -51340,7 +51999,7 @@ async function runAI() {
 function finishBattle() {
   const S = battle, spec = bspec;
   const res = withPurse(null, () => C.battleEnd(g, S, spec), true); lastRes = res;
-  g.pendingBattle = null; battle = null;
+  g.pendingBattle = null; battle = null; battleSnapClear();
   const ups = g.lastUps || []; g.lastUps = []; if (ups.length) setTimeout(() => tip1('level'), 700);
   RES = {res: {won: res.won, fled: res.fled, hunt: res.hunt, xp: res.xp, xpGot: res.xpGot, loot: res.loot, items: res.items || [], merc: res.merc || [], robbed: res.robbed, deaths: res.deaths, wipe: res.wipe}, ups, win: spec.win, lose: spec.lose};
   if (NETH()) SCR = {k: 'result', n: ++resN, res: RES};
