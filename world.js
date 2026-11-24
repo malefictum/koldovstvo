@@ -67871,7 +67871,10 @@ gift: {rubaha_vyshitaya: '{n} достаёт из сундука рубаху, �
   obereg: '{n} вешает тебе на шею оберег на шнурке: «Бабкин ещё. Пусть теперь тебя бережёт»',
   pirog: '{n} заворачивает в рушник пироги, ещё тёплые: «В дорогу. Чтоб не на сухарях»',
   ring: '{n} открывает старый ларец и кладёт тебе в ладонь серебряное кольцо: «Это ещё от деда. Дед говорил: отдать, кто дом бережёт. Вот, тебе»',
-  coin: 'Деньги {n} прячет в сундук: «На хозяйство пойдут, до медяка»'},
+  coin: 'Деньги {n} прячет в сундук: «На хозяйство пойдут, до медяка»',
+  rich_purse: '{n} кладёт тебе в руку тяжёлый кошель с отцовской печатью: «Не спорь. В дороге нужнее. Только вернись — слышишь?»',
+  rich_jewel: '{n} снимает с шеи дорогое украшение и застёгивает на тебе: «Из моего приданого. Пусть бережёт тебя, раз я не могу»',
+  rich_ring: '{n} достаёт из шкатулки перстень с камнем: «Отец дарил на свадьбу. Носи — пусть знают, чей ты»'},
 /* срок вышел */
 late: {f: ['Срок прошёл, а поручение жены так и осталось несделанным. {n} будет обижена.'], m: ['Срок прошёл, а поручение мужа так и осталось несделанным. {n} будет обижен.'],
   merc: ['{n} молчит весь вечер, а потом говорит, не глядя: «Ты обещал{hs:|а}. Ладно. Забудь»']},
@@ -68112,7 +68115,7 @@ const GIFTS = ['pirog', 'pirog', 'rubaha', 'obereg'];
 /* ---------- награда «жаркая ночь»: дух до предела и держится дольше; опыт идёт с прибавкой несколько дней ---------- */
 /* шанс: по нраву супруга(и) и по трудности — дальний срок, долг, обряд, обидчик чаще; крыша дома — реже; полдела — никогда */
 C.heHotChance = function (g, E, nrav, half) {
-  if (half || !E) return 0; const k = K(); let p = k.HOT[nrav] != null ? k.HOT[nrav] : 0.65;
+  if (half || !E) return 0; const k = K(); if (C.heOrigin && C.heOrigin(g, E.key) === 'freed') return 1; let p = k.HOT[nrav] != null ? k.HOT[nrav] : 0.65;
   if ((E.due - E.day) >= 12) p += k.HOT_FAR;
   if (E.def === 'debt' || E.def === 'rival' || /^rite/.test(E.def) || E.kind === 'deed' && E.def === 'master') p += k.HOT_HARD;
   if (E.def === 'roof') p += k.HOT_EASY;
@@ -68147,7 +68150,16 @@ const reward = (g, E, half) => {
   try { if (C.hearthCare) C.hearthCare(g, E.key, 1); } catch (e) {}
   if (E.got && E.got.coin) { try { g.w2hearth = g.w2hearth || {}; const H = g.w2hearth[E.key] = g.w2hearth[E.key] || {care: 0, coin: 0, buy: [], pack: 0, seen: day(g)}; H.coin = (H.coin || 0) + E.got.coin; } catch (e) {}
     out.push(fill(T.gift.coin, ctxOf(g, E))); }
-  if (h && !half) {
+  const orig = C.heOrigin ? C.heOrigin(g, E.key) : 'peasant';
+  /* простые (спасённая, бедный дом) — накормят, но дорогих подарков нет; богатые — дарят дорого (Ник 25.11) */
+  if (h && !half && (orig === 'freed' || orig === 'poor')) { if (R.item('dish_pirog')) { h.inv.push('dish_pirog', 'dish_pirog'); out.push(fill(T.gift.pirog, ctxOf(g, E))); } }
+  else if (h && !half && (orig === 'merchant' || orig === 'noble') && T.gift.rich_purse) {
+    const lv = Math.max(1, C.partyLevel ? C.partyLevel(g) : 1), x = R.rand();
+    if (x < (orig === 'noble' ? 0.35 : 0.2) && C.rollMagic) { const id = C.rollMagic(lv + (orig === 'noble' ? 4 : 2), {jewel: true, noCurse: true}); if (id) { h.inv.push(id); out.push(fill(T.gift.rich_jewel, ctxOf(g, E)) + ` (${(R.item(id) || {}).name || 'украшение'})`); } }
+    else if (x < 0.55 && R.item('tr_serebryanoe_koltso')) { h.inv.push('tr_serebryanoe_koltso'); out.push(fill(T.gift.rich_ring, ctxOf(g, E))); }
+    else { const sum = Math.round((orig === 'noble' ? 1000 : 500) * lv * (0.8 + R.rand() * 0.4) / 10) * 10; g.purse = (g.purse || 0) + sum; out.push(fill(T.gift.rich_purse, ctxOf(g, E)) + ` (${R.priceText(sum)})`); }
+  }
+  else if (h && !half) {
     const ring = R.rand() < K().RING && R.item('tr_serebryanoe_koltso');
     const k = ring ? 'ring' : GIFTS[Math.floor(R.rand() * GIFTS.length)];
     const give = (id, n) => { if (!R.item(id)) return false; for (let i = 0; i < (n || 1); i++) h.inv.push(id); return true; };
@@ -68200,22 +68212,22 @@ const moodOf = (g, o) => {
   if (kids.length && R.rand() < 0.5) { const k = kids[Math.floor(R.rand() * kids.length)]; return {m: 'kids', t: pick(T.morning.kids[sx]).replace(/\{kid\}/g, k.n)}; }
   return {m: 'plain', t: pick(T.morning[sx][nravOf(o)])};
 };
-C.HE_HOT_HOME = Object.assign({freed: 0.6, poor: 0.35, peasant: 0.3, merchant: 0.15, noble: 0.08, WARM: 0.15, WARM_REP: 90, LONG: 0.2, PREG: -0.1, GAP: 2, MAX: 0.85}, C.HE_HOT_HOME || {});
+C.HE_HOT_HOME = Object.assign({freed: 1, poor: 0.5, peasant: 0.35, merchant: 0.15, noble: 0.08, WARM: 0.15, WARM_REP: 90, LONG: 0.2, PREG: -0.1, GAP: 2, MAX: 0.85}, C.HE_HOT_HOME || {});
 C.heOrigin = function (g, key) { try { const [role] = String(key).split('@'), sp = (g.homeSp || {})[role], base = String(role).replace(/^sp_/, '');
     if (sp && sp.kv && C.kvLocOf) { const r = C.kvLocOf(g, sp.kv); if (r && r.freed) return 'freed'; }
     if (['trade', 'jewel'].includes(base)) return 'merchant'; if (/boyar|knyaz|noble/.test(base)) return 'noble';
     const t = C.heTier ? C.heTier(g, key) : 'peasant'; return t === 'poor' ? 'poor' : 'peasant'; } catch (e) { return 'peasant'; } };
 C.heHotHome = function (g, o, mood) {
   const k = C.HE_HOT_HOME; if (!o || ['cold', 'sore'].includes(mood)) return 0;
-  const Hm = (st(g).home || {})[o.key] || {}; if (Hm.hotDay && day(g) - Hm.hotDay < k.GAP) return 0;
+  const Hm = (st(g).home || {})[o.key] || {}; if (Hm.hotDay && day(g) - Hm.hotDay < k.GAP && C.heOrigin(g, o.key) !== 'freed') return 0;
   let p = k[C.heOrigin(g, o.key)] != null ? k[C.heOrigin(g, o.key)] : k.peasant;
   if ((o.r.rep || 0) >= k.WARM_REP) p += k.WARM; if (mood === 'long') p += k.LONG; if (mood === 'preg') p += k.PREG;
-  return Math.max(0, Math.min(k.MAX, p)); };
+  return Math.max(0, Math.min(C.heOrigin(g, o.key) === 'freed' ? 1 : k.MAX, p)); };
 const startNight = (g, o) => {
   const S = st(g), tier = C.heTier(g, o.key), art = C.heNightArt(g, tier), nk = tier === 'peasant' && art === 'hayloft' ? 'hay' : tier;
   const mood = moodOf(g, o);
   /* жаркая ночь не только за поручение (Ник 25.11): когда рада, давно не видела, тепло относится; чем проще её положение — тем легче */
-  try { const ph = C.heHotHome(g, o, mood.m); if (ph > 0 && R.rand() < ph) { const Hm0 = S.home[o.key] = S.home[o.key] || {}; Hm0.hotDay = day(g); return hotNight(g, o, null); } } catch (e) {}
+  try { const ph = C.heHotHome(g, o, mood.m); if (ph > 0 && R.rand() < ph) { const Hm0 = S.home[o.key] = S.home[o.key] || {}; Hm0.hotDay = day(g); const N = hotNight(g, o, null); try { const E = C.heOffer(g, o.key); if (E) N.ask = E; } catch (e) {} return N; } } catch (e) {}
   const Hm = S.home[o.key] = S.home[o.key] || {}; Hm.last = day(g); Hm.n = (Hm.n || 0) + 1;
   S.night = {key: o.key, hero: o.h.id, tier, art, text: pick(T.night[nk] || T.night.peasant), mood: mood.m, say: mood.t, n: o.p.n, sex: o.p.sex, face: o.p.face, ask: null};
   if (mood.m !== 'cold') { const E = C.heOffer(g, o.key); if (E) S.night.ask = E; }
@@ -71202,6 +71214,7 @@ C.heNeed = function (g, key) {
 };
 if (C.heCupAdd) { const ca0 = C.heCupAdd; C.heCupAdd = function (g, key, d, why) {
   if (d > 0 && why === 'нищета') { const m = C.heNeed(g, key); if (!m) return 0; d = d * m; }
+  if (d > 0 && why === 'разлука') { const m = C.heNeed(g, key); if (!m) return 0; if (m > 1) d = d * m; } // богатая и в разлуке требовательнее, спасённая — ждёт
   return ca0.call(this, g, key, d, why); }; }
 
 /* дети в браке: холодный вечер — к стене, без дитя; спасённая — рада и ватаге детей (Ник 25.11) */
