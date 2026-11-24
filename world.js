@@ -44093,7 +44093,7 @@ const sx = (s, sex) => String(s || '').replace(/\{([^|{}]*)\|([^|{}]*)\}/g, (m, 
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 const decl = (n, sex) => (Q && Q.decl ? Q.decl(n, sex) : {n, g: n, d: n, a: n, i: n, p: n});
 const YEAR = () => C.AGE_YEAR || 360;
-C.KIDS = {SEASON: 90, NIGHTS: 2, P: 0.25, TERM: 270, MAX: 3, SPACE: 720, NEWS: 20, LATE: 90, HEIR_AGE: 13, NAME_WAIT: 30, ROAD_WAIT: 10, ROAD_LAST: 30};
+C.KIDS = {SEASON: 90, NIGHTS: 2, P: 0.15, P2: 0.25, BARREN: 0.02, TERM: 270, MAX: 3, SPACE: 720, NEWS: 20, LATE: 90, HEIR_AGE: 13, NAME_WAIT: 30, ROAD_WAIT: 10, ROAD_LAST: 30};
 C.kidsRand = () => R.rand();
 const st = g => { g.w2kids = g.w2kids || {}; const S = g.w2kids; S.fam = S.fam || {}; S.play = S.play || {}; S.give = S.give || {}; return S; };
 const alive = (g, id) => (C.alive(g) || []).find(h => h.id === id) || null;
@@ -44256,7 +44256,9 @@ C.kidsNight = function (g, key) {
   F.nights = (F.nights || 0) + 1;
   const K = C.KIDS;
   const young = (F.kids || []).some(k => (g.day || 1) - k.born < K.SPACE); // пока младшему нет двух лет — не понести
-  if (!F.preg && !young && (F.kids || []).length < K.MAX && (g.day || 1) - (F.wed || 0) >= K.SEASON && F.nights >= K.NIGHTS && C.kidsRand() < K.P) {
+  if (F.barren == null) F.barren = C.kidsRand() < (K.BARREN || 0) ? 1 : 0; // бездетная пара (Ник 25.11): невысоко, но бывает
+  const p2 = F.lastNight != null && (g.day || 1) - F.lastNight === 1 ? (K.P2 || K.P) : K.P; F.lastNight = g.day || 1; // вторая ночь дома подряд — вернее
+  if (!F.preg && !F.barren && !young && (F.kids || []).length < K.MAX && (g.day || 1) - (F.wed || 0) >= K.SEASON && F.nights >= K.NIGHTS && C.kidsRand() < p2) {
     F.preg = {start: g.day || 1, due: (g.day || 1) + K.TERM, mom: F.hi.sex === 'f' ? 'hero' : 'sp', told: 0};
   }
   return F.preg;
@@ -66372,7 +66374,7 @@ if (!R || !C || !C.CAMPS || !C.KVT || !C.kvAfter) return;
 const T = C.KVT, fill = C.kvFill;
 Object.assign(C.KV, {
   CAMP_YES: {lihoy: 0.9, star: 0.85, zhadny: 0.7, trus: 0.6, chestny: 1}, CAMP_NO_DAYS: 6, CAMP_PTS: 1,
-  KID: {bansh: 0.01, vesely: 0.01, guest: 0.05, local: 0.05, camp: 0.07}, KID_LOVE: 0.07, /* к100 (Ник 25.11): в бане и весёлом доме берегутся — 1; в чужом доме — 5; где есть чувства — 7; с женой — своё, w2_kids */ TERM: 270, NEWS: 20, LATE: 90, KIN: 30, BEAT: 30, FAR_GAP: [10, 60],
+  KID: {bansh: 0.02, vesely: 0.01, guest: 0.06, local: 0.06, camp: 0.08}, KID_LOVE: 0.08, KID_DRUNK: 0.03, /* к100 (Ник 25.11): баня 2, весёлый дом 1, чужой дом 6, по любви 8; хмель — до +3; с женой — w2_kids */ TERM: 270, NEWS: 20, LATE: 90, KIN: 30, BEAT: 30, FAR_GAP: [10, 60],
 }, C.KV.INT || {});
 const K = () => C.KV;
 const decl = (n, sex) => (Q && Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
@@ -66454,6 +66456,7 @@ C.kvMaybeKid = function (g, h, o, force) {
   if (!heroMom && (kind === 'bansh' || kind === 'vesely')) return null;
   let pk = K().KID[kind] || 0;
   if (kind === 'local' && o.loc && C.kvLocOf) { const r = C.kvLocOf(g, o.loc); if (r && (r.rel || 0) >= 75) pk = Math.max(pk, K().KID_LOVE || pk); }
+  { const hd = (h.drunk || 0), lim = C.drunkLimit ? C.drunkLimit(h) : 4; if (hd > 0.2 && pk > 0) pk += (K().KID_DRUNK || 0) * Math.min(1, hd / lim); } // навеселе — берегутся хуже
   if (!force && R.rand() >= pk) return null;
   if (heroMom && heroPreg(g, h)) return null;
   const ppl = o.m ? (o.m.people || 'nolgrim') : C.kvPpl ? C.kvPpl(g) : 'nolgrim';
@@ -70980,6 +70983,12 @@ SC.cl_bar = g => {
 };
 Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
 if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+
+/* ---------- хмель: сильно пьяному ночь не случается (Ник 25.11) ---------- */
+C.kvTooDrunk = h => !!h && (h.drunk || 0) >= 1.5 * (C.drunkLimit ? C.drunkLimit(h) : 4);
+{ const ka0 = C.kvAfter; C.kvAfter = function (g, h, o) {
+  if (g && h && C.kvTooDrunk(h)) { const t = `${h.name} так пьян${h.sex === 'f' ? 'а' : ''}, что засыпает, едва коснувшись подушки, и храпит до утра. Ночи не случилось.`; C.note(g, t); return [t]; }
+  return ka0.apply(this, arguments); }; }
 
 /* ---------- куда встроено ---------- */
 /* баня: «Помыться всем», «Попариться», река */
