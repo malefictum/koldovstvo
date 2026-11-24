@@ -70572,3 +70572,134 @@ C.TL_EV.kv_flirt = {id: 'kv_flirt', grp: ['torg', 'ulica', 'korchma'], safe: 1,
 };
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* tryst_tales.js */
+/* Колдовство — сказ после ночи (решение Ника 24.11). Супружество даёт свои блага; случайные ночи — другое: изредка тот,
+   с кем провёл ночь, под утро рассказывает тайну — где лежит дорогая вещь. На карте встаёт жёлтый «?» далеко от места
+   (8–16 клеток), без срока, как точка интереса. Дошёл — вещь твоя наверняка: волшебное оружие или доспех не слабее +2,
+   наговорный оберег, клад с самоцветом. Только вольный мир с картой-гексами.
+   Шанс по роду ночи — C.TT.P; не больше C.TT.MAX открытых сказов разом; одному герою — не чаще раза в C.TT.GAP дней.
+   Состояние: метка в g.marks {kind: 'tale', tale: {...}, until: далеко} (horizon.js раскрывает её сценой tale_find),
+   h.ttDay. Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W;
+if (!R || !C || !W || !C.kvAfter) return;
+C.TT = Object.assign({P: {local: 0.25, guest: 0.3, camp: 0.15, vesely: 0.12, bansh: 0.08}, MAX: 3, GAP: 4, DMIN: 8, DMAX: 16, FOREVER: 1e7}, C.TT || {});
+const K = () => C.TT;
+const pick = a => a[Math.floor(R.rand() * a.length)];
+const fill = (s, v) => s.replace(/\{(\w+)\}/g, (m, k) => v[k] != null ? v[k] : m);
+const hex = g => !!(g && g.camp === 'free' && W.isHex && W.isHex(g));
+const lvl = g => Math.max(1, C.partyLevel ? C.partyLevel(g) : 1);
+const tales = g => (g.marks || []).filter(m => m.kind === 'tale');
+
+/* ---------- что за вещь ---------- */
+const TYPE = {
+  mech: {name: 'Оружие воеводы в кургане', bg: 'kurgan', where: ['старый курган с кривой берёзой на макушке', 'насыпь у трёх валунов', 'безымянная могила воеводы у ручья'],
+    tell: ['Дед мой рассказывал: когда хоронили воеводу, что пал за переправу, оружие ему положили под правую руку, а курган насыпали наспех. {Dir} отсюда, {D} пути, — {Where}. Никто туда не ходит, боятся. Тебе — скажу.',
+      '{P} долго молчит, глядя в потолок, потом шепчет: «Дядька мой копателем был. Нашёл он раз под насыпью оружие воеводино, да испугался мертвеца, засыпал обратно. {Dir}, {D} ходу, — {Where}. Возьми, коль не боишься.»'],
+    find: 'Под дёрном — гнилые доски, под ними кости в ржавой кольчуге. Рука мертвеца лежит на рукояти, будто он только вздремнул. Железо чистое, ни пятнышка ржи.'},
+  bronya: {name: 'Доспех утопленного струга', bg: 'ford', where: ['отмель у разбитого струга', 'старая переправа, где торчат сваи', 'омут под ивой у брода'],
+    tell: ['Купцы прошлым летом струг утопили, — смеётся {P} в темноте. — Всё вытащили, а сундук с бронёй воеводиной не нашли: я-то знаю, куда его волной снесло. {Dir}, {D} пути, — {Where}. Только мне долю не забудь.',
+      'Брат мой нырял за товаром с утопленного струга, — тихо говорит {P}. — Видел сундук, окованный медью, да не смог поднять. {Dir}, {D} пути, — {Where}.'],
+    find: 'Вода по пояс, ил по колено. Сундук вязнет, но поддаётся. Внутри, в промасленной холстине, — доспех, сухой, будто вчера с наковальни.'},
+  obereg: {name: 'Бабкин оберег', bg: 'shrine', where: ['дуплистый дуб на старом капище', 'камень с выбитым колесом у лесной тропы', 'заброшенная баня ведуньи в ольшанике'],
+    tell: ['Бабка моя ведуньей была, — шепчет {P}. — Перед смертью спрятала свой оберег, сказала: отдай тому, кто тебя не обидит. Ты не обидел{ha}. {Dir}, {D} пути, — {Where}.',
+      '{P} снимает с шеи нитку и завязывает на запястье узелок. — Это знак. Покажешь его месту — оно отдаст. {Dir}, {D} пути, — {Where}. Там бабкин наговор лежит, сильный.'],
+    find: 'Узелок на запястье теплеет. В тайнике, завёрнутое в бересту, лежит украшение — и от него по коже идут мурашки, как от грозы.'},
+  klad: {name: 'Зарытый клад', bg: 'ruins', where: ['пепелище старого хутора с одной уцелевшей печью', 'развалины мельницы на высохшем ручье', 'старый межевой камень с волчьей мордой'],
+    tell: ['Отец мой в разбойниках ходил, — признаётся {P} под утро. — Перед тем как его взяли, закопал общак. Только я и знаю где. {Dir}, {D} пути, — {Where}. Мне туда ходу нет, а тебе — в самый раз.',
+      'Слушай, — {P} приподнимается на локте. — Хозяин мой прежний, жадный был до смерти, так и помер над своим горшком серебра. Я видел{a}, куда он горшок прятал. {Dir}, {D} пути, — {Where}.'],
+    find: 'Земля под приметой рыхлая. На локоть вглубь лопата звякает о горшок. Серебро, золото — и в тряпице камень, что горит в ладони холодным огнём.'},
+};
+const KINDS_FOR = {local: ['klad', 'obereg', 'mech', 'bronya'], guest: ['mech', 'bronya', 'klad', 'obereg'], camp: ['mech', 'bronya', 'obereg'], vesely: ['klad', 'klad', 'bronya'], bansh: ['klad', 'obereg']};
+const DIR = (dc, dr) => { const a = Math.atan2(dr, dc) * 180 / Math.PI; return a > -45 && a <= 45 ? 'На восход' : a > 45 && a <= 135 ? 'На полдень' : a > 135 || a <= -135 ? 'На закат' : 'На полночь'; };
+const daysWord = d => (d <= 1 ? 'день' : d === 2 ? 'два дня' : d === 3 ? 'три дня' : d === 4 ? 'четыре дня' : 'пять дней');
+
+/* ---------- место ---------- */
+const placeFor = (g, from) => {
+  const w = W.world(g), taken = new Set((g.marks || []).map(m => m.c + ',' + m.r));
+  const nodeNear = cell => Object.values(w.nodeAt).some(n => W.dist(n, cell) <= 1);
+  const cand = Object.values(w.cells).filter(x => { const d = W.dist(x, from); return d >= K().DMIN && d <= K().DMAX && x.t !== 'water' && x.t !== 'town' && !x.node && !x.poi && !x.folk && !nodeNear(x) && !taken.has(x.c + ',' + x.r) && isFinite(W.cost(x)); });
+  return cand.length ? pick(cand) : null;
+};
+
+/* ---------- сказ ---------- */
+C.taleMaybe = function (g, h, o) {
+  o = o || {}; if (!hex(g) || !h || g.pendingBattle) return null;
+  const p0 = K().P[o.kind]; if (!p0) return null;
+  if (o.m && h.spouse && C.spouseOf && C.spouseOf(g, h) === o.m) return null;
+  if (tales(g).length >= K().MAX) return null;
+  if (h.ttDay != null && (g.day || 1) - h.ttDay < K().GAP) return null;
+  if (R.rand() >= p0) return null;
+  return C.taleMake(g, h, o);
+};
+C.taleMake = function (g, h, o) {
+  o = o || {}; const here = W.pos(g); if (!here) return null;
+  const cell = placeFor(g, here); if (!cell) return null;
+  const type = pick(KINDS_FOR[o.kind] || Object.keys(TYPE)), T = TYPE[type];
+  const pn = (o.p && o.p.n) || (o.m && o.m.name) || 'Она', psex = (o.p && o.p.sex) || (o.m && o.m.sex) || (h.sex === 'f' ? 'm' : 'f');
+  const d = W.dist(cell, here), days = Math.max(1, Math.min(5, Math.round(d / 4))), where = pick(T.where);
+  let tpl = pick(T.tell); if (!/\{P\}/.test(tpl)) tpl = 'Под утро {P} говорит вполголоса: «' + tpl + '»';
+  const text = fill(tpl, {P: pn, Dir: DIR(cell.c - here.c, cell.r - here.r), D: daysWord(days), Where: where, a: psex === 'f' ? 'а' : '', ha: h.sex === 'f' ? 'а' : ''});
+  const m = {id: 'tt' + (g.day || 1) + '_' + Math.floor(R.rand() * 1e6), c: cell.c, r: cell.r, kind: 'tale', see: where, by: pn, day: g.day || 1, until: K().FOREVER,
+    tale: {type, who: pn, sex: psex, hid: h.id, lvl: lvl(g), where}};
+  g.marks = (g.marks || []).concat(m); try { W.reveal(g, cell, 0); } catch (e) {}
+  h.ttDay = g.day || 1;
+  const line = `${text} Место отмечено на карте.`;
+  C.note(g, `${h.name} узнаёт тайну от ${pn}: ${T.name.toLowerCase()} — ${where}.`);
+  return line;
+};
+const ka0 = C.kvAfter;
+C.kvAfter = function (g, h, o) {
+  const out = ka0.apply(this, arguments);
+  try { const t = C.taleMaybe(g, h, o); if (t && Array.isArray(out)) out.push(t); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return out;
+};
+
+/* ---------- награда: дорогая вещь наверняка ---------- */
+const worth = id => { const it = R.item(id); return it ? (it.price || 0) : 0; };
+const bestOf = (n, f) => { let best = null; for (let i = 0; i < n; i++) { const id = f(); if (!best || worth(id) > worth(best)) best = id; } return best; };
+const rollTale = (g, type, L) => {
+  const L2 = Math.max(L + 3, 6);
+  if (type === 'obereg') return [bestOf(4, () => C.rollMagic(L2 + 2, {jewel: true, noCurse: true}))];
+  if (type === 'klad') return [bestOf(3, () => C.rollMagic(L2, {jewel: true, noCurse: true}))];
+  const want = type === 'mech' ? 'w' : 'a';
+  let id = null;
+  for (let i = 0; i < 40 && !id; i++) { const x = C.rollMagic(L2, {jewel: false, noCurse: true}); const o = C.magicParse(x), it = R.item(x);
+    if (!o || !it) continue; if ((want === 'w' ? it._t === 'w' : it._t === 'a') && (o.bonus || 0) >= 2) id = x; }
+  return [id || bestOf(6, () => C.rollMagic(L2, {jewel: false, noCurse: true}))];
+};
+C.taleReward = function (g, m) {
+  const t = m.tale || {}, L = Math.max(t.lvl || 1, lvl(g)), items = C.rollMagic ? rollTale(g, t.type, L).filter(Boolean) : [];
+  const gold = t.type === 'klad' ? Math.round((300 + 150 * L) * (0.8 + R.rand() * 0.6) / 10) * 10 : 0;
+  const hs = C.alive(g); g.purse = (g.purse || 0) + gold;
+  const got = new Map(hs.map(x => [x, 0]));
+  items.forEach(id => { const to = hs.find(x => x.id === t.hid) || (C.lootTo ? C.lootTo(hs, id, got) : hs[0]); if (to) { to.inv.push(id); got.set(to, (got.get(to) || 0) + 1); } });
+  const names = items.map(id => ((R.item(id) || {}).name || id));
+  return {gold, items, names};
+};
+
+/* ---------- сцена ---------- */
+const SC = {};
+SC.tale_find = g => {
+  const m = g.taleCur; if (!m) return {title: 'Пусто', bg: 'road', lines: [['n', 'Здесь ничего нет.']], choices: [{t: 'Уйти', go: 'map'}]};
+  const T = TYPE[m.tale.type] || TYPE.klad, R0 = g.taleRes;
+  const lines = [['n', `Вот оно — ${m.tale.where}. Всё как рассказывал${m.tale.sex === 'f' ? 'а' : ''} ${m.tale.who}.`]];
+  if (!R0) return {title: T.name, bg: T.bg, lines, choices: [{t: 'Искать по приметам', do: g2 => { g2.taleRes = C.taleReward(g2, g2.taleCur); C.note(g2, `${T.name}: ${g2.taleRes.names.join(', ')}${g2.taleRes.gold ? ', ' + R.priceText(g2.taleRes.gold) : ''}.`); return 'tale_find'; }}]};
+  lines.push(['n', T.find]);
+  lines.push(['n', `Добыча: ${R0.names.join(', ')}${R0.gold ? ` и ${R.priceText(R0.gold)}` : ''}. Не всякий год такое находят.`]);
+  return {title: T.name, bg: T.bg, lines, choices: [{t: 'Забрать и уйти', do: g2 => { g2.taleCur = null; g2.taleRes = null; return 'map'; }}]};
+};
+Object.values(C.CAMPS).forEach(camp => { if (camp.map && camp.map.hex) Object.assign(camp.scenes, SC); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); if (camp.map && camp.map.hex) Object.assign(camp.scenes, SC); return r; }; }
+
+/* horizon.js раскрывает знак kind 'tale' через этот вызов */
+W.taleOpen = (g, m) => { g.taleCur = m; g.taleRes = null; return {poi: 'tale_find'}; };
+
+/* журнал: открытые сказы */
+C.taleHtml = (g, esc) => { const L = tales(g); if (!L.length) return '';
+  return `<section><h4>Тайны, рассказанные ночью</h4><ul>${L.map(m => `<li><b>${esc((TYPE[m.tale.type] || TYPE.klad).name)}</b> — ${esc(m.tale.where)}<small>со слов: ${esc(m.tale.who)} · без срока, место отмечено на карте</small></li>`).join('')}</ul></section>`; };
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);

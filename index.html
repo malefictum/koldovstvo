@@ -225,7 +225,7 @@ button{font:inherit;cursor:pointer}
 .battle canvas.bmini{width:150px;height:auto;border:1px solid var(--rim);border-radius:4px;box-shadow:0 2px 8px rgba(0,0,0,.5);cursor:crosshair;touch-action:none}
 .bzoom{display:flex;gap:4px}.bzoom .btn{min-width:32px;padding:2px 8px;font-size:16px;line-height:1.4}
 .bside{background:url(img/oak.webp) center/256px;border-left:2px solid var(--rim);display:grid;grid-template-rows:auto auto minmax(0,auto) minmax(90px,1fr);min-height:0}
-.bside .acts{overflow-y:auto;overflow-x:hidden;min-height:0;align-content:start}.acts .btn{min-width:0;overflow-wrap:break-word}.acts>details,.acts>.bmore{grid-column:1/-1}
+.bside .acts{overflow-y:auto;overflow-x:hidden;min-height:0;align-content:start}.acts .btn{min-width:0;overflow-wrap:break-word}.acts>details,.acts>.bmore{grid-column:1/-1}.acts>.bfacts{grid-column:1/-1;display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;min-width:0}
 .finfo{padding:6px 12px;font-size:13px;line-height:1.35;background:rgba(90,20,16,.28);border-bottom:1px solid var(--rim)}.finfo:empty{padding:0;border:0}.finfo small{opacity:.75}.finfo b{font-family:var(--t-label)}
 .ucard{padding:10px 12px;display:grid;grid-template-columns:56px 1fr;gap:10px;border-bottom:1px solid var(--rim)}
 .ucard .face{width:56px;height:56px;box-shadow:0 2px 8px rgba(0,0,0,.6);border-radius:6px;border:1px solid var(--rim)}
@@ -644,7 +644,7 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .acts .bmore summary{cursor:pointer;font:700 10px var(--t-label);letter-spacing:.1em;text-transform:uppercase;color:var(--brass);opacity:.8;padding:4px 0;list-style-position:inside}
 .acts .bmore summary:hover{opacity:1}
 .acts .bmore summary i{font-style:normal;display:inline-block;min-width:16px;margin-left:4px;padding:0 5px;border-radius:8px;border:1px solid var(--brass);color:var(--brass-2);text-align:center;letter-spacing:0}
-.acts .bmore-g{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:4px}
+.acts .bmore-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-top:4px}
 /* низ панели: «Отмена» и «Конец хода» всегда на виду */
 .acts .bfoot{grid-column:1/-1;display:flex;gap:6px;position:sticky;bottom:-10px;z-index:2;margin:4px -12px -10px;padding:8px 12px 10px;background:linear-gradient(rgba(24,18,12,.92),rgba(24,18,12,.96)),url(img/oak.webp) center/256px;border-top:1px solid var(--rim)}
 .acts .bfoot .btn{flex:1;justify-content:center}
@@ -36483,7 +36483,7 @@ const placeFor = (g, from, dmin, dmax) => {
   return cand.length ? R.pick(cand) : null;
 };
 W.spot = function (g, from, dmin, dmax) {
-  if (marks(g).length >= 4) return null;
+  if (marks(g).filter(m => m.kind !== 'tale').length >= 4) return null; // сказы после ночи (tryst_tales.js) знакам не мешают
   const cell = placeFor(g, from, dmin, dmax); if (!cell) return null;
   const kind = pickW(g), e = eyes(g);
   const m = {id: 'mk' + g.day + '_' + Math.floor(R.rand() * 1e6), c: cell.c, r: cell.r, kind, see: R.pick(KIND[kind].see), by: e ? e.h.name : '', day: g.day, until: g.day + 2};
@@ -36500,6 +36500,7 @@ const HOLE = {forest: 'peshchera', hills: 'peshchera', mountains: 'peshchera', m
 const ODD = ['ruins', 'camp', 'shrine', 'barrow', 'trail', 'spring', 'hermit'];
 const resolve = (g, m, cell) => {
   g.marks = marks(g).filter(x => x !== m);
+  if (m.kind === 'tale' && W.taleOpen) return W.taleOpen(g, m);
   const T = W.T[cell.t] || W.T.meadow;
   if (m.kind === 'job' && Q && Q.meet && Q.active(g).length < 5) return {poi: Q.meet(g)};
   if (m.kind === 'fight' || m.kind === 'job') { const enc = C.encounter(g, T.enc);
@@ -49912,7 +49913,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611242139"></script><script>
+</script><script src="world.js?v=202611242152"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50745,7 +50746,7 @@ function renderSide() {
   if (g.ended) goals = `<section><h4>Сага края пройдена</h4><p class="note">Можно ещё бродить по краю: доделать дела, продать добро, поучиться у наставников. Когда будете готовы — закончите главу, и летопись перейдёт к следующей.</p><button class="btn small" id="side-end">Закончить главу</button></section>`;
   const escH = C.escorts ? C.escorts(g).map(e => { const d = C.ESCORT[e.id], n = camp.map.nodes[d.to]; return `<li><b>${esc(d.name)}</b> — до места «${esc(n ? n.name : '?')}»<small>${d.dl ? 'до ' + (e.day + d.dl) + '-го дня' : ''}${d.kind !== 'deliver' || d.risky ? (d.dl ? ' · ' : '') + 'проиграете бой — не уберечь' : ''}</small></li>`; }).join('') : '';
   const jobs = (g.jobs || []).filter(j => j.status === 'open' || j.status === 'done');
-  const jhtml = (escH ? `<section><h4>В пути с отрядом</h4><ul>${escH}</ul></section>` : '') + (jobs.length ? `<section><h4>Дела</h4><ul>${jobs.map(j => `<li>${esc(Q.title(j))}<small>${j.status === 'done' ? `сделано — за платой: ${jobWhere(j)}` : `${jobGiver(j)} · до ${j.dl}-го дня`}</small></li>`).join('')}</ul></section>` : '');
+  const jhtml = (C.taleHtml ? C.taleHtml(g, esc) : '') + (escH ? `<section><h4>В пути с отрядом</h4><ul>${escH}</ul></section>` : '') + (jobs.length ? `<section><h4>Дела</h4><ul>${jobs.map(j => `<li>${esc(Q.title(j))}<small>${j.status === 'done' ? `сделано — за платой: ${jobWhere(j)}` : `${jobGiver(j)} · до ${j.dl}-го дня`}</small></li>`).join('')}</ul></section>` : '');
   const news = []; for (const j of g.journal.slice(-24).reverse()) { const last = news[news.length - 1]; if (last && last.t === j.t && last.day === j.day) last.n = (last.n || 1) + 1; else if (news.length < 4) news.push({day: j.day, t: j.t}); else break; }
   if (!$('#side-main')) side.innerHTML = '<div id="side-main"></div><section class="schat" hidden><h4>Чат стола</h4><div id="side-chat"></div></section>';
   const sm = $('#side-main');
