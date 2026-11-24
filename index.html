@@ -49913,7 +49913,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611242230"></script><script>
+</script><script src="world.js?v=202611242235"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51834,6 +51834,7 @@ const profIco = (id, cls) => { const i = PROF_ICO[id]; if (i == null) return `<s
   return `<span class="pico ${cls || ''}" style="background-position:${(i % 10) * 100 / 9}% ${Math.floor(i / 10) * 100 / 8}%"></span>`; };
 const FOLD = {}; // какие свёрнутые группы игрок раскрыл: {scene|group: true}
 const M_LEAVE = /^(Назад|Уйти|На дорогу|Дальше|Отойти|Вернуться|Проститься|Прощай|Выйти|На карту)(?![а-яё])/;
+const M_WALK = /^(Пройтись по (городу|селу|подворью)|Осмотреться)$/; // прогулка — плиткой среди мест, чтобы не терялась в длинном списке (Ник 25.11)
 const M_PLACE = /^(По городу|По селу|Корчма|Потолкаться|Конюшня|Купить землю|Земля и доля|На торг|Торг|Капище|Храм|Пристань|Баня|Ярмарк|Кузня|Книжня|Гостиный двор|Дружинный двор|Выпить у стойки|Объявления у стойки)/;
 const M_MASTER = /^(Распознать находки|Торг украшениями|Учиться|Мастерская|Перековать|Улучшить стёганку|Посох, лук, щит|Кольца и обереги|Распознать вещь|Посмотреть диковинки|Купить материал|Послушать слухи|Сбыть неопознанное)/;
 const M_JOB = /^(Дело|Дело по слуху|Отчитаться|Взять дело|Сдать дело)(?![а-яё])/;
@@ -51848,7 +51849,7 @@ function menuGroup(c) {
   if (M_MASTER.test(c.label)) return 'master';
   if (M_TALK.test(c.label)) return 'talk';
   if (M_CRAFT.test(c.label)) return 'craft';
-  if (M_PLACE.test(c.label) || c.go === 'folk_tavern') return 'place';
+  if (M_PLACE.test(c.label) || c.go === 'folk_tavern' || M_WALK.test(c.label)) return 'place';
   return 'now';
 }
 const splitLabel = t => { const k = t.indexOf(':'); if (k > 0 && k < 34) return [t.slice(0, k), t.slice(k + 1).trim()]; const d = t.indexOf(' — '); return d > 0 && d < 40 ? [t.slice(0, d), t.slice(d + 3).trim()] : [t, '']; };
@@ -51892,7 +51893,7 @@ function menuHTML(id, list) {
     return `<details class="mgrp mfold" data-fold="${esc(fk)}"${open ? ' open' : ''}><summary class="mgh">${esc(t)} <span class="mcnt">${arr.length}</span></summary><div class="mfi">${arr.map(render).join('')}</div></details>`; };
   const btns = arr => arr.map(c => choiceBtn(id, c)).join('');
   const tiles = (arr, kind) => arr.length ? `<div class="mtiles">${arr.map(c => tileBtn(id, c, typeof kind === 'function' ? kind(c) : kind)).join('')}</div>` : '';
-  const placeKind = c => /Корчма|стойк/.test(c.label) ? 'food' : /мастера и люди|По городу|По селу/.test(c.label) ? 'people' : /торг|Торг|лавк/.test(c.label) ? 'market' : /Конюшн/.test(c.label) ? 'keep' : /Земл|долю/.test(c.label) ? 'seal' : /Храм|Капище/.test(c.label) ? 'pray' : 'keep';
+  const placeKind = c => M_WALK.test(c.label) ? (/^Осмотреться/.test(c.label) ? 'spyglass' : 'steps') : /Корчма|стойк/.test(c.label) ? 'food' : /мастера и люди|По городу|По селу/.test(c.label) ? 'people' : /торг|Торг|лавк/.test(c.label) ? 'market' : /Конюшн/.test(c.label) ? 'keep' : /Земл|долю/.test(c.label) ? 'seal' : /Храм|Капище/.test(c.label) ? 'pray' : 'keep';
   const masterKind = c => /^Учиться/.test(c.label) ? 'codex' : /диковинки|материал|^Торг/.test(c.label) ? 'market' : /слухи/.test(c.label) ? 'chat' : /Распознать/.test(c.label) ? 'spyglass' : /Сбыть/.test(c.label) ? 'sell' : 'write';
   const twoNow = G0.now.length && (G0.place.length || G0.master.length);
   return `<div class="mscroll">${sec(twoNow ? 'Сейчас' : '', btns(G0.now))}
