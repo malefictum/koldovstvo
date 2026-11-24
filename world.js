@@ -70448,7 +70448,7 @@ C.walkDo = function (S, u, a) {
   if (a.v === 'light') { u.torch = !u.torch; if (u.look) u.look = Object.assign({}, u.look, {torch: !!u.torch && !((u.ref && u.ref.inv) || []).includes('fonar_slyudyanoy')}); if (BF.touch) BF.touch(S); lg(S, fill(u.torch ? TX.light.onLog : TX.light.offLog, {h: u}), ''); S.walk._roll = {}; perceive(S, u); return ''; }
   if (a.v === 'enter') { const h = houseOf(S, a.p); Wk.end = {k: 'pause', go: {k: 'place', hk: h ? h.k : ''}}; S.over = 'walk'; return ''; }
   if (a.v === 'talk') { const j = tgtJob(g, t); let face = t.portrait || t.civ.face || ''; if (!face) { try { const fs = C.foeFaces(t.civ.k === 'guard' ? 'guard' : 'wander', sexOf(t)); face = fs.length ? fs[hsh(t.name || t.id) % fs.length] : ''; t.civ.face = face; } catch (e) {} }
-    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null}}}; S.over = 'walk'; return ''; }
+    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null}}}; S.over = 'walk'; return ''; }
   if (a.v === 'pick') {
     S.acted = true; Wk.picked[t.id] = 1; B.faceTo(u, t);
     const dc = 10 + Math.floor((t.level || 1) / 2) + (t.civ.k === 'guard' ? 3 : t.civ.k === 'trader' ? 2 : 0), r = roll(u, 'dex', 'Ловкость рук', dc);
@@ -71438,6 +71438,187 @@ C.choose = function (g) {
   const r = ch0.apply(this, arguments);
   try { if (g && g.kvAskGo && r && r.scene === 'kv_local') { g.kvAskGo = 0; return Object.assign({}, r, {scene: 'q_offer'}); } if (g && g.kvAskGo && r && r.scene && r.scene !== 'kv_husb') g.kvAskGo = 0; } catch (e) {}
   return r;
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* town_folk.js */
+/* Колдовство — простые люди места (Ник 25.11: «засели города и сёла людьми, чтобы можно было случайно поговорить даже не
+   с торговцем — с дочкой кузнеца, поболтать даже с такими»). Без DOM.
+   • У каждого села и города — свои жители (постоянные, по месту): дочь кузнеца, сын мельника, вдова-пряха, жена гончара,
+     старый дружинник, бабка-повитуха, пастух, подмастерье, ребятня. В селе их меньше, в городе больше. На улице в каждый час
+     — несколько из них; ночью — почти никого.
+   • «Улица: поболтать с людьми» (плитка среди мест) — к кому подойти. Разговор: о жизни (по роду и возрасту), о новостях
+     (слухи края), помочь по-соседски (полдня — и тебя помнят), а со взрослым иного пола — заигрывать (по Обаянию и
+     наряду, C.kvAttract): вышло — человек становится знакомым (vesely.js: встречи, ночи, сватовство, замужняя — муж).
+     С детьми — только поболтать; однополым — только дружба.
+   • Помнит: отношение к герою (g.tf[место][id].rel) — тёплые здороваются сами и рассказывают больше.
+   Числа — C.TF (тайна мастера). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !Q || !Q.person) return;
+C.TF = Object.assign({TOWN: 12, VILLAGE: 7, OUT: 4, NIGHT: 1, TALK: 6, HELP: 10, FLIRT_DC: 13, REL_WARM: 30}, C.TF || {});
+const K = () => C.TF;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const pickH = (a, salt) => (a && a.length ? a[hsh(salt) % a.length] : '');
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const day = g => (g && g.day) || 1;
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const nodeOf = g => nodes(g)[g.loc] || null;
+const decl = (n, sex) => (Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const KINDS = ['город', 'село', 'подворье', 'мельница', 'застава', 'лагерь', 'стан'];
+
+/* кто живёт: род, пол, возраст (young — взрослая молодёжь, adult, old, kid — ребёнок), положение (maid, wife, widow, single) */
+const ROLES = [
+  {t: ['дочь кузнеца'], sex: 'f', age: 'young', st: 'maid', w: 3, talk: 'kuz'}, {t: ['сын кузнеца'], sex: 'm', age: 'young', st: 'single', w: 2, talk: 'kuz'},
+  {t: ['дочь мельника'], sex: 'f', age: 'young', st: 'maid', w: 2, talk: 'mel'}, {t: ['сын мельника'], sex: 'm', age: 'young', st: 'single', w: 2, talk: 'mel'},
+  {t: ['жена гончара'], sex: 'f', age: 'adult', st: 'wife', rank: 'master', w: 2, talk: 'wife'}, {t: ['жена бондаря'], sex: 'f', age: 'adult', st: 'wife', rank: 'master', w: 1, talk: 'wife'},
+  {t: ['вдова-пряха'], sex: 'f', age: 'adult', st: 'widow', w: 2, talk: 'widow'}, {t: ['вдовец-плотник'], sex: 'm', age: 'adult', st: 'widow', w: 1, talk: 'widow'},
+  {t: ['пастух'], sex: 'm', age: 'young', st: 'single', w: 2, talk: 'past'}, {t: ['пастушка'], sex: 'f', age: 'young', st: 'maid', w: 1, talk: 'past'},
+  {t: ['подмастерье'], sex: 'm', age: 'young', st: 'single', w: 2, talk: 'pod'}, {t: ['служанка постоялого двора'], sex: 'f', age: 'young', st: 'maid', w: 2, town: 1, talk: 'sluga'},
+  {t: ['старый дружинник'], sex: 'm', age: 'old', st: 'old', w: 1, talk: 'old_war'}, {t: ['бабка-повитуха'], sex: 'f', age: 'old', st: 'old', w: 1, talk: 'old_baba'},
+  {t: ['дед-рыбак'], sex: 'm', age: 'old', st: 'old', w: 1, talk: 'old_ryb'}, {t: ['кумушка у колодца'], sex: 'f', age: 'adult', st: 'wife', rank: 'muzhik', w: 2, talk: 'kuma'},
+  {t: ['жена приказчика'], sex: 'f', age: 'adult', st: 'wife', rank: 'kupec', w: 1, town: 1, talk: 'wife'}, {t: ['писарь'], sex: 'm', age: 'adult', st: 'single', w: 1, town: 1, talk: 'pis'},
+  {t: ['ребятня у плетня'], sex: 'm', age: 'kid', st: 'kid', w: 2, talk: 'kid'}, {t: ['девчушка с котёнком'], sex: 'f', age: 'kid', st: 'kid', w: 1, talk: 'kid'},
+];
+const AGE_OF = {young: 20, adult: 32, old: 60, kid: 9};
+C.tfPeople = function (g, at) {
+  const n = nodes(g)[at]; if (!n || !KINDS.includes(n.kind)) return [];
+  g.tfPpl = g.tfPpl || {}; const ck = g.camp + '|' + at; if (g.tfPpl[ck]) return g.tfPpl[ck]; // раз заселили — живут те же (в сохранении)
+  const town = n.kind === 'город', N = town ? K().TOWN : K().VILLAGE, seed = g.camp + '|' + at + '|tf';
+  const pool = ROLES.filter(r => town || !r.town), out = [], used = new Set();
+  for (let i = 0; out.length < N && i < 60; i++) {
+    const tot = pool.reduce((a, r) => a + r.w, 0); let x = hsh(seed + i) % tot, R0 = pool[0]; for (const r of pool) { x -= r.w; if (x < 0) { R0 = r; break; } }
+    const tk = R0.t[0]; if (R0.age !== 'kid' && used.has(tk) && hsh(seed + 'd' + i) % 3) continue; used.add(tk);
+    let p = null; try { const r0 = R.rand; R.rand = (() => { let k = hsh(seed + 'p' + i); return () => { k = Math.imul(k ^ (k >>> 15), 2246822507) >>> 0; return (k % 100000) / 100000; }; })(); try { p = Q.person(g, R0.sex, C.kvPpl ? C.kvPpl(g) : null); } finally { R.rand = r0; } } catch (e) {}
+    const nm = R0.age === 'kid' ? (R0.sex === 'f' ? 'Малуша' : 'Ребятня') : (p && p.n) || (R0.sex === 'f' ? 'Милава' : 'Ждан');
+    let face = ''; try { const role = R0.age === 'old' ? 'old' : R0.age === 'young' ? 'young' : R0.age === 'kid' ? 'kid' : 'adult'; face = (C.D1 && C.D1.faceRole) ? C.D1.faceRole(role, R0.sex, seed + i) : ''; } catch (e) {}
+    if (face && R0.age !== 'kid' && R0.age !== 'old' && ((C.FACE_KID || []).includes(face) || (C.FACE_ELDER || []).includes(face))) face = '';
+    if (!face) { const L0 = R0.age === 'kid' ? (C.FACE_KID || []) : R0.age === 'old' ? (C.FACE_ELDER || []) : (R0.sex === 'f' ? (C.PORTRAITS_F || []) : (C.PORTRAITS_M || [])), L = R0.age === 'kid' || R0.age === 'old' ? L0 : L0.filter(f => !(C.FACE_KID || []).includes(f) && !(C.FACE_ELDER || []).includes(f) && !(C.D1_YOUNG || []).includes(f)); face = L.length ? L[hsh(seed + 'f' + i) % L.length] : ''; }
+    out.push({id: 'tf' + i, n: nm, sex: R0.sex, age: R0.age, st: R0.st, rank: R0.rank, t: tk, talk: R0.talk, face, ppl: (p && p.ppl) || 'nolgrim', nrav: ['laska', 'shutnik', 'tihiy', 'hozyain'][hsh(seed + 'n' + i) % 4]});
+  }
+  g.tfPpl[ck] = out; return out;
+};
+C.tfHere = function (g) {
+  const all = C.tfPeople(g, g.loc); if (!all.length) return [];
+  const night = C.isNight && C.isNight(g), N = night ? K().NIGHT : K().OUT, salt = g.loc + '|' + day(g) + '|' + (g.time || 0);
+  return all.filter(p => !(night && p.age === 'kid')).map(p => [hsh(salt + p.id), p]).sort((a, b) => a[0] - b[0]).slice(0, N).map(x => x[1]);
+};
+const relOf = (g, at, id) => { g.tf = g.tf || {}; const A = g.tf[g.camp + '|' + at] = g.tf[g.camp + '|' + at] || {}; return (A[id] = A[id] || {rel: 0, met: 0}); };
+
+/* ---------- слова ---------- */
+const TALK = {
+  kuz: {f: ['Отец весь день у горна, а я — меха качать. Видишь руки? У боярышень таких нет, зато у меня подкова в руке гнётся.', 'Ты на меч свой глянь — зазубрина на зазубрине. Принеси отцу, он поправит. А я тебе квасу вынесу, пока ждёшь.'],
+    m: ['Отец говорит — из меня кузнец как из козы певчая птица. А я вот ножи кую потихоньку. Глянешь?', 'Ты коня давно ковал? Слышно по шагу — левая задняя хлябает.']},
+  mel: {f: ['У нас на мельнице, говорят, водяной живёт. Я раз видела — борода зелёная, глаза как у рыбы. Не веришь? Сходи ночью — поверишь.', 'Мука нынче дорогая, а всё одно мелют. Без хлеба — никуда, хоть ты князь, хоть ты бродяга.'],
+    m: ['Отец колесо ладит третий день, а оно всё скрипит. Говорит — водяного задобрить надо. Хлебом. Нашим, между прочим, хлебом.', 'Хочешь, свезу на телеге до развилки? Мне всё одно туда за жерновом.']},
+  wife: {f: ['Муж мой — мастер, руки золотые, а дома полку прибить некогда. Чужим людям — пожалуйста, а мне — завтра.', 'Ты не здешний? Сразу видно — смотришь по сторонам, а наши под ноги глядят. Устали наши смотреть.', 'Дети мои малые — трое, все в отца, все горластые. Ты не слышал, как они орут? Счастливый.']},
+  widow: {f: ['Мужа три зимы как схоронила. Пряду вот на всё село — руки заняты, голова не думает.', 'Вдовья изба на краю — чтоб, значит, глаза не мозолила. А мне и ладно: оттуда реку видно.'],
+    m: ['Жену схоронил, а дом всё одно строю. Для кого — сам не знаю. Привычка.']},
+  past: {m: ['Стадо моё — сорок голов, а волков нынче — что блох на собаке. Ты меч носишь — может, пройдёшься со мной к лесу? Шучу. Почти.', 'Я тут дудочку вырезал. Хочешь, сыграю? Коровы любят. Люди — не очень.'],
+    f: ['Корова у меня одна, Зорька. Умнее иного мужика. Ты не смейся — правда.']},
+  pod: {m: ['Мастер мой злой, как пёс цепной, а учит хорошо. Ещё два лета — и сам мастером стану. А там — женюсь. Только невесту бы найти.', 'Ты, говорят, по дальним землям ходишь. Правда, что там дома каменные в три яруса?']},
+  sluga: {f: ['Устала — ноги отваливаются. С утра двадцать постелей, сорок мисок. А хозяйка всё недовольна.', 'Тут вчера купец ночевал — всю ночь золото пересчитывал. Я в щёлку видела. Ой, не говори никому.']},
+  old_war: {m: ['Я в твои годы под княжьим стягом ходил. Видишь — пальцев трёх нет? Это под Терак-горой. Хорошая была сеча. Глупая, но хорошая.', 'Совет тебе, молодой: щит держи выше, чем кажется надо. Всегда выше. Я вот не держал.']},
+  old_baba: {f: ['Я полсела на свет приняла. И тебя бы приняла, кабы ты тут родился. Ишь, какой вымахал.', 'Травку тебе дам — от простуды, от тоски, от дурного глаза. Бери, бери, не стесняйся. Денег не надо, мне уж ни к чему.']},
+  old_ryb: {m: ['Рыба нынче глубоко ходит — к холодной зиме. Помяни моё слово.', 'Шестьдесят зим на этой реке. Всякое видел. И русалку видел. Только старухе моей не говори — заревнует.']},
+  kuma: {f: ['А ты слыхал, что у мельничихи-то? Ой, не слыхал… Ну так слушай, только никому!', 'Ты чей будешь? Не наш. А к кому пришёл? Ни к кому? Так не бывает. Все к кому-нибудь да ходят.']},
+  pis: {m: ['Пишу грамоты за медяк, читаю за два. Ты, вижу, грамотный — редкость. Заходи, потолкуем о книгах, а то тут и поговорить не с кем.']},
+  kid: {m: ['А у тебя меч настоящий? А ты дракона видел? А волка? А медведя? А… а дай подержать!', 'Мы в разбойников играем. Хочешь — будешь атаманом? Только ты всё равно проиграешь, мы так договорились.'],
+    f: ['У меня котёнок, его зовут Уголёк. Хочешь погладить? Он кусается, но не больно.', 'А ты к нам надолго? Мама сказала — чужие все уходят. Ты тоже уйдёшь?']},
+};
+const WARM = {f: ['{n} машет {h_d} издали: «Опять ты! А я тебя ждала — новость есть»'], m: ['{n} сам идёт навстречу: «Здорово, {h}! Слыхал, что у нас?»']};
+const HELP = {f: ['{h} полдня носит {n_d} воду и колет дрова. К вечеру {n} выносит пирог: «Не человек — золото. Заходи ещё»'], m: ['{h} полдня помогает {n_d} с работой. {n} жмёт руку: «Должник я твой. Обращайся»']};
+const FLIRT = {ok: {f: '{n} краснеет, потом смеётся и тихо говорит: «Вечером, у колодца. Только чтоб никто не видел». Знакомство завязалось.', m: '{n} сперва теряется, потом улыбается во весь рот: «Вечером у реки. Приходи». Знакомство завязалось.'},
+  no: {f: '{n} фыркает: «Иди-иди, ловкач. Таких, как ты, на ярмарке — пруд пруди»', m: '{n} хмыкает: «Не по мне такие забавы. Будь здоров»'}};
+const fill = (s, h, p) => { const H = decl(h.name, h.sex), P = decl(p.n, p.sex);
+  return s.replace(/\{h(_([gdaip]))?\}/g, (x, a, c) => (c ? H[c] : h.name)).replace(/\{n(_([gdaip]))?\}/g, (x, a, c) => (c ? P[c] : p.n)); };
+const talkLine = (p, salt) => { const T = TALK[p.talk] || TALK.kuma; return pickH(T[p.sex] || T.f || T.m, salt); };
+
+/* ---------- сцены ---------- */
+const SC = {};
+const back = g => { const n = nodeOf(g); return (n && n.scene) || 'map'; };
+SC.tf_hub = g => {
+  const here = C.tfHere(g), night = C.isNight && C.isNight(g), h = heroes(g)[0];
+  const lines = [['n', here.length ? (night ? 'Улица пуста, только у дальнего плетня кто-то ещё не спит.' : 'На улице люди: кто у колодца, кто у ворот, кто просто так — греется на солнышке и глазеет на проезжих.') : 'Улица пуста.']];
+  const ch = here.map(p => { const r = relOf(g, g.loc, p.id); return {t: `${p.n}, ${p.t}${r.rel >= K().REL_WARM ? ' — знакомы' : ''}`, do: g2 => { g2.tfCur = p.id; g2.tfLast = null; return 'tf_talk'; }}; });
+  ch.push({t: 'Назад', do: back});
+  return {title: 'Улица', bg: (nodeOf(g) || {}).kind === 'город' ? 'town' : 'village', lines, choices: ch};
+};
+SC.tf_talk = g => {
+  const p = C.tfPeople(g, g.loc).find(x => x.id === g.tfCur), hs = heroes(g), h = hs[0];
+  if (!p || !h) return {title: 'Улица', bg: 'village', lines: [['n', 'Человек уже ушёл.']], choices: [{t: 'Назад', do: g2 => 'tf_hub'}]};
+  const r = relOf(g, g.loc, p.id), lines = [];
+  if (!r.met) lines.push(['n', `${p.n}, ${p.t}.`]); else if (r.rel >= K().REL_WARM) lines.push(['n', fill(pickH(WARM[p.sex], p.id + day(g)), h, p)]);
+  if (g.tfLast) lines.push(['n', g.tfLast]); else lines.push([p.n, '«' + talkLine(p, p.id + day(g) + (g.time || 0)) + '»']);
+  const ch = [], d = day(g);
+  ch.push({t: 'Поболтать о жизни', if: g2 => relOf(g2, g2.loc, p.id).talk !== d, off: 'сегодня уже говорили', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.talk = d; rr.met = rr.met || d; rr.rel = Math.min(100, rr.rel + K().TALK);
+    if (C.passH) C.passH(g2, 0.5); g2.tfLast = fill(`{n}: «${talkLine(p, p.id + 'x' + d + R.rand())}»`, h, p); return 'tf_talk'; }});
+  if (p.age !== 'kid') ch.push({t: 'Расспросить о новостях', if: g2 => relOf(g2, g2.loc, p.id).news !== d, off: 'всё, что знал, уже рассказал', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.news = d; rr.met = rr.met || d;
+    let t = null; try { t = (C.folkRumor && R.rand() < 0.6) ? C.folkRumor(g2) : null; } catch (e) {} if (!t || /разводит руками/.test(t)) { try { t = C.bayka ? `«${C.bayka(g2)}»` : null; } catch (e) {} }
+    if (t) t = t.replace(/^Гусляр (рассказывает|шепчет)/, `${p.n} рассказывает`); g2.tfLast = t || `${p.n} пожимает плечами: «Тихо у нас. Ничего не слыхать»`; if (t) C.note(g2, g2.tfLast); return 'tf_talk'; }});
+  if (p.age !== 'kid') ch.push({t: 'Помочь по-соседски — полдня', if: g2 => relOf(g2, g2.loc, p.id).help !== d, off: 'сегодня уже помогали', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.help = d; rr.met = rr.met || d; rr.rel = Math.min(100, rr.rel + K().HELP);
+    if (C.passH) C.passH(g2, 4); if (C.repAdd) try { C.repAdd(g2, g2.loc, 1, 'помогли по-соседски'); } catch (e) {} g2.tfLast = fill(pick(HELP[p.sex]), h, p); C.note(g2, g2.tfLast); return 'tf_talk'; }});
+  /* заигрывать: взрослый иного пола; однополых — нет; дети — нет */
+  if (p.age !== 'kid' && p.st !== 'old' && C.kvMakeLoc) hs.filter(x => x.sex !== p.sex).forEach(x => {
+    const known = g.kvLoc && Object.values(g.kvLoc).some(k => k.tf === g.loc + '|' + p.id && k.hid === x.id);
+    if (known) return;
+    ch.push({own: x.id, t: `${x.name}: заигрывать`, if: g2 => relOf(g2, g2.loc, p.id).fl !== d, off: 'сегодня уже пробовали', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.fl = d; rr.met = rr.met || d;
+      const hh = heroes(g2).find(y => y.id === x.id); if (!hh) return 'tf_talk';
+      const att = C.kvAttract ? C.kvAttract(g2, hh, AGE_OF[p.age], {widow: p.st === 'widow'}) : 1, bonus = Math.round((att - 1) * 4 + rr.rel / 20);
+      const c = R.check(hh, 'cha', 'Убеждение', K().FLIRT_DC - bonus); g2.lastCheck = Object.assign({}, c, {hero: hh});
+      if (c.ok) { const st = p.st === 'single' ? 'maid' : p.st === 'widow' ? 'widow' : p.st === 'wife' ? 'wife' : 'maid';
+        const rec = C.kvMakeLoc(g2, {at: g2.loc, hid: hh.id, n: p.n, sex: p.sex, face: p.face, ppl: p.ppl, st, t: p.t, rank: p.rank}, 40 + Math.round(rr.rel / 3)); rec.tf = g2.loc + '|' + p.id;
+        g2.tfLast = fill(FLIRT.ok[p.sex], hh, p); }
+      else { rr.rel = Math.max(0, rr.rel - 3); g2.tfLast = fill(FLIRT.no[p.sex], hh, p); }
+      C.note(g2, g2.tfLast); return 'tf_talk'; }});
+  });
+  ch.push({t: 'Отойти', do: g2 => { g2.tfLast = null; const rr = relOf(g2, g2.loc, p.id); rr.met = rr.met || d; return 'tf_hub'; }});
+  return {title: `${p.n}, ${p.t}`, bg: (nodeOf(g) || {}).kind === 'город' ? 'town' : 'village', face: p.face, faceName: p.n, faceSub: p.t, lines, choices: ch};
+};
+Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+/* ---------- на прогулке по месту: встречные — те же люди места (town_walk) ---------- */
+C.tfChat = function (g, at, pid) { const p = C.tfPeople(g, at).find(x => x.id === pid); if (!p) return null; const r = relOf(g, at, p.id), d = day(g);
+  if (r.talk !== d) { r.talk = d; r.rel = Math.min(100, r.rel + K().TALK); } r.met = r.met || d; return talkLine(p, p.id + 'w' + d + R.rand()); };
+C.tfFlirt = function (g, hh, at, pid) { const p = C.tfPeople(g, at).find(x => x.id === pid); if (!p || !hh || hh.sex === p.sex || p.age === 'kid' || p.st === 'old' || !C.kvMakeLoc) return null;
+  const rr = relOf(g, at, p.id), d = day(g); if (rr.fl === d) return {ok: false, text: `${p.n} смеётся: «Ты уж сегодня пробовал. Хватит»`}; rr.fl = d; rr.met = rr.met || d;
+  const att = C.kvAttract ? C.kvAttract(g, hh, AGE_OF[p.age], {widow: p.st === 'widow'}) : 1, bonus = Math.round((att - 1) * 4 + rr.rel / 20);
+  const c = R.check(hh, 'cha', 'Убеждение', K().FLIRT_DC - bonus); g.lastCheck = Object.assign({}, c, {hero: hh});
+  if (c.ok) { const st = p.st === 'single' ? 'maid' : p.st === 'widow' ? 'widow' : p.st === 'wife' ? 'wife' : 'maid';
+    const rec = C.kvMakeLoc(g, {at, hid: hh.id, n: p.n, sex: p.sex, face: p.face, ppl: p.ppl, st, t: p.t, rank: p.rank}, 40 + Math.round(rr.rel / 3)); rec.tf = at + '|' + p.id;
+    return {ok: true, text: fill(FLIRT.ok[p.sex], hh, p)}; }
+  rr.rel = Math.max(0, rr.rel - 3); return {ok: false, text: fill(FLIRT.no[p.sex], hh, p)}; };
+if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { const r = ws0.apply(this, arguments);
+  try { const ppl = C.tfPeople(g, g.loc).slice(), used = new Set();
+    const want = k => k === 'child' ? (p => p.age === 'kid') : k === 'starik' ? (p => p.age === 'old') : k === 'baba' ? (p => p.sex === 'f' && p.age !== 'kid') : k === 'muzhik' ? (p => p.sex === 'm' && p.age !== 'kid' && p.age !== 'old') : null;
+    (S.units || []).filter(u => u.side === 'civ' && u.civ && !u.civ.tf && want(u.civ.k)).forEach(u => { const p = ppl.find(x => !used.has(x.id) && want(u.civ.k)(x)); if (!p) return; used.add(p.id);
+      u.civ.tf = p.id; u.name = `${p.n}, ${p.t}`; if (p.face) { u.portrait = p.face; u.civ.face = p.face; } });
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return r; }; }
+{ const so1 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so1.apply(this, arguments);
+  try { if (sc && id === 'tw_talk' && g.twalk && g.twalk.talk && g.twalk.talk.tf) { const T = g.twalk.talk, pid = T.tf, at = g.loc;
+    const add = [{t: 'Поболтать о жизни', do: g2 => { const X = g2.twalk.talk; const t = C.tfChat(g2, at, pid); X.log.push({who: 'h', text: 'Как живёте тут?'}); if (t) X.log.push({who: 'o', text: t}); return 'tw_talk'; }}];
+    const p = C.tfPeople(g, at).find(x => x.id === pid);
+    if (p && p.age !== 'kid' && p.st !== 'old') heroes(g).filter(x => x.sex !== p.sex && !(g.kvLoc && Object.values(g.kvLoc).some(k => k.tf === at + '|' + pid && k.hid === x.id))).forEach(x => add.push({own: x.id, t: `${x.name}: заигрывать`, do: g2 => { const X = g2.twalk.talk; const hh = heroes(g2).find(y => y.id === x.id); const r = C.tfFlirt(g2, hh, at, pid); if (r) { X.log.push({who: 'n', text: r.text}); C.note(g2, r.text); } return 'tw_talk'; }}));
+    add.forEach((c, k) => { c.i = 900 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); } } catch (e) {}
+  return sc; }; }
+
+/* лицо собеседника в окне сцены: из raw (как у kv_ и he_) — для улицы, ночных случаев, постоянной */
+{ const so2 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so2.apply(this, arguments); try { if (sc && /^(tf_|cl_|kv_reg)/.test(id) && sc.raw && sc.raw.face && !sc.face) Object.assign(sc, {face: sc.raw.face, faceName: sc.raw.faceName, faceSub: sc.raw.faceSub}); } catch (e) {} return sc; }; }
+
+/* плитка в месте */
+const inj0 = Q.inject;
+if (inj0) Q.inject = function (g, sceneId, choices) {
+  let out = inj0.apply(this, arguments);
+  try { const n = nodeOf(g); if (!n || n.scene !== sceneId || g.folkAt || !KINDS.includes(n.kind) || !C.tfPeople(g, g.loc).length) return out;
+    out = out.slice(); const i = out.length ? Math.max(...out.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1 : 0;
+    const leave = out.findIndex(c => /^Уйти на карту|^Уйти$/.test(c.label || ''));
+    out.splice(leave < 0 ? out.length : leave, 0, {i, label: 'Улица: поболтать с людьми', do: g2 => 'tf_hub'});
+  } catch (e) {}
+  return out;
 };
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
