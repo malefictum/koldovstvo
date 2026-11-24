@@ -38247,6 +38247,8 @@ C.heroStatus = function (g, h) {
     if (S && !S._sfxEnd) { S._sfxEnd = 1; if (res && res.won) { lastWin = live() ? ctx.currentTime : -9; play('win'); } else if (!(res && res.fled)) play('lose'); }
     battleOn = false; setMood(calmMood(g), false, g);
   }); return res; }; }
+  // прогулка по месту (town_walk.js) кончилась без боя: напев места, а не боевой
+  if (C.SFX) C.SFX.calm = g => safe(() => { battleOn = false; setMood(calmMood(g), false, g); });
 
   // журнал: купля-продажа, награда, уровень
   const COIN = /куплен|продан|прода[её]т|продал|купил|выручил|награ[дж]|плат[ия]т|заплатил|звонк(ую|ой) монет|кошел[её]к|\d+\s*(зм|см|мм)\b|серебр[оа] в кошел/i;
@@ -42201,6 +42203,7 @@ const AID = {
   horse: g => anyInv(g, /^kon_/) ? 2 : 0,
 };
 const AID_RU = {rope: 'верёвка', dog: 'пёс', torch: 'факел', med: 'лекарский набор', horse: 'конь'};
+C.TRAIL_AID = AID; C.TRAIL_AID_RU = AID_RU; /* items_alive.js дописывает свои снасти */
 /* ---------- события: местность → список ---------- */
 /* o: t — текст ({h} — кто бросал), gold — ×(15·уровень), xp — ×уровень, hurt — [n, d] тому, кто бросал (all — всем),
    it — вещи, herb — сколько трав, food — фунтов мяса, time — часов, reveal — открыть ближнюю метку, fight — бой */
@@ -49192,7 +49195,7 @@ C.encounter = function (g) { if (C.cursedHero(g) && R.rand() < 0.3) return {batt
 const LOW = {fence: 'плетень'}, HIGH = {pali: 'частокол'};
 const heavyA = u => { try { const b = u.ref && u.ref.eq && u.ref.eq.body; const a = b && R.item(R.baseId ? R.baseId(b) : b); return !!(a && ((a.steps_penalty || 0) < 0 || (a.weight_kg || 0) >= 15)); } catch (e) { return false; } };
 const loaded = u => !!(u.ref && C.loadTier && C.loadTier(u.ref) >= 2);
-const hasRope = u => !!(u.ref && (u.ref.inv || []).some(id => /^(verevka|koshka_kryuk|blok_s_verevkami)/.test(String(id))));
+const hasRope = u => !!(u.ref && (u.ref.inv || []).some(id => /^(verevka|koshka_kryuk|blok_s_verevkami|lestnitsa_|kryuk_skalnyy)/.test(String(id))));
 const beastU = u => u.kind === 'monster' && u.ref && u.ref.group === 'звери';
 const smallStock = u => !!(u.civ && (u.civ.k === 'pig' || u.civ.k === 'dog'));
 const bonusOf = (u, stats, skills) => Math.max(...stats.map(st => Math.max(...skills.map(sk => BF.ckBonus ? BF.ckBonus(u, st, sk) : 0))));
@@ -49509,7 +49512,353 @@ BF.fromPlace = function (o) {
 
 G.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611241913"></script><script>
+
+/* items_alive.js */
+/* Колдовство — «оживить вещи»: дело для вещей, что лежали в лавках и суме без пользы. Без DOM.
+   Не новая система, а маленькие правила в тех механиках, что уже есть (обёртки):
+   • НОША (weight.js, C.heroCap): котомка, большой и малый мешок, простой пояс — герой уносит больше.
+   • СТРЯПНЯ (camp_life.js, C.cook): котелок — варево (похлёбка, каша, уха, щи, кулеш) выходит на порцию гуще;
+     пряности, перец, изюм — к стряпне ещё порция (пряность уходит); кипячёная вода в котелке — дурная вода не берёт.
+   • ЕДА (food.js, meals.js): пир-братчина, молоко, кутья — настоящая еда с сытостью; корова и коза в суме (без своего двора) —
+     молоко каждый день, курица — яйца; кончилась еда — скотину в суме забивают на мясо. Кошка — мыши не портят припас.
+   • ПРИВАЛ (camp_life.js, rest.js): колокольчик на верёвке вокруг стоянки — не застанут врасплох; водяные часы — дозор
+     сменяется вовремя (Поиск в дозоре лучше); благовония, чеснок на нитке, соль с печатью, бусина от сглазу — нечисть
+     обходит стоянку; ручной медвежонок — звери обходят; холст — навес от ливня; игла и смена белья — к утру опрятнее;
+     большой кошель — одинокого сонного обирают вполовину.
+   • ДОБЫЧА: корзина — при сборе (кореньев, грибов, трав) больше; сеть и прочее — как было (traders_more.js).
+   • ДОРОГА (trails.js): бурдюк, бочонок, кумыс — вода в степи и на пустоши; блок с верёвками — растащить, поднять тяжёлое.
+   • ЛЕКАРЬ (road_c.js): холст на перевязки — перевязывать легче.
+   • БОЙ: фонарь (с маслом) светит ночью и рук не занимает; лучина — как факел; онучи греют ноги в стужу; глоток из бурдюка
+     в жару; тяжёлые стрелы бьют сильнее, пока не кончатся; ножны — клинок выхватывают быстрее; повод — крепче в седле,
+     шпоры — конь резвее; ведро — залить огонь на поле; свой замок — запереть дверь избы снаружи.
+   • ПРОВЕРКИ (advantage.js, C.checkAdv): береста — к Грамоте; мел в подземелье — к Поиску; ведро — тушить пожар;
+     свисток — ловить вора; цепь — пленный на допросе сговорчивей. Только словами, без чисел.
+   • ДОМ (estate.js): сундук и ларец в сундуке угла — места больше; почтовый голубь — весть о беде дома приходит,
+     и хозяйство ждёт хозяина дольше.
+   • НАРЯД (wear.js): запона и фибула — на шею; сандалии — обувь.
+   Числа — тайна мастера (C.IA), в подсказках вещей — слова. Новые поля: h.iaHeavy нет; h.ammo.heavy (стрелы), g.iaYield (день удоя). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, W = G.W;
+if (!R || !C || typeof DATA === 'undefined') return;
+const base = id => (R.baseId ? R.baseId(id) : id);
+const team = g => (g && g.heroes ? C.alive(g).concat(g.mercs || []) : []).filter(h => h && h.inv);
+const invHas = (h, ids) => !!h && Array.isArray(h.inv) && h.inv.some(id => ids.includes(base(id)));
+const has = (g, ids) => { ids = [].concat(ids); return team(g).some(h => invHas(h, ids)); };
+const cnt = (h, id) => (h && h.inv || []).filter(x => base(x) === id).length;
+const pick = a => a[Math.floor(R.rand() * a.length)];
+C.iaHas = has; C.iaInvHas = invHas;
+
+/* ---------- числа (тайна мастера) ---------- */
+C.IA = Object.assign({
+  BAG: {veshchmeshok_kotomka: 10, meshok_bolshoy: 15, meshok_malyy: 5},   // кг к ноше: лучший из котомки/большого мешка + малый мешок
+  BELT_KG: 2,                                                             // простой пояс: заткнуть за пояс топор, рукавицы
+  BOILED: ['pohl', 'kasha', 'uha', 'gribnaya', 'shchi', 'kulesh'],        // варево: котелок даёт +1 порцию
+  SPICE: {pryanosti_prostye: 1, pryanosti_zhguchie: 1, pryanosti_zamorskie_perets_shafran: 2, perets_chernyy: 1, izyum: 1},
+  SPICE_ONLY: {izyum: ['kasha', 'pirog', 'lepeshki']},
+  MILK: {korova: 1, koza: 1}, EGGS: {kuritsa: 1}, YIELD_CAP: 3,           // в суме: в день, не больше трёх штук на руках
+  MEAT: {kuropatka: 1, golub: 1, kuritsa: 2, kaplun: 2, gus: 3, porosenok: 5, koza: 6, ovtsa: 6, baran: 8, telenok: 10, hryak: 12, korova: 14, byk: 16},
+  WATCH: 2,                                                                // водяные часы: к Поиску дозорного ночью
+  NECHIST_K: 0.5, BEAST_K: 0.6,                                            // риск ночёвки: нечисть / звери
+  NECHIST_IDS: ['blagovoniya_puzyrek', 'bz_chesnok', 'bz_sol', 'bz_busina'],
+  GRIME_NIGHT: 0.5, SOAP: 3,                                               // игла; смена белья — ещё столько же; мыло у воды в тепло
+  CLEAN: ['rubaha_prostaya', 'porty_shtany', 'plate_rubaha_s_ponevoy'],
+  PURSE_BACK: 0.5,                                                         // большой кошель: вернуть долю унесённого ночным вором
+  KORZINA: {korzina_malaya: 1, korzina_bolshaya: 2},
+  HOLST_BAND: 1, HEAVY_DMG: 1, SHEATH_INIT: 1, POVOD_SIT: 1, SHPORY_STEP: 1,
+  STASH: {larets_s_zamkom: 5, sunduk_malyy: 10, sunduk_bolshoy: 20},     // места в сундуке угла, если там стоит свой сундук
+  PIGEON_WAIT: 5,                                                          // дней, что хозяйство ждёт дольше
+}, C.IA || {});
+const K = () => C.IA;
+
+/* ---------- контекст проверок: где сейчас бросают ---------- */
+C._iaCtx = [];
+C.iaWith = function (ctx, fn) { C._iaCtx.push(ctx); try { return fn(); } finally { C._iaCtx.pop(); } };
+const inCtx = k => C._iaCtx.includes(k);
+const CHAIN = ['tsep_legkaya_30_sm', 'tsep_tyazhelaya_30_sm'];
+C.iaAdvWhy = function (g, h, stat, skill) {
+  const out = []; if (!g) return out;
+  if (inCtx('fire') && has(g, 'vedro')) out.push('ведро воды под рукой');
+  if (inCtx('thief') && has(g, 'svistok')) out.push('свисток: на свист сбегаются люди');
+  if (inCtx('pris') && skill === 'Запугивание' && has(g, CHAIN)) out.push('пленный в цепях');
+  if (skill === 'Грамота' && has(g, 'pisalo_i_beresta_10_listov')) out.push('береста под рукой — записать и сличить');
+  if (skill === 'Поиск' && g.dungeon && has(g, 'mel')) out.push('пройденные ходы помечены мелом');
+  return out;
+};
+if (C.checkAdv) { const ca0 = C.checkAdv; C.checkAdv = function (g, h, stat, skill) {
+  const b = ca0.apply(this, arguments) || {a: 0, why: '', A: [], D: []};
+  let add = []; try { add = C.iaAdvWhy(g, h, stat, skill); } catch (e) { add = []; } if (!add.length) return b;
+  const A = (b.A || []).concat(add), D = b.D || [], a = A.length && !D.length ? 1 : D.length && !A.length ? -1 : 0;
+  return Object.assign({}, b, {a, A, D, why: a > 0 ? A.join(', ') : a < 0 ? D.join(', ') : ''}); }; }
+
+/* ---------- ноша ---------- */
+C.iaBagKg = h => { if (!h || !h.inv) return 0; const B0 = K().BAG; const big = Math.max(0, ...['veshchmeshok_kotomka', 'meshok_bolshoy'].filter(id => invHas(h, [id])).map(id => B0[id]));
+  return big + (invHas(h, ['meshok_malyy']) ? B0.meshok_malyy : 0) + (invHas(h, ['poyas']) ? K().BELT_KG : 0); };
+if (C.heroCap) { const hc0 = C.heroCap; C.heroCap = function (h) { return hc0.apply(this, arguments) + C.iaBagKg(h); }; }
+
+/* ---------- стряпня: котелок, пряности ---------- */
+if (C.cook && C.RECIPES) { const ck0 = C.cook; C.cook = function (g, h, rid) {
+  const r = C.RECIPES[rid]; const pot = r && K().BOILED.includes(rid) && has(g, 'kotelok_zheleznyy');
+  const sp = r && (r.hp || 0) > 0 && h && h.inv ? Object.keys(K().SPICE).find(id => h.inv.includes(id) && (!K().SPICE_ONLY[id] || K().SPICE_ONLY[id].includes(rid))) : null;
+  const res = ck0.apply(this, arguments);
+  try { if (res && res.ok && (pot || sp)) { let n = 0, bits = [];
+    if (pot) { n += 1; bits.push('в котелке варево гуще — порцией больше'); }
+    if (sp) { n += K().SPICE[sp]; h.inv.splice(h.inv.indexOf(sp), 1); bits.push(`${(R.item(sp) || {name: 'пряность'}).name.toLowerCase().replace(/\s*\(.*\)/, '')} — сытнее, хватает на лишнюю порцию`); }
+    for (let i = 0; i < n; i++) h.inv.push(r.item);
+    const t = `${h.name}: ${bits.join('; ')}.`; C.note(g, t); res.text = (res.text ? res.text + ' ' : '') + t; } } catch (e) {}
+  return res; }; }
+
+/* ---------- еда: братчина, молоко, кутья ---------- */
+/* молоко и кутью заводит w2_nechist.js (Вечный мир) — потому зовётся ещё раз из items_alive_w.js */
+C.iaFoodAdd = function () { if (!C.FOOD || !C.FOOD_FX) return;
+  const ADD = {pir_na_odnogo_bratchina: [1, {hp: 9, pw: 2, rg: 2, tmp: 8, chk: 1}], moloko_krynka: [0.5, {hp: 1, rg: 0.5}], kutya_gorshok: [1, {hp: 2, rg: 0.5}]};
+  Object.entries(ADD).forEach(([id, [v, fx]]) => { if (!DATA.items[id] || C.FOOD[id]) return; C.FOOD[id] = v; C.FOOD_FX[id] = fx; });
+  if (C.SPOIL) { if (DATA.items.moloko_krynka && !C.SPOIL.moloko_krynka) C.SPOIL.moloko_krynka = 2; if (DATA.items.pir_na_odnogo_bratchina && !C.SPOIL.pir_na_odnogo_bratchina) C.SPOIL.pir_na_odnogo_bratchina = 2; }
+};
+C.iaFoodAdd();
+/* скотина в суме: удой, яйца; голод — забить */
+const LIVE = () => Object.keys(K().MEAT);
+C.iaYield = function (g) {
+  const got = [];
+  team(g).forEach(h => { if (h.kind === 'merc') return;
+    const give = (map, item) => { const n = Object.keys(map).reduce((s, id) => s + cnt(h, id) * map[id], 0); if (!n || !DATA.items[item]) return;
+      const room = Math.max(0, K().YIELD_CAP - cnt(h, item)), k = Math.min(n, room); for (let i = 0; i < k; i++) h.inv.push(item); if (k) got.push(`${h.name}: ${DATA.items[item].name.toLowerCase().replace(/\s*\(.*\)/, '')}${k > 1 ? ' ×' + k : ''}`); };
+    give(K().MILK, 'moloko_krynka'); give(K().EGGS, 'ovoshchi_ili_yaytsa_gorst'); });
+  if (got.length) C.note(g, 'Своя скотина кормит: ' + got.join('; ') + '.');
+  return got;
+};
+if (C.dailyMeal) { const dm0 = C.dailyMeal; C.dailyMeal = function (g) { const r = dm0.apply(this, arguments); try { if (g && g.heroes && g.iaYield !== g.day) { g.iaYield = g.day; C.iaYield(g); } } catch (e) {} return r; }; }
+C.iaSlaughter = function (h) {
+  if (!h || !h.inv) return null; const M = K().MEAT; const id = LIVE().filter(x => h.inv.includes(x)).sort((a, b) => M[a] - M[b])[0]; if (!id) return null;
+  h.inv.splice(h.inv.indexOf(id), 1); const now = DATA.items.kopchenoe_myaso ? 'kopchenoe_myaso' : 'harch_v_dorogu_na_den_suhari_vyalenoe_myaso'; h.inv.push(now);
+  for (let i = 1; i < M[id]; i++) h.inv.push('myaso_1_funt');
+  const g = C._g; if (g && g.heroes) C.note(g, `${h.name}: еды не осталось — пришлось забить ${(R.item(id) || {name: id}).name.toLowerCase()}. Кусок запекли на скорую руку${M[id] > 1 ? ', остальное мясо — в суму, сварить у костра' : ''}.`);
+  return id;
+};
+if (C.eatOne) { const eo0 = C.eatOne; C.eatOne = function (h) { const ok = eo0.apply(this, arguments); if (ok) return ok; try { if (C.iaSlaughter(h)) return eo0.apply(this, arguments); } catch (e) {} return ok; }; }
+/* кошка: мыши не портят припас */
+if (C.keepExtra) { const ke0 = C.keepExtra; C.keepExtra = function (g, id) { return ke0.apply(this, arguments) + (g && has(g, 'koshka') ? 1 : 0); }; }
+
+/* ---------- хвори: кипячёная вода ---------- */
+if (C.ailTick && C.ailAdd) {
+  let tick = null;
+  const at0 = C.ailTick; C.ailTick = function (g) { const p = tick; tick = g; try { return at0.apply(this, arguments); } finally { tick = p; } };
+  const aa0 = C.ailAdd; C.ailAdd = function (g, h, id) { if (tick && id === 'ponos' && has(tick, 'kotelok_zheleznyy')) return null; return aa0.apply(this, arguments); };
+}
+
+/* ---------- привал на ночь ---------- */
+if (C.campDog) { const cd0 = C.campDog; C.campDog = function (g) { return cd0.apply(this, arguments) || has(g, 'kolokolchik'); }; }
+if (C.campRisk) { const cr0 = C.campRisk; C.campRisk = function (g) { const r = cr0.apply(this, arguments); try {
+  if (r && r.who === 'нечисть' && has(g, K().NECHIST_IDS)) return Object.assign({}, r, {p: r.p * K().NECHIST_K, ia: 'nechist'});
+  if (r && r.who === 'звери' && has(g, 'medvezhonok_ruchnoy')) return Object.assign({}, r, {p: r.p * K().BEAST_K, ia: 'beast'}); } catch (e) {} return r; }; }
+let NIGHT = null;
+C.iaWatchBonus = g => (g && has(g, 'vodyanye_chasy') ? K().WATCH : 0);
+{ const sk0 = R.skill; R.skill = function (h, skill) { let v = sk0.apply(this, arguments); if (NIGHT && skill === 'Поиск') v += C.iaWatchBonus(NIGHT); return v; }; }
+C.iaNightAfter = function (g) {
+  const out = [];
+  C.alive(g).forEach(h => { if (h.kind === 'merc' || !(h.grime > 0) || !C.grimeAdd) return; let d = 0;
+    if (has(g, ['igla_shveynaya', 'bz_igla'])) d += K().GRIME_NIGHT;
+    if (invHas(h, K().CLEAN)) d += K().GRIME_NIGHT;
+    if (has(g, 'mylo_0_5_kg') && W && W.canFish && W.canFish(g) && (!C.kvWarm || C.kvWarm(g))) d += K().SOAP;
+    if (d) { C.grimeAdd(h, -d); out.push(h.name); } });
+  return out;
+};
+if (W && W.nightCamp) { const nc0 = W.nightCamp; W.nightCamp = function (g) {
+  const p0 = g && g.purse, j0 = g && g.journal ? g.journal.length : 0, prev = NIGHT; NIGHT = g;
+  let r; try { r = nc0.apply(this, arguments); } finally { NIGHT = prev; }
+  try {
+    if (!g || !g.heroes) return r;
+    const lost = p0 - g.purse, lock = has(g, ['larets_s_zamkom', 'zamok_dobryy', 'zamok_grubyy', 'sunduk_malyy', 'sunduk_bolshoy']);
+    if (lost > 0 && !lock && has(g, 'koshel_poyasnoy_bolshoy') && (g.journal || []).slice(j0).some(x => /кошель стал легче/.test(x.t))) {
+      const back = Math.round(lost * K().PURSE_BACK); g.purse += back; C.note(g, `Большой кошель висел на ремешке под рубахой — вор срезал только верхний. Пропало ${R.priceText(lost - back)}.`); }
+    const neat = C.iaNightAfter(g); if (neat.length) C.note(g, `У огня штопают и переодеваются в чистое: ${neat.join(', ')} к утру опрятнее.`);
+  } catch (e) {}
+  return r; }; }
+/* ливень: холстом натягивают навес */
+if (C.weatherShield) { const ws0 = C.weatherShield; C.weatherShield = function (g) { const v = ws0.apply(this, arguments); return has(g, 'holst_arshin') ? Math.max(v, 1) : v; }; }
+
+/* ---------- сбор: корзина ---------- */
+const GATHER = ['ovoshchi_ili_yaytsa_gorst', 'repa_1_funt', 'zerno_1_funt', 'griby_1_funt', 'orehi_1_funt', 'lesnoy_pripas'];
+const snap = g => new Map(team(g).map(h => [h, h.inv.slice()]));
+const gained = (g, before, okId) => { const out = []; team(g).forEach(h => { const left = (before.get(h) || []).slice(); h.inv.forEach(id => { const i = left.indexOf(id); if (i >= 0) left.splice(i, 1); else if (okId(id)) out.push([h, id]); }); }); return out; };
+C.iaBasket = g => Math.max(0, ...Object.entries(K().KORZINA).filter(([id]) => has(g, id)).map(([, v]) => v));
+const basketAdd = (g, got, what) => { const k = C.iaBasket(g); if (!k || !got.length) return 0; for (let i = 0; i < k; i++) { const [h, id] = pick(got); h.inv.push(id); }
+  C.note(g, `В корзину ${what} влезло больше: ещё ${k === 1 ? 'горсть' : 'пара горстей'}.`); return k; };
+if (W && W.forage) { const fo0 = W.forage; W.forage = function (g) { const b = snap(g); const r = fo0.apply(this, arguments);
+  try { basketAdd(g, gained(g, b, id => GATHER.includes(id)), 'набранного'); } catch (e) {} return r; }; }
+if (C.outCast && C.OUTCAST) { const oc0 = C.outCast; C.outCast = function (g, h, id) { const herbs = C.OUTCAST[id] === 'herbs', b = herbs ? snap(g) : null; const r = oc0.apply(this, arguments);
+  try { if (herbs && r && !r.err) basketAdd(g, gained(g, b, x => (DATA.items[x] || {}).category === 'компоненты'), 'трав'); } catch (e) {} return r; }; }
+
+/* ---------- дорога: вода и блок ---------- */
+const WATER = ['burdyuk', 'bochonok', 'kumys_burdyuk'];
+if (C.TRAIL_AID && C.TRAILS) {
+  C.TRAIL_AID.water = g => has(g, WATER) ? 4 : 0;   C.TRAIL_AID_RU.water = 'вода в бурдюке';
+  C.TRAIL_AID.lift = g => has(g, 'blok_s_verevkami') ? 3 : 0; C.TRAIL_AID_RU.lift = 'блок с верёвками';
+  const SET = {s_voda: ['water', null], l_burelom: ['lift', /Растащить/], p_melnitsa: ['lift', /Поднять/], p_oboz: ['lift', /Поднять/]};
+  Object.entries(SET).forEach(([k, [aid, re]]) => { const e = C.TRAILS[k]; (e && e.ch || []).forEach(c => { if (!c.o && !c.aid && (!re || re.test(c.t))) c.aid = aid; }); });
+}
+
+/* ---------- перевязка: холст ---------- */
+if (C.bandageKit) { const bk0 = C.bandageKit; C.bandageKit = function (h) { const v = bk0.apply(this, arguments); const g = C._g; return v + ((h && invHas(h, ['holst_arshin'])) || (g && g.heroes && has(g, 'holst_arshin')) ? K().HOLST_BAND : 0); }; }
+
+/* ---------- питьё: бочонок ---------- */
+if (C.drinkOut && C.BAG_DRINKS) { const do0 = C.drinkOut; C.drinkOut = function (g, h, id) { const d0 = g && g.drinkDay; const r = do0.apply(this, arguments);
+  try { const d = C.BAG_DRINKS[id]; if (r && r.ok && d && d.round && d.sp && d0 !== g.drinkDay && g.drinkDay === g.day && has(g, 'bochonok') && C.spiritAdd) C.spiritAdd(g, 1, 'Из бочонка хмельное льётся щедро — до самого донышка.'); } catch (e) {}
+  return r; }; }
+
+/* ---------- дом: сундук в сундуке, голубь ---------- */
+if (C.stashCap) { const sc0 = C.stashCap; C.stashCap = function (g) { const v = sc0.apply(this, arguments); if (!v || !g) return v;
+  return v + (g.stash || []).reduce((s, id) => s + (K().STASH[base(id)] || 0), 0); }; }
+if (C.estateResign) { const er0 = C.estateResign; C.estateResign = function (g, e, auto) {
+  if (auto && e && e.trouble && has(g, 'golub_pochtovyy') && g.day - e.trouble.day < 10 + K().PIGEON_WAIT) {
+    if (!e.trouble.pigeon) { e.trouble.pigeon = 1; C.note(g, 'Почтовый голубь садится на плечо: дома беда, но люди держатся и ждут хозяина ещё несколько дней.'); }
+    return null; }
+  return er0.apply(this, arguments); }; }
+
+/* ---------- наряд ---------- */
+if (C.WEAR) {
+  if (!C.WEAR.zapona_brosh) C.WEAR.zapona_brosh = {slot: 'neck', sk: {Дипломатия: 1}, fx: 'нарядная запона: говорят охотнее'};
+  if (!C.WEAR.fibula_zastezhka) C.WEAR.fibula_zastezhka = {slot: 'neck', sk: {Торговля: 1}, fx: 'добрая застёжка: видно, что при деньгах'};
+  if (!C.WEAR.sandalii) C.WEAR.sandalii = {slot: 'feet', fx: 'обувь: в походе ноги целы'};
+}
+
+/* ---------- бой ---------- */
+if (B) {
+  /* тяжёлые стрелы: идут первыми и бьют сильнее */
+  if (C.ammoTake) { const at0 = C.ammoTake; C.ammoTake = function (h, kind) { const heavy = kind === 'arrow' && h && h.ammo && h.ammo.heavy > 0; const ok = at0.apply(this, arguments); if (ok && heavy) h.ammo.heavy--; return ok; }; }
+  const openHeavy = h => { if (!h || !h.inv || !C.ammoInit) return; C.ammoInit(h); let i; while ((i = h.inv.indexOf('strely_tyazhelye_6')) >= 0) { h.inv.splice(i, 1); h.ammo.arrow = (h.ammo.arrow || 0) + 6; h.ammo.heavy = (h.ammo.heavy || 0) + 6; } };
+  const SWORD = /меч|сабл|палаш/i, KNIFE = /нож|кинжал|засапож/i;
+  const fh0 = B.fromHero; B.fromHero = function (h) { const u = fh0.apply(this, arguments);
+    try { if (u && h && h.inv) {
+      if (u.ammoKind === 'arrow') openHeavy(h);
+      const w = h.eq && h.eq.weapon && R.item(base(h.eq.weapon)), nm = w ? (w.group || '') + ' ' + (w.name || '') : '';
+      if (w && ((SWORD.test(nm) && h.inv.includes('nozhny_dlya_mecha')) || (KNIFE.test(nm) && h.inv.includes('nozhny_dlya_nozha')))) u.initBonus = (u.initBonus || 0) + K().SHEATH_INIT;
+    } } catch (e) {} return u; };
+  const bat0 = B.attack; B.attack = function (S, u, t, ranged) {
+    if (!(ranged && u && u.ammoKind === 'arrow' && u.ranged && u.ref && u.ref.ammo && u.ref.ammo.heavy > 0)) return bat0.apply(this, arguments);
+    const r0 = u.ranged, mod = Object.assign({}, r0, {dmg: String(r0.dmg) + '+' + K().HEAVY_DMG}); u.ranged = mod;
+    try { return bat0.apply(this, arguments); } finally { if (u.ranged === mod) u.ranged = r0; if (u._rangedOff === mod) u._rangedOff = r0; } };
+  /* конь: повод, шпоры */
+  if (B.mountUp) { const mu0 = B.mountUp; B.mountUp = function (S, u) { const r = mu0.apply(this, arguments);
+    try { if (u && u.mount && u.ref && u.ref.inv) { if (u.ref.inv.includes('povod')) u.mount.sit += K().POVOD_SIT; if (u.ref.inv.includes('shpory')) { u.steps += K().SHPORY_STEP; u.mount.bonus += K().SHPORY_STEP; } } } catch (e) {}
+    return r; }; }
+  /* ночь, стужа, жара: фонарь, лучина, онучи, бурдюк */
+  const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments);
+    try { const X = S && S.wx; if (X) { const lit = [];
+      (S.units || []).forEach(u => { const h = u.ref; if (!h || !h.inv || u.side !== 'party') return;
+        if (X.night && !u.torch) {
+          if (h.inv.includes('fonar_slyudyanoy') && h.inv.includes('maslo_dlya_svetilnika_flyaga')) { u.torch = true; lit.push(`${u.name} — фонарь у пояса`); }
+          else if (h.inv.includes('luchina_puchok_10') && C.freeHand && C.freeHand(h)) { u.torch = true; if (u.look) u.look = Object.assign({}, u.look, {torch: true}); lit.push(`${u.name} — лучина в руке`); } }
+        if (u.chilled && h.inv.includes('onuchi')) delete u.chilled;
+        if (u.heavyHot && h.inv.includes('burdyuk')) delete u.heavyHot; });
+      if (lit.length) S.log.splice(Math.min(2, S.log.length), 0, {t: `Свет: ${lit.join(', ')}.`, cls: '', round: S.round, n: ''}); } } catch (e) {}
+    return S; };
+  /* поле: залить огонь из ведра; свой замок на дверь */
+  const BF = B.BF;
+  const blazeNear = (S, u) => (S && S.field && S.field.big && u && u.c != null) ? [{c: u.c, r: u.r}].concat(B.neigh(u.c, u.r)).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.t === 'blaze') : [];
+  if (B.bfPanel) { const bp0 = B.bfPanel; B.bfPanel = function (S, u) { const out = bp0.apply(this, arguments) || [];
+    try { if (u && u.side === 'party' && !u.ai && u.ref && (u.ref.inv || []).includes('vedro') && blazeNear(S, u).length)
+      out.push({k: 'ia_douse', label: 'Залить огонь из ведра', dis: S.acted ? 'Основное действие уже потрачено.' : '', cost: 'a', title: 'Основное действие: ведро воды на огонь рядом — пламя гаснет', grp: 'Рядом'}); } catch (e) {}
+    return out; }; }
+  if (B.bfOp) { const bo0 = B.bfOp; B.bfOp = function (S, u, a) {
+    if (!a || a.k !== 'ia_douse') return bo0.apply(this, arguments);
+    if (S.acted) return 'Основное действие уже потрачено.'; if (!(u.ref && (u.ref.inv || []).includes('vedro'))) return 'Ведра нет.';
+    const xs = blazeNear(S, u); if (!xs.length) return 'Огня рядом нет.';
+    xs.forEach(x => { x.t = 'ash'; }); S.bfFire = (S.bfFire || []).filter(f => !xs.some(x => x.c === f.c && x.r === f.r)); if (BF && BF.touch) BF.touch(S);
+    S.acted = true; B.log(S, `${String(u.name).split(',')[0]} выплёскивает ведро — пламя шипит и гаснет.`, 'buff'); return ''; }; }
+  if (BF && BF.doorActs && BF.doorDo) {
+    const LOCKS = ['zamok_dobryy', 'zamok_grubyy'];
+    const da0 = BF.doorActs; BF.doorActs = function (S, u, o) { const out = da0.apply(this, arguments) || [];
+      try { const d = o && o.d; if (d && d.st === 'shut' && !d.lock && !d.prop && u && u.ref && invHas(u.ref, LOCKS) && !out.some(x => x.v === 'lock'))
+        out.push({v: 'ia_padlock', label: 'Повесить свой замок', cost: 'a', why: S.acted ? 'Основное действие уже потрачено.' : '', title: 'Основное действие: запереть дверь снаружи своим замком — изнутри не открыть, только выломать'}); } catch (e) {}
+      return out; };
+    const dd0 = BF.doorDo; BF.doorDo = function (S, u, id, v) {
+      if (v !== 'ia_padlock') return dd0.apply(this, arguments);
+      const o = BF.doorsNear(S, u).find(x => x.id === id); if (!o) return 'Двери нет.';
+      const a = BF.doorActs(S, u, o).find(x => x.v === v); if (!a) return 'Так нельзя.'; if (a.why) return a.why;
+      const lk = LOCKS.find(x => u.ref.inv.includes(x)); u.ref.inv.splice(u.ref.inv.indexOf(lk), 1);
+      o.d.lock = 1; o.d.iaLock = lk; S.acted = true; const x = B.cell(S, o.d.c, o.d.r); if (x && BF.touch) BF.touch(S);
+      B.log(S, `${String(u.name).split(',')[0]} накидывает пробой и вешает свой замок. Изнутри теперь не отпереть.`, 'buff'); return ''; };
+  }
+}
+
+/* ---------- подсказки вещей: словами ---------- */
+C.IA_NOTE = {
+  veshchmeshok_kotomka: 'Котомка за плечами: уносишь больше, не надрываясь.',
+  meshok_bolshoy: 'Большой мешок: добычу и припас уносишь без перегруза.',
+  meshok_malyy: 'Малый мешок: ещё немного места в суме.',
+  poyas: 'За пояс затыкают топор и рукавицы: ноша чуть легче.',
+  koshel_poyasnoy_bolshoy: 'Кошель на ремешке под рубахой: карманнику в толпе и ночному вору у костра достаётся меньше.',
+  koshel_poyasnoy_malyy: 'Деньги в двух кошелях: карманник на торгу реже добирается до главного.',
+  burdyuk: 'Вода с собой: в степи и на пустоши жажда не страшна, в жару в бою глоток спасает от зноя.',
+  bochonok: 'Бочонок: запас воды на всех в безводье; хмельное из бочонка по кругу веселит отряд сильнее.',
+  kumys_burdyuk: null,
+  vedro: 'Ведро воды: тушить пожар (на улице и на поле боя — залить огонь рядом).',
+  kotelok_zheleznyy: 'Котелок: варево у костра гуще — похлёбки, каши, ухи, щей выходит больше; кипячёная вода — дурная вода не берёт.',
+  pryanosti_prostye: 'Пряности к стряпне: блюдо сытнее — лишняя порция. Уходят в котёл.',
+  pryanosti_zhguchie: 'Жгучие пряности к стряпне: блюдо сытнее — лишняя порция. Уходят в котёл.',
+  pryanosti_zamorskie_perets_shafran: 'Заморские пряности: блюдо выходит на две порции больше. Уходят в котёл.',
+  perets_chernyy: 'Перец к стряпне: блюдо сытнее — лишняя порция. Уходит в котёл.',
+  izyum: 'Изюм в кашу, пирог и лепёшки: лишняя порция.',
+  pir_na_odnogo_bratchina: 'Братчина: сытость на день, бодрость и сила в бою.',
+  moloko_krynka: 'Молоко: еда на полдня, немного сил. Скисает за пару дней.',
+  kutya_gorshok: 'Кутья — и поминальная еда, и сытная.',
+  korzina_bolshaya: 'Большая корзина: при сборе кореньев, грибов и трав приносишь заметно больше.',
+  korzina_malaya: 'Корзина: при сборе кореньев, грибов и трав приносишь больше.',
+  holst_arshin: 'Холст: чистые тряпицы на перевязки и навес от ливня на ночёвке.',
+  igla_shveynaya: 'Игла: на ночёвке штопают одежду — отряд опрятнее.',
+  mylo_0_5_kg: null,
+  kolokolchik: 'Колокольчик на верёвке вокруг стоянки: ночью врасплох не застанут.',
+  svistok: 'Свисток: поймать вора на торгу и в корчме — на свист сбегаются люди.',
+  pisalo_i_beresta_10_listov: 'Береста и писало: записать знаки и сличить — Грамота даётся легче.',
+  vodyanye_chasy: 'Водяные часы: дозорные сменяются вовремя и не дремлют.',
+  mel: 'Мел: в подземелье метить пройденные ходы — искать легче.',
+  fonar_slyudyanoy: 'Фонарь: ночью в бою светит у пояса и рук не занимает. Нужно масло.',
+  maslo_dlya_svetilnika_flyaga: 'Масло для фонаря: без него фонарь не светит.',
+  luchina_puchok_10: 'Лучина: ночью в бою светит, как факел, если рука свободна.',
+  strely_tyazhelye_6: 'Тяжёлые стрелы: идут первыми и бьют сильнее лёгких.',
+  bolty_k_samostrelu_10: 'Болты к самострелу: без них самострел молчит.',
+  blagovoniya_puzyrek: null,
+  nozhny_dlya_mecha: 'Меч в ножнах под рукой: в начале боя выхватываешь быстрее.',
+  nozhny_dlya_nozha: 'Нож в ножнах под рукой: в начале боя выхватываешь быстрее.',
+  sandalii: null, onuchi: 'Онучи: в стужу ноги в бою не мёрзнут.',
+  rubaha_prostaya: 'Смена белья: на ночёвке переодеться в чистое — опрятнее.',
+  porty_shtany: 'Смена белья: на ночёвке переодеться в чистое — опрятнее.',
+  plate_rubaha_s_ponevoy: 'Смена платья: на ночёвке переодеться в чистое — опрятнее.',
+  zapona_brosh: null, fibula_zastezhka: null,
+  povod: 'Повод на руку: в бою верхом держишься в седле крепче.',
+  shpory: 'Шпоры: в бою конь резвее на шаг.',
+  zamok_grubyy: null, zamok_dobryy: null,
+  sunduk_malyy: null, sunduk_bolshoy: null, larets_s_zamkom: null,
+  tsep_legkaya_30_sm: null, tsep_tyazhelaya_30_sm: null, blok_s_verevkami: null,
+  korova: 'В суме (без своего двора): молоко каждый день; в голод — мясо.', koza: 'В суме (без своего двора): молоко каждый день; в голод — мясо.',
+  kuritsa: 'В суме (без своего двора): яйца каждый день; в голод — мясо.',
+  golub_pochtovyy: 'Почтовый голубь: весть о беде дома приходит, и хозяйство ждёт хозяина дольше.',
+  pevchaya_ptitsa: null, pavlin: null, lebed: null, koshka: null, medvezhonok_ruchnoy: null,
+};
+const ADD_NOTE = {
+  blagovoniya_puzyrek: 'На стоянке у недоброго места нечисть обходит дым стороной.',
+  bz_chesnok: 'На ночёвке у недоброго места нечисть обходит стоянку.', bz_sol: 'На ночёвке у недоброго места нечисть обходит стоянку.', bz_busina: 'На ночёвке у недоброго места нечисть обходит стоянку.',
+  bz_igla: 'На ночёвке штопают одежду — отряд опрятнее.',
+  mylo_0_5_kg: 'На ночёвке у воды в тёплую пору — отмыться дочиста.',
+  zamok_grubyy: 'В бою можно запереть дверь избы снаружи.', zamok_dobryy: 'В бою можно запереть дверь избы снаружи.',
+  sunduk_malyy: 'Поставленный в сундук своего угла — места больше.', sunduk_bolshoy: 'Поставленный в сундук своего угла — места больше.', larets_s_zamkom: 'Поставленный в сундук своего угла — места больше.',
+  tsep_legkaya_30_sm: 'Пленный в цепях на допросе сговорчивей.', tsep_tyazhelaya_30_sm: 'Пленный в цепях на допросе сговорчивей.',
+  blok_s_verevkami: 'В дороге — растащить завал и поднять тяжёлое.',
+  kumys_burdyuk: 'В безводье — и питьё.',
+  pevchaya_ptitsa: 'В суме — подарок, что запомнят.', pavlin: 'В суме — подарок, что запомнят.', lebed: 'В суме — подарок, что запомнят.',
+  koshka: 'В обозе мыши не портят припас.', medvezhonok_ruchnoy: 'На ночёвке звери обходят стоянку.',
+  sandalii: 'Обувь: в походе ноги целы.', zapona_brosh: 'На шее: говорят охотнее.', fibula_zastezhka: 'На шее: видно, что при деньгах.',
+  ovtsa: 'В голод — мясо.', baran: 'В голод — мясо.', porosenok: 'В голод — мясо.', hryak: 'В голод — мясо.', telenok: 'В голод — мясо.', gus: 'В голод — мясо.', kaplun: 'В голод — мясо.', kuropatka: 'В голод — мясо.', golub: 'В голод — мясо.', byk: 'В голод — мясо.',
+};
+C.IA_ADD_NOTE = ADD_NOTE;
+C.iaApplyNotes = function () {
+  Object.entries(C.IA_NOTE).forEach(([id, t]) => { const x = DATA.items[id]; if (!x || !t || (x.notes || '').includes(t)) return; x.notes = /^(Заморское|Пшеница|Парное|Кобылье)/.test(x.notes || '') ? x.notes + ' ' + t : t; });
+  Object.entries(ADD_NOTE).forEach(([id, t]) => { const x = DATA.items[id]; if (x && !(x.notes || '').includes(t)) x.notes = ((x.notes || '') + ' ' + t).trim(); });
+};
+C.iaApplyNotes();
+})(typeof window !== 'undefined' ? window : globalThis);
+</script><script src="world.js?v=202611241947"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53935,6 +54284,7 @@ const BF_GRP_TOP = new Set(['Скрытно', 'Бегущие', 'Побег']);
 let TL_KEY = '';
 function drawTurnLine() {
   const el = $('#tline'), S = battle; if (!el || !S || !S.order) return;
+  el.style.display = S.walk && !S.walk.fight ? 'none' : ''; if (S.walk && !S.walk.fight) return; // прогулка: полосы очерёдности нет
   const n = S.order.length, list = [];
   for (let i = 0; i < n && list.length < 12; i++) { const x = B.U(S, S.order[(Math.max(0, S.cur) + i) % n]); if (x && !x.dead && !x.gone && !x.pet && x.side !== 'civ') list.push(x); } // мирные ходят, но в полосе их нет
   const hid = x => x.side === 'foe' && !!((x.conds && x.conds.hidden) || (x.fx && x.fx.invis) || (B.bfHidden && B.bfHidden(battle, x)));
@@ -54110,7 +54460,8 @@ function drawPanel() {
   if (wide) { if (sl.dataset.n !== String(S.log.length) + lh.length) { sl.innerHTML = lh; sl.dataset.n = String(S.log.length) + lh.length; sl.scrollTop = sl.scrollHeight; } log.innerHTML = ''; }
   else { log.innerHTML = lh; log.scrollTop = log.scrollHeight; }
 }
-function redraw() { drawField(); drawPanel(); renderTopLite(); if (NETH() && battle) publish(); battleSnapSave(); }
+function redraw() { if (battle && battle.over === 'walk' && battle.walk && !battle.walk.fight && !NETG()) return finishBattle(); // прогулка кончилась или ушли в лавку (town_walk.js)
+  drawField(); drawPanel(); renderTopLite(); if (NETH() && battle) publish(); battleSnapSave(); }
 /* бой сохраняется по ходу: обновил вкладку — вернулся в тот же круг, а не в начало боя (иначе смерть можно было «отмотать») */
 const BSNAP = () => SAVE_KEY + '-battle';
 let bsnapT = 0;
@@ -54292,6 +54643,9 @@ async function runAI() {
 }
 function finishBattle() {
   const S = battle, spec = bspec;
+  // прогулка по месту (town_walk.js): не бой — без итогов боя, сразу туда, куда ушли (в место, в лавку, в разговор)
+  if (S && S.walk && !S.walk.fight && C.walkFinish) { const r = withPurse(null, () => C.walkFinish(g, S), true) || {}; g.pendingBattle = null; battle = null; battleSnapClear(); save(); renderTop();
+    if (r.battle) return startBattle(r.battle); if (r.shop) return showShop(r.back || g.scene || 'free_place'); if (r.swap) return showSwap(r.back || 'free_place'); if (r.map) return showMap(); return showScene(r.scene || 'free_place'); }
   const res = withPurse(null, () => C.battleEnd(g, S, spec), true); lastRes = res;
   g.pendingBattle = null; battle = null; battleSnapClear();
   const ups = g.lastUps || []; g.lastUps = []; if (ups.length) setTimeout(() => tip1('level'), 700);

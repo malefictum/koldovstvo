@@ -67715,6 +67715,8 @@ morning: {
     m: ['«Долго ты ходила. Я ту дорогу до дыр проглядел. Ну, теперь хоть насмотрюсь»', '«Проснулся и не поверил, что ты дома. Пришлось глаза протереть»']},
   cold: {f: ['«Ночь ночью, а сплетни по селу ходят. Я не спрашиваю, что там было. Только знай: мне всё рассказали»', '«Каша в печи. Ешь. Говорить мне с тобой сегодня не хочется»'],
     m: ['«Утро. Поешь и иди, раз дела ждут. А про то, что люди болтают, мы ещё поговорим»', '«Я не слепой и не глухой. Ешь, а потом ступай — мне подумать надо»']},
+  cup: {f: ['«Ешь, пока горячее. Говорить нам с тобой, видно, не о чем — ты и дома будто проездом»', '«Утро. Соседки спрашивают, есть ли у меня муж. Я уж и не знаю, что отвечать»'],
+    m: ['«Поешь и ступай. Я привык уже, что ты у нас гостья, а не хозяйка»', '«Утро. Люди спрашивают, есть ли у меня жена. Я уж и не знаю, что отвечать»']},
   sore: {f: ['«А про то, о чём я просила, ты, видно, и думать забыл. Ладно уж. Ешь давай»'], m: ['«Я тебя об одном деле просил — и что? Ладно, что было, то прошло. Ешь»']},
   preg: {f: ['«Малой уже толкается, слышишь? Положи руку — вот тут. Он твой голос узнаёт»', '«Тяжело уже вставать по утрам. Подай мне водицы и посиди рядом, пока я поднимусь»'],
     m: ['«Ты теперь за двоих ешь — не спорь, я ещё положу. И в поход бы тебе поменьше ходить»', '«Береги себя там. Теперь не одну себя — обоих»']},
@@ -67841,7 +67843,8 @@ const R = G.R, C = G.C, Q = C && C.Q;
 if (!R || !C || !C.CAMPS || !C.FOLK || !C.relOf || !C.HE_T) return;
 const T = C.HE_T;
 C.HE = Object.assign({ASK: 0.45, GAP: 3, MERC_ASK: 0.2, MERC_GAP: 7, LONG: 21, COLD: 30, SORE: 14, REL_OK: 6, REL_HALF: 3, REL_LATE: 6, MW_OK: 2, MW_LATE: 2, MAXD: 7, RING: 0.12,
-  HOT: {laska: 0.75, shutnik: 0.8, hozyain: 0.55, tihiy: 0.6}, HOT_FAR: 0.15, HOT_HARD: 0.1, HOT_EASY: -0.15, HOT_MAX: 0.95, HOT_MERC: 0.5, GLOW_DAYS: 4, WING_DAYS: 3, WING_XP: 1.25}, C.HE || {});
+  HOT: {laska: 0.75, shutnik: 0.8, hozyain: 0.55, tihiy: 0.6}, HOT_FAR: 0.15, HOT_HARD: 0.1, HOT_EASY: -0.15, HOT_MAX: 0.95, HOT_MERC: 0.5, GLOW_DAYS: 4, WING_DAYS: 3, WING_XP: 1.25,
+  CUP_BETRAY: 4, CUP_LATE: 2, CUP_POOR: 1, CUP_AWAY: 0.5, AWAY_DAYS: 60, CUP_DONE: 1.5, CUP_HOT: 1, CUP_CARE: 0.25, CUP_CARE_DAY: 1, CUP_RICH: 0.5, CUP_WARN1: 5, CUP_WARN2: 8, CUP_LEAVE: 11, DEBT_WEEKS: 4}, C.HE || {});
 const K = () => C.HE;
 const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
 const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
@@ -68058,7 +68061,7 @@ const hotNight = (g, o, E) => {
   g._sleeping = 1; try { if (C.rest) C.rest(g, true); } finally { g._sleeping = 0; } g.awake = 0;
   try { o.r.nightDay = day(g); } catch (e) {}
   C.alive(g).forEach(x => { x.hunger = 0; x.fedDay = day(g); x.meal = {id: x.id === o.h.id ? 'home_love' : 'home_supper', day: day(g)}; x.mealAcc = 0; });
-  C._heDay = day(g); C.heGlow(g, o.h);
+  C._heDay = day(g); C.heGlow(g, o.h); if (C.heCupAdd) try { C.heCupAdd(g, o.key, -C.HE.CUP_HOT, 'жаркая ночь'); } catch (e) {}
   const Hm = S.home[o.key] = S.home[o.key] || {}; Hm.last = day(g); Hm.n = (Hm.n || 0) + 1;
   S.night = {key: o.key, hero: o.h.id, tier, art, text: pick(T.hot[nk] || T.hot.peasant), mood: 'hot', say: pick(T.hotMorning[o.p.sex === 'f' ? 'f' : 'm']), n: o.p.n, sex: o.p.sex, face: o.p.face, ask: null, hot: 1};
   C.note(g, `${o.h.name} — окрылён${o.h.sex === 'f' ? 'а' : ''}: после такой ночи всё схватывается на лету.`);
@@ -68080,6 +68083,7 @@ const reward = (g, E, half) => {
     else if (give('dish_pirog', 2)) out.push(fill(T.gift.pirog, ctxOf(g, E)));
   }
   if (h && C.spiritAdd) try { C.spiritAdd(g, 1, `${cap(E.thing)} — исполнено.`, h); } catch (e) {}
+  if (C.heCupAdd) try { C.heCupAdd(g, E.key, -(half ? C.HE.CUP_DONE / 2 : C.HE.CUP_DONE), 'поручение'); } catch (e) {}
   delete st(g).err[E.key];
   const t = out.join(' '); C.note(g, `Поручение ${wifeWord(E)} исполнено. ${t}`); return t;
 };
@@ -68088,6 +68092,7 @@ const mercDone = (g, E, m) => {
   if (C.mwAdd) try { C.mwAdd(g, m, K().MW_OK); } catch (e) {}
   if (C.spiritAdd) try { C.spiritAdd(g, 1, '', m); if (h) C.spiritAdd(g, 1, '', h); } catch (e) {}
   delete st(g).err[E.key];
+  if (C.heCupAdd && m.mw && m.mw.key) try { C.heCupAdd(g, m.mw.key, -K().CUP_DONE, 'поручение'); } catch (e) {}
   try { if (h && m.sex !== h.sex && R.rand() < K().HOT_MERC) { C._heDay = day(g); C.heGlow(g, h); m.spirit = 3; const t = fill(pick(T.hotMerc), ctxOf(g, E)); C.note(g, t); C.note(g, `${h.name} — окрылён${h.sex === 'f' ? 'а' : ''}: всё схватывается на лету.`); out.push(t); } } catch (e) {}
   return out;
 };
@@ -68101,8 +68106,9 @@ C.heTick = function (g) {
     if (day(g) <= E.due) return;
     E.st = 'late';
     if (E.merc != null) { const m = mercOf(g, E); if (C.mwAdd) try { C.mwAdd(g, m, -K().MW_LATE); } catch (e) {}
-      C.note(g, fill(pick(T.late.merc), ctxOf(g, E))); delete S.err[E.key]; return; }
+      C.note(g, fill(pick(T.late.merc), ctxOf(g, E))); delete S.err[E.key]; if (C.heCupAdd && m && m.mw && m.mw.key) try { C.heCupAdd(g, m.mw.key, C.HE.CUP_LATE / 2, 'поручение'); } catch (e) {} return; }
     relAdd(g, E, -K().REL_LATE, 'поручение не исполнено'); const Hm = S.home[E.key] = S.home[E.key] || {}; Hm.sore = day(g);
+    if (C.heCupAdd) try { C.heCupAdd(g, E.key, C.HE.CUP_LATE, 'поручение'); } catch (e) {}
     C.note(g, fill(pick(T.late[E.who.sex === 'f' ? 'f' : 'm']), ctxOf(g, E)));
   });
 };
@@ -68112,6 +68118,7 @@ C.heTick = function (g) {
 const moodOf = (g, o) => {
   const S = st(g), Hm = S.home[o.key] || {}, d = day(g), sx = o.p.sex === 'f' ? 'f' : 'm';
   if (o.r.kvBetray && d - o.r.kvBetray < K().COLD) return {m: 'cold', t: pick(T.morning.cold[sx])};
+  if (C.heCupOf && C.heCupOf(g, o.key) >= K().CUP_WARN1) return {m: 'cold', t: pick((T.morning.cup || T.morning.cold)[sx])};
   if (Hm.sore && d - Hm.sore < K().SORE) return {m: 'sore', t: pick(T.morning.sore[sx])};
   try { const F = (C.kidsFams ? C.kidsFams(g) : []).find(f => f.key === o.key && f.preg && f.preg.told); if (F) return {m: 'preg', t: pick(T.morning.preg[sx])}; } catch (e) {}
   if (!Hm.last || d - Hm.last >= K().LONG) return {m: 'long', t: pick(T.morning.long[sx])};
@@ -68251,6 +68258,251 @@ if (C.heroStatus) { const hs0 = C.heroStatus; C.heroStatus = function (g, h) { c
   return out; }; }
 
 G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* divorce.js */
+/* Колдовство — divorce: жена (муж) уходит от героя. Без DOM. Поверх home_errands.js.
+   • ЧАША ОБИД (тайная, g.he.home[key].cup; key — role@at дома, у жены-наёмницы — тоже ключ её дома m.mw.key). Наливают:
+     измена, о которой узнали (C.kvBetray, banya.js/vesely.js), проваленное поручение, нищета подолгу (долг лавочнику — w2_hearth,
+     или отряд живёт нищенски — dnd_d g.ls), долгое отсутствие без ночи дома (мягко). Отливают: исполненное поручение, жаркая ночь,
+     ночь дома, разговор по душам, гостинцы детям, деньги и обновы в дом (C.hearthCare), достаток (купеческий и знатный дом).
+   • ПРЕДУПРЕЖДЕНИЯ — словами: холодное утро (CUP_WARN1), «ещё раз — и уйду к матери» (CUP_WARN2): дома в лицо, в отъезде грамоткой,
+     жена-наёмница — у костра. Пока не ушла, всё можно загладить.
+   • УХОД (CUP_LEAVE): узы снимаются (г.folkRel: bond null, exHero), h.spouse снимается — ночь дома, мастерская, сундук, хозяйство,
+     поручительство, грамотки и сердечко на карте перестают работать сами (все они смотрят на узы). «Свой дом» (homeSp) пустеет.
+     Сундук: половину она забирает, другую оставляет узлом у соседей — забрать при первом приходе. Деньги и утварь — её.
+     Дети остаются с матерью (у героини — с отцом): кровные, наследники по w2_kids как прежде (семья помечена F.ex), но живут не
+     у героя; дома героя больше нет. Жена-наёмница уходит из отряда со всем, что ей дали (в корчму, как отпущенный наёмник).
+   • БЫВШИЙ(АЯ): с героем не говорит — холодная реплика вместо привета, личных кнопок нет; «Нанять», «Позвать», «Снова в отряд»
+     недоступны, пока этот герой в отряде; сватовство к ней (к нему) невозможно — отношение к бывшему не растёт. Других героев
+     правило не касается. Герой может жениться снова.
+   • Летопись: строка в журнале и в делах героя. Старые сохранения — чаша пустая.
+   Состояние: g.he.home[key].cup/cupWk/warn, g.he.ex = [{key, role, at, n, sex, face, hero, heroN, day, merc, spec, bundle, seen}]. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !C.HE || !C.HE_T) return;
+const K = () => C.HE;
+const day = g => (g && g.day) || 1;
+const decl = (n, sex) => (Q && Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const heroById = (g, id) => heroes(g).find(h => h.id === id) || null;
+const nodes = g => ((C.CAMPS[g.camp] || {}).map || {}).nodes || {};
+const nodeName = (g, at) => (nodes(g)[at] || {}).name || 'дом';
+const nodeScene = g => { const n = nodes(g)[g.loc]; return n ? n.scene : null; };
+const S = g => { const s = g.he = (g.he && typeof g.he === 'object') ? g.he : {}; s.err = s.err || {}; s.home = s.home || {}; s.ex = s.ex || []; return s; };
+const rec = (g, key) => { const H = S(g).home; return (H[key] = H[key] || {}); };
+const fx = (sex, m, f) => (sex === 'f' ? f : m);
+const nextI = chs => Math.max(0, ...chs.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+const popBack = ch => (ch.length && /^(Назад|Уйти|На дорогу)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null);
+
+const T = {
+  warn: {f: ['«Я так больше не могу. Ещё раз — и уйду к матери, слышишь? Не держи тогда»', '«Терпела я долго. Ещё одна такая обида — соберу узел и уйду к своим»'],
+    m: ['«Я так больше не могу. Ещё раз — и уйду к своим, слышишь? Не держи тогда»', '«Терпел я долго. Ещё одна такая обида — соберу узел, и поминай как звали»']},
+  letter: {f: '«Не знаю, когда ты вернёшься и вернёшься ли. Я одна, в долгах и в слезах. Ещё немного — и уйду к матери. Решай»',
+    m: '«Не знаю, когда ты вернёшься и вернёшься ли. Я один, в долгах и в обиде. Ещё немного — и уйду к своим. Решай»'},
+  mercWarn: {f: '{n} долго молчит у костра, потом говорит, не глядя: «Ещё раз — и уйду. Насовсем. Ты меня знаешь»',
+    m: '{n} долго молчит у костра, потом говорит, не глядя: «Ещё раз — и уйду. Насовсем. Ты меня знаешь»'},
+  leaveHome: {f: '{n} собрала узел и ушла к своим. Брак расторгнут: {h} больше не женат. {kids}',
+    m: '{n} собрал узел и ушёл к своим. Брак расторгнут: {h} больше не замужем. {kids}'},
+  leaveMail: {f: '«Не ищи меня. Я ушла к своим — не могу больше. Половину сундука оставила узлом у соседей. Прощай»',
+    m: '«Не ищи меня. Я ушёл к своим — не могу больше. Половину сундука оставил узлом у соседей. Прощай»'},
+  leaveMerc: {f: '{n} молча снимает с пальца кольцо и кладёт его на камень у костра: «Всё. Иди своей дорогой, а я — своей». Утром её место у огня пусто: брак расторгнут, {h} больше не женат.',
+    m: '{n} молча снимает с пальца кольцо и кладёт его на камень у костра: «Всё. Иди своей дорогой, а я — своей». Утром его место у огня пусто: брак расторгнут, {h} больше не замужем.'},
+  kidsF: 'Дети остались с матерью — {h} им по-прежнему отец, но жить им теперь не у него.',
+  kidsM: 'Дети остались с отцом — {h} им по-прежнему мать, но жить им теперь не у неё.',
+  empty: 'Дом стоит тёмный, ставни закрыты. Соседка из-за плетня кричит: «Ушла {n} к своим! А узел вам оставила, у нас лежит»',
+  emptyM: 'Дом стоит тёмный, ставни закрыты. Сосед из-за плетня кричит: «Ушёл {n} к своим! А узел вам оставил, у нас лежит»',
+  cold: {f: ['{n} смотрит мимо {h_g}, будто сквозь пустое место: «Нам говорить не о чем»', '{n} отворачивается: «Иди своей дорогой. Ко мне — не надо»', '{n} поджимает губы и молчит, пока {h} не уходит.'],
+    m: ['{n} смотрит мимо {h_g}, будто сквозь пустое место: «Нам говорить не о чем»', '{n} отворачивается: «Иди своей дорогой. Ко мне — не надо»', '{n} сплёвывает и молчит, пока {h} не уходит.']},
+  noHire: '{n} и слышать о вас не хочет, пока с вами {h}',
+};
+const fillT = (s, o) => String(s).replace(/\{([a-z_]+)\}/g, (m, k) => (o[k] != null ? o[k] : m));
+
+/* ---------- чаша обид ---------- */
+C.heCupOf = (g, key) => ((g && g.he && g.he.home && g.he.home[key]) || {}).cup || 0;
+const marriage = (g, key) => { const r = (g.folkRel || {})[key]; if (!r || r.bond !== 'wed') return null; const h = heroById(g, r.who); return h ? {r, h} : null; };
+const spouseKey = h => (h && h.spouse && h.spouse.role && h.spouse.at ? h.spouse.role + '@' + h.spouse.at : null);
+const mercOfKey = (g, key, r) => { const [role] = key.split('@'), s = (g.homeSp || {})[role], id = r.mw != null ? r.mw : (s && s.mw ? s.mw.id : null);
+  return id == null ? null : (g.mercs || []).find(m => m && m.id === id && !m.dead) || null; };
+const who = (g, key, r) => { const [role, at] = key.split('@'), m = mercOfKey(g, key, r), s = (g.homeSp || {})[role];
+  if (m) return {n: m.name, sex: m.sex, face: m.portrait, m};
+  if (s && s.mw && s.mw.wife) return {n: s.mw.wife.n, sex: s.mw.wife.sex, face: s.mw.wife.face};
+  let p = null; try { p = C.folkPerson(g, role, at); } catch (e) {} return p ? {n: p.n, sex: p.sex, face: p.face, t: p.t} : null; };
+const atHome = (g, key) => { const at = key.split('@')[1]; return g.loc === at && !g.folkAt; };
+C.heCupAdd = function (g, key, d, why) {
+  if (!g || !key || !d) return 0; const M = marriage(g, key); if (!M) return 0;
+  const H = rec(g, key), was = H.cup || 0; H.cup = Math.max(0, Math.round((was + d) * 100) / 100);
+  if (d > 0) try { cupCheck(g, key, M, was, H); } catch (e) {}
+  return H.cup - was;
+};
+function cupCheck(g, key, M, was, H) {
+  const k = K(), p = who(g, key, M.r); if (!p) return;
+  if (H.cup >= k.CUP_LEAVE) { C.heLeave(g, key, why0(H)); return; }
+  if (H.cup >= k.CUP_WARN2 && (was < k.CUP_WARN2 || !H.warn || day(g) - H.warn >= 14)) {
+    H.warn = day(g); const sx = p.sex === 'f' ? 'f' : 'm';
+    if (p.m) { C.note(g, fillT(T.mercWarn[sx], {n: p.n})); return; }
+    if (atHome(g, key)) { H.warnSay = pick(T.warn[sx]); return; }
+    const line = T.letter[sx];
+    g.mail = (g.mail || []).concat({from: p.n, t: p.t || fx(p.sex, 'муж', 'жена'), face: p.face, sex: p.sex, kind: 'wed', head: fx(p.sex, 'От мужа', 'От жены'), to: M.h.name, text: line, day: day(g)}).slice(-6);
+    C.note(g, `Гонец догоняет отряд: грамотка от ${decl(p.n, p.sex).g}. ${line}`);
+  }
+}
+const why0 = H => H.lastWhy || '';
+
+/* ---------- уход ---------- */
+C.heLeave = function (g, key, why) {
+  const M = marriage(g, key); if (!M) return null;
+  const {r, h} = M, [role, at] = key.split('@'), s = (g.homeSp || {})[role], p = who(g, key, r) || {n: (h.spouse || {}).n || '', sex: h.sex === 'f' ? 'm' : 'f'};
+  const m = p.m || null, spec = h.spouse && h.spouse.mw && h.spouse.mw.spec, mwId = r.mw != null ? r.mw : (s && s.mw ? s.mw.id : null);
+  // сундук: половина ей, половина — узлом у соседей
+  const W2 = (g.w2home || {})[key]; let bundle = [];
+  if (W2 && Array.isArray(W2.chest) && W2.chest.length) { bundle = W2.chest.filter((_, i) => i % 2 === 0); W2.chest = []; }
+  if (g.w2hearth && g.w2hearth[key]) delete g.w2hearth[key];
+  // узы
+  Object.assign(r, {bond: null, who: null, love: 0, answered: 0, eye: null, gifts: [], rep: 5, exHero: h.id, exDay: day(g), exN: h.name});
+  if (r.mw != null) { r.mwEx = r.mw; delete r.mw; }
+  if (s && (s.hero === h.id || (s.mw && s.mw.hero === h.id))) { s.hero = null; s.gone = 1; s.exHero = h.id; if (s.mw) Object.assign(s.mw, {dead: 'ex', away: 1, home: 0}); if (s.mw) delete s.mw.merc; }
+  delete h.spouse; delete h.mwKin;
+  // дети — с матерью (с отцом), кровные
+  let kids = 0;
+  try { (C.kidsFams ? C.kidsFams(g) : []).forEach(F => { if (F.key === key && F.hero === h.id) { F.ex = day(g); kids += (F.kids || []).filter(k => !k.went).length; } }); } catch (e) {}
+  // местная из весёлых знакомств — больше не невеста
+  try { Object.values(g.kvLoc || {}).forEach(x => { if (x && x.hid === h.id && x.n === p.n && x.st === 'wed') x.st = 'gone'; }); } catch (e) {}
+  // жена (муж) из отряда уходит со своим
+  if (m) { const i = g.mercs.indexOf(m); if (i >= 0) g.mercs.splice(i, 1);
+    if (m.mw) Object.assign(m.mw, {tier: 'ex', exHero: h.id, who: null}); m.heEx = h.id;
+    let tav = null; try { tav = C.mercTavern ? C.mercTavern(g) : null; } catch (e) {} if (typeof tav !== 'string') tav = g.loc;
+    g.mercIdle = (g.mercIdle || []).filter(x => !(x.hero && x.hero.id === m.id)).concat({at: tav, day: day(g), hero: m}); }
+  // поручения
+  const E = S(g).err; delete E[key]; if (mwId != null) delete E['merc:' + mwId];
+  const H = rec(g, key); H.cup = 0; H.left = day(g);
+  S(g).ex.push({key, role, at, n: p.n, sex: p.sex, face: p.face, hero: h.id, heroN: h.name, day: day(g), merc: mwId, spec: spec || (m && m.mercId) || null, bundle, seen: 0});
+  // летопись
+  const kidsT = kids ? fillT(h.sex === 'm' ? T.kidsF : T.kidsM, {h: h.name}) : '';
+  const t = m ? fillT(T.leaveMerc[p.sex === 'f' ? 'f' : 'm'], {n: p.n, h: h.name}) + (kidsT ? ' ' + kidsT : '') : fillT(T.leaveHome[p.sex === 'f' ? 'f' : 'm'], {n: p.n, h: h.name, kids: kidsT}).trim();
+  C.note(g, t);
+  if (!m && !atHome(g, key)) { const line = T.leaveMail[p.sex === 'f' ? 'f' : 'm'];
+    g.mail = (g.mail || []).concat({from: p.n, t: fx(p.sex, 'бывший муж', 'бывшая жена'), face: p.face, sex: p.sex, kind: 'wed', head: fx(p.sex, 'От мужа', 'От жены'), to: h.name, text: line, day: day(g)}).slice(-6);
+    C.note(g, `Гонец догоняет отряд: последняя грамотка от ${decl(p.n, p.sex).g}. ${line}`); }
+  h.deeds = (h.deeds || []).concat(`${fx(h.sex, 'брошен женой', 'брошена мужем')}: ${p.n}`).slice(-12);
+  if (C.spiritAdd) try { C.spiritAdd(g, -2, '', h); } catch (e) {}
+  return t;
+};
+C.heExOf = (g, h) => ((g && g.he && g.he.ex) || []).filter(x => !h || x.hero === h.id);
+const exLive = g => ((g && g.he && g.he.ex) || []).filter(x => heroById(g, x.hero));
+
+/* ---------- что наливает и что отливает ---------- */
+{ const kb0 = C.kvBetray; if (kb0) C.kvBetray = function (g, h) { const key = spouseKey(h); const r = kb0.apply(this, arguments);
+  try { if (key) { rec(g, key).lastWhy = 'измена'; C.heCupAdd(g, key, K().CUP_BETRAY, 'измена'); } } catch (e) {} return r; }; }
+{ const hc0 = C.hearthCare; if (hc0) C.hearthCare = function (g, key, n) { const r = hc0.apply(this, arguments);
+  try { const H = (g.he && g.he.home && g.he.home[key]); if (H && H.cup > 0 && n > 0) { if (H.careDay !== day(g)) { H.careDay = day(g); H.careN = 0; }
+    const d = Math.min(K().CUP_CARE * n, K().CUP_CARE_DAY - (H.careN || 0)); if (d > 0) { H.careN = (H.careN || 0) + d; C.heCupAdd(g, key, -d, 'забота'); } } } catch (e) {}
+  return r; }; }
+{ const ab0 = C.abil; if (ab0) C.abil = function (g, h, arg) { const r = ab0.apply(this, arguments);
+  try { if (arg === 'mw_fire' && r && r.ok && h && h.mw && h.mw.tier === 'wed' && h.mw.key) C.heCupAdd(g, h.mw.key, -K().CUP_CARE, 'ночь у костра'); } catch (e) {} return r; }; }
+/* раз в седмицу: нищета, долги, долгое отсутствие; достаток понемногу утешает */
+C.heCupWeek = function (g) {
+  if (!g || !g.folkRel) return; const k = K(), d = day(g);
+  Object.keys(g.folkRel).forEach(key => {
+    const M = marriage(g, key); if (!M || !/@/.test(key)) return; const r = M.r, H = rec(g, key);
+    if (H.cupWk == null) { H.cupWk = d; return; } if (d - H.cupWk < 7) return; H.cupWk = d;
+    if (mercOfKey(g, key, r)) return;                                   // жена в отряде: дом не ведётся, она рядом
+    const wk = C.hearthWeek ? C.hearthWeek(g, key) : 200, W = (g.w2hearth || {})[key] || {}, ls = C.lsTier ? C.lsTier(g) : null, nish = !!(ls && ls.i === 0 && g.ls);
+    const debt = (W.coin || 0) <= -k.DEBT_WEEKS * wk;   // долг лавочнику за много седмиц (у w2_hearth это предел долга) — нужда
+    const adds = [];
+    if (debt) adds.push([k.CUP_POOR, 'нищета']);                       // долг лавочнику дошёл до предела — семья в нужде
+    if (nish) adds.push([k.CUP_POOR, 'нищета']);                       // и сам отряд живёт нищенски
+    const last = H.last || r.bondDay || 1; if (d - last > k.AWAY_DAYS && !atHome(g, key)) adds.push([k.CUP_AWAY, 'разлука']);
+    adds.forEach(([v, why]) => { if (marriage(g, key)) { H.lastWhy = why; C.heCupAdd(g, key, v, why); } });
+    if (!adds.length && (W.coin || 0) >= 0 && ['merchant', 'noble'].includes(C.heTier ? C.heTier(g, key) : '')) C.heCupAdd(g, key, -k.CUP_RICH, 'достаток');
+  });
+};
+{ const ps0 = C.pass; C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments); if (g && g.day !== d0) try { C.heCupWeek(g); } catch (e) {} return r; }; }
+
+/* ---------- бывший(ая): не говорит, не нанимается, не сватается ---------- */
+{ const ra0 = C.relAdd; if (ra0) C.relAdd = function (g, role, at, d) { try { const r = (g.folkRel || {})[role + '@' + at]; if (r && r.exHero && d > 0 && heroById(g, r.exHero)) return 0; } catch (e) {} return ra0.apply(this, arguments); }; }
+const exBlocks = (g, test) => exLive(g).find(test) || null;
+{ const rh0 = C.rehireMerc; if (rh0) C.rehireMerc = function (g, id) { const x = (g.mercIdle || []).find(y => y.hero && y.hero.id === id);
+  if (x && x.hero.heEx && heroById(g, x.hero.heEx)) { C.note(g, fillT(T.noHire, {n: x.hero.name, h: heroById(g, x.hero.heEx).name}) + '.'); return false; } return rh0.apply(this, arguments); }; }
+{ const hm0 = C.hireMerc; if (hm0) C.hireMerc = function (g, id) { const x = exBlocks(g, e => e.spec && e.spec === id);
+  if (x) { C.note(g, fillT(T.noHire, {n: x.n, h: x.heroN}) + '.'); return false; } return hm0.apply(this, arguments); }; }
+const coldLine = (g, x) => { const h = heroById(g, x.hero); return fillT(pick(T.cold[x.sex === 'f' ? 'f' : 'm']), {n: x.n, h: h ? h.name : x.heroN, h_g: decl(h ? h.name : x.heroN, h ? h.sex : 'm').g}); };
+const PERSONAL = /по душам|Подарить|ответить на|протянуть руку|о личном|предложение|«да»|побрат|на ночь|сундук|хозяйство|Перевезти|Мастерская дома|Поручение|Порадовать|Позвать .* снова|Повозиться/;
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments); let out = sc;
+  try {
+    if (!sc || !g || !g.he) return sc;
+    const xs = exLive(g);
+    // дома: предупреждение в лицо
+    if (id === 'folk' && g.folkRole) { const key = g.folkRole + '@' + (g.folkAt || g.loc), H = g.he.home[key];
+      if (H && H.cup >= K().CUP_WARN2 && marriage(g, key)) { const p = who(g, key, marriage(g, key).r); if (p) { if (!H.warnSay) H.warnSay = pick(T.warn[p.sex === 'f' ? 'f' : 'm']); out = Object.assign({}, out, {lines: (out.lines || []).concat([['n', `${p.n}: ${H.warnSay}`]])}); } } }
+    if (!xs.length) return out;
+    // бывшая — мастер на своём месте: холодно и без личного
+    if (id === 'folk' && g.folkRole) { const key = g.folkRole + '@' + (g.folkAt || g.loc), r = (g.folkRel || {})[key];
+      if (r && r.exHero && heroById(g, r.exHero)) { const x = xs.find(e => e.key === key) || {n: (who(g, key, r) || {}).n, sex: (who(g, key, r) || {}).sex, hero: r.exHero, heroN: r.exN};
+        if (r.eye === r.exHero) r.eye = null; if (r.who === r.exHero) r.who = null;
+        const lines = (out.lines || []).slice(); lines[0] = ['n', coldLine(g, x)];
+        out = Object.assign({}, out, {lines, choices: (out.choices || []).filter(c => !PERSONAL.test(c.label || c.t || ''))}); } }
+    // наём, зов, сватовство — по имени
+    const ch = (out.choices || []).map(c => { const lb = c.label || c.t || ''; const x = xs.find(e => e.n && lb.includes(e.n.split(' ')[0]) && /^(Нанять|Позвать|Взять|Снова|Принять|Посвататься|Свататься)|сват/i.test(lb));
+      return x && !c.dis ? Object.assign({}, c, {dis: fillT(T.noHire, {n: x.n.split(' ')[0], h: x.heroN}), do: () => id}) : c; });
+    const lines = (out.lines || []).map(l => { const x = xs.find(e => e.n && l[1] && String(l[1]).includes(e.n) && /«/.test(l[1]) && /Позов|пойду|Не забыли/.test(l[1])); return x ? ['n', coldLine(g, x)] : l; });
+    out = Object.assign({}, out, {choices: ch, lines});
+    // пустой дом: узел у соседей
+    if (id === nodeScene(g) && !g.folkAt) { const x = xs.find(e => e.at === g.loc && !e.merc && (!e.seen || (e.bundle || []).length));
+      if (x) { const L = (out.lines || []).slice(); if (!x.seen || (x.bundle || []).length) L.push(['n', fillT(x.sex === 'f' ? T.empty : T.emptyM, {n: x.n})]);
+        const C2 = out.choices.slice(), back = popBack(C2);
+        if ((x.bundle || []).length) C2.push({i: nextI(out.choices), label: 'Забрать узел у соседей', t: 'Забрать узел у соседей', do: g2 => { const y = (g2.he.ex || []).find(e => e.key === x.key && e.day === x.day); const h = heroById(g2, y.hero) || C.alive(g2)[0];
+          (y.bundle || []).forEach(it => h.inv.push(it)); C.note(g2, `${h.name} забирает у соседей узел: ${(y.bundle || []).map(it => ((R.item(it) || {}).name || it).toLowerCase()).join(', ')}.`); y.bundle = []; y.seen = 1; return nodeScene(g2) || 'map'; }});
+        if (back) C2.push(back); out = Object.assign({}, out, {lines: L, choices: C2}); x.seen = 1; } }
+  } catch (e) {}
+  return out;
+};
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* items_alive_w.js */
+/* Колдовство — «оживить вещи», часть Вечного мира (после town_life, waveA, w2_mercwed). Без DOM.
+   • Корчма и торг (town_life.js): кошель большой (и малый) — карманник реже добирается до серебра; свисток — ловить вора
+     сподручнее (на свист сбегаются люди); ведро — тушить пожар сподручнее.
+   • Пленные (waveA.js): цепь — пленный на допросе сговорчивей (Запугивание с преимуществом).
+   • Подарок спутнику (w2_mercwed.js): певчая птица, павлин, лебедь — подарок, что запоминают надолго.
+   Крючки для прогулки по городу (town_walk*.js, другой агент): C.iaPurseGuard(g) — 0 / 1 / 2 (нет / малый / большой кошель),
+   C.iaHas(g, id|[ids]) — есть ли вещь у отряда, C.iaWith(ctx, fn) — бросок в контексте ('thief', 'fire', 'pris'). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.iaHas) return;
+const has = C.iaHas;
+C.iaPurseGuard = g => (has(g, 'koshel_poyasnoy_bolshoy') ? 2 : has(g, 'koshel_poyasnoy_malyy') ? 1 : 0);
+C.IA = Object.assign({PURSE_W: [1, 0.75, 0.5], BIRD_GIFT: 1, BIRDS: ['pevchaya_ptitsa', 'pavlin', 'lebed']}, C.IA || {});
+const K = () => C.IA;
+const wrapDo = (o, ctx) => { if (!o || typeof o.do !== 'function' || o._ia) return o; const d0 = o.do; return Object.assign({}, o, {_ia: 1, do: function () { const a = arguments; return C.iaWith(ctx, () => d0.apply(this, a)); }}); };
+
+/* подсказки ещё раз: traders_more.js переписывает свои (замок, сундук, цепь) — дописываем поверх */
+if (C.iaApplyNotes) C.iaApplyNotes();
+if (C.iaFoodAdd) C.iaFoodAdd();
+
+/* ---------- корчма и торг ---------- */
+const EV = C.TL_EV;
+if (EV) {
+  ['ruka', 'karman'].forEach(id => { const ev = EV[id]; if (!ev || ev._ia) return; ev._ia = 1;
+    const w0 = ev.w; ev.w = function (x) { const v = w0.apply(this, arguments); try { return v * K().PURSE_W[C.iaPurseGuard(x && x.g)]; } catch (e) { return v; } };
+    const o0 = ev.opts; ev.opts = function () { const out = o0.apply(this, arguments) || []; return out.map(o => wrapDo(o, 'thief')); }; });
+  const pz = EV.pozhar; if (pz && !pz._ia) { pz._ia = 1; const o0 = pz.opts; pz.opts = function () { const out = o0.apply(this, arguments) || []; return out.map(o => o && o.k === 'fight' ? wrapDo(o, 'fire') : o); }; }
+}
+
+/* ---------- пленные: цепь ---------- */
+if (C.waAskChoices) { const wa0 = C.waAskChoices; C.waAskChoices = function () { const out = wa0.apply(this, arguments) || []; return out.map(o => wrapDo(o, 'pris')); }; }
+
+/* ---------- подарок: диковинная птица ---------- */
+if (C.mwGift && C.mwAdd) { const mg0 = C.mwGift; C.mwGift = function (g, h, gv, ids) { const r = mg0.apply(this, arguments);
+  try { if (r && (ids || []).some(id => K().BIRDS.includes(id))) { C.mwAdd(g, h, K().BIRD_GIFT); r.text = (r.text || '') + ' Живую диковину не забывают.'; } } catch (e) {}
+  return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* trinka_data.js */
