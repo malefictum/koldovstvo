@@ -62320,3 +62320,47 @@ if (C.addHero) { const ah0 = C.addHero; C.addHero = function (g, h) { const r = 
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* npc_taken.js */
+/* Колдовство — именной человек главы не двоится.
+   Если именной наёмник главы (Хальга, Ратша, Вета…) уже супруг(а) героя отряда — живёт дома, ждёт ребёнка или идёт с отрядом
+   как жена или муж, — в корчме новой главы он не сидит второй раз: его нет среди людей места, его реплик и «Нанять …» нет.
+   Совпадение: по метке mercId, записанной при свадьбе (h.spouse.mw.spec), а у старых сохранений — по имени и лицу. Без DOM. */
+(function () {
+  const camp = g => (C.CAMPS && g && C.CAMPS[g.camp]) || null;
+  const heroesOf = g => (g && g.heroes || []).filter(h => h && !h.dead);
+  /* запомнить, кто именно стал супругом */
+  if (C.mwWed) { const w0 = C.mwWed; C.mwWed = function (g, m) { const r = w0.apply(this, arguments);
+    try { if (r !== false && m && m.mercId) heroesOf(g).forEach(h => { if (h.spouse && h.spouse.mw && h.spouse.mw.id === m.id) h.spouse.mw.spec = m.mercId; }); } catch (e) {}
+    return r; }; }
+  /* id именных людей главы, что уже чьи-то супруги */
+  C.npcTakenIds = function (g) {
+    const cp = camp(g), M = cp && cp.mercs; if (!M) return [];
+    const out = [];
+    for (const id in M) { const d = M[id]; if (!d || !d.name) continue;
+      const taken = heroesOf(g).some(h => { const s = h.spouse; if (!s) return false;
+        if (s.mw && s.mw.spec) return s.mw.spec === id;
+        return s.n === d.name && (!d.portrait || !s.face || s.face === d.portrait); });
+      if (taken) out.push(id); }
+    return out;
+  };
+  C.npcTaken = (g, id) => C.npcTakenIds(g).includes(id);
+  /* Вечный мир: «люди былых глав» в сёлах — тоже без того, кто уже супруг героя */
+  if (C.freeNpcsAt) { const fn0 = C.freeNpcsAt; C.freeNpcsAt = function (g) { const r = fn0.apply(this, arguments) || [];
+    let tk; try { tk = C.npcTakenIds(g); } catch (e) { tk = []; } return tk.length ? r.filter(m => !tk.includes(m.id)) : r; }; }
+  /* сцена места: убрать занятого человека из «Здесь:», его реплики и выборы, если он числится среди людей этого места */
+  const so0 = C.sceneOf;
+  C.sceneOf = function (g, id) {
+    const s = so0.apply(this, arguments); if (!s) return s;
+    let tk; try { tk = C.npcTakenIds(g); } catch (e) { tk = []; }
+    if (!tk.length) return s;
+    const here = ((s.raw && s.raw.people) || []).filter(p => tk.includes(p));
+    if (!here.length) return s;
+    s.people = (s.people || []).filter(p => !here.includes(p));
+    s.lines = (s.lines || []).filter(l => !(Array.isArray(l) && (here.includes(l[0]) || here.includes(l[2]))));
+    s.choices = (s.choices || []).filter(c => !here.includes(c.who));
+    const nm = s.lines.findIndex(l => l[0] === 'n' && /^Здесь: /.test(l[1] || ''));
+    if (nm >= 0) { const names = s.people.map(p => (C.SPEAKERS[p] || [p])[0].split(',')[0]); s.lines[nm] = ['n', names.length ? 'Здесь: ' + names.join(', ') + '.' : 'Знакомых лиц сегодня нет.']; }
+    return s;
+  };
+})();
