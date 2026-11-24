@@ -71341,3 +71341,103 @@ C.kvGrudgeAt = g => { const x = g && g.kvGrudge && g.kvGrudge[g.loc]; return x &
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* kv_ask.js */
+/* Колдовство — просьбы после ночи (Ник 25.11: «ночь провёл, а они ничего не говорят — ни намёков, ни просьб… это не купить
+   у торговца, это важные вещи»). Без DOM.
+   • Знакомая (знакомый) места — вдова, девица, замужняя, ушедшая от мужа, спасённая — при тёплых отношениях после ночи
+     сперва НАМЕКАЕТ: «есть у меня беда… да не сейчас». В одну из следующих ночей — ПРОСИТ: брат (сестра) пропал(а), материну
+     вещь унесли, обидчики не дают житья, мать не упокоилась. Это настоящее дело (quests.js): место на карте, препятствия, бой —
+     но без платы. Вместо платы — она сама: отношение до предела, дух, и её слова при следующей встрече.
+   • Не успел или бросил — она запомнит: отношение вниз, упрёк при встрече.
+   • Одна просьба на человека за раз; между просьбами — пауза. Числа — C.KVA (тайна мастера). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !Q || !Q.make || !Q.GIVER || !C.kvLocOf || !C.kvAfter) return;
+C.KVA = Object.assign({REL: 60, HINT_P: 0.45, ASK_P: 0.6, GAP: 20, HINT_GAP: 2, DONE_REL: 30, LATE_REL: -20, KINDS: ['missing', 'retrieve', 'bandits', 'haunt']}, C.KVA || {});
+const K = () => C.KVA;
+const day = g => (g && g.day) || 1;
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const vs = (p, m, f) => (p && p.sex === 'f' ? f : m);
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+Q.GIVER.kvlover = {t: 'близкий человек', mul: 0, sex: 'f'};
+const HINT = {f: ['Под утро {n} долго молчит, глядя в потолок, а потом говорит: «Есть у меня беда одна… Да нет. Не сейчас. Не хочу, чтоб ты думал, будто я за этим тебя зову»',
+    '{n} провожает до калитки и вдруг хватает за рукав: «Слушай… Нет, ничего. В другой раз скажу. Иди»', 'Ночью {n} плачет тихо, отвернувшись. На вопрос только мотает головой: «Не твоя это забота. Пока — не твоя»'],
+  m: ['Под утро {n} долго молчит, а потом говорит: «Есть одно дело… Да нет. Не хочу, чтоб ты думала, будто я ради этого»', '{n} провожает до дороги и хмурится: «Потом скажу. Не сейчас»']};
+const ASK = {
+  missing: v => `${vs(v.vic, 'Брат мой', 'Сестра моя')}, ${v.vic.n}, ушл${vs(v.vic, '', 'а')} с обозом на ярмарку — и не вернул${vs(v.vic, 'ся', 'ась')}. Видели ${vs(v.vic, 'его', 'её')} ${v.place.at}, а там, говорят, ${v.thr.n}. Мне не к кому больше идти. Найди ${vs(v.vic, 'его', 'её')}. Ради меня.`,
+  retrieve: v => `У меня от матери только и осталось — ${v.item.n}. А на прошлой седмице унесли. Следы ведут ${v.place.to}, а там ${v.thr.n}. Это не про деньги. Это всё, что у меня от неё есть. Верни.`,
+  bandits: v => `${cap(v.thr.n)} повадились к нашему двору. Берут что хотят, а мне проходу не дают — смеются, руки тянут. Сидят ${v.place.at}. Я никому не говорила. Тебе — говорю. Отвадь их.`,
+  haunt: v => `Мать моя не упокоилась. ${cap(v.place.at)} ходит ночами, зовёт меня по имени — я слышу, хоть и далеко. Знахарка говорит — держит её что-то. Помоги ей уйти. Мне одной страшно.`,
+};
+const ASK_M = {
+  missing: v => `${vs(v.vic, 'Брат мой', 'Сестра моя')}, ${v.vic.n}, пропал${vs(v.vic, '', 'а')}. Видели ${vs(v.vic, 'его', 'её')} ${v.place.at}. Я бы сам пошёл — да кто ж тогда за матерью ходить будет. Найди.`,
+  retrieve: v => `Отцовское — ${v.item.n} — унесли. Следы ${v.place.to}. Не продам я его никогда, понимаешь? Верни.`,
+  bandits: v => `${cap(v.thr.n)} обложили наш двор данью. Сидят ${v.place.at}. Один я не сдюжу. С тобой — сдюжу.`,
+  haunt: v => `Мать не упокоилась — ${v.place.at} ходит ночами. Помоги ей уйти.`,
+};
+const THANKS = {f: ['{n} бросается навстречу и долго не отпускает: «Ты сделал. Для меня. Мне никто никогда… Проси что хочешь — всё твоё»', '{n} плачет и смеётся сразу: «Я знала. Знала, что ты не бросишь»'],
+  m: ['{n} молча обнимает и долго не отпускает: «Я в долгу. На всю жизнь — в долгу»']};
+const LATE = {f: ['{n} встречает холодно: «Я просила. Один раз в жизни — просила. Ладно. Сама теперь знаю, чего ты стоишь»'], m: ['{n} смотрит мимо: «Я просил. Ладно. Понял»']};
+const fill = (s, h, r) => s.replace(/\{n\}/g, r.n).replace(/\{h\}/g, h.name);
+
+/* после ночи: намёк, потом просьба */
+C.kvAskAfter = function (g, h, r) {
+  if (!g || !h || !r || (r.rel || 0) < K().REL || !['widow', 'maid', 'wife', 'left', 'freed'].includes(r.st)) return null;
+  if (r.askJob) { const j = Q.byId ? Q.byId(g, r.askJob) : null; if (j && ['open', 'offer'].includes(j.status)) return null; }
+  if (r.askDay && day(g) - r.askDay < K().GAP) return null;
+  if (!r.hint) { if (R.rand() < K().HINT_P) { r.hint = day(g); return {hint: fill(pick(HINT[r.sex === 'f' ? 'f' : 'm']), h, r)}; } return null; }
+  if (day(g) - r.hint < K().HINT_GAP || R.rand() >= K().ASK_P) return null;
+  let j = null; for (let k = 0; k < 6 && !j; k++) { try { j = Q.make(g, 'road', {kind: pick(K().KINDS), giver: 'kvlover'}); } catch (e) { j = null; } if (j && !Q.KIND[j.kind]) j = null; }
+  if (!j) return null;
+  j.v.giver = {n: r.n, sex: r.sex, ppl: r.ppl}; j.pay = 0; j.haggled = 1; j.kvReq = r.id; j.kvHero = h.id; j.dl = day(g) + 14;
+  const say = (r.sex === 'f' ? ASK : ASK_M)[j.kind] ? (r.sex === 'f' ? ASK : ASK_M)[j.kind](j.v) : null; if (!say) return null;
+  j.kvSay = say; r.askDay = day(g); r.askJob = j.id; r.hint = null;
+  g.jobPending = j; g.jobOffer = j.id; g.jobFrom = 'road';
+  return {ask: j};
+};
+/* дело без платы: в окне — её слова, без торга */
+const ol0 = Q.offerLines;
+Q.offerLines = function (g, j) {
+  if (j && j.kvReq) { const L = [[j.v.giver.n, '«' + j.kvSay + '»']]; L.push(['n', j.v.giver.sex === 'f' ? 'Платы она не предлагает — и предложи она, вы бы не взяли. Срок — пока не поздно, недели две.' : 'Платы он не предлагает — и предложи он, вы бы не взяли. Срок — пока не поздно, недели две.']); if (j.site) L.push(['n', 'Место, куда идти, вы отмечаете на карте.']); return L; }
+  return ol0.apply(this, arguments);
+};
+const gn0 = Q.giverName;
+Q.giverName = function (j) { if (j && j.kvReq) return j.v.giver.n; return gn0.apply(this, arguments); };
+/* исполнено — она твоя без остатка; провалено — запомнит */
+const fi0 = Q.finish;
+Q.finish = function (g, j) {
+  const r0 = fi0.apply(this, arguments);
+  try { if (j && j.kvReq && !j.kvDone) { j.kvDone = 1; const r = C.kvLocOf(g, j.kvReq), h = heroes(g).find(x => x.id === j.kvHero);
+    if (r && h) { r.rel = Math.min(100, (r.rel || 0) + K().DONE_REL); r.askThanks = 1; if (C.spiritAdd) C.spiritAdd(g, 2, '', h); C.note(g, `${r.n} ждёт с вестью: дело, о котором ${r.sex === 'f' ? 'она' : 'он'} просил${r.sex === 'f' ? 'а' : ''}, сделано.`); } } } catch (e) {}
+  return r0;
+};
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const r0 = ps0.apply(this, arguments);
+  try { (g && g.jobs || []).forEach(j => { if (j.kvReq && !j.kvDone && ['late', 'gone', 'failed'].includes(j.status)) { j.kvDone = 1; const r = C.kvLocOf(g, j.kvReq); if (r) { r.rel = Math.max(0, (r.rel || 0) + K().LATE_REL); r.askLate = 1; } } }); } catch (e) {}
+  return r0; }; }
+/* встреча после: её слова — спасибо или упрёк */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try { if (sc && id === 'kv_local' && g.kvCur) { const r = C.kvLocOf(g, g.kvCur), h = r && heroes(g).find(x => x.id === r.hid);
+    if (r && h && (r.askThanks || r.askLate)) { const t = fill(pick((r.askThanks ? THANKS : LATE)[r.sex === 'f' ? 'f' : 'm']), h, r); sc.lines = [['n', t]].concat(sc.lines || []); C.note(g, t); r.askThanks = 0; r.askLate = 0; } } } catch (e) {}
+  return sc;
+};
+/* встроено в ночь у знакомой: kvAfter (kind local) → намёк в утро; просьба — окно дела вместо утренней сцены */
+const ka0 = C.kvAfter;
+C.kvAfter = function (g, h, o) {
+  const out = ka0.apply(this, arguments);
+  try { if (o && o.kind === 'local' && o.loc && Array.isArray(out) && !(C.kvTooDrunk && C.kvTooDrunk(h))) { const r = C.kvLocOf(g, o.loc); const a = C.kvAskAfter(g, h, r);
+    if (a && a.hint) out.push(a.hint); if (a && a.ask) g.kvAskGo = 1; } } catch (e) {}
+  return out;
+};
+const ch0 = C.choose;
+C.choose = function (g) {
+  const r = ch0.apply(this, arguments);
+  try { if (g && g.kvAskGo && r && r.scene === 'kv_local') { g.kvAskGo = 0; return Object.assign({}, r, {scene: 'q_offer'}); } if (g && g.kvAskGo && r && r.scene && r.scene !== 'kv_husb') g.kvAskGo = 0; } catch (e) {}
+  return r;
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
