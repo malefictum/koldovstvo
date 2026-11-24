@@ -38167,7 +38167,8 @@ C.heroStatus = function (g, h) {
     const seg = k => `<span class="seg">${['нет', 'чуть', 'тихо', 'средне', 'громко'].map((t, i) => `<button class="${near(store[k]) === i ? 'on' : ''}" data-snd="${k}" data-v="${STEPS[i]}">${t}</button>`).join('')}</span>`;
     const box = G.document.createElement('div'); box.id = 'm-snd';
     box.innerHTML = `<div class="mset"><span>Звуки</span>${seg('sfx')}</div><div class="mset"><span>Напев</span>${seg('music')}</div>` +
-      `<div class="mset"><span>Тишина</span><span class="seg"><button class="${store.muted ? '' : 'on'}" data-mute="0">слышно</button><button class="${store.muted ? 'on' : ''}" data-mute="1">без звука</button></span></div>`;
+      `<div class="mset"><span>Тишина</span><span class="seg"><button class="${store.muted ? '' : 'on'}" data-mute="0">слышно</button><button class="${store.muted ? 'on' : ''}" data-mute="1">без звука</button></span></div>` +
+      (C.MUSIC && C.MUSIC.track && C.MUSIC.label ? `<div class="mset" id="m-snd-now"><span>Звучит</span><span style="opacity:.8;text-align:right">${C.MUSIC.label(C.MUSIC.track)}</span></div>` : '');
     const last = sets[sets.length - 1]; last.parentNode.insertBefore(box, last);
     const redraw = () => { box.querySelectorAll('[data-snd]').forEach(b => b.classList.toggle('on', near(store[b.dataset.snd]) === STEPS.indexOf(+b.dataset.v))); box.querySelectorAll('[data-mute]').forEach(b => b.classList.toggle('on', (b.dataset.mute === '1') === store.muted)); };
     box.querySelectorAll('[data-snd]').forEach(b => b.onclick = e => { e.stopPropagation(); unlock(); vol[b.dataset.snd] = +b.dataset.v; if (store.muted && +b.dataset.v > 0) C.SFX.mute(false); redraw(); if (b.dataset.snd === 'sfx') play('coins', {n: 2}); });
@@ -38192,7 +38193,7 @@ C.heroStatus = function (g, h) {
   let bossNext = false;
   const battleMood = S => C.MUSIC && (bossNext || (S && Array.isArray(S.units) && S.units.some(bossUnit))) ? 'boss' : 'battle';
   const safe = f => { try { f(); } catch (e) {} };
-  let battleOn = false, lastWin = -9;
+  let battleOn = false, lastWin = -9, battleCtx = null; // battleCtx — игра и описание боя, пока идёт C.battleStart
 
   // бой: журнал → звук; B.fx подсказывает дальний ли удар и стихию чар; B.attack — кто кого
   if (B) {
@@ -38232,11 +38233,15 @@ C.heroStatus = function (g, h) {
       });
       return r;
     };
-    if (B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments); safe(() => { battleOn = true; setMood(battleMood(S)); }); bossNext = false; return S; }; }
+    if (B.start) { const bs0 = B.start; B.start = function (o) { const S = bs0.apply(this, arguments); safe(() => { battleOn = true; const m = battleMood(S);
+      // какой бой — такой и трек (music_nes.js: нежить, степь, засада, кулачки…), подряд один и тот же не звучит
+      if (C.MUSIC && C.MUSIC.battleFor) safe(() => C.MUSIC.battleFor(S, {mood: m, g: battleCtx && battleCtx.g, spec: Object.assign({}, battleCtx && battleCtx.spec, o && o.ambush ? {ambush: o.ambush} : null)}));
+      setMood(m); }); bossNext = false; return S; }; }
   }
   // бой кампании: хозяин подземелья и «хозяин/главарь» в заголовке — тоже бой с вожаком
   if (C.battleStart) { const cs0 = C.battleStart; C.battleStart = function (g, spec) { safe(() => { const d = g && g.dungeon; bossNext = !!((spec && (spec.boss || /хозяин|главар|атаман|вожак/i.test(spec.title || ''))) || (spec && spec.setupKey === 'dungeon' && d && d.fight && d.fight.boss)); });
-    try { return cs0.apply(this, arguments); } finally { bossNext = false; } }; }
+    const keep = battleCtx; battleCtx = {g, spec: spec || {}};
+    try { return cs0.apply(this, arguments); } finally { bossNext = false; battleCtx = keep; } }; }
   if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S) { const res = be0.apply(this, arguments); safe(() => {
     if (S && !S._sfxEnd) { S._sfxEnd = 1; if (res && res.won) { lastWin = live() ? ctx.currentTime : -9; play('win'); } else if (!(res && res.fled)) play('lose'); }
     battleOn = false; setMood(calmMood(g), false, g);
@@ -38479,7 +38484,7 @@ C.heroStatus = function (g, h) {
   /* 5. Корчма / село — «Калинка» (И. Ларионов, 1860, напев стал народным) и «Во поле берёза стояла» (народная).
      Тихо, по-вечернему: бурдон ре/ля, обрывки «Калинки» и «Берёзы» вдвое медленнее, мягкий пульс и треугольник, без ударных. */
   T.korchma = {
-    title: 'Корчма', src: '«Калинка» (И. Ларионов, 1860) и «Во поле берёза стояла» (народная)', key: 'ре минор / фа мажор', bpm: 50, div: 4, rev: 0.4, gain: 0.95,
+    title: 'Корчма', src: 'И. Ларионов и народный напев — «Калинка» (1860), «Во поле берёза стояла»', key: 'ре минор / фа мажор', bpm: 50, div: 4, rev: 0.4, gain: 0.95,
     ch: {
       p1: {w: 'pulse', duty: 2, vol: 0.12, env: 'soft', vib: [0.7, 9, 4.5], pan: -0.15},
       p2: {w: 'pulse', duty: 2, vol: 0.07, env: 'soft', pan: 0.35},
@@ -38607,6 +38612,273 @@ C.heroStatus = function (g, h) {
     },
     intro: 'I', loop: 'A B C D',
   };
+
+  /* ================= боевые треки: ротация по бою (кого бьём, где, когда — см. BATTLE в music_nes.js) =================
+     Мелодии — общественное достояние (композиторы умерли больше 70 лет назад); ноты сняты с общедоступного нотного
+     издания (партия флейты) и сверены по интервалам в tests/music_test.js. Аранжировка — своя. */
+  const rep = (s, n) => Array(n).fill(s).join(' ');
+  const fifth = {c1: 'g1', d1: 'a1', e1: 'b1', f1: 'c2', g1: 'd2', a1: 'e2', b1: 'f#2', 'f#1': 'c#2', 'g#1': 'd#2', 'a#1': 'f2', c2: 'g2', d2: 'a2', e2: 'b2', f2: 'c3', g2: 'd3', a2: 'e3', 'd#2': 'a#2', 'g#2': 'd#3', 'f#2': 'c#3'};
+  const up8 = n => n.replace(/(\d)$/, d => +d + 1);
+
+  /* 8. Нежить, ночь — К. Сен-Санс, «Пляска смерти», соч. 40, соль минор, вальс 3/4. Удары полуночи (тут два),
+     скрипка Смерти настраивает тритон ми-бемоль/ля, первая тема вальса (соль минор → ля-бемоль), она же октавой выше,
+     вторая тема — нисходящая хроматика; вальсовый бас треугольником, «кости-ксилофон» — короткие аккорды второй пульсы. */
+  {
+    const wf = r => `${r}:4 ${fifth[r]}:4 ${fifth[r]}:4`, wc = c => `r:4 [${c}]:4 [${c}]:4`;
+    T.macabre = {
+      title: 'Пляска смерти', src: 'К. Сен-Санс — «Пляска смерти», соч. 40', key: 'соль минор', bpm: 168, div: 4, rev: 0.14, gain: 0.35,
+      ch: {
+        p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', vib: [0.2, 14, 6], pan: -0.2},
+        p2: {w: 'pulse', duty: 1, vol: 0.1, env: 'st', pan: 0.3},
+        tr: {w: 'tri', vol: 0.34},
+        nz: {w: 'noise', vol: 0.15, pan: 0.1},
+      },
+      pat: {
+        bell: '@env:st d5:12', mid: '@g.4 d3:12',
+        trit: 'd#5:12 a4:12 d#5:8 d#5:4 a4:8 a4:4 d#5:2 d#5:2 d#5:2 r:2 a4:2 r:2 d#5:2 d#5:2 d#5:2 r:2 a4:2 r:2 d#5:2 r:2 a4:2 r:2 d#5:2 r:2 a4:2 r:2 d#5:2 r:2 d5:2 r:2',
+        mA: 'r:4 g4:2 a#4:2 g4:2 a4:2 a#4:4 a4:2 a#4:2 g4:2 a#4:2 a4:2 g4:2 g4:2 a#4:2 g4:2 a4:2 a#4:4 a4:2 a#4:2 g4:2 a#4:2 ' +
+            'g#4:4 g#4:2 c5:2 g#4:2 a#4:2 c5:4 a#4:2 c5:2 g#4:2 c5:2 a#4:2 g#4:2 g#4:2 c5:2 g#4:2 a#4:2 c5:4 g#4:2 c5:2 a#4:2 g#4:2',
+        g4e: 'g4:4',
+        mB: 'g5:4 r:4 d4:4 g4:8 g4:4 f4:8 f4:4 e4:8 e4:4 d#4:8 d#4:4 d4:4 e4:4 g4:4 f#4:4 e4:4 d4:4 e4:8 e4:4 f#4:4 r:4 d4:4 ' +
+            'g4:8 g4:4 f4:8 f4:4 e4:8 e4:4 d#4:8 d#4:4 d4:4 g4:4 a#4:4 a4:4 f#4:4 d4:4 f#4:8 e4:4 d4:12',
+        bA: rep(wf('g2'), 4) + ' ' + rep(wf('g#2'), 4),
+        cA: rep(wc('d4 g4 a#4'), 4) + ' ' + rep(wc('d#4 g#4 c5'), 4),
+        bB: ['d2', 'g2', 'f2', 'e2', 'd#2', 'd2', 'd2', 'c2', 'd2', 'g2', 'f2', 'e2', 'd#2', 'd2', 'd2', 'd2', 'g2'].map(wf).join(' '),
+        bT: 'd#2:12 a1:12', dI: '.24', dA: 'k4 h4 h4', dA2: 'k4 s4 s4', dB: 'k4 h4 s4', dT: 'h4 .4 .4',
+      },
+      sec: {
+        I: {p2: 'bell*2', tr: 'mid*2', nz: 'dI'},
+        T: {p1: 'trit', p2: '=p1/2/.3', tr: 'bT', nz: 'dT'},
+        A: {p1: 'mA', p2: 'cA', tr: 'bA', nz: 'dA'},
+        A2: {p1: 'g4e mA{0-99}^12', p2: 'cA@v9', tr: 'bA', nz: 'dA2'},
+        B: {p1: 'mB', p2: '=p1/4/.3/12', tr: 'bB', nz: 'dB'},
+      },
+      intro: 'I', loop: 'T A A2 B',
+    };
+  }
+
+  /* 9. Засада, внезапный бой — Н. Римский-Корсаков, «Полёт шмеля» («Сказка о царе Салтане»), ля минор.
+     Нисходящая хроматика вступления, тема шестнадцатыми в ля и в ре, «жужжащий» кусок у ля; вторая пульса — эхо на шестнадцатую
+     (рой), во втором проходе — она же двумя октавами ниже. Ноты — октавой ниже авторских, чтобы не резали ухо. */
+  {
+    const b8 = r => `${r}:2 ${up8(r)}:2 ${r}:2 ${up8(r)}:2`;
+    T.bumblebee = {
+      title: 'Полёт шмеля', src: 'Н. Римский-Корсаков — «Полёт шмеля» («Сказка о царе Салтане»)', key: 'ля минор', bpm: 160, div: 4, rev: 0.1, gain: 0.34,
+      ch: {
+        p1: {w: 'pulse', duty: 2, vol: 0.14, env: 'pl', pan: -0.2},
+        p2: {w: 'pulse', duty: 1, vol: 0.09, env: 'pl', pan: 0.3},
+        tr: {w: 'tri', vol: 0.34},
+        nz: {w: 'noise', vol: 0.15, pan: 0.1},
+      },
+      pat: {
+        dsc: 'L1 e6 d#6 d6 c#6 d6 c#6 c6 b5 c6 b5 a#5 a5 g#5 g5 f#5 f5 e5 d#5 d5 c#5 d5 c#5 c5 b4 c5 b4 a#4 a4 g#4 g4 f#4 f4 e4:8 r:8',
+        thA: 'L1 e5 d#5 d5 c#5 c5 f5 e5 d#5 e5 d#5 d5 c#5 c5 c#5 d5 d#5 e5 d#5 d5 c#5 c5 f5 e5 d#5 e5 d#5 d5 c#5 c5 c#5 d5 d#5 ' +
+             'e5 d#5 d5 c#5 d5 c#5 c5 b4 c5 c#5 d5 d#5 e5 f5 e5 d#5 e5 d#5 d5 c#5 d5 c#5 c5 b4 c5 c#5 d5 d#5 e5 f#5 g5 g#5',
+        thD: 'L1 a5 g#5 g5 f#5 f5 a#5 a5 g#5 a5 g#5 g5 f#5 f5 f#5 g5 g#5 a5 g#5 g5 f#5 f5 a#5 a5 g#5 a5 g#5 g5 f#5 f5 f#5 g5 g#5 ' +
+             'a5 g#5 g5 f#5 g5 f#5 f5 e5 f5 f#5 g5 g#5 a5 a#5 a5 g#5 a5 g#5 g5 f#5 g5 f#5 f5 e5 f5 f#5 g5 g#5 a5 a#5 a5 g#5',
+        trl: 'L1 a4 a#4 a4 g#4 a4 a#4 a4 g#4 a4 a#4 a4 g#4 a4 a#4 a4 g#4 a4 a#4 b4 c5 c#5 c5 b4 a#4 a4 a#4 b4 c5 c#5 c5 b4 a#4',
+        bI: 'r:32 e2:8 r:8', bA: rep(b8('a1'), 7) + ' ' + b8('e1'), bD: rep(b8('d2'), 7) + ' ' + b8('e1'), bT: b8('a1'),
+        dI: rep('h2', 16) + ' K8 .8', d1: 'k2 h1 h1 s2 h1 h1', d2: 'k2 h1 h1 S2 h1 k1',
+      },
+      sec: {
+        I: {p1: 'dsc^-12', p2: '=p1/1/.35', tr: 'bI', nz: 'dI'},
+        A: {p1: 'thA^-12', p2: '=p1/1/.4', tr: 'bA', nz: 'd1'},
+        D: {p1: 'thD^-12', p2: '=p1/1/.4', tr: 'bD', nz: 'd1'},
+        T: {p1: 'trl^-12*2', p2: '=p1/2/.35/12', tr: 'bT', nz: 'd2'},
+        A2: {p1: 'thA^-12@d1', p2: 'thA^-24@v7', tr: 'bA', nz: 'd2'},
+        D2: {p1: 'thD^-12@d1', p2: 'thD^-24@v7', tr: 'bD', nz: 'd2'},
+      },
+      intro: 'I', loop: 'A D T A2 D2 T',
+    };
+  }
+
+  /* 10. Горы, Терак, север, конные — Р. Вагнер, «Полёт валькирий» («Валькирия», III действие), си минор, 9/8.
+     Тема целиком первым периодом (си минор → фа-диез мажор, ми минор → си мажор); вторая пульса — «вихрь» струнных
+     арпеджио аккордов шестнадцатыми; бас и шум — галоп. */
+  {
+    const gal = r => `${r}:3 ${r}:1 ${r}:2 ${up8(r)}:6 ${r}:6`;
+    const CH = {Bm: ['b3 d4 f#4', 'b1'], D: ['d4 f#4 a4', 'd2'], 'F#m': ['f#4 a4 c#5', 'f#1'], 'F#': ['f#4 a#4 c#5', 'f#1'], 'F#7': ['f#4 a#4 c#5 e5', 'f#1'],
+      Em: ['e4 g4 b4', 'e2'], C: ['c4 e4 g4', 'c2'], B: ['b3 d#4 f#4', 'b1']};
+    const sw = L => L.split(' ').map(k => `[${CH[k][0]}]:18`).join(' '), bs = L => L.split(' ').map(k => gal(CH[k][1])).join(' ');
+    T.valkyries = {
+      title: 'Полёт валькирий', src: 'Р. Вагнер — «Полёт валькирий» («Валькирия»)', key: 'си минор', bpm: 126, div: 4, rev: 0.14, gain: 0.34,
+      ch: {
+        p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', vib: [0.25, 14, 6], pan: -0.2},
+        p2: {w: 'pulse', duty: 1, vol: 0.07, env: 'org', arp: 1, pan: 0.3},
+        tr: {w: 'tri', vol: 0.34},
+        nz: {w: 'noise', vol: 0.15, pan: 0.1},
+      },
+      pat: {
+        pk: 'r:34 f#4:2',
+        v1: 'b4:3 f#4:1 b4:2 d5:6 b4:6 d5:3 b4:1 d5:2 f#5:6 d5:6 f#5:3 d5:1 f#5:2 a5:6 a4:6 d5:3 a4:1 d5:2 f#5:24 r:40 a4:2',
+        v2: 'd5:3 a4:1 d5:2 f#5:6 d5:6 f#5:3 d5:1 f#5:2 a5:6 f#5:6 a5:3 f#5:1 a5:2 c#6:6 c#5:6 f#5:3 c#5:1 f#5:2 a#5:50 r:14 f#4:2',
+        v3: 'g4:3 e4:1 g4:2 b4:8 r:2 f#5:2 g5:3 e5:1 g5:2 b5:8 r:2 f#4:2 g4:3 e4:1 g4:2 c5:6 f#4:6 b4:3 d5:1 f#5:2 b5:26 r:2 f#4:2',
+        v4: 'g4:3 e4:1 g4:2 b4:8 r:2 f#5:2 g5:3 e5:1 g5:2 b5:8 r:2 f#4:2 g4:3 e4:1 g4:2 c#5:6 f#4:6 b4:3 d#5:1 f#5:2 b5:26 r:2 f#4:2',
+        sI: sw('Bm Bm'), s1: sw('Bm Bm D D D D D'), s2: sw('D D F#m F# F# F# F#'), s3: sw('Em Em C Bm Bm'), s4: sw('Em Em F#7 B B'),
+        bI: bs('Bm Bm'), b1: bs('Bm Bm D D D D D'), b2: bs('D D F#m F# F# F# F#'), b3: bs('Em Em C Bm Bm'), b4: bs('Em Em F#7 B B'),
+        dg: 'k3 h1 h2 S6 k3 h3', dg2: 'k3 h1 h2 S6 k3 k1 S2',
+      },
+      sec: {
+        I: {p1: 'pk', p2: 'sI', tr: 'bI', nz: 'dg'},
+        V1: {p1: 'v1', p2: 's1', tr: 'b1', nz: 'dg'},
+        V2: {p1: 'v2', p2: 's2', tr: 'b2', nz: 'dg2'},
+        V3: {p1: 'v3', p2: 's3', tr: 'b3', nz: 'dg'},
+        V4: {p1: 'v4', p2: 's4', tr: 'b4', nz: 'dg2'},
+      },
+      intro: 'I', loop: 'V1 V2 V3 V4',
+    };
+  }
+
+  /* 11. Подземье, нечисть, лес — Э. Григ, «Шествие гномов» (Trolltog), соч. 54 № 3, ре минор, 2/4. Отрывистый марш
+     восьмыми с взлётами тридцать вторыми, пассажи вверх-вниз, удары по ми под тритоном в басу, «перекличка», синкопированная
+     хроматика; во втором проходе — тема октавой выше над собой же. Сетка — тридцать вторые. */
+  {
+    const B4 = s => '@g.5 L4 ' + s;
+    T.dwarfs = {
+      title: 'Шествие гномов', src: 'Э. Григ — «Шествие гномов», соч. 54 № 3', key: 'ре минор', bpm: 150, div: 8, rev: 0.14, gain: 0.47,
+      ch: {
+        p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', pan: -0.2},
+        p2: {w: 'pulse', duty: 1, vol: 0.1, env: 'pl', pan: 0.3},
+        tr: {w: 'tri', vol: 0.34},
+        nz: {w: 'noise', vol: 0.15, pan: 0.1},
+      },
+      pat: {
+        mA: 'r:12 @g.8 d4:1 e4:1 f4:1 g4:1 @g.5 a4:4 d5:4 d5:4 c#5:4 c#5:4 c5:4 c5:4 b4:4 b4:4 a#4:4 a#4:4 a4:4 g#4:4 @g.9 g#4:8 @g.8 g4:1 a4:1 a#4:1 c5:1 ' +
+            '@g.5 d5:4 g5:4 g5:4 f#5:4 f#5:4 f5:4 f5:4 e5:4 e5:4 d#5:4 d#5:4 d5:4 c#5:4 @g.9 c#5:8 r:4',
+        mB: '@g.8 d5:1 e5:1 f5:1 g5:1 @g.5 a5:4 @g.8 g5:1 f5:1 e5:1 d5:1 @g.5 c5:4 @g.8 a#4:1 c5:1 d5:1 e5:1 @g.5 f5:4 @g.8 e5:1 d5:1 c5:1 a#4:1 @g.5 a4:4 ' +
+            '@g.8 g4:1 a4:1 a#4:1 c5:1 @g.5 d5:4 @g.8 c5:1 a#4:1 a4:1 g4:1 @g.5 f4:4 r:4 @g.9 e4:12 ' +
+            '@g.8 d6:1 c6:1 a#5:1 a5:1 @g.5 g5:4 @g.8 d5:1 c5:1 a#4:1 a4:1 @g.5 g4:4 r:4 @g.9 e4:12 ' +
+            '@g.8 d6:1 c6:1 a#5:1 a5:1 @g.5 g5:4 @g.8 d5:1 c5:1 a#4:1 a4:1 @g.5 g4:4',
+        mC: 'r:8 @g.8 d5:1 c5:1 a#4:1 a4:1 @g.5 g4:4',
+        mD: '@g.9 r:4 a4:8 a#4:8 g#4:8 a4:4 r:4 a#4:8 b4:8 c5:8 b4:2 r:2 r:4 c5:8 b4:8 a#4:8 a4:2 r:2 r:4 g#4:8 g4:4 r:4 f#4:8 f4:2 r:2 r:4 e4:8 d#4:2 r:2 r:16',
+        bI: B4('d2 a2 d2 a2'), bA: rep(B4('d2 a2 d2 a2'), 9),
+        bB: '@g.5 r:4 a#2:4 r:4 f2:4 r:4 g2:4 r:4 d2:4 r:4 d#2:4 r:4 a#1:4 ' + B4('a2 e3 a2 e3 d#2 a#2 d#2 a#2 a2 e3 a2 e3 d#2 a#2 d#2 a#2'),
+        bC: rep(B4('a2 e3 d#2 a#2'), 4),
+        bD: B4('a2 e3 a#2 e3 g#2 e3 a2 e3 a#2 e3 b2 e3 c3 e3 b2 e3 c3 e3 b2 e3 a#2 e3 a2 e3 g#2 e3 g2 c#3 f#2 c#3 f2 c#3 e2 c#3 d#2 c#3 d2 a2 d2 a2'),
+        dI: 's2 s2 s2 s2 s2 s2 S2 S2', dm: 'k4 h4 s4 h4', dm2: 'k4 h2 h2 S4 h4', dD: 'k4 s4 k4 s4',
+      },
+      sec: {
+        I: {tr: 'bI', nz: 'dI'},
+        A: {p1: 'mA', p2: '=p1/2/.35', tr: 'bA', nz: 'dm'},
+        B: {p1: 'mB', p2: '=p1/2/.35', tr: 'bB', nz: 'dm'},
+        C: {p1: 'mC*4', p2: '=p1/4/.4/12', tr: 'bC', nz: 'dm'},
+        D: {p1: 'mD', p2: '=p1/4/.35/-12', tr: 'bD', nz: 'dD'},
+        A2: {p1: 'mA^12@v11', p2: 'mA@v7', tr: 'bA', nz: 'dm2'},
+      },
+      intro: 'I', loop: 'A B C D A2 B C D',
+    };
+  }
+
+  /* 12. Бой с вожаком (пара к «Токкате») — Л. ван Бетховен, Симфония № 5 до минор, соч. 67, I часть. Мотив судьбы в унисон,
+     секвенции мотива, нарастание по хроматике к ми-бемоль, призыв валторны и вторая тема (ми-бемоль мажор) с мотивом в басу. */
+  {
+    const mot = r => `r:2 ${r}:2 ${r}:2 ${r}:2`, ms = L => L.split(' ').map(mot).join(' ');
+    T.fate = {
+      title: 'Стук судьбы', src: 'Л. ван Бетховен — Симфония № 5, соч. 67, I часть', key: 'до минор', bpm: 184, div: 4, rev: 0.16, gain: 0.37,
+      ch: {
+        p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'org', vib: [0.3, 12, 6], pan: -0.2},
+        p2: {w: 'pulse', duty: 1, vol: 0.1, env: 'org', pan: 0.3},
+        tr: {w: 'tri', vol: 0.34},
+        nz: {w: 'noise', vol: 0.16, pan: 0.1},
+      },
+      pat: {
+        mM: 'r:2 g4:2 g4:2 g4:2 d#4:8 r:2 f4:2 f4:2 f4:2 d4:16',
+        mS: 'r:2 g4:2 g4:2 g4:2 d#4:2 g#4:2 g#4:2 g#4:2 g4:2 d#5:2 d#5:2 d#5:2 c5:10 g4:2 g4:2 g4:2 d4:2 g#4:2 g#4:2 g#4:2 g4:2 f5:2 f5:2 f5:2 d5:10 ' +
+            'g5:2 g5:2 f5:2 d#5:8 d5:2 g5:2 g5:2 f5:2 d#5:8 d5:2 g5:2 g5:2 f5:2 d#5:4 r:4 c5:4 r:4 g5:8',
+        mT: 'r:2 g#5:2 g#5:2 g#5:2 f5:16 r:2 g#5:2 g#5:2 g#5:2 f5:2 d5:2 d5:2 d5:2 b4:2 g#4:2 g#4:2 g#4:2 g4:2 g4:2 g4:2 g4:2 ' +
+            'c4:2 g#5:2 g#5:2 g#5:2 f5:2 d5:2 d5:2 d5:2 b4:2 g#4:2 g#4:2 g#4:2 g4:2 f5:2 f5:2 f5:2 d#5:2 g4:2 c5:2 c5:2 c5:8',
+        mU: 'b4:2 b4:2 b4:2 d5:2 d5:8 c5:2 c5:2 c5:2 d#5:2 d#5:2 d5:2 d5:2 f5:2 f5:2 e5:2 e5:2 g5:2 g5:2 f5:2 f5:2 g#5:2 ' +
+            'g#5:2 g5:2 g5:2 a#5:2 a#5:2 g#5:2 g#5:2 c6:2 c6:2 b5:2 b5:2 d6:2 c6:2 d#6:2 d#6:2 d#6:2 c6:2 g5:2 g5:2 g5:2 ' +
+            'd#5:2 c5:2 g4:2 g4:2 d#4:2 c5:2 c5:2 c5:2 b4:2 d6:2 d6:2 d6:2 b5:2 g5:2 f5:2 f5:2 d5:2 b4:2 g4:2 f4:2 d4:2 b4:2 c5:2 c5:2 ' +
+            'c5:2 d#6:2 d#6:2 d#6:2 c6:2 a5:2 a5:2 a5:2 f#5:2 d#5:2 d#5:2 d#5:2 c5:2 a4:2 a4:2 a4:2',
+        mH: 'a5:4 r:4 r:8 a#5:4 r:4 r:2 a#5:2 a#5:2 a#5:2 d#5:8 f5:8 a#4:8',
+        mL: 'a#4:4 d#5:4 d5:4 d#5:4 f5:4 c5:4 c5:4 a#4:4 a#4:4 d#5:4 d5:4 d#5:4 f5:4 c5:4 c5:4 a#4:4',
+        bS: ms('c2 g#1 c2 c2 c2 g1 g1 g1 g1 c2 g1 c2 g1 c2 c2 c2'),
+        bT: ms('f1 f1 f1 f1 g1 g1 c2 f1 g1 g1 g1 c2 c2'),
+        bU: ms('g1 g1 c2 g1 g1 g1 g1 g1 g1 c2 c2 c2 c2 g1 g1 g1 g1 f#1 f#1 f#1 f#1'),
+        bH: 'd2:8 d2:8 a#1:8 a#1:8 a#1:8 a#1:8 a#1:8',
+        bL: 'd#2:8 d#2:8 a#1:8 a#1:8 d#2:8 d#2:8 a#1:8 d#2:8',
+        pL: rep('@v7 r:2 a#3:2 a#3:2 a#3:2 d#3:8', 4),
+        dM: '.2 k2 k2 k2 C8 .2 k2 k2 k2 C16', d1: 'k2 h2 s2 h2', dU: 'k2 k2 s2 h2', dH: 'C8 .8 k8 .8 k2 k2 k2 K2 .8 S8', dL: 'k4 h4',
+      },
+      sec: {
+        M: {p1: 'mM', tr: '=p1/0/1/-24', nz: 'dM'},
+        S: {p1: 'mS', p2: '=p1/2/.35/-12', tr: 'bS', nz: 'd1'},
+        T: {p1: 'mT', p2: '=p1/2/.35/-12', tr: 'bT', nz: 'd1'},
+        U: {p1: 'mU', p2: '=p1/2/.3/-12', tr: 'bU', nz: 'dU'},
+        H: {p1: 'mH', p2: '=p1/4/.4/-12', tr: 'bH', nz: 'dH'},
+        L: {p1: 'mL', p2: 'pL', tr: 'bL', nz: 'dL'},
+      },
+      intro: '', loop: 'M S T U H L',
+    };
+  }
+
+  /* 13. Драка в корчме, кулачки — П. Чайковский, «Трепак» (русский танец из «Щелкунчика»), соль мажор, 2/4.
+     Задорно: тема, она же октавой выше, бас «умпа» треугольником, аккорды на слабую долю, бубен. */
+  {
+    const H = {G: ['g4 b4 d5', 'g2 d2'], C: ['g4 c5 e5', 'c3 g2'], D: ['f#4 a4 d5', 'd2 a1']};
+    const ch = L => L.split(' ').map(k => `r:2 [${H[k][0]}]:2 r:2 [${H[k][0]}]:2`).join(' '), bs = L => L.split(' ').map(k => { const [r, f] = H[k][1].split(' '); return `${r}:2 r:2 ${f}:2 r:2`; }).join(' ');
+    const HM = 'G C D G G D G D G C D G G D G G';
+    T.trepak = {
+      title: 'Трепак', src: 'П. Чайковский — «Трепак» («Щелкунчик»)', key: 'соль мажор', bpm: 152, div: 4, rev: 0.1, gain: 0.47,
+      ch: {
+        p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', pan: -0.2},
+        p2: {w: 'pulse', duty: 1, vol: 0.08, env: 'st', pan: 0.3},
+        tr: {w: 'tri', vol: 0.34},
+        nz: {w: 'noise', vol: 0.15, pan: 0.1},
+      },
+      pat: {
+        t1: 'g5:2 g5:1 f#5:1 g5:2 g5:2 e5:2 d5:2 c5:2 e5:2 d5:2 d5:1 c#5:1 d5:2 d5:2 b4:2 a4:2 g4:2 b4:1 d5:1 ' +
+            'a4:2 a4:1 d5:1 g4:2 g4:1 d5:1 f#4:2 f#4:1 d5:1 a4:2 a4:1 d5:1 b4:2 b4:1 d5:1 g4:2 g4:1 d5:1',
+        e1: 'a4:2 g4:2 a4:1 d5:1 e5:1 f#5:1',
+        x14: 'b4:2 b4:1 d5:1 a4:2 a4:1 d5:1',
+        e2: 'g4:2 e4:2 g4:1 d6:1 e6:1 f#6:1',
+        e3: 'g4:2 e4:2 g4:4',
+        cA: ch(HM), bA: bs(HM),
+        d1: 'k2 h2 S2 h2', d2: 'k2 o2 S2 h2', d3: 'k2 h1 h1 S2 o2',
+      },
+      sec: {
+        A: {p1: 't1 e1 t1{0-31} x14 e2', p2: 'cA', tr: 'bA', nz: 'd1'},
+        A2: {p1: 't1^12 e1^12 t1{0-31}^12 x14^12 e3^12', p2: 'cA', tr: 'bA', nz: 'd2'},
+        A3: {p1: 't1@d1 e1@d1 t1{0-31}@d1 x14@d1 e2@d1', p2: '=p1/2/.35/12', tr: 'bA', nz: 'd3'},
+      },
+      intro: '', loop: 'A A2 A3 A2',
+    };
+  }
+
+  /* 14. Степь, конные — К. Сен-Санс, «Вакханалия» («Самсон и Далила»), ре минор с «восточной» увеличенной секундой.
+     Сразу пляска (каденция гобоя — ступени вниз к ля — передышкой в конце цикла): октавы на ля, взлёты к ре третьей октавы,
+     бас — пустая квинта на ля, шум — бубен-дарбука. */
+  {
+    const AR = '@g.6 a1:4 a2:4 e2:4 a2:4', DR = '@g.6 d2:4 d3:4 a2:4 d3:4';
+    T.bacchanale = {
+      title: 'Вакханалия', src: 'К. Сен-Санс — «Вакханалия» («Самсон и Далила»)', key: 'ре минор (на ля)', bpm: 132, div: 8, rev: 0.14, gain: 0.41,
+      ch: {
+        p1: {w: 'pulse', duty: 2, vol: 0.15, env: 'pl', vib: [0.15, 16, 6.5], pan: -0.2},
+        p2: {w: 'pulse', duty: 1, vol: 0.1, env: 'pl', pan: 0.3},
+        tr: {w: 'tri', vol: 0.34},
+        nz: {w: 'noise', vol: 0.15, pan: 0.1},
+      },
+      pat: {
+        c: 'e5:2 f5:2 e5:2 d5:2 c#5:6 e5:2 d5:6 e5:2 c#5:6 e5:2 a#4:6 e5:2 a4:6 e5:2 g#4:6 e5:2 a4:6 e5:2 d5:6 e5:2 c#5:14 e5:2 a#4:14 e5:2 a4:20 r:4',
+        mO: '@g.5 L4 a4 a5 a4 a5 a4 a5 a4 a5 a4 a5 a4 a5 a4:4 a5:4 @g.9 c#5:2 d5:2 e5:2 f5:2',
+        mT: '@g.8 d5:2 e5:2 f5:2 g5:2 a5:2 r:2 a5:8 a5:4 d6:4 c6:2 a#5:2 a5:2 g5:2 f5:2 g5:2 a5:12 r:4 c#5:2 d5:2 e5:2 f5:2 ' +
+            'd5:2 e5:2 f5:2 g5:2 a5:2 r:2 a5:8 a5:4 d6:4 c6:2 a#5:2 a5:2 f5:2 d5:2 e5:2 f5:12 r:4 d#5:2 f5:2 g5:2 a#5:2 ' +
+            'a5:2 f5:2 d5:6 f5:2 e5:2 d5:2 e5:2 c#5:2 a4:4 d#5:2 f5:2 g5:2 a#5:2 a5:2 f5:2 d5:6 f5:2 e5:2 d5:2 e5:2 c#5:2 a4:4 d#5:2 f5:2 g5:2 a#5:2 ' +
+            'a5:2 e5:2 c#5:4 d#5:2 f5:2 g5:2 a#5:2 a5:2 e5:2 c#5:4 d#5:2 f5:2 g5:2 a#5:2 a5:4 a5:2 a#5:2 a5:4 a5:2 a#5:2 a5:2 a#5:2 a5:2 a#5:2 c#5:2 d5:2 e5:2 f5:2',
+        bC: rep('@g.9 a1:16', 8), bO: rep(AR, 4),
+        bT: [AR, AR, AR, AR, AR, AR, DR, DR, DR, AR, DR, AR, AR, AR, AR, AR].join(' '),
+        dC: 'k4 .4 h4 .4', dO: 'k4 h4 k4 h4', dT: 'K4 h2 h2 s4 h2 h2', dT2: 'K4 h2 k2 s4 h2 S2',
+      },
+      sec: {
+        C: {p1: 'c', p2: '=p1/3/.3', tr: 'bC', nz: 'dC'},
+        O: {p1: 'mO', p2: '=p1/2/.3/-12', tr: 'bO', nz: 'dO'},
+        T: {p1: 'mT', p2: '=p1/2/.35', tr: 'bT', nz: 'dT'},
+        T2: {p1: 'mT@d1', p2: '=p1/4/.35/-12', tr: 'bT', nz: 'dT2'},
+      },
+      intro: '', loop: 'O T T2 C',
+    };
+  }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* music_nes.js */
@@ -38889,9 +39161,77 @@ C.heroStatus = function (g, h) {
   function trackFor(mood, g) {
     if (!mood) return null;
     if (mood === 'map' && g && steppe(g)) return TRK.steppe ? 'steppe' : MOODS.map;
+    // бой: трек, выбранный под этот бой (battleFor), иначе прежний по настроению
+    if ((mood === 'battle' || mood === 'boss') && S.pick && S.pick.mood === mood && TRK[S.pick.id]) return S.pick.id;
     const id = MOODS[mood]; return TRK[id] ? id : null;
   }
-  const S = {mood: null, track: null, players: [], timer: null, switches: 0, ctx: null};
+
+  /* ---------- боевая музыка: набор по бою ----------
+     Вид боя — по тому, кто против нас, где и когда (первый подошедший сверху вниз): вожак → своя пара; кулачки в корчме;
+     засада; нежить; нечисть; подземье; ночь; степь и конные; горы и Терак; люди; звери; иначе — общий набор.
+     Внутри вида треки идут по кругу; тот же трек, что звучал в прошлом бою, и тот, что играет сейчас (напев места),
+     пропускается — подряд один и тот же не звучит. Случайности игры не трогает (свой счётчик, не R.rand). */
+  const BATTLE = {
+    boss: ['toccata', 'fate'],
+    brawl: ['trepak', 'bumblebee'],
+    ambush: ['bumblebee', 'baldmountain'],
+    undead: ['macabre', 'baldmountain'],
+    nechist: ['dwarfs', 'macabre', 'baldmountain'],
+    under: ['mountainking', 'dwarfs'],
+    night: ['macabre', 'baldmountain'],
+    steppe: ['bacchanale', 'valkyries'],
+    mountain: ['valkyries', 'mountainking'],
+    people: ['baldmountain', 'valkyries', 'dwarfs'],
+    beast: ['baldmountain', 'bumblebee', 'dwarfs'],
+    any: ['baldmountain', 'valkyries', 'dwarfs', 'macabre'],
+  };
+  const BATTLE_NAME = {boss: 'вожак', brawl: 'кулачки', ambush: 'засада', undead: 'нежить', nechist: 'нечисть', under: 'подземье', night: 'ночной бой',
+    steppe: 'степь, конные', mountain: 'горы', people: 'люди', beast: 'звери', any: 'бой'};
+  const PPL = /люди|дикари|племена|горцы|Подземья|Империи|Ока/;
+  function regionOf(g) {
+    try { if (C.zoneOf) { const z = C.zoneOf(g); if (z && z.id) return z.id; } } catch (e) {}
+    const cp = g && g.camp ? String(g.camp) : '';
+    return /terak/.test(cp) ? 'tk' : /swamp|boloto/.test(cp) ? 'sw' : /podzem/.test(cp) ? 'pod' : '';
+  }
+  function cellOf(g) { try { return g && g.pos && G.W && G.W.world ? G.W.world(g).cells[G.W.key(g.pos.c, g.pos.r)] : null; } catch (e) { return null; } }
+  // x: {mood, g, spec} — что знает обёртка боя; S — состояние боя (бойцы, поле)
+  function battleKind(S, x) {
+    x = x || {}; const g = x.g || null, spec = x.spec || {}, F = (S && S.field) || {};
+    if (x.mood === 'boss') return 'boss';
+    const foes = (S && Array.isArray(S.units) ? S.units : []).filter(u => u && u.side === 'foe' && !u.ally);
+    const most = f => foes.length && foes.filter(f).length * 2 > foes.length;
+    const fist = u => !!((u.ref && u.ref.tlFist) || (u.attacks && u.attacks[0] && /кулак/i.test(u.attacks[0].name || '')));
+    if (S && S.tlFist || spec.tlFist || (foes.length && foes.every(fist))) return 'brawl';
+    if (spec.ambush === 'foe' || spec.hunt || F.ambush === 'foe' || (S && Array.isArray(S.units) && S.units.some(u => u.side === 'party' && u.conds && u.conds.surprised))) return 'ambush';
+    if (most(u => u.undead)) return 'undead';
+    if (most(u => u.nechist || u.group === 'духи')) return 'nechist';
+    const reg = g ? regionOf(g) : '', cell = g ? cellOf(g) : null, fk = F.kind || (F.bf && F.bf.kind) || '';
+    if ((F.bf && F.bf.kind === 'dungeon') || (g && g.dungeon && spec.setupKey === 'dungeon') || /caves|deep|cave/.test(fk) || reg === 'pod' || most(u => /Подземья/.test(u.group || ''))) return 'under';
+    if (F.night || (g && C.isNight && C.isNight(g))) return 'night';
+    const mounted = g && !F.noHorse && C.bestMount && C.alive ? C.alive(g).some(h => { try { return !!C.bestMount(h); } catch (e) { return false; } }) : false;
+    if (reg === 'step' || (cell && cell.t === 'steppe') || most(u => /степн/.test(u.group || '')) || mounted) return 'steppe';
+    if (reg === 'tk' || fk === 'mountains' || (cell && /mount|hill|rock/.test(cell.t || '')) || most(u => /горцы/.test(u.group || ''))) return 'mountain';
+    if (reg === 'sw' || fk === 'swamp') return 'nechist';
+    if (most(u => PPL.test(u.group || ''))) return 'people';
+    if (most(u => u.group === 'звери' || u.group === 'чудовища' || u.group === 'змеи')) return 'beast';
+    return 'any';
+  }
+  function pickBattle(kind) {
+    const L = (BATTLE[kind] || BATTLE.any).filter(id => TRK[id]); if (!L.length) return MOODS.battle;
+    const avoid = [S.lastBattle, S.track];
+    const n = S.turn[kind] = (S.turn[kind] || 0);
+    for (let i = 0; i < L.length; i++) { const id = L[(n + i) % L.length]; if (!avoid.includes(id)) { S.turn[kind] = n + i + 1; return id; } }
+    const B2 = BATTLE.any.filter(id => TRK[id] && !avoid.includes(id)); return B2[0] || L[0];
+  }
+  // выбрать трек под бой; дальше C.SFX.music('battle'|'boss') его и включит
+  function battleFor(S0, x) {
+    x = x || {}; const mood = x.mood === 'boss' ? 'boss' : 'battle';
+    let kind = 'any'; try { kind = battleKind(S0, x); } catch (e) {}
+    const id = pickBattle(kind);
+    S.pick = {mood, kind, id}; S.lastBattle = id; S.picks.push({kind, id}); if (S.picks.length > 50) S.picks.shift();
+    return S.pick;
+  }
+  const S = {mood: null, track: null, players: [], timer: null, switches: 0, ctx: null, pick: null, lastBattle: null, turn: {}, picks: []};
   const sfx = () => C.SFX || null;
   function liveCtx() { const X = sfx(); const c = X && X.ready ? X.ctx : null; return c && c.state !== 'closed' ? c : null; }
   const audible = () => { const X = sfx(); return !X || (!X.muted && X.vol.music > 0); };
@@ -38933,6 +39273,9 @@ C.heroStatus = function (g, h) {
   C.MUSIC = {
     tracks: TRK, MOODS, ENV, compile: id => compile(TRK[id], id), parsePat, trackFor, renderTo,
     has: m => !!MOODS[m], mood: (m, g, force) => setMood(m, g, force),
+    BATTLE, BATTLE_NAME, battleKind, battleFor, get pick() { return S.pick; }, get picks() { return S.picks; },
+    // «Пляска смерти» — К. Сен-Санс (для меню звука)
+    label: id => { const T = TRK[id]; if (!T) return ''; const who = String(T.src || '').split(' — ')[0]; return `«${T.title}»${who ? ' — ' + who : ''}`; },
     get current() { return S.mood; }, get track() { return S.track; }, get switches() { return S.switches; },
     stop: () => setMood(null), _state: S,
   };
@@ -47298,26 +47641,54 @@ const HT = BF.HOUSE_T = {
   // клетка — 5 футов (около полутора метров); размер — снаружи, вместе с клетками стен (решение Ника 24.11)
   izba: {n: 'изба', W: 7, H: 5, part: 2, door: [1], win: [4], lit: 0.4, lock: 0.2, open: 0.25},        // горница 3×3 и сени
   korchma: {n: 'корчма', W: 8, H: 7, part: 2, door: [1], win: [4, 6], lit: 1, lock: 0, open: 0.6},
-  terem: {n: 'терем', W: 7, H: 7, part: 2, door: [1], win: [4, 5], lit: 0.7, lock: 0.4, open: 0.2},
-  hram: {n: 'храм Ока', W: 7, H: 9, part: null, door: [3], win: [1, 5], lit: 1, lock: 0, open: 0.6},
+  terem: {n: 'терем', W: 7, H: 7, part: null, parts: [{x: 2, door: 'open'}], door: [1], win: [4, 5], lit: 0.7, lock: 0.4, open: 0.2},
+  hram: {n: 'храм Ока', W: 7, H: 9, part: null, parts: [{x: 4, da: 5, db: 7}], hparts: [{d: 5, xa: 5, xb: 5, door: 'lock'}], door: [3], win: [1, 5], lit: 1, lock: 0, open: 0.6},
   dlin: {n: 'длинный дом', W: 13, H: 5, part: null, door: [3, 9], win: [], lit: 1, lock: 0, open: 0.4},
   banya: {n: 'баня', W: 4, H: 4, part: null, door: [1], win: [], lit: 0, lock: 0, open: 0.3},
   ambar: {n: 'амбар', W: 5, H: 4, part: null, door: [2], win: [], lit: 0, lock: 0.5, open: 0.1},
   klet: {n: 'клеть', W: 4, H: 4, part: null, door: [1], win: [], lit: 0, lock: 0.5, open: 0.1},
+  // большие и нежилые (решение Ника 24.11: «нежилые и дома торговцев и богачей большие обычно»; много комнат, двери между ними открыты)
+  // parts — переборки поперёк (местный x; da..db — только эти ряды от стены с дверью; dd — в каких рядах дверь; без door — глухая), hparts — вдоль (d — сколько рядов от стены с дверью, xa..xb), door: 'open' | 'lock' (заперта: кладовая, казна)
+  starosta: {n: 'изба старосты', W: 8, H: 6, part: null, parts: [{x: 2, door: 'open'}], door: [1], win: [4, 6], lit: 0.6, lock: 0.2, open: 0.25},
+  kupec: {n: 'дом купца', W: 9, H: 7, part: null, parts: [{x: 4, door: 'open', dd: [1, 2]}], hparts: [{d: 3, xa: 5, xb: 7, door: 'lock'}], door: [2], win: [6, 3], lit: 1, lock: 0, open: 0.7},
+  boyar: {n: 'хоромы', W: 11, H: 9, part: null, parts: [{x: 3, door: 'open'}, {x: 7, door: 'open', dd: [1, 3]}], hparts: [{d: 4, xa: 8, xb: 9, door: 'lock'}], door: [1], win: [5, 8, 5], lit: 1, lock: 0.3, open: 0.2},
+  korchma_big: {n: 'большая корчма', W: 10, H: 8, part: null, parts: [{x: 3, door: 'open', dd: [1, 2]}], hparts: [{d: 3, xa: 1, xb: 2, door: 'open'}], door: [1], win: [5, 7, 4], lit: 1, lock: 0, open: 0.8},
+  kuznya: {n: 'кузня', W: 6, H: 5, part: null, door: [2, 3], win: [], lit: 1, lock: 0, open: 0.8},
+  masterskaya: {n: 'мастерская', W: 6, H: 5, part: null, door: [2], win: [4], lit: 0.5, lock: 0.2, open: 0.4},
+  sklad: {n: 'склад', W: 8, H: 6, part: null, parts: [{x: 5, door: 'open'}], door: [2, 3], win: [], lit: 0, lock: 0.5, open: 0.2},
+  konyushnya: {n: 'конюшня', W: 9, H: 5, part: null, door: [4], win: [], lit: 0, lock: 0, open: 0.5},
+  hlev: {n: 'хлев', W: 6, H: 4, part: null, door: [2], win: [], lit: 0, lock: 0, open: 0.4},
+  saray: {n: 'сарай', W: 6, H: 4, part: null, door: [2, 3], win: [], lit: 0, lock: 0.2, open: 0.3},
+  melnitsa: {n: 'мельница', W: 6, H: 6, part: null, door: [2], win: [4], lit: 0, lock: 0.2, open: 0.3},
 };
+/* ряд от стены с дверью: 'd1' — первый внутренний ряд у двери */
+const dRow = (h, k) => h.side === 'top' ? k : h.H - 1 - k, dOf = dRow; // ряд от стены с дверью и обратно — одно и то же
 /* утварь в местных координатах (до зеркала): [x, y, t]; 'far' — ряд у дальней от двери стены */
 const FURN = {
   izba: (T, lit) => [[3, 1, 'stove'], [5, 3, 'table'], [4, 3, 'hbench'], [5, 1, 'bed'], [1, 3, 'barrels']].concat(lit ? [[3, 3, 'hlamp']] : []),
   korchma: () => [[3, 1, 'stove'], [5, 2, 'table'], [5, 4, 'table'], [4, 2, 'hbench'], [6, 2, 'hbench'], [4, 4, 'hbench'], [6, 4, 'hbench'], [6, 5, 'barrels'], [1, 5, 'barrels'], [3, 5, 'hlamp']],
   terem: (T, lit) => [[3, 1, 'stove'], [4, 3, 'table'], [4, 2, 'hbench'], [4, 4, 'hbench'], [5, 1, 'chest'], [5, 5, 'chest'], [1, 5, 'barrels']].concat(lit ? [[3, 5, 'hlamp']] : []),
-  hram: () => [[3, 'far', 'oko_star'], [2, 3, 'hbench'], [4, 3, 'hbench'], [2, 5, 'hbench'], [4, 5, 'hbench'], [1, 'far', 'hlamp'], [5, 'far', 'hlamp']],
+  hram: () => [[3, 'far', 'oko_star'], [2, 3, 'hbench'], [4, 3, 'hbench'], [2, 5, 'hbench'], [4, 5, 'hbench'], [1, 'far', 'hlamp'], [5, 'd7', 'chest']], // в ризнице — сундук
   dlin: () => [[5, 2, 'fire'], [6, 2, 'fire'], [7, 2, 'fire'], [2, 1, 'hbench'], [3, 1, 'hbench'], [9, 3, 'hbench'], [10, 3, 'hbench'], [1, 3, 'barrels'], [11, 1, 'bed'], [11, 3, 'chest']],
   banya: () => [[2, 'far', 'stove'], [1, 'far', 'hbench']],
   ambar: () => [[1, 'far', 'crate'], [3, 'far', 'barrels']],
   klet: () => [[2, 'far', 'chest']],
+  starosta: (T, lit) => [[3, 'd4', 'stove'], [6, 'd2', 'table'], [5, 'd2', 'hbench'], [6, 'd4', 'bed'], [1, 'd4', 'barrels'], [4, 'd4', 'chest']].concat(lit ? [[3, 'd1', 'hlamp']] : []),
+  kupec: () => [[1, 'd2', 'table'], [2, 'd2', 'table'], [1, 'd5', 'crate'], [2, 'd5', 'crate'], [3, 'd5', 'barrels'], [5, 'd1', 'stove'], [7, 'd2', 'table'], [6, 'd2', 'hbench'], [5, 'd4', 'chest'], [6, 'd5', 'chest'], [7, 'd5', 'crate'], [3, 'd1', 'hlamp']],
+  boyar: () => [[1, 'd7', 'barrels'], [2, 'd7', 'chest'], [4, 'd7', 'stove'], [5, 'd3', 'table'], [5, 'd4', 'table'], [4, 'd3', 'hbench'], [6, 'd3', 'hbench'], [4, 'd4', 'hbench'], [6, 'd4', 'hbench'], [6, 'd7', 'hlamp'], [8, 'd1', 'bed'], [9, 'd2', 'chest'], [8, 'd6', 'chest'], [9, 'd6', 'chest'], [9, 'd7', 'chest']],
+  korchma_big: () => [[4, 'd6', 'stove'], [5, 'd2', 'hbench'], [6, 'd2', 'table'], [7, 'd2', 'hbench'], [5, 'd4', 'hbench'], [6, 'd4', 'table'], [7, 'd4', 'hbench'], [8, 'd3', 'table'],
+    [6, 'd6', 'barrels'], [7, 'd6', 'barrels'], [8, 'd6', 'crate'], [8, 'd1', 'barrels'], [1, 'd5', 'barrels'], [2, 'd6', 'chest'], [1, 'd6', 'crate'], [7, 'd1', 'hlamp']], // сени, зала со стойкой и бочками, чулан
+  kuznya: () => [[1, 'd3', 'gorn'], [3, 'd2', 'nakovalnya'], [4, 'd3', 'barrels'], [4, 'd1', 'crate']],
+  masterskaya: () => [[2, 'd3', 'table'], [3, 'd3', 'table'], [1, 'd1', 'crate'], [4, 'd3', 'crate'], [4, 'd1', 'hbench']],
+  sklad: () => [[1, 'd1', 'barrels'], [1, 'd2', 'barrels'], [1, 'd4', 'crate'], [2, 'd4', 'crate'], [3, 'd4', 'barrels'], [4, 'd4', 'crate'], [4, 'd1', 'crate'], [6, 'd1', 'table'], [6, 'd4', 'chest'], [3, 'd2', 'crate']],
+  konyushnya: () => [[1, 'd3', 'yasli'], [3, 'd3', 'yasli'], [5, 'd3', 'yasli'], [7, 'd3', 'yasli'], [7, 'd1', 'barrels']],
+  hlev: () => [[1, 'd2', 'yasli'], [4, 'd2', 'yasli']],
+  saray: () => [[1, 'd2', 'wood'], [4, 'd2', 'cart'], [1, 'd1', 'hay']],
+  melnitsa: () => [[3, 'd3', 'zhernov'], [1, 'd4', 'crate'], [4, 'd4', 'crate'], [1, 'd1', 'crate']],
 };
 const MOVABLE = {hbench: 'лавку', table: 'стол', chest: 'сундук', barrels: 'бочки', crate: 'короба', bed: 'лежанку'};
-const LIGHTS = ['hlamp', 'fire'];
+const LIGHTS = ['hlamp', 'fire', 'gorn'];
+Object.assign(B.TERRAIN, {gorn: {name: 'горн', block: true, cover: 2}, nakovalnya: {name: 'наковальня', block: true, cover: 1}, zhernov: {name: 'жернов', block: true, cover: 2}, yasli: {name: 'ясли', block: true, cover: 1}});
 
 /* ---------- геометрия ---------- */
 const isWallT = t => t === 'hwall' || t === 'hwin' || t === 'hdoor_c' || t === 'hdoor_o' || t === 'hdoor_b';
@@ -47332,7 +47703,7 @@ const hc = (h, x, y) => { const r = h.r0 + y; if (!h.sk) return {c: h.c0 + x, r}
 BF.houseCell = hc;
 const foot = h => { const o = []; for (let y = 0; y < h.H; y++) for (let x = 0; x < h.W; x++) { const p = hc(h, x, y); o.push({c: p.c, r: p.r, x, y}); } return o; };
 BF.houseCells = foot;
-const loc = (h, x, y) => hc(h, h.flip ? h.W - 1 - x : x, y === 'far' ? (h.side === 'top' ? h.H - 2 : 1) : y === 'near' ? (h.side === 'top' ? 1 : h.H - 2) : y);
+const loc = (h, x, y) => hc(h, h.flip ? h.W - 1 - x : x, y === 'far' ? (h.side === 'top' ? h.H - 2 : 1) : y === 'near' ? (h.side === 'top' ? 1 : h.H - 2) : typeof y === 'string' && y[0] === 'd' ? dRow(h, +y.slice(1)) : y);
 /* построить клетки дома по записи (детерминированно; так же — когда полоса вернулась после обрезки) */
 BF.houseBuild = function (F, h) {
   const part = h.part != null ? (h.flip ? h.W - 1 - h.part : h.part) : null;
@@ -47341,18 +47712,28 @@ BF.houseBuild = function (F, h) {
     const edge = p.x === 0 || p.y === 0 || p.x === h.W - 1 || p.y === h.H - 1;
     if (edge) x.t = 'hwall';
     else if (part != null && p.x === part && p.y !== h.gap) x.t = 'hwall';
+    else if ((h.parts || []).some(q => p.x === (h.flip ? h.W - 1 - q.x : q.x) && (q.da == null || (dOf(h, p.y) >= q.da && dOf(h, p.y) <= q.db)))) { x.t = 'hwall'; x.hin = 1; x.hpv = 1; }
+    else if ((h.hparts || []).some(q => p.y === dRow(h, q.d) && (h.flip ? h.W - 1 - p.x : p.x) >= q.xa && (h.flip ? h.W - 1 - p.x : p.x) <= q.xb)) { x.t = 'hwall'; x.hin = 1; x.hp = 1; }
     else { x.t = 'hfloor'; x.hin = 1; } });
   (h.wins || []).forEach(([c, r]) => { const x = F.cells[key(c, r)]; if (x) x.t = 'hwin'; });
-  (h.furn || []).forEach(([c, r, t]) => { const x = F.cells[key(c, r)]; if (x && x.hin) x.t = t; });
+  (h.furn || []).forEach(([c, r, t]) => { const x = F.cells[key(c, r)]; if (x && x.hin && !x.hpv && !x.hp) x.t = t; });
   (h.doors || []).forEach((d, i) => { const x = F.cells[key(d.c, d.r)]; if (x) { x.t = doorT(d); x.hd = i; } });
   return h;
 };
+/* межкомнатные двери: по одной на переборку (открыты по умолчанию; у кладовой и казны — заперты) */
+const innerDoors = (F, h, T, rnd) => {
+  (T.parts || []).forEach(q => { if (!q.door) return; const xx = q.x, ys = []; for (let k = q.dd ? q.dd[0] : 1; k <= (q.dd ? q.dd[1] : h.H - 2); k++) ys.push(dRow(h, k));
+    const y = ys[Math.floor(rnd() * ys.length)], p = hc(h, h.flip ? h.W - 1 - xx : xx, y), a = hc(h, h.flip ? h.W - 2 - xx : xx + 1, y);
+    h.doors.push({c: p.c, r: p.r, st: q.door === 'lock' ? 'shut' : 'open', lock: q.door === 'lock' ? 1 : 0, prop: null, hits: 0, inner: 1, inC: [a.c, a.r]}); });
+  (T.hparts || []).forEach(q => { const lx = q.xa + Math.floor(rnd() * (q.xb - q.xa + 1)), y = dRow(h, q.d), p = hc(h, h.flip ? h.W - 1 - lx : lx, y), a = hc(h, h.flip ? h.W - 1 - lx : lx, h.side === 'top' ? y + 1 : y - 1);
+    h.doors.push({c: p.c, r: p.r, st: q.door === 'lock' ? 'shut' : 'open', lock: q.door === 'lock' ? 1 : 0, prop: null, hits: 0, inner: 1, hp: 1, inC: [a.c, a.r]}); });
+};
 /* проходима ли внутренность: от каждой двери до всех свободных клеток пола */
 const innerOK = (F, h) => {
-  const pas = x => x && x.hb === h.id && x.hin && !B.TERRAIN[x.t].block;
+  const pas = x => x && x.hb === h.id && x.hin && (!B.TERRAIN[x.t].block || (x.hd != null && h.doors[x.hd] && h.doors[x.hd].inner));
   const all = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(pas); if (!all.length) return false;
   const seen = {}, q = [];
-  for (const d of h.doors) { const ins = B.neigh(d.c, d.r).map(n => F.cells[key(n.c, n.r)]).filter(pas); if (!ins.length) return false; ins.forEach(x => { const k = key(x.c, x.r); if (!seen[k]) { seen[k] = 1; q.push(x); } }); }
+  for (const d of h.doors.filter(d0 => !d0.inner)) { const ins = B.neigh(d.c, d.r).map(n => F.cells[key(n.c, n.r)]).filter(pas); if (!ins.length) return false; ins.forEach(x => { const k = key(x.c, x.r); if (!seen[k]) { seen[k] = 1; q.push(x); } }); }
   while (q.length) { const x = q.pop(); B.neigh(x.c, x.r).forEach(n => { const y = F.cells[key(n.c, n.r)], k = key(n.c, n.r); if (pas(y) && !seen[k]) { seen[k] = 1; q.push(y); } }); }
   return all.every(x => seen[key(x.c, x.r)]);
 };
@@ -47360,19 +47741,21 @@ const innerOK = (F, h) => {
 BF.houseNew = function (F, kind, c0, r0, side, flip, rnd, id) {
   const T = HT[kind]; if (!T) return null;
   const h = {id: id || ('h' + (F.houseN = (F.houseN || 0) + 1)), k: kind, c0, r0, sk: 1, W: T.W, H: T.H, side, flip: flip ? 1 : 0, part: T.part, gap: null, doors: [], wins: [], furn: [], lit: 0};
+  if (T.parts) h.parts = T.parts.map(q => q.da != null ? {x: q.x, da: q.da, db: q.db} : {x: q.x}); if (T.hparts) h.hparts = T.hparts.map(q => ({d: q.d, xa: q.xa, xb: q.xb}));
   if (T.part != null) h.gap = 1 + Math.floor(rnd() * (T.H - 2));
   const dy = side === 'top' ? 0 : T.H - 1, oy = side === 'top' ? T.H - 1 : 0;
   const lock = rnd() < T.lock, open = !lock && rnd() < T.open;
   T.door.forEach(dx => { const p = loc(h, dx, dy); h.doors.push({c: p.c, r: p.r, st: open ? 'open' : 'shut', lock: lock ? 1 : 0, prop: null, hits: 0}); });
   T.win.forEach((wx, i) => { const p = loc(h, wx, i % 2 ? oy : dy); if (h.doors.some(d => B.dist(d, p) <= 1)) return; h.wins.push([p.c, p.r]); });
   if (T.part == null && kind !== 'dlin' && kind !== 'hram' && rnd() < 0.3 && T.W >= 5) { const p = loc(h, T.W - 1, 1); h.wins.push([p.c, p.r]); }
+  if (T.parts || T.hparts) innerDoors(F, h, T, rnd);
   h.lit = rnd() < T.lit ? 1 : 0;
   h.furn = (FURN[kind] || (() => []))(T, h.lit).map(([x, y, t]) => { const p = loc(h, x, y); return [p.c, p.r, t]; });
   BF.houseBuild(F, h);
   // утварь не должна запирать проход: лишнее убираем с конца
   let guard = 0; while (!innerOK(F, h) && h.furn.length && guard++ < 12) { h.furn.pop(); BF.houseBuild(F, h); }
   if (!innerOK(F, h)) return null;
-  h.lit = h.furn.some(f => LIGHTS.includes(f[2])) || kind === 'korchma' || kind === 'hram' ? 1 : 0;
+  h.lit = h.furn.some(f => LIGHTS.includes(f[2])) || ['korchma', 'hram', 'korchma_big', 'kupec', 'boyar'].includes(kind) ? 1 : 0;
   return h;
 };
 
@@ -47476,6 +47859,23 @@ BF.houseVillage = function (F) {
   F.bf.village = true; F.noHorse = true; if (F.bg === 'meadow' || F.bg === 'forest') F.bg = 'road';
   F.hbGrow = 'village';
 };
+/* ---------- API: виды домов и «поставить дом нужного вида в нужном месте» (для других модулей: драки в корчме и т. п.) ----------
+   BF.houseKinds — словарь видов (W×H с наружной стеной, переборки, двери). BF.housePut(S|F, kind, at, o) — поставить дом вида kind
+   как можно ближе к клетке at ({c, r}); o.face — 'street' (дверь к дороге, если она близко), o.rnd — свой жребий. Вернёт запись дома или null.
+   BF.houseEnsure(S|F, kind, at) — есть уже такой дом на поле — его, нет — поставить. На поле боя (S) клетки под бойцами не занимаются. */
+BF.houseKinds = HT;
+BF.housePut = function (SF, kind, at, o) {
+  o = o || {}; const S = SF && SF.field ? SF : null, F = S ? S.field : SF; if (!F || !HT[kind]) return null;
+  F.houses = F.houses || []; F.objs = F.objs || [];
+  const p0 = at || F.mid || {c: Math.floor(F.w / 2), r: Math.floor(F.h / 2)}, cells = Object.values(F.cells).sort((a, b) => B.dist(a, p0) - B.dist(b, p0)).slice(0, o.n || 400);
+  const roads = Object.values(F.cells).filter(x => x.t === 'road'), wayD = roads.length && o.face !== 'any' ? distMap(F, roads, 8) : null;
+  const busy = {}; F.houses.forEach(h => mark(F, h, busy)); if (S) S.units.forEach(u => { if (u.c != null && !u.dead && !u.gone) { busy[key(u.c, u.r)] = 1; B.neigh(u.c, u.r).forEach(q => { busy[key(q.c, q.r)] = 1; }); } });
+  let st = ((p0.c * 73856093) ^ (p0.r * 19349663) ^ kind.length * 7919) >>> 0 || 1; const rnd = o.rnd || (() => { st = (Math.imul(st, 1664525) + 1013904223) >>> 0; return st / 4294967296; });
+  let h = BF.housePlace(F, kind, cells, wayD, busy, rnd); if (!h && wayD) h = BF.housePlace(F, kind, cells, null, busy, rnd);
+  if (h && S && BF.touch) BF.touch(S);
+  return h;
+};
+BF.houseEnsure = function (SF, kind, at, o) { const F = SF && SF.field ? SF.field : SF; const h = BF.houses(F).find(x => x.k === kind); return h || BF.housePut(SF, kind, at, o); };
 BF._hbLib = {distMap: (...a) => distMap(...a), mark: (...a) => mark(...a), foot: h => foot(h), hc: (...a) => hc(...a), clearRing: (...a) => clearRing(...a)};
 const busyWay = (wayD, z) => (wayD[key(z.c, z.r)] == null ? 99 : wayD[key(z.c, z.r)]) < 2;
 
@@ -47599,7 +47999,7 @@ if (hide0) BF.cellHide = function (S, u, x) { let v = hide0.apply(this, argument
 /* ---------- двери: кто с какой стороны ---------- */
 const doorOf = (S, id) => { if (typeof id !== 'string') return null; const i = id.lastIndexOf(':'); const h = BF.houseById(S.field, id.slice(0, i)), d = h && h.doors[+id.slice(i + 1)]; return d ? {h, d, id} : null; };
 BF.doorOf = doorOf;
-const sideOf = (S, u, h) => { const x = B.cell(S, u.c, u.r); return x && x.hb === h.id && x.hin ? 'in' : 'out'; };
+const sideOf = (S, u, h, d) => { if (d && d.inner && d.inC) return B.dist(u, {c: d.inC[0], r: d.inC[1]}) <= 1 && !(u.c === d.c && u.r === d.r) ? 'in' : 'out'; const x = B.cell(S, u.c, u.r); return x && x.hb === h.id && x.hin ? 'in' : 'out'; };
 BF.doorsNear = function (S, u) {
   if (!u || u.c == null) return [];
   const out = []; BF.houses(S.field).forEach(h => h.doors.forEach((d, i) => { if (B.dist(d, u) <= 1 && B.cell(S, d.c, d.r)) out.push({h, d, id: h.id + ':' + i}); }));
@@ -47609,21 +48009,25 @@ const setDoor = (S, h, d) => { const x = B.cell(S, d.c, d.r); if (x) x.t = doorT
 const thiefTool = u => !!(u.ref && C && C.heroTool && C.heroTool(u.ref, 'thief'));
 const breakDC = d => Math.max(8, 12 + (d.lock ? 3 : 0) + (d.prop ? 5 : 0) - 2 * (d.hits || 0));
 const PICK_DC = 14;
+/* ключ хозяина: у хозяина-мирного (civ.home) или у того, кому его дали (u.keys / герой .keys — список id домов) */
+const hasKey = (u, h) => !!(u && h && ((u.civ && u.civ.home === h.id) || (u.keys || []).includes(h.id) || (u.ref && (u.ref.keys || []).includes(h.id))));
+BF.hasHouseKey = hasKey;
 BF.doorCk = (u, stat, skill) => BF.ckBonus ? BF.ckBonus(u, stat, skill) : 0;
 const roll = (u, stat, skill, dc, adv) => { const r1 = R.d(20), r2 = adv ? R.d(20) : 0, r = Math.max(r1, r2); return r === 20 || (r !== 1 && r + BF.doorCk(u, stat, skill) >= dc); };
 const insideJam = (S, h, d) => { const cs = foot(h).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.hin && MOVABLE[x.t] && B.dist(x, d) <= 2 && !B.unitAt(S, x.c, x.r)); return cs.sort((a, b) => B.dist(a, d) - B.dist(b, d))[0] || null; };
 const strongBeast = u => u.kind === 'monster' && u.ref && (u.ref.group === 'звери' || u.beast) && !(u.ref.size && /велик|огром|large|huge/i.test(String(u.ref.size)));
 /* какие действия с дверью и почему нельзя: [{v, label, cost, why, title}] */
 BF.doorActs = function (S, u, o) {
-  const {h, d} = o, side = sideOf(S, u, h), inDoor = u.c === d.c && u.r === d.r, out = [];
+  const {h, d} = o, side = sideOf(S, u, h, d), inDoor = u.c === d.c && u.r === d.r, out = [];
   if (d.st === 'broken') return out;
   const occ = B.unitAt(S, d.c, d.r);
   if (d.st === 'open') out.push({v: 'close', label: 'Закрыть', cost: 'b', why: inDoor ? 'Ты стоишь в проёме.' : occ ? 'В проёме кто-то стоит.' : '', title: 'Малое действие: затворить дверь — сквозь неё не пройти и не видно'});
   if (d.st === 'shut') {
-    const w = d.lock && side === 'out' ? 'Заперто.' : d.prop && d.prop !== side ? 'Подпёрто с той стороны.' : '';
-    out.push({v: 'open', label: 'Открыть', cost: 'b', why: w, title: d.prop === side ? 'Малое действие: убрать подпорку и отворить' : d.lock && side === 'in' ? 'Малое действие: отодвинуть засов и отворить' : 'Малое действие: отворить дверь'});
-    if (d.lock && side === 'out') out.push({v: 'pick', label: 'Взломать замок', cost: 'a', why: '', title: 'Основное действие: Ловкость рук; с воровской снастью — с преимуществом. Тихо'});
+    const w = d.lock && side === 'out' && !hasKey(u, h) ? 'Заперто.' : d.prop && d.prop !== side ? 'Подпёрто с той стороны.' : '';
+    out.push({v: 'open', label: 'Открыть', cost: 'b', why: w, title: d.prop === side ? 'Малое действие: убрать подпорку и отворить' : d.lock && (side === 'in' || hasKey(u, h)) ? 'Малое действие: отпереть и отворить' : 'Малое действие: отворить дверь'});
+    if (d.lock && side === 'out' && !hasKey(u, h)) out.push({v: 'pick', label: 'Взломать замок', cost: 'a', why: '', title: 'Основное действие: Ловкость рук; с воровской снастью — с преимуществом. Тихо'});
     out.push({v: 'break', label: 'Выломать', cost: 'a', why: '', title: 'Основное действие: Сила, Атлетика. Подпёртую — труднее. Шумно: слышно далеко, могут прибежать'});
+    if (!d.lock && !d.prop && (side === 'in' || hasKey(u, h))) out.push({v: 'lock', label: 'Запереть', cost: 'b', why: '', title: side === 'in' ? 'Малое действие: задвинуть засов — снаружи не открыть, только взломать или выломать' : 'Малое действие: запереть хозяйским ключом'});
     if (!d.prop) out.push({v: 'prop', label: 'Подпереть', cost: 'a', why: side === 'in' && !insideJam(S, h, d) ? 'Изнутри подпереть нечем: ни лавки, ни сундука рядом.' : '', title: side === 'in' ? 'Основное действие: привалить к двери лавку или сундук — с той стороны не открыть, выломать труднее' : 'Основное действие: подпереть колом — изнутри не открыть, выломать труднее'});
   }
   out.forEach(x => { if (!x.why) x.why = x.cost === 'b' ? (S.bonus ? 'Малое действие уже потрачено.' : '') : (S.acted ? 'Основное действие уже потрачено.' : ''); });
@@ -47636,14 +48040,16 @@ BF.doorDo = function (S, u, id, v) {
   const a = BF.doorActs(S, u, o).find(x => x.v === v); if (!a) return 'Так нельзя.';
   if (a.why) return a.why;
   if (a.cost === 'b') S.bonus = true; else S.acted = true;
-  const side = sideOf(S, u, h), who = nameOf(u), what = HT[h.k] ? HT[h.k].n : 'дом';
+  const side = sideOf(S, u, h, d), who = nameOf(u), what = HT[h.k] ? HT[h.k].n : 'дом';
   B.faceTo(u, d);
   if (v === 'open') {
-    const was = d.prop === side ? 'prop' : d.lock && side === 'in' ? 'lock' : '';
+    const was = d.prop === side ? 'prop' : d.lock && (side === 'in' || hasKey(u, h)) ? 'lock' : '';
     d.st = 'open'; if (was === 'prop') d.prop = null; if (was === 'lock') d.lock = 0; setDoor(S, h, d);
     B.log(S, was === 'prop' ? `${who} отваливает подпорку и распахивает дверь.` : was === 'lock' ? `${who} отодвигает засов и отворяет дверь.` : pick([`${who} отворяет дверь.`, `${who} толкает дверь — та со скрипом подаётся.`]), '');
   } else if (v === 'close') {
     d.st = 'shut'; setDoor(S, h, d); B.log(S, pick([`${who} затворяет дверь.`, `${who} захлопывает дверь.`]), '');
+  } else if (v === 'lock') {
+    d.lock = 1; setDoor(S, h, d); B.log(S, side === 'in' ? `${who} задвигает засов.` : `${who} запирает дверь ключом.`, '');
   } else if (v === 'pick') {
     const adv = thiefTool(u);
     if (roll(u, 'dex', 'Ловкость рук', PICK_DC, adv)) { d.lock = 0; setDoor(S, h, d); B.log(S, `${who} ковыряет в замке${adv ? ' отмычкой' : ''} — щелчок, заперто больше не будет.`, 'buff', adv ? 'воровская снасть: с преимуществом' : ''); }
@@ -47884,9 +48290,9 @@ const STYLE = (S, h) => {
   const st = (S.field && S.field.hbStyle) || {}, reg = st.reg || '', camp = st.camp || '', cen = st.center || '', k = hsh({c: h.c0, r: h.r0});
   const south = ['imp', 'par', 'ed'].includes(reg) || camp === 'edvin' || cen === 'vineyard';
   const wall = h.k === 'hram' ? 'stone' : (south || reg === 'step' || cen === 'steppe') && h.k !== 'terem' ? 'maz' : 'log';
-  const roof = h.k === 'terem' || h.k === 'hram' ? 'tes' : reg === 'tk' || camp === 'terak' || h.k === 'dlin' || cen === 'mountains' ? 'dern'
+  const roof = ['terem', 'hram', 'boyar', 'kupec', 'korchma_big'].includes(h.k) ? 'tes' : reg === 'tk' || camp === 'terak' || h.k === 'dlin' || cen === 'mountains' ? 'dern'
     : south || reg === 'ber' || cen === 'sand' ? 'tile' : h.k === 'korchma' || (h.k === 'izba' && k % 3 === 0) ? 'tes' : 'straw';
-  const floor = {izba: 'planks', korchma: 'planks', terem: 'planks', banya: 'soot', ambar: 'earth', klet: 'hay', hram: 'flags', dlin: 'mats'}[h.k] || 'planks';
+  const floor = {izba: 'planks', korchma: 'planks', terem: 'planks', banya: 'soot', ambar: 'earth', klet: 'hay', hram: 'flags', dlin: 'mats', kuznya: 'earth', sklad: 'earth', konyushnya: 'hay', hlev: 'hay', saray: 'earth', melnitsa: 'planks', masterskaya: 'planks', kupec: 'planks', boyar: 'planks', korchma_big: 'planks', starosta: 'planks'}[h.k] || 'planks';
   const yard = ['korchma', 'terem', 'hram'].includes(h.k) || south ? 'cobble' : 'earth';
   return {wall, roof, floor, yard};
 };
@@ -47932,7 +48338,7 @@ const wallKey = (S, h, c, st) => {
   if (m === 'log') return d.lock ? 'w_log_door_l' : d.prop === 'out' ? 'w_log_door_p' : 'w_log_door_c';
   return 'w_' + m + '_door_c';
 };
-const FURN_SPR = {stove: ['f_stove', 1.55], table: ['f_table', 1.6], hbench: ['f_bench', 1.5], bed: ['f_bed', 1.6], chest: ['f_chest', 1.15], barrels: ['f_barrel', 0.9], crate: ['f_lar', 1.15], hlamp: ['f_svetec', 0.55], fire: ['f_hearth', 1.7], oko_star: ['f_altar', 1.45]};
+const FURN_SPR = {stove: ['f_stove', 1.55], table: ['f_table', 1.6], hbench: ['f_bench', 1.5], bed: ['f_bed', 1.6], chest: ['f_chest', 1.15], barrels: ['f_barrel', 0.9], crate: ['f_lar', 1.15], hlamp: ['f_svetec', 0.55], fire: ['f_hearth', 1.7], oko_star: ['f_altar', 1.45], yasli: ['f_yasli', 1.5]};
 const hbThing0 = BF.hbThing;
 BF.hbThing = function (X, c, p, s, S, U) {
   const img = U && U.img, h = BF.houseById(S.field, c.hb);
@@ -47961,6 +48367,13 @@ BF.hbThing = function (X, c, p, s, S, U) {
     if ((t === 'hdoor_c' || t === 'hdoor_o') && U && U.cur && U.cur.side === 'party' && !U.cur.ai && B.dist(U.cur, c) <= 1) { poly(X, hexV(p.x, p.y, s * 0.92)); X.strokeStyle = 'rgba(255,215,120,.95)'; X.lineWidth = 2.2; X.stroke(); }
     X.restore(); return true;
   }
+  if (t === 'gorn' || t === 'nakovalnya' || t === 'zhernov') { X.save(); // кузня и мельница: кодом
+    if (t === 'gorn') { X.fillStyle = '#6a625a'; X.fillRect(p.x - s * 0.6, p.y - s * 0.55, s * 1.2, s * 0.95); X.fillStyle = '#8a8076'; X.fillRect(p.x - s * 0.7, p.y - s * 0.7, s * 1.4, s * 0.2);
+      const gl = X.createRadialGradient(p.x, p.y - s * 0.75, 1, p.x, p.y - s * 0.75, s * 0.6); gl.addColorStop(0, 'rgba(255,170,60,.95)'); gl.addColorStop(1, 'rgba(255,90,20,0)'); X.fillStyle = gl; X.beginPath(); X.arc(p.x, p.y - s * 0.75, s * 0.6, 0, 7); X.fill();
+      X.fillStyle = '#4a443e'; X.fillRect(p.x - s * 0.15, p.y - s * 1.9, s * 0.3, s * 1.2); }
+    else if (t === 'nakovalnya') { X.fillStyle = '#5a4630'; X.fillRect(p.x - s * 0.2, p.y - s * 0.3, s * 0.4, s * 0.6); X.fillStyle = '#3c3c40'; X.beginPath(); X.moveTo(p.x - s * 0.55, p.y - s * 0.55); X.lineTo(p.x + s * 0.4, p.y - s * 0.55); X.lineTo(p.x + s * 0.62, p.y - s * 0.42); X.lineTo(p.x + s * 0.3, p.y - s * 0.3); X.lineTo(p.x - s * 0.35, p.y - s * 0.3); X.closePath(); X.fill(); X.strokeStyle = '#1e1e22'; X.lineWidth = 1; X.stroke(); }
+    else { X.fillStyle = '#7a7268'; X.beginPath(); X.ellipse(p.x, p.y - s * 0.15, s * 0.7, s * 0.32, 0, 0, 7); X.fill(); X.fillStyle = '#958c80'; X.beginPath(); X.ellipse(p.x, p.y - s * 0.35, s * 0.62, s * 0.28, 0, 0, 7); X.fill(); X.fillStyle = '#4a443e'; X.beginPath(); X.arc(p.x, p.y - s * 0.35, s * 0.08, 0, 7); X.fill(); }
+    X.restore(); return true; }
   const f = t === 'stove' && h.k === 'banya' ? ['f_kamenka', 1.35] : FURN_SPR[t];
   if (f) { const w = s * f[1] * SQ3 / 1.6;
     if (!spr(X, img, f[0], p.x, p.y + s * 0.5, w)) return hbThing0.apply(this, arguments);
@@ -47993,7 +48406,7 @@ BF.hbRoof = function (X, h, s, hexXY, S, img) {
     X.fillStyle = '#4a6a9a'; X.beginPath(); X.ellipse(cx, cy, s * 0.16, s * 0.1, 0, 0, 7); X.fill(); }
   if (h.k === 'terem') { X.beginPath(); X.moveTo(cx - s * 0.8, ry); X.lineTo(cx, ry - s * 1.6); X.lineTo(cx + s * 0.8, ry); X.closePath(); X.fillStyle = P; X.fill(); X.fillStyle = 'rgba(15,8,2,.3)'; X.fill(); X.strokeStyle = 'rgba(20,10,4,.7)'; X.lineWidth = 1.2; X.stroke(); X.fillStyle = '#c8a050'; X.beginPath(); X.arc(cx, ry - s * 1.7, s * 0.1, 0, 7); X.fill(); }
   if (h.k === 'dlin') { X.strokeStyle = '#3a2a14'; X.lineWidth = s * 0.1; [[x0, -1], [x1, 1]].forEach(([x, k]) => { X.beginPath(); X.moveTo(x, ry); X.lineTo(x + k * s * 0.35, ry - s * 0.55); X.stroke(); }); }
-  if (['banya', 'izba', 'korchma', 'terem'].includes(h.k)) { const tx = h.flip ? x0 + (x1 - x0) * 0.3 : x0 + (x1 - x0) * 0.7; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ry - s * 0.65, s * 0.34, s * 0.62); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ry - s * 0.7, s * 0.42, s * 0.12);
+  if (['banya', 'izba', 'korchma', 'terem', 'starosta', 'kupec', 'boyar', 'korchma_big', 'kuznya'].includes(h.k)) { const tx = h.flip ? x0 + (x1 - x0) * 0.3 : x0 + (x1 - x0) * 0.7; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ry - s * 0.65, s * 0.34, s * 0.62); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ry - s * 0.7, s * 0.42, s * 0.12);
     if (h.lit || h.k === 'banya') { X.fillStyle = 'rgba(200,200,200,.22)'; X.beginPath(); X.arc(tx + s * 0.1, ry - s * 1.0, s * 0.22, 0, 7); X.arc(tx + s * 0.3, ry - s * 1.35, s * 0.16, 0, 7); X.fill(); } }
   // крыльцо у двери с дальней стороны (дверь под кровлей не видна)
   h.doors.forEach(d => { if (d.r !== h.r0) return; const q = hexXY(d.c, d.r); if (!spr(X, img, 'f_porch', q.x, y0 + s * 0.35, s * 1.15)) return;
@@ -48100,7 +48513,7 @@ BF.hbRoof = function (X, hr, s, hexXY, S, img) {
     if (h.k === 'terem') { const tb = (apex + apexB) / 2 + s * 0.4, tw = s * 0.9, th = s * 1.0; X.fillStyle = gw || '#6e4b2b'; X.fillRect(cxg - tw / 2, tb - th, tw, th); X.fillStyle = 'rgba(0,0,0,.25)'; X.fillRect(cxg - tw / 2, tb - th, tw, th);
       X.beginPath(); X.moveTo(cxg - tw * 0.75, tb - th); X.lineTo(cxg, tb - th - s * 1.1); X.lineTo(cxg + tw * 0.75, tb - th); X.closePath(); X.fillStyle = P || '#5c3622'; X.fill(); X.fillStyle = 'rgba(15,8,2,.3)'; X.fill(); X.strokeStyle = 'rgba(20,10,4,.75)'; X.lineWidth = 1.2; X.stroke();
       X.fillStyle = '#c8a050'; X.beginPath(); X.arc(cxg, tb - th - s * 1.15, s * 0.1, 0, 7); X.fill(); }
-    if (['banya', 'izba', 'korchma', 'terem'].includes(h.k)) { const tx = cxg + (h.flip ? -1 : 1) * (R.x1 - R.x0) * 0.2, ty = (apex + apexB) / 2 + gh * 0.35; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ty - s * 0.8, s * 0.34, s * 0.8); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ty - s * 0.85, s * 0.42, s * 0.12);
+    if (['banya', 'izba', 'korchma', 'terem', 'starosta', 'kupec', 'boyar', 'korchma_big', 'kuznya'].includes(h.k)) { const tx = cxg + (h.flip ? -1 : 1) * (R.x1 - R.x0) * 0.2, ty = (apex + apexB) / 2 + gh * 0.35; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ty - s * 0.8, s * 0.34, s * 0.8); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ty - s * 0.85, s * 0.42, s * 0.12);
       if (h.lit || h.k === 'banya') { X.fillStyle = 'rgba(200,200,200,.22)'; X.beginPath(); X.arc(tx + s * 0.1, ty - s * 1.15, s * 0.22, 0, 7); X.arc(tx + s * 0.3, ty - s * 1.5, s * 0.16, 0, 7); X.fill(); } }
     h.doors.forEach(d => { if (d.r !== h.r0) return; const qx = hexXY(d.c, d.r).x, y = backE - (Math.abs(qx - cxg) < (R.x1 - R.x0) / 2 ? gh * (1 - Math.abs(qx - cxg) / ((R.x1 - R.x0) / 2)) : 0);
       if (!spr(X, img, 'f_porch', qx, y + s * 0.15, s * 1.0)) return; X.fillStyle = d.st === 'shut' ? 'rgba(42,26,12,.9)' : 'rgba(10,6,3,.9)'; X.fillRect(qx - s * 0.18, y - s * 0.55, s * 0.36, s * 0.42); });
@@ -48127,7 +48540,7 @@ BF.hbRoof = function (X, hr, s, hexXY, S, img) {
     X.beginPath(); X.moveTo(cx - tw * 0.75, tb - th); X.lineTo(cx, tb - th - s * 1.1); X.lineTo(cx + tw * 0.75, tb - th); X.closePath(); X.fillStyle = P || '#5c3622'; X.fill(); X.fillStyle = 'rgba(15,8,2,.3)'; X.fill(); X.strokeStyle = 'rgba(20,10,4,.75)'; X.lineWidth = 1.2; X.stroke();
     X.fillStyle = '#c8a050'; X.beginPath(); X.arc(cx, tb - th - s * 1.15, s * 0.1, 0, 7); X.fill(); }
   if (h.k === 'dlin') { X.strokeStyle = '#3a2a14'; X.lineWidth = s * 0.1; [[R.x0 - ov, -1], [R.x1 + ov, 1]].forEach(([x, k]) => { X.beginPath(); X.moveTo(x, ridge); X.lineTo(x + k * s * 0.35, ridge - s * 0.55); X.stroke(); }); }
-  if (['banya', 'izba', 'korchma', 'terem'].includes(h.k)) { const tx = h.flip ? R.x0 + (R.x1 - R.x0) * 0.3 : R.x0 + (R.x1 - R.x0) * 0.7, ty = ridge + s * 0.25; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ty - s * 0.75, s * 0.34, s * 0.75); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ty - s * 0.8, s * 0.42, s * 0.12);
+  if (['banya', 'izba', 'korchma', 'terem', 'starosta', 'kupec', 'boyar', 'korchma_big', 'kuznya'].includes(h.k)) { const tx = h.flip ? R.x0 + (R.x1 - R.x0) * 0.3 : R.x0 + (R.x1 - R.x0) * 0.7, ty = ridge + s * 0.25; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ty - s * 0.75, s * 0.34, s * 0.75); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ty - s * 0.8, s * 0.42, s * 0.12);
     if (h.lit || h.k === 'banya') { X.fillStyle = 'rgba(200,200,200,.22)'; X.beginPath(); X.arc(tx + s * 0.1, ty - s * 1.1, s * 0.22, 0, 7); X.arc(tx + s * 0.3, ty - s * 1.45, s * 0.16, 0, 7); X.fill(); } }
   // дверь на задней стене не видна — крыльцо у дальнего края крыши
   h.doors.forEach(d => { if (d.r !== h.r0) return; const qx = hexXY(d.c, d.r).x, y = Math.min(backE, ridge - s * 0.3);
@@ -48162,7 +48575,7 @@ const skewPat = (P, base, s, cells) => { if (!P || !P.setTransform || typeof DOM
   P.setTransform(new DOMMatrix([SQ3 * s * k, 0, SQ3 * s / 2 * k, 1.5 * s * k, base.x, base.y])); return P; };
 const facePat = (P, p0, p1, s, cells) => { if (!P || !P.setTransform || typeof DOMMatrix === 'undefined') return P; const L = Math.hypot(p1.x - p0.x, p1.y - p0.y) || 1, k = s * (cells || 1.6) / 256;
   P.setTransform(new DOMMatrix([(p1.x - p0.x) / L * k, (p1.y - p0.y) / L * k, 0, k, p0.x, p0.y])); return P; };
-const SKH = {izba: [1.95, 1.0], korchma: [2.0, 0.8], terem: [2.05, 0.95], hram: [2.05, 0.85], dlin: [1.75, 0.7], banya: [1.8, 0.8], ambar: [1.8, 0.85], klet: [1.75, 0.8]};
+const SKH = {kupec: [2.1, 0.9], boyar: [2.2, 1.0], korchma_big: [2.1, 0.85], starosta: [1.95, 1.0], kuznya: [1.8, 0.75], masterskaya: [1.8, 0.8], sklad: [1.9, 0.8], konyushnya: [1.75, 0.75], hlev: [1.7, 0.75], saray: [1.7, 0.75], melnitsa: [2.1, 1.1], izba: [1.95, 1.0], korchma: [2.0, 0.8], terem: [2.05, 0.95], hram: [2.05, 0.85], dlin: [1.75, 0.7], banya: [1.8, 0.8], ambar: [1.8, 0.85], klet: [1.75, 0.8]};
 /* вставки-проёмы (листы 91, вырезаны mk.py): [низ, верх] — доли высоты стены, ширина — доля длины клетки стены */
 const INSM = {"log_win_c":[0.287,0.873,0.337],"log_win_o":[0.287,0.834,0.565],"log_door_c":[0,0.86,0.442],"log_door_o":[0,0.936,0.548],"log_door_b":[0,0.879,0.587],"log_door_p":[0,0.879,0.442],"log_door_l":[0,0.936,0.567],"stone_win":[0.413,0.84,0.176],"stone_door_c":[0,0.84,0.278],"stone_door_o":[0,0.861,0.405],"maz_win":[0.285,0.871,0.454],"maz_door_c":[0,0.896,0.293],"maz_door_o":[0,0.871,0.298]};
 const insKey = (S, h, cell, st) => { const k = wallKey(S, h, cell.t === 'hwin' ? {t: 'hwin'} : {t: cell.t, hd: cell.hd}, st).slice(2); return INSM[k] ? k : null; };
@@ -48218,6 +48631,17 @@ BF.hbThing = function (X, c, p, s, S, U) {
   const h = h0 && isWallT(c.t) ? h0 : null;
   if (!h || !h.sk) return hbThing2.apply(this, arguments);
   const ly = c.r - h.r0, lx = c.c - hc(h, 0, ly).c;
+  if (c.hp && gridSt(S, h) === 'b') { // переборка вдоль ряда — стоит стеной (северная сторона южной комнаты), с дверью-вставкой
+    const st = styleOf(S, h), e = ex1(s), a = {x: p.x - e.x / 2, y: p.y}, b = {x: p.x + e.x / 2, y: p.y}, hh = s * 1.15;
+    X.save(); face(X, U.img, st, a, b, hh, s, 0.22);
+    if (c.hd != null) { const k = insKey(S, h, c, st); if (k) insert(X, U.img, k, p, 1, 0, SQ3 * s, hh, !!h.flip); else if (c.t === 'hdoor_o') { X.fillStyle = 'rgba(12,8,4,.9)'; X.fillRect(p.x - s * 0.35, p.y - hh * 0.9, s * 0.7, hh * 0.9); } }
+    X.restore(); return true; }
+  if (c.hd != null && c.hpv && gridSt(S, h) === 'b') { // дверь в косой переборке: закрыта — брус, открыта — проём
+    const e = ex2(s); X.save(); X.strokeStyle = c.t === 'hdoor_c' ? '#6a4422' : 'rgba(20,12,6,.85)'; X.lineWidth = c.t === 'hdoor_c' ? Math.max(3, s * 0.24) : Math.max(2, s * 0.1);
+    X.beginPath(); X.moveTo(p.x - e.x * 0.4, p.y - e.y * 0.4 - s * 0.3); X.lineTo(p.x + e.x * 0.4, p.y + e.y * 0.4 - s * 0.3); X.stroke();
+    const d = h.doors[c.hd]; if (d && d.lock && c.t === 'hdoor_c') { X.fillStyle = '#b8b0a0'; X.beginPath(); X.arc(p.x, p.y - s * 0.3, s * 0.09, 0, 7); X.fill(); }
+    const cur = B.current(S); if (cur && cur.side === 'party' && !cur.ai && B.dist(cur, c) <= 1) { poly(X, hexV(p.x, p.y, s * 0.9)); X.strokeStyle = 'rgba(255,215,120,.95)'; X.lineWidth = 2.2; X.stroke(); }
+    X.restore(); return true; }
   if (lx > 0 && ly > 0 && lx < h.W - 1 && ly < h.H - 1 && gridSt(S, h) === 'b') { // переборка сеней: косая полоса вдоль «\»
     const st = styleOf(S, h), P = pattern(X, U.img, wallTex(st)), e = ex2(s), hh = s * 0.5, w = s * 0.2;
     const a = {x: p.x - e.x / 2, y: p.y - e.y / 2}, b = {x: p.x + e.x / 2, y: p.y + e.y / 2};
@@ -48259,7 +48683,7 @@ const northWall = (X, img, S, h, st, base, s, hh) => {
 const marks = (X, S, h, base, s) => {
   const cur = B.current(S), mk = (q, u, v, col, wd) => { const e = Math.abs(v - (h.H - 1)) < 0.01 || Math.abs(v) < 0.01 ? ex1(s) : ex2(s), c = PT(h, base, s, u, v), L = 0.32;
     X.strokeStyle = col; X.lineWidth = wd; X.beginPath(); X.moveTo(c.x - e.x * L, c.y - e.y * L); X.lineTo(c.x + e.x * L, c.y + e.y * L); X.stroke(); };
-  foot(h).forEach(p => { if (p.y === 0) return; const cell = B.cell(S, p.c, p.r); if (!cell) return;
+  foot(h).forEach(p => { if (p.y === 0) return; const cell = B.cell(S, p.c, p.r); if (!cell || cell.hin) return;
     const u = p.x, v = p.y + (p.y === h.H - 1 ? 0.5 : 0), uu = p.x === 0 ? -0.5 : p.x === h.W - 1 ? h.W - 0.5 : u;
     if (cell.t === 'hdoor_c') mk(p, uu, v, '#6a4422', Math.max(3, s * 0.22));
     else if (cell.t === 'hdoor_o' || cell.t === 'hdoor_b') mk(p, uu, v, 'rgba(20,12,6,.9)', Math.max(2, s * 0.1));
@@ -48305,7 +48729,7 @@ BF.hbRoof = function (X, hr, s, hexXY, S, img) {
     X.fillStyle = '#4a6a9a'; X.beginPath(); X.ellipse(M.x, cy, s * 0.15, s * 0.1, 0, 0, 7); X.fill(); }
   if (h.k === 'terem') { const tw = s * 0.9, th = s * 1.0; X.fillStyle = gw || '#6e4b2b'; X.fillRect(M.x - tw / 2, M.y + s * 0.2 - th, tw, th); X.fillStyle = 'rgba(0,0,0,.25)'; X.fillRect(M.x - tw / 2, M.y + s * 0.2 - th, tw, th);
     X.beginPath(); X.moveTo(M.x - tw * 0.75, M.y + s * 0.2 - th); X.lineTo(M.x, M.y - th - s * 0.9); X.lineTo(M.x + tw * 0.75, M.y + s * 0.2 - th); X.closePath(); X.fillStyle = P0 || '#5c3622'; X.fill(); X.fillStyle = 'rgba(15,8,2,.3)'; X.fill(); X.strokeStyle = 'rgba(20,10,4,.75)'; X.stroke(); }
-  if (['banya', 'izba', 'korchma', 'terem'].includes(h.k)) { const t = h.flip ? 0.3 : 0.7, tx = L.x + (Rr.x - L.x) * t, ty = L.y + (Rr.y - L.y) * t + s * 0.2; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ty - s * 0.75, s * 0.34, s * 0.75); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ty - s * 0.8, s * 0.42, s * 0.12);
+  if (['banya', 'izba', 'korchma', 'terem', 'starosta', 'kupec', 'boyar', 'korchma_big', 'kuznya'].includes(h.k)) { const t = h.flip ? 0.3 : 0.7, tx = L.x + (Rr.x - L.x) * t, ty = L.y + (Rr.y - L.y) * t + s * 0.2; X.fillStyle = '#6a5e52'; X.fillRect(tx - s * 0.17, ty - s * 0.75, s * 0.34, s * 0.75); X.fillStyle = '#4a4038'; X.fillRect(tx - s * 0.21, ty - s * 0.8, s * 0.42, s * 0.12);
     if (h.lit || h.k === 'banya') { X.fillStyle = 'rgba(200,200,200,.22)'; X.beginPath(); X.arc(tx + s * 0.1, ty - s * 1.1, s * 0.22, 0, 7); X.arc(tx + s * 0.3, ty - s * 1.45, s * 0.16, 0, 7); X.fill(); } }
   // дверь на северной стене не видна — крыльцо над дальним скатом
   h.doors.forEach(d => { if (d.r !== h.r0) return; const ux = d.c - hc(h, 0, 0).c, gp = up(PT(h, base, s, ux, -0.5 - ov * 0.6), Hw);
@@ -48419,17 +48843,29 @@ BF.houseVillage = function (F) {
   F.vEst = [];
   // пятачок: большой дом у середины улицы
   const town = kind === 'town', terak = kind === 'terak', villa = kind === 'villa';
-  const bigK = terak ? 'dlin' : villa ? 'terem' : kind === 'khutor' ? null : rnd() < 0.3 ? 'hram' : rnd() < 0.6 ? 'korchma' : 'terem';
-  if (bigK) { const side = rnd() < 0.5 ? 1 : -1; if (!place(bigK, (rnd() - 0.5) * 6, side * 9, 60)) place(bigK, (rnd() - 0.5) * 14, -side * 10, 80); }
+  const bigK = ctx.bigK && BF.HOUSE_T[ctx.bigK] ? ctx.bigK : terak ? 'dlin' : villa ? 'terem' : kind === 'khutor' ? null : town ? (rnd() < 0.25 ? 'boyar' : rnd() < 0.5 ? 'korchma_big' : 'hram') : rnd() < 0.3 ? 'hram' : rnd() < 0.6 ? 'korchma' : 'terem'; // ctx.bigK — крючок town_life: бой «в этом доме»
+  if (bigK) { const side = rnd() < 0.5 ? 1 : -1, a0 = (rnd() - 0.5) * 6; let hb = place(bigK, a0, side * 9, 60), sd2 = side; if (!hb) { sd2 = -side; hb = place(bigK, (rnd() - 0.5) * 14, -side * 10, 80); }
+    // боярский двор: за хоромами — конюшня и клеть
+    if (hb && bigK === 'boyar') { const fa = Math.max(...foot(hb).map(p => across(F.cells[key(p.c, p.r)]) * sd2)); for (const [al, ac] of [[a0 - 4, fa + 4.5], [a0 - 13, 9], [a0 + 13, 9], [a0, fa + 6]]) if (place('konyushnya', al, sd2 * ac, 120, 1)) break; place('klet', a0 + 6, sd2 * (fa + 4), 80, 1) || place('ambar', a0 + 9, sd2 * 8, 80, 1); } }
+  // город: постоялый двор у въезда (большая корчма и конюшня), кузня у ворот на другом конце, склад у торговой улицы
+  const AL = 30 * Math.max(1, F.w / 36), alMin0 = Math.max(-AL, Math.min(...street.map(along))), alMax0 = Math.min(AL, Math.max(...street.map(along)));
+  if (town) { const sd = rnd() < 0.5 ? 1 : -1; if (bigK !== 'korchma_big' && bigK !== 'boyar' && place('korchma_big', alMin0 + 10, sd * 9, 60)) place('konyushnya', alMin0 + 8, sd * 18, 60, 1);
+    place('kuznya', alMax0 - 6, -sd * 6.5, 50); if (rnd() < 0.7) place('sklad', alMax0 - 12, sd * 17, 120, 1) || place('sklad', alMin0 + 12, -sd * 17, 120, 1) || place('sklad', (rnd() - 0.5) * 30, (rnd() < 0.5 ? 1 : -1) * 16, 300, 1); } // склад — во втором ряду, у задворок торговой улицы
+  // село: кузня на краю, общий амбар у пятачка, мельница у реки; хутор: хлев и сарай
+  if (!town && !terak && !villa) {
+    if (kind !== 'khutor') { place("kuznya", (rnd() < 0.5 ? alMax0 - 5 : alMin0 + 5), (rnd() < 0.5 ? 1 : -1) * 6.5, 200) || place("kuznya", (rnd() - 0.5) * 30, (rnd() < 0.5 ? 1 : -1) * 8, 300, 1); }
+    if (river.length && kind !== 'khutor') { const w0 = river.slice().sort((a, b) => B.dist(a, mid) - B.dist(b, mid))[0]; if (w0) { const sg = across(w0) >= 0 ? 1 : -1; place('melnitsa', along(w0), across(w0) - sg * 5, 200, 1); } }
+    if (kind === 'khutor') { place('hlev', 6, 9, 60, 1); place('saray', -6, -9, 60, 1); }
+  }
   // усадьбы полосами
-  const slot = town ? 15 : 19, nMax = kind === 'khutor' ? 2 : town ? 10 : 7;
-  const alMin = Math.max(-30, Math.min(...street.map(along))), alMax = Math.min(30, Math.max(...street.map(along)));
+  const slot = town ? 18 : 19, nMax = kind === 'khutor' ? 2 : town ? 12 : 7;
+  const alMin = Math.max(-AL, Math.min(...street.map(along))), alMax = Math.min(AL, Math.max(...street.map(along)));
   const slots = []; for (let s = alMin + slot / 2; s <= alMax - slot / 4; s += slot) [1, -1].forEach(side => slots.push({s, side}));
   slots.sort((a, b) => Math.abs(a.s) - Math.abs(b.s) + (rnd() - 0.5) * 6);
   for (const sl of slots) {
     if (F.vEst.length >= nMax) break;
-    const mainK = terak ? 'dlin' : 'izba';
-    const h = place(mainK, sl.s, sl.side * (terak ? 7 : 6.5), 50); if (!h) continue;
+    const mainK = terak ? 'dlin' : town ? (BF.houses(F).filter(q => q.k === 'kupec').length < 5 ? 'kupec' : 'izba') : !F.vEst.length && kind !== 'khutor' ? 'starosta' : 'izba'; // торговая улица — лавки купцов; в селе первая усадьба — староста
+    const h = place(mainK, sl.s, sl.side * (terak ? 7 : 6.5), 50) || (mainK === 'kupec' ? place('kupec', sl.s, sl.side * 8, 80) : null) || (mainK !== 'izba' && !terak ? place('izba', sl.s, sl.side * 6.5, 50) : null); if (!h) continue;
     const fp = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(Boolean), far = Math.max(...fp.map(x => across(x) * sl.side)) + 1.2;
     const est = {h: h.id, s: sl.s, side: sl.side, far, items: []}; F.vEst.push(est);
     const inStrip = (x, a0, a1) => Math.abs(along(x) - sl.s) <= slot / 2 - 1.2 && across(x) * sl.side >= a0 && across(x) * sl.side <= a1;
@@ -48437,7 +48873,7 @@ BF.houseVillage = function (F) {
     // свой двор теснее: между избой и амбаром — клетка прохода, а не две
     const ring2 = (() => { const d = distMap(F, fp.map(x => ({c: x.c, r: x.r})), 2); return Object.keys(d).filter(k => d[k] >= 1); })(); const others = distMap(F, BF.houses(F).filter(q => q !== h).reduce((a, q) => a.concat(foot(q).map(p => ({c: p.c, r: p.r}))), []), 2);
     const unb = ring2.filter(k => busy[k] && others[k] == null && !street.some(w => key(w.c, w.r) === k)); unb.forEach(k => { delete busy[k]; });
-    if (!villa) { const k2 = terak ? 'ambar' : rnd() < 0.5 ? 'ambar' : 'klet'; let b2 = null; for (const [k3, da, dc] of [[k2, 0.25, 3.5], [k2, -0.25, 3.5], ['klet', 0.3, 5], ['klet', -0.3, 5], ['klet', 0, 7]]) { b2 = place(k3, sl.s + (rnd() < 0.5 ? -1 : 1) * slot * da, sl.side * (far + dc), 70, 1); if (b2) break; } if (b2) est.items.push(b2.id); }
+    if (!villa && !(town && h.k === 'kupec' && rnd() < 0.6)) { const k2 = terak ? 'ambar' : rnd() < 0.5 ? 'ambar' : 'klet'; let b2 = null; for (const [k3, da, dc] of [[k2, 0.25, 3.5], [k2, -0.25, 3.5], ['klet', 0.3, 5], ['klet', -0.3, 5], ['klet', 0, 7]]) { b2 = place(k3, sl.s + (rnd() < 0.5 ? -1 : 1) * slot * da, sl.side * (far + dc), 70, 1); if (b2) break; } if (b2) est.items.push(b2.id); }
     // баня на задах — к воде, если вода близко
     const wet = river.filter(x => Math.abs(along(x) - sl.s) <= slot && across(x) * sl.side > far - 2).sort((a, b) => across(a) * sl.side - across(b) * sl.side)[0];
     if (!town && !terak && (wet || rnd() < 0.55)) { const tb = wet ? {al: along(wet), ac: across(wet) * sl.side - 4} : {al: sl.s + slot * 0.25, ac: far + 10};
@@ -48458,6 +48894,13 @@ BF.houseVillage = function (F) {
       if (da < 0.9 && a > 3 && a < sad1 + 2 && free(x) && ((x.c + x.r) % 4)) x.t = 'fence';
       if (Math.abs(a - (sad1 + 2)) < 0.8 && Math.abs(along(x) - sl.s) < slot / 2 && free(x) && ((x.c * 3 + x.r) % 5)) x.t = 'fence'; });
   }
+  if (!town && !terak && !villa && kind !== 'khutor') place('sklad', (rnd() - 0.5) * 20, (rnd() < 0.5 ? 1 : -1) * 8, 120) || place('ambar', (rnd() - 0.5) * 20, (rnd() < 0.5 ? 1 : -1) * 8, 120); // общий амбар — если осталось место
+  // город: добрать дома по улице в свободных местах (без огородов — город тесный)
+  if (town) for (let al = -AL + 5; al <= AL - 5 && F.vEst.length < nMax; al += 5) for (const side of [1, -1]) { if (F.vEst.length >= nMax) break;
+    const k = BF.houses(F).filter(q => q.k === 'kupec').length < 6 ? 'kupec' : 'izba', h = place(k, al, side * (k === 'kupec' ? 8 : 6.5), 40); if (h) F.vEst.push({h: h.id, s: al, side, far: 0, items: []}); }
+  // город: второй ряд дворов за первым (переулки) — избы и мастерские
+  if (town) for (let al = -AL + 8; al <= AL - 8 && F.vEst.length < nMax + 4; al += 9) for (const side of [1, -1]) {
+    const k = rnd() < 0.25 ? 'masterskaya' : 'izba', h = place(k, al, side * 17, 30, 1); if (h && k === 'izba') F.vEst.push({h: h.id, s: al, side, far: 0, items: []}); }
   // добрать малыми постройками, если тесно
   for (let i = 0; i < 6 && BF.houses(F).length < 4; i++) place(['klet', 'banya', 'ambar', 'izba'][i % 4], (rnd() - 0.5) * 40, (rnd() < 0.5 ? 1 : -1) * (7 + rnd() * 6), 60);
   // у реки: мостки у бань и лодки
@@ -48470,7 +48913,7 @@ BF.houseVillage = function (F) {
   // город: мостовая и частокол с воротами
   if (town) {
     street.forEach(x => { x.vy = 'pave'; x.hyard = x.hyard || '~'; });
-    const Rr = 21;
+    const Rr = 21 * Math.max(1, F.w / 36); // на большом поле города — шире
     cellsAll.forEach(x => { const p = P(x), d = Math.hypot((p.x - M.x) * 0.85, p.y - M.y); if (d < Rr || d >= Rr + 1.3) return; if (x.hb != null || x.river || x.o != null) return;
       if (x.t === 'road' || x.t === 'bridge' || x.t === 'shallow') { x.vy = 'gate'; x.hyard = x.hyard || '~'; return; } x.t = 'pali'; x.vy = 'pali'; x.hyard = x.hyard || '~'; });
   }
@@ -48518,7 +48961,7 @@ BF.civSpawn = function (S, g) {
   const rep = node != null && C.repOf ? C.repOf(g, node) : 0;
   S.civ = {node, rep, harm: {hit: 0, kill: 0, child: [], breakin: 0, rob: 0}};
   const night = !!(F.night || (S.wx && S.wx.night));
-  const homes = BF.houses(F).filter(h => ['izba', 'terem', 'korchma', 'dlin'].includes(h.k)).slice(0, 6);
+  const homes = BF.houses(F).filter(h => ['izba', 'terem', 'korchma', 'dlin', 'starosta', 'kupec', 'boyar', 'korchma_big'].includes(h.k)).slice(0, 7);
   const freeIn = h => L().foot(h).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.hin && !B.TERRAIN[x.t].block && !B.unitAt(S, x.c, x.r));
   const freeOut = h => { const d = L().distMap(F, L().foot(h).map(p => ({c: p.c, r: p.r})), 3); return Object.keys(d).map(k => F.cells[k]).filter(x => x && x.hb == null && d[key(x.c, x.r)] >= 1 && B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r)); };
   const foes = S.units.filter(u => u.side === 'foe' && B.active(u) && u.c != null);
@@ -48611,7 +49054,7 @@ BF.civTurn = function (S, u) {
       if (!o && h.doors.some(d => d.st === 'open')) { const d = h.doors.find(x => x.st === 'open'); if (B.dist(u, d) > 1) B.goNear(S, u, d); }
       S.acted = true; return; }
     // домой: к двери, отворить, войти
-    const d = h.doors.slice().sort((a, b) => B.dist(a, u) - B.dist(b, u))[0];
+    const d = h.doors.filter(x => !x.inner).sort((a, b) => B.dist(a, u) - B.dist(b, u))[0];
     const blocked = d.st === 'broken' || (d.st === 'shut' && d.prop === 'in') || S.units.some(x => x.side === 'foe' && B.active(x) && BF.inHouse(S, x) === h.id);
     if (!blocked && !(rep <= -2 && false)) {
       if (B.dist(u, d) > 1) B.goNear(S, u, d);
@@ -49039,9 +49482,26 @@ BF.horseDraw = function (X, u, p, s, img, A, isCur) {
   return true;
 };
 
+/* ======================= город — поле больше (решение 24.11: «чтобы город выглядел городом») =======================
+   Только для города: сначала строится поле прежнего размера (общий генератор тратится как раньше), потом — город на большом поле
+   своим жребием от того же места. */
+BF.TOWN_W = 62; BF.TOWN_H = 36;
+const fpTown = BF.fromPlace;
+BF.fromPlace = function (o) {
+  o = o || {}; const ctx = Object.assign({}, BF._vCtx || {}, BF._vForce || {});
+  const town = (o.kind === 'village' || o.center === 'town') && !o.w && !o.h && (ctx.forceKind ? ctx.forceKind === 'town' : ctx.nk === 'город' && ctx.camp !== 'terak' && ctx.reg !== 'tk');
+  if (!town || BF.TOWN_OFF) return fpTown.apply(this, arguments);
+  const off0 = BF.HOUSE_OFF; BF.HOUSE_OFF = 1; let F0; try { F0 = fpTown.call(this, o); } finally { BF.HOUSE_OFF = off0; } // дома строятся на своём жребии — общий генератор тратится так же и без них
+  const keep = R.curRng();
+  let h = 2166136261; Object.keys(F0.cells).sort().slice(0, 400).forEach(k => { const s = k + F0.cells[k].t; for (let i = 0; i < s.length; i++) h = Math.imul(h ^ s.charCodeAt(i), 16777619); });
+  R.useRng(R.rng((h >>> 0) || 1)); let F;
+  try { F = fpTown.call(this, Object.assign({}, o, {w: BF.TOWN_W, h: BF.TOWN_H})); } finally { R.useRng(keep); }
+  return F;
+};
+
 G.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611241707"></script><script>
+</script><script src="world.js?v=202611241852"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50343,6 +50803,7 @@ function showJournal(tab) {
   main += `<div class="jcard"><b>Что известно по главной нити</b>${lead.length ? `<p class="jlead">${esc(lead[0].t)}</p>${lead.length > 1 ? `<ul class="jold">${lead.slice(1).map(j => `<li><span class="note">день ${j.day}</span> ${esc(j.t)}</li>`).join('')}</ul>` : ''}` : `<p class="note">Пока ничего. Расспросите людей в ${esc((camp.map.nodes[camp.map.start] || {}).name || 'селе')} — с этого начинается глава.</p>`}</div>`;
   if (C.stableText && C.stableText(g)) main += `<div class="jcard"><b>Кони в стойле</b><p class="note">${esc(C.stableText(g))}. Забрать — в конюшне того же места.</p></div>`;
   if (C.estateText && g.estate && g.estate.length) main += `<div class="jcard"><b>Хозяйство</b><p class="note">${esc(C.estateText(g)).replace(/\n/g, '<br>')}</p></div>`;
+  try { const he = C.heErrandsText ? C.heErrandsText(g) : []; if (he.length) main += `<div class="jcard"><b>Домашние поручения</b>${he.map(t => `<p class="note">${esc(t)}</p>`).join('')}</div>`; } catch (e) {} // home_errands.js
   // --- дела
   const ST = {open: 'в работе', done: 'сделано — идти за платой', late: 'срок вышел'};
   const jobCard = j => { const left = j.dl != null ? j.dl - g.day : null, site = j.site && j.status === 'open';
@@ -53524,7 +53985,7 @@ function drawPanel() {
         const grid = `<div class="sgrid">${all.filter(x => x.circle === cc).map(x => { const w = why(x), cst = spellCost(u.ref, x); return `<button class="sch ${bs && bs.id === x.id ? 'on' : ''} ${w ? 'off' : ''}" data-bsp="${x.id}" title="${esc(w || '')}">${sigil(x.school)}<span>${esc(x.name)}</span><i>${cst || '·'}</i></button>`; }).join('')}</div>`;
         return `<div class="grp">Книга заклинаний · Сила ${u.power}/${u.powerMax}</div><div class="sbook bb"><div class="stabs">${tabs}</div>${grid}${bs ? `<div class="spcard sm">${spellCard(u.ref, bs, true)}<div class="sc-b">${btn('b-cast', 'Сотворить', A || !okIds.has(bs.id), why(bs) || usedA, 'primary')}</div></div>` : '<div class="hint">Выбери заклинание — откроется, как оно работает.</div>'}</div>`; })() : `
       <div class="grp">Основное действие</div>
-      ${btn('b-melee', 'Ударить: ' + esc(u.attacks[0].name.replace(/\s*\(.*\)/, '')), A, tip(usedA, 'Ближний бой: нажми на врага — рядом или вдали, герой подойдёт сам' + (u.nAtt > 1 ? `; ударов за ход: ${u.nAtt}` : '')), mode !== 'shoot' && !(mode && mode.spell) && !tgtHint[mode] ? 'on' : '')}
+      ${btn('b-melee', 'Ударить: ' + (S && S.tlFist ? 'кулаком' : esc(u.attacks[0].name.replace(/\s*\(.*\)/, ''))), A, tip(usedA, 'Ближний бой: нажми на врага — рядом или вдали, герой подойдёт сам' + (u.nAtt > 1 ? `; ударов за ход: ${u.nAtt}` : '')), mode !== 'shoot' && !(mode && mode.spell) && !tgtHint[mode] ? 'on' : '')}
       ${u.ranged ? btn('b-shoot', 'Стрелять: ' + esc(u.ranged.name) + (u.ammoKind && u.ref ? ` (${C.ammoCount(u.ref, u.ammoKind)})` : ''), A, tip(usedA, 'Выстрел: нажми на врага' + (u.shots > 1 ? '; два выстрела за действие' : '')), mode === 'shoot' ? 'on' : '') : ''}
       ${sp.length || spellWhy ? btn('b-spells', sp.length ? `Чары (${sp.length})` : 'Чары', A || !sp.length, tip(spellWhy || usedA, 'Сотворить заклинание'), mode && (mode.spell || mode.book) || mode === 'spells' ? 'on' : '') : ''}
       ${pots.length || healN ? btn('b-pots', `Снадобья (${pots.length + (healN ? 1 : 0)})`, A && Bn, tip(A && Bn ? 'Действия на этот ход потрачены.' : '', 'Выпить (малое действие), дать соседу или швырнуть склянку (действие)'), mode === 'pots' || (mode && mode.pot) ? 'on' : '') : ''}

@@ -64351,6 +64351,8 @@ C.CR_LABOR = {
     day: ['Ещё день на корабле-тюрьме. Трюм качает, мешки на причале тяжелы.', 'Стряпчий спускается в трюм с росписью и вычёркивает чьё-то имя. Не ваше.'], gear: 1, buy: 1},
   sol: {title: 'Солеварни', bg: 'village', first: 'Стряпчий ставит вас к чанам на солеварнях лиги. Соль разъедает руки, пар ест глаза, а счёт закрывается только тогда, когда стряпчий вычеркнет строку.',
     day: ['Ещё день у чанов. Руки в соли и трещинах.', 'Мешки с солью грузят на телеги, и каждый мешок стряпчий отмечает в росписи. Ваш долг тает медленно.'], gear: 0, buy: 1},
+  pan: {title: 'Отработка', bg: 'village', first: 'Казнь отменили: у тёмных нашлись нужные люди, и приговор тихо переписали. Неделю отрабатывать {who}: от темна до темна, под присмотром, но с головой на плечах.',
+    day: ['Ещё день отработки {who}. Работа тяжёлая, кормят сносно.', 'Приказчик отмечает ваш день углём на доске. Скоро отпустят.'], gear: 1, buy: 0},
   obet: {title: 'Покаянный обет', bg: 'town', first: 'Брат Ока ведёт вас к храму. Обет прост: работать при храме, стоять на вечерней службе и не брать в рот хмельного, пока он не исполнен.',
     day: ['Ещё день при храме: таскаете камни для стены, вечером стоите на службе.', 'Сестра Ока приносит воду и молча смотрит, как вы моете храмовые ступени.'], gear: 0, buy: 1},
 };
@@ -64358,6 +64360,27 @@ C.CR_DEATH = {
   death: {nolgrim: 'На рассвете на торгу ставят виселицу. Народ стоит молча.', terak: 'На рассвете ярл садится на камень, а палач пробует пальцем лезвие топора.', imp: 'На рассвете легионеры выстраиваются у помоста, и глашатай читает приговор с таблички.',
     step: 'На рассвете, по слову хана, приговорённого выводят в степь, туда, где ждут нукеры.', ber: 'На рассвете на мачте у маяка закрепляют верёвку. Чайки кричат над гаванью.', par: 'На рассвете учителя молча выводят приговорённого к перевалу, где ждут горцы.',
     oko: 'На рассвете на площади складывают поленницу, а брат Ока читает приговор ровным голосом.', les: 'На рассвете ведуны уводят приговорённого к чужим деревьям.', pod: 'На рассвете — если под землёй бывает рассвет — хранительницы выводят приговорённого к свету.'},
+  // тёмные спасают от казни: «им такие головорезы нужны» (кроме проклятого)
+  dark: {nolgrim: 'Под утро в стене поруба скребётся заступ: тихие люди копали всю ночь. Из лаза высовывается чумазое лицо: «Вылезай. Нам такие головорезы нужны, а должок потом сочтём»',
+    terak: 'Ночью над ямой появляются изгои — те, кого тинг выгнал из уделов. Спускают верёвку: «Тинг хочет твою голову. Нам она нужнее. Будешь должен»',
+    oko: 'Перед рассветом в Башне дознания вспыхивает пожар — ложный, дымный, без огня. В дыму тебя выводит под руку человек из тихих людей: «Пусть дознаватели жгут пустую клеть. Ты теперь наш»',
+    imp: 'В мертвецкой легиона на твоё место кладут бродягу, умершего ночью от лихорадки, в твоей рубахе. Тюремщик прячет серебро и отворачивается: «Нам такие нужны, — шепчет тот, кто тебя выводит. — Долг отработаешь»',
+    step: 'Под утро степные конокрады пускают через стан угнанный табун. Пока нукеры ловят коней, тебе режут путы: «Хан тебя убить хотел, а нам ты живой нужен. Должен будешь»',
+    ber: 'Тюремщик лиги вдруг крепко засыпает над кружкой. Контрабандисты отпирают засов и ведут тебя к лодке под причалом: «Лиге счёт не сойдётся, а нам ты пригодишься. Отработаешь»',
+    par: 'Ночью переписчики-подделыватели открывают горницу ключом, которого у них быть не должно. «Совет учителей обойдётся без казни, — говорит один. — А ты нам послужишь»',
+    les: 'Ночью у ямы под корнями появляются лесные изгои с верёвкой: «Ведуны тебя к чужим деревьям отправят, а нам ты пригодишься. Долг за тобой»',
+    pod: 'В темноте каменного мешка кто-то отодвигает плиту: беглые из домов Жука и Нетопыря. «Наверх, тёплый. Нам такие нужны. Отработаешь»'},
+  // нет долга перед тёмными: казнь меняют на неделю отработки через их связи
+  soft: {nolgrim: ['у боярина', 'Ночью в темницу заходит не палач, а тиунов писец с новой грамотой. Тихие люди замолвили слово, где надо: казнь заменили неделей работ у боярина. «Цени, — шепчет писец. — Такое не всякому делают»'],
+    terak: ['у ярла', 'Утром ярл хмуро объявляет: за тебя поручились люди, которым он должен. Вместо топора — неделя работы на ярловом дворе.'],
+    oko: ['на храмовом подворье', 'Брат-дознаватель долго перечитывает новую грамоту и наконец откладывает перо: казнь заменена неделей работ на храмовом подворье. Кто-то в Палате оказался сговорчивым.'],
+    imp: ['на вилле Кассия', 'Легат подписывает помилование, не поднимая глаз: у тихих людей есть свои должники и в Палате. Неделя работ на вилле — и свободен.'],
+    step: ['у хана в табунах', 'На рассвете бий объявляет: хан дарит жизнь. Кто-то из степных конокрадов вовремя пригнал хану коней. Неделю будешь ходить за ханскими табунами.'],
+    ber: ['на складах лиги', 'Стряпчий переписывает роспись: «Казнь — дело дорогое, друг мой, а работник — выгодное». Неделя на складах лиги, и счёт закрыт.'],
+    par: ['при школе', 'Совет учителей, переговорив за закрытой дверью, заменяет приговор неделей работ при школе: кто-то принёс им редкую книгу.'],
+    les: ['у старейшины', 'Ведуны передумали: за тебя замолвили слово те, кого в лесу слушают. Неделю работать у старейшины.'],
+    pod: ['у дома Жука', 'Хранительницы меняют приговор: неделя работы у дома Жука, во тьме, но живым.']},
+  darkNo: 'Ночью у окошка шепчутся — и смолкают, узнав, за что ты здесь. «Мы режем и грабим, — говорит голос, — но детей не трогаем. Тебе мы не помощники». Шаги уходят.',
   koster: 'Площадь костров. Дознаватель читает приговор, братья Ока поют, и огонь занимается снизу, от сухого хвороста.',
   night: ['Ночь перед казнью. Узкое окно под потолком, шаги стражи за дверью. Где-то лает собака, и до рассвета остаётся всего несколько часов.', 'Последняя ночь. Солома пахнет сыростью, а за стеной кто-то из стражи насвистывает. Утро придёт, хочешь ты того или нет.'],
 };
@@ -64394,7 +64417,12 @@ C.CR = Object.assign({
   DECAY_IN: 0.2, DECAY_OUT: 0.4,  // сколько шума гаснет за день в своём краю и вдали
   BUSY: {town: [0.75, 0.35], village: [0.6, 0.3], road: [0.4, 0.15], wild: [0.15, 0.05]}, // [день, ночь]
   HUNT_P: 0.22, DISG_DAYS: 3, GATE_BASE: 10,
-  PAY: {house: 250, rob: 300, arson: 160, fake: 60, smuggle: 220, horse: 200, kidnap: 300, dress: 40},
+  // тёмные дела — в «обычных делах» (Q.pay, нелёгкое дело этого края на этот отряд): одно тёмное дело стоит как несколько обычных
+  PAY: {house: 8, rob: 10, arson: 6, fake: 3, smuggle: 8, horse: 7, kidnap: 12, dress: 40},
+  FAKE_BACK: 2.8,                                   // фальшивое серебро: сколько честного за порченое
+  CONTRACT: {easy: 10, mid: 14, hard: 18, dark: 1.4}, // заказы тихих людей (в обычных делах); из тёмного угла — именной, дороже
+  RISK: {house: 0.4, arson: 0.5, horse: 0.4, smuggle: 0.3, kidnap: 0.7, fake: 0.3, rob: 1, kill: 1}, // к свидетелю и улике
+  TRAP: 10, REVENGE: 0.35, FENCE: 0.55, FENCE_TAT: 0.7,
 }, C.CR || {});
 const K = () => C.CR;
 
@@ -64570,10 +64598,10 @@ C.crimeAdd = function (g, h, kind, ctx) {
   // видели?
   let seen = ctx.seen;
   if (ctx.caught) seen = true;
-  if (seen == null) { const dc = C.crimeSeenDC(g, ctx) + Math.floor(lvl(g) / 3), r = R.check(h, 'dex', 'Скрытность', dc), bonus = ['tat', 'dushegub'].includes(h.cls) ? 2 : 0;
+  if (seen == null) { const dc = C.crimeSeenDC(g, ctx) + Math.floor(lvl(g) / 3) + Math.round(4 * (ctx.risk || 0)), r = R.check(h, 'dex', 'Скрытность', dc), bonus = ['tat', 'dushegub'].includes(h.cls) ? 2 : 0;
     seen = !(r.roll === 20 || (r.roll !== 1 && r.total + bonus >= dc)); }
   rec.seen = seen ? 1 : 0; rec.pub = ctx.caught ? 1 : 0;
-  if (!seen) rec.ev = R.rand() < KD.ev * (['tat', 'dushegub'].includes(h.cls) ? 0.6 : 1) ? 1 : 0;
+  if (!seen) rec.ev = R.rand() < KD.ev * (1 + (ctx.risk || 0)) * (['tat', 'dushegub'].includes(h.cls) ? 0.6 : 1) ? 1 : 0;
   s.log.push(rec); if (s.log.length > 40) s.log.shift();
   if (seen && !ctx.caught && !ctx.noWit) { const w = makeWit(g, ctx); rec.wit = w; s.wit = {cr: rec.id, n: w.n, sex: w.sex, role: w.role, day: g.day, loc: g.loc, back: ctx.back || null}; rec.pend = 1; return rec; }
   if (seen || rec.ev) C.crimeReport(g, rec); else rec.secret = 1;
@@ -64587,7 +64615,8 @@ C.crimeReport = function (g, rec, mul) {
   const d = KD.heat * (rec.seen ? 1 : 0.5) * (rec.pub ? 0.6 : 1) * (sent.some(capital) ? 1.3 : 1) * (mul || 1);
   const all = C.crimeSigns(g, h.stats ? h : null);
   const signs = rec.seen ? all : all.filter(x => x.k === 'ppl' || x.k === 'gear').slice(0, 1);
-  addHeat(g, rec.reg, h, d, rec.k, signs, rec.seen);
+  const r0 = (S(g).w[rec.reg] || {})[h.id], h0 = r0 ? r0.h : 0;
+  addHeat(g, rec.reg, h, (['murder', 'murder_paid'].includes(rec.k) ? Math.max(d, K().STEP[1] - h0) : d), rec.k, signs, rec.seen);
   rec.rep = 1; delete rec.pend;
   // дело в суде края (w2_customs: суд при входе в сёла края; crime_law.js — по здешнему закону)
   try { g._crSelf = 1; const c = C.cusCrime(g, rec.k, rec.reg, rec.why || KD.n); if (c) { c.cr = rec.id; c.hid = rec.hid; c.val = rec.val; c.oko = rec.oko; c.sev = KD.sev; if (rec.node) c.node = rec.node; rec.cus = c.id; } } catch (e) {} finally { delete g._crSelf; }
@@ -64639,6 +64668,7 @@ const dayTick = g => {
   // запуганный свидетель иногда всё же говорит
   s.log.filter(x => x.hush === 'scare' && !x.rep && g.day - x.day <= 7).forEach(x => { if (hsh(x.id + g.day) % 100 < 15) { x.seen = 1; C.crimeReport(g, x, 0.6); x.talked = 1; } });
   Object.keys(s.disg).forEach(id => { if (s.disg[id] < g.day) delete s.disg[id]; });
+  if (s.debt && g.day > s.debt.due) debtBreak(g);
 };
 const ps0 = C.pass;
 C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments);
@@ -64765,6 +64795,26 @@ SC.cr_hunt_lost = g => ({title: 'Повязали', bg: 'road', lines: [['n', '�
 const nodeHere = g => (!g.pos && nodes()[g.loc]) || null;
 const thiefOf = (g, sk) => alive(g).slice().sort((a, b) => (R.mod(b.stats.dex) + R.skill(b, sk) + (b.cls === 'tat' ? 3 : 0)) - (R.mod(a.stats.dex) + R.skill(a, sk) + (a.cls === 'tat' ? 3 : 0)))[0] || null;
 const sneakOf = g => thiefOf(g, 'Скрытность');
+/* долг перед тёмными: их человек отрабатывает 2–3 дела без платы или одно особое; не отработал — мстят и сдают страже */
+C.CR.DEBT_DAYS = C.CR.DEBT_DAYS || 30;
+C.crimeDarkDebt = function (g, h, reg, soft) { const s = S(g); s.debt = {hid: h ? h.id : null, reg: reg || regOf(g), left: 2 + (hsh((h && h.id) + ':' + g.day) % 2), day: g.day, due: g.day + K().DEBT_DAYS};
+  if (soft) return s.debt;
+  const r = (s.w[s.debt.reg] || {})[h && h.id]; if (r && r.h < K().STEP[2] + 0.5) r.h = K().STEP[2] + 0.5; else if (h && !r) addHeat(g, s.debt.reg, h, K().STEP[2] + 0.5, 'flight', C.crimeSigns(g, h), true); return s.debt; };
+C.crimeDebt = g => (g && g.crime && g.crime.debt) || null;
+/* плата за дело: в долгу — уходит тёмным */
+const debtTake = (g, m) => { if (m) S(g).darkDone = (S(g).darkDone || 0) + 1; const D = S(g).debt; if (!D || !m) return m; D.left--; if (D.left <= 0) { S(g).debt = null; C.note(g, 'Последнее дело сделано, и плата снова ушла тёмным. Человек в углу кивает: «Квиты. Теперь ты сам по себе».'); }
+  else C.note(g, 'Плата за дело уходит тёмным: долг за спасение от казни ещё не отработан.'); return 0; };
+const debtClear = g => { S(g).debt = null; C.note(g, '«Особое дело сделано, — говорит человек в углу. — Долг твой списан. Живи».'); };
+const debtBreak = (g, why) => { const s = S(g), D = s.debt; if (!D) return; s.debt = null; s.rev = {jid: 'debt', reg: D.reg, day: g.day + 1, why: 'debt'}; const h = heroBy(g, D.hid);
+  if (h) { const W0 = s.w[D.reg] = s.w[D.reg] || {}; addHeat(g, D.reg, h, 3, 'flight', C.crimeSigns(g, h), true); }
+  C.note(g, why || 'Тёмные не дождались долга. Теперь их тати ищут вас на дорогах, а страже кто-то шепнул, где вы ночуете.'); };
+C.crimeDebtBreak = debtBreak;
+const stolenAdd = (g, id) => { const s = S(g); s.stolen = (s.stolen || []).concat(id).slice(-30); };
+/* краденое у отряда: то, что помнят украденным и что ещё лежит в сумах */
+C.crimeStolen = g => { const s = S(g), left = (s.stolen || []).slice(), out = [];
+  team0(g).forEach(h => (h.inv || []).forEach(id => { const i = left.indexOf(id); if (i >= 0 && !Object.values(h.eq || {}).includes(id)) { left.splice(i, 1); out.push({h, id}); } })); return out; };
+const team0 = g => alive(g).concat((g.mercs || []).filter(m => !m.dead));
+C.crimeFencePrice = (g, id) => { const x = R.item(id); return x && x.price ? r10(x.price * (alive(g).some(h => h.cls === 'tat') ? K().FENCE_TAT : K().FENCE)) : 0; };
 /* стянуть с прилавка */
 SC.cr_steal = g => {
   const s = S(g), n = nodeHere(g) || {name: ''}, h = thiefOf(g, 'Ловкость рук'), keys = (C.trdRoster ? C.trdRoster(g, g.loc) : []).map(r => C.trdKey(r, g.loc));
@@ -64780,7 +64830,7 @@ SC.cr_steal = g => {
         .replace(/\{h\}/g, hh.name).replace(/\{h:g\}/g, decl(hh.name, hh.sex).g).replace(/\{h:a\}/g, decl(hh.name, hh.sex).a).replace(/\{t\}/g, tn).replace(/\{i\}/g, it || 'кое-что'));
       if (r.ok) { const cap0 = 400 * lvl(g2), stock = (C.trdStock(g2, key) || []).filter(id => { const x = R.item(id); return x && x.price && x.price <= cap0 && !/^kon_|^vol|^telega|^sani|^vozok/.test(id); });
         const id = stock.length ? stock[Math.floor(R.rand() * stock.length)] : null; let it = 'горсть медяков';
-        if (id) { hh.inv.push(id); it = R.item(id).name.toLowerCase(); } else g2.purse += 10 * lvl(g2);
+        if (id) { hh.inv.push(id); it = R.item(id).name.toLowerCase(); stolenAdd(g2, id); } else g2.purse += 10 * lvl(g2);
         g2.crLast = fill(pickH(C.CR_TX.steal.ok, key + g2.day), it); C.note(g2, g2.crLast);
         const rec = C.crimeAdd(g2, hh, 'theft', {nrav: false, quiet: 1, val: id ? R.item(id).price : 10 * lvl(g2), why: `кража у торговца (${p.n})`, back: 'cr_steal'});
         if (rec && rec.pend) return 'cr_wit'; return 'cr_steal'; }
@@ -64799,7 +64849,7 @@ SC.cr_steal = g => {
 /* увести коня */
 const doHorse = g2 => { const h = sneakOf(g2); if (!h) return backTo(g2); const s2 = S(g2); s2.horseDay = s2.horseDay || {}; s2.horseDay[g2.loc] = g2.day;
   const r = chkH(g2, h, 'dex', 'Скрытность', 13 + Math.floor(lvl(g2) / 2)); C.pass(g2, 1);
-  if (r.ok) { h.inv.push('kon_ezdovoy'); const t = pickH(C.CR_TX.horse.ok, g2.day).replace('{h}', h.name); C.note(g2, t); g2.crLast = t;
+  if (r.ok) { h.inv.push('kon_ezdovoy'); stolenAdd(g2, 'kon_ezdovoy'); const t = pickH(C.CR_TX.horse.ok, g2.day).replace('{h}', h.name); C.note(g2, t); g2.crLast = t;
     const rec = C.crimeAdd(g2, h, 'horse', {seen: hsh(g2.loc + g2.day + 'hw') % 100 < 30 ? undefined : false, quiet: 1, nrav: false, val: 600, why: 'конь с коновязи', back: backTo(g2)}); return rec && rec.pend ? 'cr_wit' : backTo(g2); }
   const t = C.CR_TX.horse.caught[0]; C.note(g2, t); const rec = C.crimeAdd(g2, h, 'horse', {caught: true, nrav: false, why: 'пойман у коновязи'});
   if (rec && rec.cus) { const c = courtFor(g2, rec.reg, h.id); if (c) return 'cus_court'; } return backTo(g2); };
@@ -64874,6 +64924,7 @@ C.enter = function (g, id) {
 };
 const enc0 = C.encounter;
 C.encounter = function (g) {
+  try { if (isFree(g) && alive(g).length && !g.dungeon && !S(g).labor && !S(g).death && S(g).rev && g.day >= S(g).rev.day && (!C.w2roadOk || C.w2roadOk(g)) && R.rand() < K().REVENGE) { if (C.w2roadMark) C.w2roadMark(g); return {scene: 'cr_revenge'}; } } catch (e) {}
   try { if (isFree(g) && alive(g).length && !g.dungeon && !S(g).labor && !S(g).death) { const reg = regOf(g), w = C.crimeWanted(g, reg).filter(x => x.st >= 3 && !x.list)[0];
     if (w && (!C.w2roadOk || C.w2roadOk(g)) && R.rand() < K().HUNT_P) { if (C.w2roadMark) C.w2roadMark(g); const s = S(g), seed = 'h' + g.day + reg + w.h.id;
       const L = C.CR_LAW_OF[reg] || 'nolgrim', ppl = voicePpl(reg); let nm = {full: 'Ждан Кривой'}; try { nm = C.foeName(ppl, 'm', seed, {}); } catch (e) {}
@@ -64899,13 +64950,22 @@ C.crimeDeals = function (g) {
   return out;
 };
 const dealDone = (g, k) => { const D = S(g).dark[g.loc]; if (D) { D.done = D.done || []; D.done.push(k); } };
-const pay = (g, k) => r10(K().PAY[k] * lvl(g));
+const jobUnit = g => { try { return Q.pay(g, 'mid', 1); } catch (e) { return 500 + 400 * lvl(g); } };
+const pay = (g, k) => (k === 'dress' ? r10(K().PAY.dress * lvl(g)) : r10(K().PAY[k] * jobUnit(g)));
+C.crimeDealPay = pay; C.crimeJobUnit = jobUnit;
+/* подстава: заказчик изредка сам сдаёт исполнителя страже */
+const trapped = (g, k) => hsh(g.loc + ':' + g.day + ':' + k + ':' + (g.seed || '')) % 100 < K().TRAP;
+const trapFight = (g2, k, kind, why) => { const reg = regOf(g2), LL = C.LAWS && C.LAWS[reg]; S(g2).trap = {k, kind, reg, why, day: g2.day};
+  g2.crLast = null; C.note(g2, 'Заказчик сдал вас: на месте ждут не хозяева, а стража.');
+  return {battle: {title: 'Засада стражи', foes: C.fit(g2, (LL && LL.guards) || ['strazhnik', 'strazhnik', 'griden'], 1.2, 3), field: C.fieldFor('village', C.isNight(g2)), win: 'cr_trap_won', lose: 'cr_trap_lost', xpBonus: 15 * lvl(g2), place: 'Чужой двор'}}; };
 /* исход ночного дела: удача — плата и преступление (может, со свидетелем); провал — пойман и в суд */
 const nightJob = (g2, k, kind, st, sk, dcAdd, okT, badT, gain, ctx) => {
   const h = thiefOf(g2, sk); if (!h) return 'cr_dark'; dealDone(g2, k);
   if (!night(g2)) { while (!night(g2)) C.pass(g2, 1); }
+  ctx = Object.assign({risk: K().RISK[k] || 0}, ctx || {});
+  if (trapped(g2, k)) return trapFight(g2, k, kind, ctx.why);
   const r = chkH(g2, h, st, sk, 12 + Math.floor(lvl(g2) / 2) + (dcAdd || 0));
-  if (r.ok) { if (gain) g2.purse += gain; C.note(g2, okT.replace('{h}', h.name) + (gain ? ` Плата: ${price(gain)}.` : ''));
+  if (r.ok) { gain = debtTake(g2, gain); if (gain) g2.purse += gain; C.note(g2, okT.replace('{h}', h.name) + (gain ? ` Плата: ${price(gain)}.` : ''));
     g2.crLast = okT.replace('{h}', h.name); const rec = C.crimeAdd(g2, h, kind, Object.assign({quiet: 1, back: 'cr_dark', nrav: false}, ctx || {})); return rec && rec.pend ? 'cr_wit' : 'cr_dark'; }
   C.note(g2, badT.replace('{h}', h.name)); g2.crLast = badT.replace('{h}', h.name);
   const rec = C.crimeAdd(g2, h, kind, Object.assign({caught: true, nrav: false}, ctx || {}));
@@ -64914,23 +64974,24 @@ const DEAL_DO = {
   kill: g2 => { dealDone(g2, 'kill'); let j = null;
     try { j = Q.make(g2, 'town', {giver: 'folk_thief', kind: 'contract'}); } catch (e) { j = null; }
     if (!j) { g2.crLast = '«Передумал заказчик, — пожимает плечами человек в углу. — Бывает».'; return 'cr_dark'; }
-    j.pay = r10((j.pay || 400) * 1.4); j.dark = 1; j.dl = g2.day + 6; try { j.txt = Q.offerText(g2, j); } catch (e) {}
+    j.diff = 'hard'; j.pay = r10(jobUnit(g2) * K().CONTRACT.hard * K().CONTRACT.dark); j.dark = 1; if (S(g2).debt) { j.debtJob = S(g2).deal === 'special' || g2._crSpecial ? 2 : 1; j.pay = 0; } j.dl = g2.day + 6; if (trapped(g2, 'kill')) j.trap = 1; try { j.txt = Q.offerText(g2, j); } catch (e) {}
     Q.accept(g2, j); g2.crLast = `«${cap(j.v.vic.n)}, — шепчет человек и двигает к вам задаток. — Где искать, сказано. Остальное — когда будет сделано»`; return 'cr_dark'; },
   house: g2 => nightJob(g2, 'house', 'burglary', 'dex', 'Ловкость рук', 1, '{h} уходит в ночь по наводке и возвращается до первых петухов: сундук под лестницей был, а пёс оказался ленив.', 'Пёс не был ленив: лай, крик, мужики с кольями, и {h} попадается прямо у сундука.', pay(g2, 'house'), {val: pay(g2, 'house'), why: 'кража из дома по наводке'}),
   arson: g2 => nightJob(g2, 'arson', 'arson', 'dex', 'Скрытность', 0, 'Ночью над чужим амбаром встаёт зарево. {h} уже далеко, а люди, говорят, успели выбежать.', 'Огниво не успело высечь искру: сторож с колотушкой хватает {h} за ворот.', pay(g2, 'arson'), {why: 'поджог амбара'}),
   horse: g2 => nightJob(g2, 'horse', 'horse', 'dex', 'Скрытность', 1, 'Гнедой со звездой во лбу уходит за реку вместе с {h}. Покупатель отсчитывает серебро, не торгуясь.', 'Гнедой не дался: заржал, забил копытом, и табунщики сбежались с арканами.', pay(g2, 'horse'), {why: 'конь из табуна'}),
   kidnap: g2 => nightJob(g2, 'kidnap', 'kidnap', 'str', 'Атлетика', 2, 'Должника выносят из избы с мешком на голове. {h} сдаёт его заказчикам и старается не думать, что с ним будет.', 'Родня должника оказалась не робкого десятка: {h} еле вырывается, но лицо его все разглядели.', pay(g2, 'kidnap'), {why: 'похищение должника', loud: 1}),
-  smuggle: g2 => { const h = thiefOf(g2, 'Обман'); if (!h) return 'cr_dark'; dealDone(g2, 'smuggle'); const r = chkH(g2, h, 'cha', 'Обман', 12 + Math.floor(lvl(g2) / 2)); const m = pay(g2, 'smuggle');
-    if (r.ok) { g2.purse += m; g2.crLast = `${h.name} проносит тюк мимо пристава лиги, болтая о погоде. Плата: ${price(m)}.`; C.note(g2, g2.crLast); const rec = C.crimeAdd(g2, h, 'smuggle', {seen: false, nrav: false, why: 'тюк мимо таможни'}); return rec && rec.pend ? 'cr_wit' : 'cr_dark'; }
+  smuggle: g2 => { const h = thiefOf(g2, 'Обман'); if (!h) return 'cr_dark'; dealDone(g2, 'smuggle'); if (trapped(g2, 'smuggle')) return trapFight(g2, 'smuggle', 'smuggle', 'тюк мимо таможни'); const r = chkH(g2, h, 'cha', 'Обман', 12 + Math.floor(lvl(g2) / 2)); const m = pay(g2, 'smuggle');
+    if (r.ok) { const m0 = m; g2.purse += debtTake(g2, m); void m0; g2.crLast = `${h.name} проносит тюк мимо пристава лиги, болтая о погоде. Плата: ${price(m)}.`; C.note(g2, g2.crLast); const rec = C.crimeAdd(g2, h, 'smuggle', {place: 'town', risk: K().RISK.smuggle, nrav: false, why: 'тюк мимо таможни', back: 'cr_dark'}); return rec && rec.pend ? 'cr_wit' : 'cr_dark'; }
     g2.crLast = `Пристав взвешивает тюк и улыбается: «Друг мой, а это что?» Тюк уходит в казну лиги, а ${h.name} — к стряпчему.`; C.note(g2, g2.crLast);
     const rec = C.crimeAdd(g2, h, 'smuggle', {caught: true, nrav: false, why: 'тюк мимо таможни'}); if (rec && rec.cus) { const c = courtFor(g2, rec.reg, h.id); if (c) return 'cus_court'; } return 'cr_dark'; },
   fake: g2 => { const h = thiefOf(g2, 'Обман'); const cost = pay(g2, 'fake'); if (!h || (g2.purse || 0) < cost) return 'cr_dark'; dealDone(g2, 'fake'); spend(g2, cost); const r = chkH(g2, h, 'cha', 'Обман', 12 + Math.floor(lvl(g2) / 2));
-    if (r.ok) { const m = r10(cost * 2.4); g2.purse += m; g2.crLast = `${h.name} расплачивается порченым серебром в пяти лавках подряд. Выручка честным серебром: ${price(m)}.`; C.note(g2, g2.crLast); const rec = C.crimeAdd(g2, h, 'forgery', {quiet: 1, nrav: false, place: 'town', why: 'фальшивое серебро на торгу', back: 'cr_dark'}); return rec && rec.pend ? 'cr_wit' : 'cr_dark'; }
+    if (r.ok) { const m = r10(cost * K().FAKE_BACK); g2.purse += debtTake(g2, m) || cost; g2.crLast = `${h.name} расплачивается порченым серебром в пяти лавках подряд. Выручка честным серебром: ${price(m)}.`; C.note(g2, g2.crLast); const rec = C.crimeAdd(g2, h, 'forgery', {quiet: 1, risk: K().RISK.fake, nrav: false, place: 'town', why: 'фальшивое серебро на торгу', back: 'cr_dark'}); return rec && rec.pend ? 'cr_wit' : 'cr_dark'; }
     g2.crLast = `Меняла пробует монету на зуб и кричит стражу. ${h.name} пойман с мешочком порченого серебра.`; C.note(g2, g2.crLast);
     const rec = C.crimeAdd(g2, h, 'forgery', {caught: true, nrav: false, why: 'фальшивое серебро на торгу'}); if (rec && rec.cus) { const c = courtFor(g2, rec.reg, h.id); if (c) return 'cus_court'; } return 'cr_dark'; },
   rob: g2 => { dealDone(g2, 'rob'); S(g2).rob = {loc: g2.loc, reg: regOf(g2), day: g2.day};
-    const ids = ['naemnik', 'strazhnik', 'naemnik'].filter(id => C.beast(id));
-    return {battle: {title: 'Обоз купца', foes: C.fit(g2, ids, 0.8, 2), field: C.fieldFor('plains', C.isNight(g2)), win: 'cr_rob_won', lose: 'cr_rob_lost', xpBonus: 10 * lvl(g2)}}; },
+    if (trapped(g2, 'rob')) return trapFight(g2, 'rob', 'razboy', 'нападение на обоз');
+    const ids = ['naemnik', 'strazhnik', 'naemnik', 'naemnyy_ubiytsa'].filter(id => C.beast(id));
+    return {battle: {title: 'Обоз купца', foes: C.fit(g2, ids, 1.15, 3), field: C.fieldFor('plains', C.isNight(g2)), win: 'cr_rob_won', lose: 'cr_rob_lost', xpBonus: 10 * lvl(g2)}}; },
   dress: g2 => { const c = pay(g2, 'dress'); if ((g2.purse || 0) < c) return 'cr_dark'; spend(g2, c); dealDone(g2, 'dress'); const s2 = S(g2); alive(g2).forEach(h => { s2.disg[h.id] = g2.day + K().DISG_DAYS; });
     g2.crLast = 'Чужие свитки, шапки, сажа на брови. В зеркальце из лужи на вас смотрят незнакомые люди.'; C.note(g2, 'Отряд переоделся в чужое платье: несколько дней узнать будет трудно.'); return 'cr_dark'; },
 };
@@ -64942,6 +65003,15 @@ SC.cr_dark = g => {
   lines.push(['n', C.CR_TX.dark.news[st].replace('{s}', w ? C.crimeRumor(g, n.reg, w.h.id).s || 'путаные' : '')]);
   if (g.crLast) lines.push(['n', g.crLast]);
   const ch = [];
+  const Dd = S(g).debt;
+  if (Dd) { lines.push(['n', `«Ты наш человек, — напоминает человек в углу. — Пока не отработал, плата твоя — наша. ${Dd.left > 1 ? 'Ещё несколько дел' : 'Ещё одно дело'} — или одно особое, по нашему выбору. Тянуть не советую»`]);
+    ch.push({t: 'Взять особое дело: убрать того, на кого укажут', nrav: 'H', do: g2 => { g2._crSpecial = 1; try { S(g2).deal = 'special'; DEAL_DO.kill(g2); } finally { delete g2._crSpecial; S(g2).deal = null; } return 'cr_dark'; }});
+    ch.push({t: 'Отказаться от долга', nrav: 'L', do: g2 => { debtBreak(g2, 'Вы отказываетесь платить тёмным. Человек в углу молча встаёт и уходит. К утру о вашем ночлеге знает стража, а на дорогах ждут их тати.'); return 'cr_dark'; }}); }
+  const fence = C.crimeStolen(g);
+  if (fence.length) { const sum = fence.reduce((a, x) => a + C.crimeFencePrice(g, x.id), 0);
+    ch.push({t: `Сбыть краденое скупщику: ${price(sum)}`, do: g2 => { const xs = C.crimeStolen(g2); let m = 0; const s2 = S(g2);
+      xs.forEach(x => { m += C.crimeFencePrice(g2, x.id); const i = x.h.inv.indexOf(x.id); if (i >= 0) x.h.inv.splice(i, 1); const j = s2.stolen.indexOf(x.id); if (j >= 0) s2.stolen.splice(j, 1); });
+      g2.purse += m; g2.crLast = `Скупщик щупает товар, морщится для порядка и отсчитывает серебро: ${price(m)}. Где взяли — не спрашивает.`; C.note(g2, g2.crLast); return 'cr_dark'; }}); }
   C.crimeDeals(g).forEach(k => { const D = C.CR_TX.dark.deals[k]; if (!D) return;
     if (k === 'smuggle' && !['ber', 'as'].includes(regOf(g))) return;
     ch.push({t: D.t, do: g2 => { g2.crLast = null; S(g2).deal = k; return 'cr_deal'; }}); });
@@ -64968,14 +65038,28 @@ SC.cr_rob_won = g => {
   const s = S(g), X = s.rob || {}; const m = r10(pay(g, 'rob') * (0.8 + R.rand() * 0.6));
   return {title: 'Обоз', bg: 'road', lines: [['n', 'Охрана обоза лежит в пыли или убежала в поле. Купец сидит у колеса, белый как мел, и прижимает к груди пустые руки.'], ['n', `Под рогожей — серебро: ${price(m)}.`]],
     choices: [
-      {t: 'Забрать серебро, купца отпустить', nrav: 'm', do: g2 => { g2.purse += m; const h = alive(g2)[0]; C.note(g2, `Обоз купца ограблен: ${price(m)}. Купец ушёл живым — и всё, что видел, расскажет.`); S(g2).rob = null;
+      {t: 'Забрать серебро, купца отпустить', nrav: 'm', do: g2 => { g2.purse += debtTake(g2, m); const h = alive(g2)[0]; C.note(g2, `Обоз купца ограблен: ${price(m)}. Купец ушёл живым — и всё, что видел, расскажет.`); S(g2).rob = null;
         C.crimeAdd(g2, h, 'razboy', {seen: true, caught: true, reg: X.reg, val: m, nrav: false, why: 'ограблен обоз купца'}); return 'map'; }},
-      {t: 'Забрать серебро и припугнуть купца (Очарование, Запугивание)', nrav: 'h', do: g2 => { g2.purse += m; const r = chkB(g2, 'cha', 'Запугивание', 12 + Math.floor(lvl(g2) / 2)); const h = alive(g2)[0]; S(g2).rob = null;
+      {t: 'Забрать серебро и припугнуть купца (Очарование, Запугивание)', nrav: 'h', do: g2 => { g2.purse += debtTake(g2, m); const r = chkB(g2, 'cha', 'Запугивание', 12 + Math.floor(lvl(g2) / 2)); const h = alive(g2)[0]; S(g2).rob = null;
         C.note(g2, r.ok ? `Обоз ограблен: ${price(m)}. Купец клянется молчать — и, похоже, сдержит слово.` : `Обоз ограблен: ${price(m)}. Купец кивает, а глаза у него злые: расскажет.`);
         C.crimeAdd(g2, h, 'razboy', {seen: r.ok ? false : true, caught: !r.ok, reg: X.reg, val: m, nrav: false, why: 'ограблен обоз купца'}); return 'map'; }},
-      {t: 'Не оставлять свидетелей', nrav: 'H', do: g2 => { g2.purse += m; const h = alive(g2)[0]; S(g2).rob = null; C.note(g2, `Обоз ограблен: ${price(m)}. Свидетелей не осталось.`);
+      {t: 'Не оставлять свидетелей', nrav: 'H', do: g2 => { g2.purse += debtTake(g2, m); const h = alive(g2)[0]; S(g2).rob = null; C.note(g2, `Обоз ограблен: ${price(m)}. Свидетелей не осталось.`);
         C.crimeAdd(g2, h, 'razboy', {seen: false, reg: X.reg, val: m, nrav: false, why: 'ограблен обоз купца'}); C.crimeAdd(g2, h, 'murder', {seen: false, reg: X.reg, nrav: false, why: 'зарезан купец'}); return 'map'; }}]};
 };
+SC.cr_trap_won = g => ({title: 'Прорвались', bg: 'village', lines: [['n', 'Стража лежит у плетня или разбежалась по дворам. Отряд уходит задворками, но лица ваши видели, и заказчик теперь знает, что вы живы.']],
+  choices: [{t: 'Уходить', do: g2 => { const X = S(g2).trap || {}; S(g2).trap = null; const h = sneakOf(g2) || alive(g2)[0]; if (h) C.crimeAdd(g2, h, X.kind || 'theft', {reg: X.reg, seen: true, caught: true, noWit: true, nrav: false, why: X.why || 'подстава'}); return backTo(g2); }}]});
+SC.cr_trap_lost = g => ({title: 'Подстава', bg: 'village', lines: [['n', 'Вас вяжут и ведут к судьям. Заказчик, говорят, получил от стражи награду за наводку — а вы получите своё.']],
+  choices: [{t: 'Дальше', do: g2 => { const X = S(g2).trap || {}; S(g2).trap = null; alive(g2).forEach(h => { h.hp = Math.max(1, h.hp); }); const h = sneakOf(g2) || alive(g2)[0]; if (!h) return 'map';
+    const rec = C.crimeAdd(g2, h, X.kind || 'theft', {reg: X.reg, caught: true, noWit: true, nrav: false, why: X.why || 'подстава'}); const c = rec && rec.cus ? courtFor(g2, rec.reg, h.id) : null; return c ? 'cus_court' : 'map'; }}]});
+const REV_T = {spare: 'Вы отпустили того, кого вам заказали. Заказчик такого не прощает.', betray: 'Вы сдали заказчиков Оку. Тихие люди помнят имена.', late: 'Вы взяли задаток и не сделали дела. Заказчик решил взять своё иначе.'};
+SC.cr_revenge = g => { const X = S(g).rev || {}, back = r10(jobUnit(g) * 4);
+  return {title: 'Тати заказчика', bg: 'road', lines: [['n', 'На дороге вас ждут: четверо, лица замотаны, ножи наголо. Старший говорит тихо, будто про погоду: «От тех, кому вы задолжали».'], ['n', REV_T[X.why] || REV_T.late]],
+    choices: [{t: `Откупиться: вернуть задаток вдвое — ${price(back)}`, if: g2 => (g2.purse || 0) >= back, off: 'не хватает серебра', do: g2 => { spend(g2, back); S(g2).rev = null; C.note(g2, 'Тати заказчика берут серебро и уходят. Счёт закрыт — на этот раз.'); return 'map'; }},
+      {t: 'К оружию!', do: g2 => { const ids = ['naemnyy_ubiytsa', 'naemnik', 'razboynik', 'naemnyy_ubiytsa'].filter(id => C.beast(id));
+        return {battle: {title: 'Тати заказчика', foes: C.fit(g2, ids, 1.2, 3), field: C.fieldFor(C.isNight(g2) ? 'forest' : 'plains', C.isNight(g2)), ambush: 'foe', win: 'cr_rev_won', lose: 'cr_rev_lost', xpBonus: 15 * lvl(g2)}}; }}]}; };
+SC.cr_rev_won = g => ({title: 'Отбились', bg: 'road', lines: [['n', 'Тати заказчика лежат в пыли. Других он, может, и пришлёт, но не скоро: такие люди тоже стоят денег.']], choices: [{t: 'Дальше', do: g2 => { S(g2).rev = null; return 'map'; }}]});
+SC.cr_rev_lost = g => ({title: 'Обобрали', bg: 'road', lines: [['n', 'Очнулись в канаве. Кошель срезан, тати ушли. Заказчик своё взял — и, похоже, на этом успокоится.']],
+  choices: [{t: 'Дальше', do: g2 => { S(g2).rev = null; spend(g2, (g2.purse || 0) * 0.6); alive(g2).forEach(h => { h.hp = Math.max(1, h.hp); }); return 'map'; }}]});
 SC.cr_rob_lost = g => ({title: 'Обоз ушёл', bg: 'road', lines: [['n', 'Охрана отбилась, и обоз ушёл, громыхая, к ближнему селу. Купец разглядел ваши лица и непременно их опишет.']],
   choices: [{t: 'Дальше', do: g2 => { const X = S(g2).rob || {}; S(g2).rob = null; alive(g2).forEach(h => { h.hp = Math.max(1, h.hp); }); const h = alive(g2)[0]; if (h) C.crimeAdd(g2, h, 'razboy', {seen: true, caught: true, reg: X.reg, nrav: false, why: 'нападение на обоз'}); return 'map'; }}]});
 
@@ -65006,10 +65090,25 @@ if (C.meetDo) { const md0 = C.meetDo; C.meetDo = function (g, spec, k) { const p
       else if (k === 'strike' && r && r.battle) C.crimeAdd(g, h, 'razboy', {place: 'road', noWit: true, why: 'нападение на мирных путников'}); } } } catch (e) {}
   return r; }; }
 /* заказ тихих людей (folk.js): исполненное — убийство по найму */
-if (Q.finish) { const qf0 = Q.finish; Q.finish = function (g, j) { const r = qf0.apply(this, arguments);
+/* заказы тихих людей: плата — как за несколько обычных дел (было дешевле одного) */
+if (Q.make) { const qm0 = Q.make; Q.make = function (g, src, opt) { const j = qm0.apply(this, arguments);
+  try { if (isFree(g) && j && j.kind === 'contract' && !j.crPay) { j.crPay = 1; j.payOld = j.pay; const u = jobUnit(g); j.pay = r10(u * (K().CONTRACT[j.diff] || K().CONTRACT.mid)); try { j.txt = Q.offerText(g, j); } catch (e) {} } } catch (e) {}
+  return j; }; }
+if (Q.finish) { const qf0 = Q.finish; Q.finish = function (g, j) {
+  // отпустил или сдал цель — за это платит не заказчик, и столько не дают
+  try { if (isFree(g) && j && j.kind === 'contract' && j.choice && j.choice !== 'kill' && j.payOld) j.pay = j.payOld; } catch (e) {}
+  const r = qf0.apply(this, arguments);
   try { if (isFree(g) && j && j.kind === 'contract' && j.choice === 'kill' && !j.crDone) { j.crDone = 1; const h = sneakOf(g) || alive(g)[0];
-    C.crimeAdd(g, h, 'murder_paid', {place: 'village', loud: j.fightFor === 'final' ? 1 : 0, quiet: j.fightFor === 'final' ? 0 : 1, noWit: true, nrav: false, why: `убит ${j.v && j.v.vic ? j.v.vic.n : 'человек'} по заказу`});
-    h.crMark = (h.crMark || 0) + 1; } } catch (e) {}
+    if (j.trap) C.note(g, 'Не успели отойти от тела, как за углом зашумели: заказчик сам навёл стражу. Вас видели — и запомнили.');
+    C.crimeAdd(g, h, 'murder_paid', {place: 'village', risk: K().RISK.kill, loud: j.fightFor === 'final' || j.trap ? 1 : 0, quiet: j.fightFor === 'final' ? 0 : 1, seen: j.trap ? true : undefined, caught: j.trap ? true : undefined, noWit: true, nrav: false, why: `убит ${j.v && j.v.vic ? j.v.vic.n : 'человек'} по заказу`});
+    h.crMark = (h.crMark || 0) + 1;
+    if (j.debtJob === 2) debtClear(g); else if (j.debtJob === 1 && S(g).debt) debtTake(g, 1); else if (j.dark) S(g).darkDone = (S(g).darkDone || 0) + 1; }
+    if (isFree(g) && j && j.kind === 'contract' && ['spare', 'betray'].includes(j.choice)) revengeSet(g, j); } catch (e) {}
+  return r; }; }
+/* провал заказа: заказчик мстит — на дорогах ждут его тати */
+const revengeSet = (g, j) => { const s = S(g); if (s.rev && s.rev.jid === j.id) return; s.rev = {jid: j.id, reg: regOf(g), day: g.day + 1, why: j.choice === 'betray' ? 'betray' : j.choice === 'spare' ? 'spare' : 'late', n: (j.v && j.v.giver && j.v.giver.n) || ''}; };
+if (Q.tick) { const qt0 = Q.tick; Q.tick = function (g) { const open = (g && g.jobs || []).filter(j => j.status === 'open' && j.kind === 'contract').map(j => j.id); const r = qt0.apply(this, arguments);
+  try { if (isFree(g)) (g.jobs || []).filter(j => j.kind === 'contract' && j.status === 'late' && open.includes(j.id)).forEach(j => revengeSet(g, j)); } catch (e) {}
   return r; }; }
 /* охота в княжьих и имперских лесах — браконьерство */
 const POACH = ['as', 'imp'];
@@ -65129,7 +65228,7 @@ const brandHero = (g, h, k, reg) => { if (!h) return; h.crBrand = {k, reg, day: 
 const PAR_SCHOOL = ['par_shkola', 'par_bashnya', 'par_knizhnya'];
 const laborDays = (g, c, k) => { const sev = (C.CR_KINDS[c.k] || {}).sev || 1;
   if (k === 'holop') return Math.max(3, Math.min(12, Math.ceil(C.crVira(g, c) / (25 * lvl(g)))));
-  return ({jail: [3, 5, 8], kamen: [5, 8, 12], galery: [8, 10, 14], korabl: [5, 7, 10], sol: [4, 6, 8], obet: [3, 4, 5]})[k][Math.min(2, sev - 1)]; };
+  return ({jail: [3, 5, 8], kamen: [5, 8, 12], galery: [8, 10, 14], korabl: [5, 7, 10], sol: [4, 6, 8], obet: [3, 4, 5], pan: [7, 7, 7]})[k][Math.min(2, sev - 1)]; };
 /* каторга: забрать снаряжение у того, кто отбывает (вернут, когда отпустят) */
 const startLabor = (g, c, k) => { const h = heroBy(g, c.hid) || alive(g)[0]; const T = C.CR_LABOR[k]; if (!h || !T) return settle(g, c, 'jail');
   const L = {k, hid: h.id, reg: c.reg, cid: c.id, days: laborDays(g, c, k), d: 1, hard: 0, loot: null, at: g.loc};
@@ -65226,7 +65325,7 @@ SC.cr_labor = g => {
   const s = S(g), L = s.labor, h = L && heroBy(g, L.hid), T = L && C.CR_LABOR[L.k];
   if (!L || !T) return {title: 'Воля', bg: 'village', lines: [['n', 'Срок вышел.']], choices: [{t: 'Дальше', do: g2 => { S(g2).labor = null; return backTo(g2); }}]};
   if (!h) return {title: T.title, bg: T.bg, lines: [['n', 'Того, кто отбывал, среди вас больше нет.']], choices: [{t: 'Дальше', do: g2 => { S(g2).labor = null; return backTo(g2); }}]};
-  const lines = [['n', L.d <= 1 ? T.first : pickH(T.day, L.k + L.d)]];
+  const lines = [['n', (L.d <= 1 ? T.first : pickH(T.day, L.k + L.d)).replace(/\{who\}/g, L.who || 'у хозяина')]];
   L.seen = 1;
   if (alive(g).length > 1 || (g.mercs || []).length) lines.push(['n', `${h.name} отбывает, остальные ждут поблизости и носят ${sx(h, 'ему', 'ей')} хлеб.`]);
   lines.push(['n', L.d >= L.days ? 'Завтра последний день.' : L.days - L.d <= 2 ? 'Осталось совсем немного.' : 'Впереди ещё не один день.']);
@@ -65236,7 +65335,7 @@ SC.cr_labor = g => {
   const ch = [];
   ch.push({t: 'Работать и ждать (прошли сутки)', do: g2 => { const X = S(g2).labor; C.pass(g2, 4); X.d++; delete X.last; const hh = heroBy(g2, X.hid); if (hh) hh.hp = Math.max(1, hh.hp - (X.k === 'obet' ? 0 : 1));
     if (X.d > X.days) return free(g2, `${hh ? hh.name : 'Виновный'} ${sx(hh, 'отбыл', 'отбыла')} своё: ${T.title.toLowerCase()} позади. Дело закрыто, и ворота открываются.`); return 'cr_labor'; }});
-  if (L.tried !== L.d && L.k !== 'obet') ch.push(Object.assign({t: lbl(L.k === 'galery' ? 'Бежать на стоянке у берега' : 'Бежать', 'dex', 'Скрытность'), nrav: 'l', do: g2 => { const X = S(g2).labor, hh = heroBy(g2, X.hid); X.tried = X.d; C.passH(g2, 3);
+  if (L.tried !== L.d && L.k !== 'obet' && L.k !== 'pan') ch.push(Object.assign({t: lbl(L.k === 'galery' ? 'Бежать на стоянке у берега' : 'Бежать', 'dex', 'Скрытность'), nrav: 'l', do: g2 => { const X = S(g2).labor, hh = heroBy(g2, X.hid); X.tried = X.d; C.passH(g2, 3);
     const r = chkH(g2, hh, 'dex', 'Скрытность', 13 + Math.floor(lvl(g2) / 2) + (X.hard || 0) * 2 + (X.k === 'galery' ? 3 : 0));
     if (r.ok) { const c = ((g2.w2cus || {}).crimes || []).find(y => y.id === X.cid); S(g2).labor = null; if (c) { c.fled = (c.fled || 0) + 1; c.day = g2.day; }
       C.crimeAdd(g2, hh, 'flight', {reg: X.reg, seen: true, caught: true, noWit: true, nrav: false, why: 'бежал с каторги'});
@@ -65244,7 +65343,7 @@ SC.cr_labor = g => {
     X.hard = (X.hard || 0) + 1; X.last = 'Поймали: били, посадили на цепь короче. Завтра будет труднее.'; if (hh) hh.hp = Math.max(1, hh.hp - 2); return 'cr_labor'; }}, g.net ? {own: h.id} : {}));
   if (T.buy) ch.push({t: `Откупиться от остатка срока: ${price(buy)}`, if: g2 => (g2.purse || 0) >= buy, off: 'не хватает серебра', do: g2 => { spend(g2, buy); return free(g2, `Серебро решает то, что не решил труд: остаток срока выкуплен, и ${h.name} ${sx(h, 'свободен', 'свободна')}.`); }});
   const art = ({jail: 'dungeon_cell', kamen: 'quarry_labour'})[L.k] || null;
-  return {title: `${T.title} · день ${L.d}`, bg: art || T.bg, art, lines, choices: ch};
+  return {title: `${L.k === 'pan' ? 'Отработка ' + (L.who || '') : T.title} · день ${L.d}`, bg: art || T.bg, art, lines, choices: ch};
 };
 
 /* ---------- ночь перед казнью ---------- */
@@ -65255,10 +65354,23 @@ SC.cr_death = g => {
   if (!D || !h) return {title: 'Рассвет', bg: 'village', lines: [['n', 'Помост пуст: казнить некого.']], choices: [{t: 'Дальше', do: g2 => { S(g2).death = null; return backTo(g2); }}]};
   const T = D.tried = D.tried || {}, lv = lvl(g), lines = [['n', pickH(C.CR_DEATH.night, D.hid + D.day)], ['n', `${h.name} ${sx(h, 'ждёт', 'ждёт')} рассвета в темнице${D.k === 'koster' ? ', а на площади уже складывают хворост' : ''}.`]];
   if (D.final) lines.push(['n', 'Стражи вдвое больше обычного, и ни один не берёт серебра. За таким не придут заступники.']);
+  if (D.final) lines.push(['n', C.CR_DEATH.darkNo]);
+  else lines.push(['n', C.CR_DEATH.dark[D.law] || C.CR_DEATH.dark.nolgrim]);
   if (T.word) lines.push(['n', 'Весть ушла. Успеют ли — знает только рассвет.']);
   if (g.crLast) lines.push(['n', g.crLast]);
   const ch = [], others = team(g).filter(x => x.id !== h.id);
   if (!D.final) {
+    const owes = !!C.crimeDebt(g);
+    if (owes) ch.push(Object.assign({t: 'Уйти с тёмными: жизнь в долг', do: g2 => { const X = S(g2).death, hh = heroBy(g2, X.hid); S(g2).death = null; g2.crLast = null;
+      const c = ((g2.w2cus || {}).crimes || []).find(y => y.id === X.cid); if (c) { c.fled = (c.fled || 0) + 1; c.day = g2.day; }
+      const cs = g2.w2cus || (g2.w2cus = {}); cs.exile = cs.exile || {}; cs.exile[X.reg] = g2.day + 30; const old = C.crimeDebt(g2);
+      if (hh) { C.crimeAdd(g2, hh, 'flight', {reg: X.reg, seen: true, caught: true, noWit: true, nrav: false, why: 'казнь сорвана'}); const d = C.crimeDarkDebt(g2, hh, X.reg); if (old) d.left += Math.max(0, old.left || 0); }
+      C.note(g2, `${hh ? hh.name : 'Приговорённый'} уходит с тёмными. Казнь сорвалась, и ${regName(X.reg)} это знает: за голову беглого обещана награда. А долг перед тёмными только вырос.`); return 'map'; }}, g.net ? {own: h.id} : {}));
+    else ch.push(Object.assign({t: 'Принять помощь тёмных: казнь заменят отработкой', do: g2 => { const X = S(g2).death, hh = heroBy(g2, X.hid), c = ((g2.w2cus || {}).crimes || []).find(y => y.id === X.cid); S(g2).death = null; g2.crLast = null;
+      const SO = C.CR_DEATH.soft[X.law] || C.CR_DEATH.soft.nolgrim; C.note(g2, SO[1]);
+      const own = (S(g2).darkDone || 0) >= 3; if (hh && !own) { const d = C.crimeDarkDebt(g2, hh, X.reg, true); d.left = 1; }
+      if (own) C.note(g2, '«Ты свой, — передают тебе тёмные. — За своих мы платим сами».');
+      if (!c || !hh) return backTo(g2); const r = startLabor(g2, c, 'pan'); const L = S(g2).labor; if (L) { L.days = 7; L.who = SO[0]; L.soft = 1; } return r; }}, g.net ? {own: h.id} : {}));
     if (!T.run) ch.push(Object.assign({t: lbl(`${h.name}: бежать этой ночью`, 'dex', 'Скрытность'), nrav: 'l', do: g2 => { const X = S(g2).death, hh = heroBy(g2, X.hid); X.tried.run = 1;
       const r = chkH(g2, hh, 'dex', 'Скрытность', 15 + Math.floor(lvl(g2) / 2));
       if (r.ok) { S(g2).death = null; g2.crLast = null; const c = ((g2.w2cus || {}).crimes || []).find(y => y.id === X.cid); if (c) { c.fled = (c.fled || 0) + 1; c.day = g2.day; }
@@ -66398,6 +66510,2629 @@ C.sceneOf = function (g, id) {
   } catch (e) {}
   return sc;
 };
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* town_life_data.js */
+/* Колдовство — жизнь сёл и городов: тексты событий (town_life.js). Без DOM.
+   Подстановки: {N} — имя встречного, {H} — герой, что говорит за отряд ({H:g} {H:d} {H:a} {H:i} {H:p} — падежи),
+   {P} — цена, {X} — особое слово события. [м|ж] — по полу встречного, <м|ж> — по полу героя.
+   Речь по народам: nol — нолгримцы (просто, по-народному), ter — теракцы (коротко и жёстко), imp — Империя и Око (книжно),
+   step — степняки; oko — братья и сёстры Ока; volhv — волхвы и ведуньи. Чего нет — берётся nol. */
+(function (G) {
+'use strict';
+const C = G.C; if (!C) return;
+
+C.TL_TX = {
+  /* подписи окна */
+  head: {korchma: 'В корчме', ulica: 'На улице', torg: 'На торгу', noch: 'Ночью на улице', hram: 'У храма Ока', kap: 'У капища', vorota: 'У ворот'},
+  bg: {korchma: 'tavern', ulica: 'village', torg: 'market', noch: 'village', hram: 'church', kap: 'shrine', vorota: 'town'},
+  stay: ['Не встревать', 'Не встревать', 'Не встревать'],
+  back: 'Дальше',
+  netLead: 'Отвечает вожатый.',
+  /* общий зачин рассказчика по месту и часу */
+  set: {
+    korchma: {утро: ['В корчме с утра тихо: хозяин метёт пол, пахнет вчерашним пивом и свежим хлебом.'], день: ['В корчме людно: стучат кружки, у стойки торгуются за ночлег.'],
+      вечер: ['К вечеру корчма полна: дым под потолком, гусли в углу, гомон такой, что своего слова не слышно.'], ночь: ['В корчме догорают лучины, за столами остались самые стойкие.']},
+    ulica: {утро: ['По улице гонят скотину, у колодца бабы с вёдрами.'], день: ['На улице суета: возы, собаки, ребятня под ногами.'], вечер: ['Улица затихает, в окнах загораются огоньки.'], ночь: ['Улица пуста.']},
+    torg: {утро: ['Торг только раскладывается: стучат молотки, ставят прилавки.'], день: ['Торг шумит: зазывалы перекрикивают друг друга, пахнет рыбой, дёгтем и пряниками.'], вечер: ['Торг сворачивается, купцы считают выручку.'], ночь: ['Торг пуст, только сторож бродит меж прилавков.']},
+    noch: {ночь: ['Ночь тёмная, хоть глаз выколи. Где-то брешет пёс, под ногами чавкает грязь.', 'Над крышами стоит луна, и от неё по переулкам лежат длинные чёрные тени.']},
+    hram: {утро: ['У храма Ока бьёт храмовое било, сходятся люди к утренней службе.'], день: ['На ступенях храма Ока сидят нищие, над входом блестит восьмилучевая звезда.'], вечер: ['У храма Ока зажигают лампады, братья в облачениях проходят молча.'], ночь: ['Храм Ока стоит тёмный, только в узком окне теплится огонь.']},
+    kap: {утро: ['У капища курится дымок: кто-то с рассветом принёс дар.'], день: ['На капище тихо, деревянные лики богов глядят поверх голов.'], вечер: ['У жертвенника горит огонь, и тени от столбов пляшут по траве.'], ночь: ['Капище в темноте кажется больше, чем днём.']},
+    wx: {wet: 'С крыш льёт, люди жмутся под навесы.', cold: 'Мороз щиплет щёки, у всех пар изо рта.', fog: 'Туман такой, что лиц не разглядеть за три шага.', heat: 'Жара: собаки лежат в тени, мухи гудят над корытами.'},
+    fest: 'Нынче праздник, и народ навеселе.',
+    war: 'Люди говорят вполголоса и косятся на чужих: война рядом.',
+  },
+  /* ответы героя, общие */
+  hero: {
+    stay: ['Не наше дело.', 'Пусть сами разбираются.', 'Пройдём мимо.'],
+    dip: ['Будет вам, люди добрые. Не стоит оно того.', 'Остыньте. Поговорим, как люди.'],
+    scare: ['А ну тихо, пока я сам<|а> не взял<|а>сь!', 'Ещё слово — и пожалеешь.'],
+    lie: ['Ошибся ты, приятель. Не те мы, кого ищешь.', 'Мы люди торговые, проездом. Какой с нас спрос?'],
+    pay: ['Держи. И забудем.', 'Вот серебро. Разойдёмся по-хорошему.'],
+  },
+
+  ev: {
+    /* =============================== КОРЧМА =============================== */
+    draka: {
+      zach: ['За соседним столом двое вскакивают, опрокидывая лавку. Летят кружки, кто-то уже держит соседа за ворот.', 'У стойки сцепились двое: один кричит, что его обсчитали, другой — что тот сам пьян. Корчма гудит и подбадривает.'],
+      o: {nol: ['Ах ты, пёс шелудивый! Я тебе сейчас все зубы пересчитаю!', 'Держите меня, люди, я его порешу! Мою долю пропил, ирод!'],
+        ter: ['Ты назвал меня вором. Встань и повтори.', 'Сядь, пока цел. Это мой стол.'],
+        imp: ['Ты оскорбил мой дом, мужлан! Требую извинений немедля!', 'Руки прочь, грязный варвар!'], step: ['Ай, собака! Мой конь лучше твоего в сто раз, я сказал!']},
+      dipOk: ['Драчуны пыхтят, переглядываются — и садятся. Корчмарь ставит им по кружке за счёт заведения и благодарно кивает вам.', 'Слово за слово — и они уже хлопают друг друга по плечу. Корчма смеётся, а на вас смотрят с уважением.'],
+      dipNo: ['Не слушают: «А ты кто так<ой|ая>?» — и один уже идёт на вас.', 'Слова тонут в гаме, а тяжёлый кулак свистит у самого уха.'],
+      scareOk: ['Оба застывают и опускают руки. Ворча, расходятся по углам.'],
+      strOk: ['{H} хватает обоих за шиворот и разводит, как котят. Корчма хохочет и стучит кружками.'],
+      strNo: ['Растащить не вышло: теперь оба лезут на {H:a}.'],
+      bet: ['Ставлю на того, что покрепче!', 'Плачу за рыжего — у него рука тяжёлая.'],
+      betOk: ['Угадали: ваш боец валит соседа, и вам отсчитывают выигрыш — {P}.'],
+      betNo: ['Ваш боец лежит под лавкой. Ставка — {P} — уходит чужому кошелю.'],
+      fight: ['Ну, держись! — и вы уже в гуще драки.'],
+      fightWin: ['Последний буян садится на пол и трясёт головой. Корчмарь, ворча, собирает черепки — но вас поят даром.', 'Драка кончилась так же быстро, как началась. Битые расползаются по лавкам, а корчма поднимает за вас кружки.'],
+      fightLose: ['Вы приходите в себя на полу. Кто-то льёт на лицо холодную воду. Над вами смеются — беззлобно: в корчме и не такое видали.'],
+    },
+    zadira: {
+      zach: ['К столу подходит здоровенный детина с перебитым носом и ставит кулак на столешницу перед {H:i}.', 'Из-за дальнего стола встаёт крепкий парень, засучивает рукава и улыбается во весь щербатый рот.'],
+      o: {nol: ['Слыхал я, вы народ ратный. А ну, кто на кулачки со мной? Без обиды, по-честному.', 'Чего глядишь? Давай на кулачках сойдёмся — кто кого. Скучно тут без драки.'],
+        ter: ['Ты с мечом, я без. Выйдем на кулаках. Посмотрим, чего стоишь.', 'У нас так знакомятся. Кулак на кулак.'],
+        imp: ['Говорят, северяне хвалятся силой. Проверим, чего стоят слова, в честном бою без железа.'], step: ['Эй, батыр! Поборемся? Кто упадёт — тот поит всех.']},
+      grime: 'А ещё от вас несёт, будто из хлева. Вот и проветрю.',
+      sayYes: ['Давай. Только не реви потом.', 'Ну пошли, коли охота.'],
+      sayMoney: ['На кулачки — так на серебро. Ставка — {P}.'],
+      sayNo: ['Не сегодня, друже. Выпей лучше за моё здоровье.', 'Охота кулаки чесать — чеши о печку.'],
+      noOk: ['Детина гогочет: «А ты язык<ат|ата>!» — и уходит, довольный.'],
+      noNo: ['«Трус<|иха>!» — плюёт задира под ноги. За соседними столами ухмыляются.'],
+      fightWin: ['Задира лежит, раскинув руки, и смеётся разбитыми губами: «Вот это кулак! Уважил!» Корчма гудит.', 'Детина сидит на полу и мотает головой. Потом протягивает руку: «Добрый бой. Без обиды».'],
+      fightLose: ['Задира помогает вам подняться: «Ну, бывает. В другой раз». Над вами смеются, но без зла.'],
+      winMoney: 'Ставка ваша: {P}.',
+      loseMoney: 'Ставка — {P} — уходит задире.',
+    },
+    podsel: {
+      zach: ['К вашему столу без спросу подсаживается человек, ставит кружку и наклоняется поближе.', 'Рядом на лавку опускается незнакомец. Оглядывается и заговаривает вполголоса.'],
+      slukh: {nol: ['Вы, гляжу, люди бывалые. Скажу вам кое-что, а вы уж решайте. Недалече отсюда место нехорошее…', 'Налей-ка — расскажу, чего видал. Не пожалеешь.'],
+        ter: ['Слушай. Я видел место. Там есть чем поживиться, если не трус.'], imp: ['Позвольте сообщить вам сведения, которые могут оказаться полезными.']},
+      prosba: {nol: ['Помогите, люди добрые. Беда у меня, а к старосте идти — засмеют.', 'Вы ведь за плату работаете? Есть дело. Платить буду честно.'],
+        ter: ['Мне нужны мечи. Плачу серебром.'], imp: ['У меня к вам деловое предложение, вполне честное.']},
+      sdelka: {nol: ['Купец я, обоз завтра. Постойте ночку у телег — заплачу.', 'Мне бы людей с оружием до утра у амбара постоять. Не обижу.'],
+        ter: ['Постойте у моих товаров до утра. Плачу.'], imp: ['Мне требуется охрана склада на эту ночь. Оплата вперёд.']},
+      verb: {nol: ['Вы бы к нам шли. Кормят, платят, а за спиной своих сотня.', 'Такие, как вы, нам нужны. Подумайте.'],
+        ter: ['Мой ярл берёт сильных. Иди к нам.'], imp: ['Палата ценит людей вашего склада. Вы могли бы послужить делу.']},
+      svatya: {nol: ['Ох, да ты жених хоть куда! А у нас тут девица на выданье — пригожая, работящая. Сходим поглядим?', 'А ты не женат<|а> ли? Есть тут у меня на примете… Только скажи.'],
+        ter: ['Ты без пары. У нас есть кого показать.'], imp: ['Простите за вольность, но в городе есть достойная особа, которая была бы рада знакомству.']},
+      glaz: {nol: ['Тут одна… один… в общем, с тебя глаз не сводят. Вон у окна. Велели передать: заходи.', 'Не оглядывайся сразу. Там, у печки, тебе улыбаются. Позвать?'],
+        ter: ['Там смотрят на тебя. Давно. Иди.'], imp: ['Некая особа просила передать, что желала бы с вами побеседовать.']},
+      say: {slukh: 'Говори, слушаем.', prosba: 'Что за беда? Рассказывай.', sdelka: 'Сколько платишь?', verb: 'Куда это «к вам»?', svatya: 'Ну, пойдём, поглядим.', glaz: 'Зови.'},
+      slukhOk: ['Человек говорит долго и путано, но главное ясно: {X}. Место отмечено на карте.'],
+      slukhNone: ['Он рассказывает байку про водяного, что увёл корову. Байка смешная, но толку от неё никакого.'],
+      prosbaOk: ['Он сбивчиво объясняет, что нужно сделать, и называет плату. Дело записано: {X}.'],
+      prosbaNone: ['Он мнётся, вздыхает и признаётся, что заплатить нечем. Уходит, извиняясь.'],
+      sdelkaOk: ['Ночь проходит спокойно: ни души у амбара. Утром купец честно отсчитывает {P}.'],
+      sdelkaNo: ['Ночью у амбара шорох — вы поднимаете шум, и чужие тени бегут. Купец платит {P} и ещё благодарит.'],
+      verbOk: ['Вербовщик кивает и пишет что-то на дощечке: «Запомню вас. Свои всегда в почёте».'],
+      verbNo: ['Вербовщик пожимает плечами: «Как знаете. Предложение было».'],
+      no: ['Человек вздыхает, допивает кружку и уходит.', 'Незнакомец пожимает плечами и пересаживается к другим.'],
+    },
+    ruka: {
+      zach: ['{H} вдруг чувствует лёгкое шевеление у пояса: чья-то ловкая рука уже в кошеле.', 'Мимо протискивается вертлявый малый — и кошель на поясе {H:g} будто полегчал.'],
+      grab: ['Схватить за руку', 'Кричать «Держи вора!»'],
+      caught: ['Вор пойман: худой, вёрткий, глаза бегают.'],
+      thiefSay: {nol: ['Пусти, дяденька! Бес попутал, ей-богам, в первый раз!', 'Пусти, а? Дети малые дома, жрать нечего…'],
+        ter: ['Пусти. Я отдам.'], imp: ['Это недоразумение, уверяю вас!']},
+      escape: ['Вор вывёртывается, как угорь, и ныряет в толпу. Не хватает {P}.'],
+      guard: ['Вора уводит стража. Корчмарь кланяется: «Спасибо, что не дали в обиду честных людей».'],
+      free: ['Вы отпускаете его. Он кланяется до земли и исчезает. Кто-то в корчме одобрительно кивает.'],
+      beat: ['Вор получает своё и уползает, держась за бок. Корчма смотрит молча.'],
+      lost: ['Пока вы раздумывали, ловкач растворился в толпе. Не хватает {P}.'],
+    },
+    guslyar: {
+      zachGood: ['Гусляр у печки ударяет по струнам — и вы с удивлением слышите в песне свои имена.', 'Слепой гусляр запевает новую былину. Корчма притихла: поют о вас.'],
+      zachBad: ['Гусляр в углу заводит песню, и корчма хохочет. Не сразу понимаешь, что смеются над вами.', 'Гусляр поёт про недобрых людей с дороги — и всё косится на ваш стол.'],
+      zachNone: ['Гусляр у печки подкручивает колки и оглядывает корчму: «Кто тут нездешний? Расскажите, о чём петь».'],
+      songGood: {nol: ['Как пришли они, ясны соколы, да на нечисть лютую, да не дрогнули…', 'А и звали их по всему краю заступниками, а лихим людям — грозою…'], ter: ['Пришли с мечами. Ушли с победой. Пой, гусли.'], imp: ['И воздали они злу по делам его, и край вздохнул свободно.']},
+      songBad: {nol: ['Как пришли они, гости незваные, да всё по чужим сундукам шарили…', 'Ой, не пускайте их, люди, на порог — после них ни кур, ни серебра…'], ter: ['Пришли волками. Ушли волками.'], imp: ['И пришли чужеземцы, и не было от них добра.']},
+      songNone: ['Ну, кто расскажет — сложу песню. А нет — так спою про Перунов дуб.'],
+      treat: ['Гусляр принимает чарку и кланяется: «Буду петь вас по всем корчмам, добрые люди».'],
+      join: ['{H} подхватывает напев, и корчма поёт вместе — до хрипоты.'],
+      joinNo: ['{H} пытается подпеть, но сбивается. Гусляр великодушно делает вид, что так и было задумано.'],
+      shut: ['Гусляр обрывает песню на полуслове и уходит, не глядя на вас.'],
+      shutNo: ['Гусляр смеётся: «Песню не запретишь!» — и корчма смеётся вместе с ним.'],
+      buy: ['За серебро гусляр охотно поёт другое — про весну и про девиц. Про вас забыли.'],
+      laugh: ['Вы смеётесь со всеми. Корчма теплеет: с тем, кто сам над собой смеётся, ссориться неохота.'],
+      order: ['Гусляр кивает, подкручивает колки и заводит старую, долгую — про то, как Перун с Велесом спорили. Корчма затихает, кто-то утирает глаза.'],
+      tell: ['Вы рассказываете, гусляр слушает, кивает — и тут же складывает песню. Через седмицу её запоют по корчмам.'],
+    },
+    dozn: {
+      zach: ['К вашему столу подходит человек в тёмном облачении, на груди — восьмилучевая звезда. За ним — двое с дубинками.', 'Дверь корчмы отворяется, и гомон стихает: вошёл дознаватель Ока. Он идёт прямо к вам.'],
+      o: {oko: ['Мир вам. Я лишь задам несколько вопросов — по долгу службы. Кто вы, откуда, куда держите путь?', 'Око видит всех. Назовитесь, путники, и скажите, нет ли среди вас тех, кто ворожит.']},
+      tense: {oko: ['Мне сообщили, что среди вас есть знающий травы и наговоры. Не так ли?', 'От одного из вас пахнет полынью и дымом жертвенника. Объяснитесь.']},
+      truthOk: ['Дознаватель слушает, записывает и наконец кивает: «Ступайте с миром. Око запомнит вас добрыми людьми».'],
+      truthNo: ['Дознаватель прищуривается: «Я запишу ваши имена. На всякий случай». Писец скрипит пером.'],
+      star: ['Дознаватель видит звезду и смягчается: «Брат… Тогда нет вопросов. Да хранит вас Око».'],
+      lieOk: ['Дознаватель верит — или делает вид — и уходит к другому столу.'],
+      lieNo: ['«Ложь — тоже грех», — тихо говорит дознаватель и что-то долго пишет. Писец смотрит на вас, не мигая.'],
+      bribe: ['Серебро исчезает в рукаве облачения. «Храм благодарит за пожертвование», — говорит дознаватель и уходит.'],
+      silent: ['Вы молчите. Дознаватель пожимает плечами: «Молчание тоже ответ». Писец записывает.'],
+    },
+    rival: {
+      zach: ['Дверь корчмы распахивается — на пороге {N}. Заметив вас, нехорошо улыбается и идёт к стойке.'],
+      o: {nol: ['Гляди-ка, кто тут! Мир тесен, да? Ну, выпьем — или как?', 'Опять вы. Ну-ну. Пейте, пока можете.'], ter: ['Вы. Снова. Сядем — или выйдем?'], imp: ['Какая встреча. Надеюсь, на сей раз вы не станете мне мешать.']},
+      peaceOk: ['{N} нехотя поднимает кружку. Пьют молча, но расходятся без крови.'],
+      peaceNo: ['{N} выплёскивает пиво на пол: «С вами пить — себя не уважать».'],
+      shameOk: ['Корчма покатывается со смеху. {N} краснеет и уходит, хлопнув дверью.'],
+      shameNo: ['Шутка не удалась: смеются над вами. {N} довольно ухмыляется.'],
+    },
+    znakomy: {
+      zach: ['Кто-то хлопает вас по плечу. Оборачиваетесь — {N}, [знакомый|знакомая] по {X}.'],
+      o: {nol: ['Вот так встреча! А я вас век помнить буду. Садитесь, угощаю!', 'Живы! Ну, слава богам. Слушайте, что расскажу…'], ter: ['Вы. Я помню добро. Сядь, выпьем.'], imp: ['Какая приятная неожиданность! Позвольте вас угостить.']},
+      gift: ['{N} суёт вам узелок: «Тут немного, но от души». В узелке {P}.'],
+      news: ['{N} понижает голос и рассказывает: {X}. Место отмечено на карте.'],
+      newsNone: ['{N} пересказывает новости: кто женился, у кого корова отелилась. Тепло, но без пользы.'],
+      bye: ['{N} обнимает вас на прощание и долго машет вслед.'],
+    },
+    kosti: {
+      zach: ['У очага сидят мужики и кидают кости на перевёрнутую кадушку. Один машет вам: «Садись, сыграем!»', 'На лавке у огня — игра в кости. Ставки небольшие, крику много.'],
+      o: {nol: ['Ставь, не робей! Кому сегодня везёт, тот и платит за всех.'], ter: ['Кидай. Боги решат.'], imp: ['Не желаете испытать удачу? Ставки скромные, игра честная.'], step: ['Садись, батыр! Кости любят смелых!']},
+      winH: ['Кости ложатся как надо. Вы сгребаете выигрыш — {P}.'],
+      loseH: ['Кости не любят вас сегодня. Ставка — {P} — ушла.'],
+      cheatOk: ['Ловкие пальцы делают своё: выигрыш вдвое — {P}. Никто ничего не заметил.'],
+      cheatNo: ['«Мечёные кости!» — орёт кто-то, и корчма вскакивает с мест.'],
+      spotOk: ['Вы замечаете, что у одного кость с зарубкой. Корчма вышвыривает шулера, а вам возвращают проигранное другими — {P}.'],
+      spotNo: ['Вы глядите во все глаза, но ничего не замечаете. Игра как игра.'],
+    },
+
+    /* =============================== УЛИЦА И ТОРГ =============================== */
+    karman: {
+      zach: ['В толчее кто-то задевает {H:a} плечом — и тут же юркает между возами. Кошель стал легче.', 'Мальчишка-оборвыш врезается в {H:a}, извиняется — и уже бежит. Пояс подозрительно лёгок.'],
+      caught: ['Пойман! Воришка бьётся, как рыба на берегу.'],
+      thiefSay: {nol: ['Пусти, пусти! Не я это! Вон он побежал!', 'Ой, пусти, дяденька, больше не буду!'], ter: ['Пусти. Отдам.'], imp: ['Прошу снисхождения! Я голоден!']},
+      escape: ['Воришка ныряет под прилавок и пропадает. Не хватает {P}.'],
+      guard: ['Подоспела стража и уводит воришку. Торговки кивают вам с одобрением.'],
+      free: ['Вы отпускаете его, отобрав своё. Он улепётывает, не оглядываясь.'],
+      beat: ['Воришка получает подзатыльник и пинок и улепётывает, утирая нос.'],
+      lost: ['Пока вы озирались, вор пропал. Не хватает {P}.'],
+    },
+    glash: {
+      zach: ['На помост посреди площади взбирается глашатай, дует в рожок и разворачивает свиток.', 'У ворот глашатай бьёт в бубен и зычно кричит: «Слушайте, люди! Слушайте указ!»'],
+      war: ['Указ: {X}. Сторожам на дорогах — быть начеку, кто увидит чужих с недобрым — доносить.'],
+      news: ['Указ: подати к Покрову, за порчу мостов — вира, а на ярмарку съезжаться без оружия. Народ зевает.', 'Указ о том, что мерки на торгу проверят, а кто обвесит — тому позор у столба. Торговки фыркают.'],
+      bounty: ['Награда тому, кто изведёт шайку на дорогах: {X}. Грамоту можно взять у писца.'],
+      you: ['И ещё: розыск. Ищут {X}. За голову — награда.'],
+      youLine: 'Люди вокруг оглядываются, кое-кто смотрит прямо на вас.',
+      take: ['Писец выдаёт грамоту с печатью. Дело записано.'],
+      hideOk: ['Вы натягиваете капюшон и отходите в тень. Никто не окликнул.'],
+      hideNo: ['Какая-то баба тычет пальцем: «Гляньте, похож<|а>!» Вы уходите быстро, но слух пошёл.'],
+      tearOk: ['Пока толпа слушает, грамота с вашими приметами незаметно исчезает со столба.'],
+      tearNo: ['Вас замечают у столба с грамотой. Стражник кричит вслед, но в толпе не догнать — только хуже стало.'],
+    },
+    sud: {
+      zach: ['На площади у позорного столба толпа: вора выставили на позор, и всякий может в него плюнуть.', 'Посреди площади тиун разбирает тяжбу. Обвиняют парнишку в краже мешка зерна, и толпа уже кричит: «Высечь!»'],
+      o: {nol: ['Не брал я! Люди добрые, не брал! Вступитесь, кто в бога верует!'], ter: ['Я не вор. Но кто мне поверит.'], imp: ['Я невиновен! Требую справедливого суда!']},
+      watch: ['Вы стоите в толпе и слушаете. Из разговоров выясняется кое-что любопытное: {X}.'],
+      watchNone: ['Вы смотрите и слушаете. Позор кончается, толпа расходится, а на душе — муторно.'],
+      defOk: ['Ваши слова заставляют тиуна задуматься. Парня отпускают — и мать его падает вам в ноги.'],
+      defNo: ['Тиун хмурится: «Чужим тут слова не давали». Толпа шикает на вас.'],
+      pay: ['Вы платите виру за бедолагу — {P}. Тиун разводит руками и отпускает. {N} кланяется вам до земли и обещает не забыть.'],
+    },
+    propov: {
+      zach: ['На перекрёстке брат Ока в сером облачении проповедует, стоя на бочке. Вокруг — кучка слушателей.', 'У колодца сестра Ока читает из книги и призывает людей отречься от старых богов.'],
+      o: {oko: ['Нет иных богов, кроме Ока, видящего всё! Деревянные истуканы не спасут вас ни от мора, ни от нави!', 'Покайтесь, пока не поздно! Восьмилучевая звезда светит каждому, кто обратит к ней лицо.']},
+      listen: ['Вы слушаете до конца. Речь гладкая, холодная, но в чём-то и верная.'],
+      listenOko: ['Слова брата греют сердце {H:g}: <он|она> молча кладёт руку на звезду.'],
+      argOk: ['Вы спорите — и толпа, слушая, начинает кивать вам. Проповедник уходит, не договорив.'],
+      argNo: ['Проповедник легко разбивает ваши доводы, и толпа смеётся над вами.'],
+      give: ['Вы кладёте серебро в кружку храма. Проповедник благословляет вас знамением звезды.'],
+    },
+    telega: {
+      zach: ['Посреди улицы перевернулась телега: колесо отлетело, мешки с мукой рассыпались, а мужик хватается за голову.', 'На торгу опрокинулся воз с яблоками. Яблоки катятся под ноги, ребятня уже набивает пазухи.'],
+      o: {nol: ['Ой, беда-то! Помогите, люди добрые, одному не поднять!', 'Да что ж это такое! Всё добро по грязи…'], ter: ['Помогите поднять. Отблагодарю.'], imp: ['Помогите, прошу вас, это товар моего хозяина!']},
+      liftOk: ['Взялись разом — и телега на колёсах. Мужик чуть не плачет от радости и суёт {P}.'],
+      liftNo: ['Телега тяжела: {H} надрывается, едва не отдавив ногу. Но подоспели соседи, подняли миром.'],
+      gather: ['Вы помогаете собрать рассыпанное. Мужик кланяется и долго благодарит.'],
+      grabOk: ['Пока все суетятся, {H} незаметно прибирает кое-что — {P} лишних в кошеле.'],
+      grabNo: ['«Вор! Держи!» — кричат вслед. Взяли пустяк, а позору на всю улицу.'],
+    },
+    rebenok: {
+      zach: ['У забора стоит девчушка лет пяти и ревёт в голос. Мамку потеряла.', 'Посреди торга мальчонка в большой шапке растерянно озирается и шмыгает носом. Потерялся.'],
+      o: {nol: ['Мамка-а… Где мамка-а?', 'Я к тятьке хочу… Он с конями был…'], ter: ['Где отец? Он сказал ждать. Я ждал.'], imp: ['Я потерял няню… Вы не видели няню?']},
+      homeOk: ['Расспросив людей, вы находите дом. Мать хватает дитя на руки и плачет, а отец жмёт вам руку: «По гроб жизни…»'],
+      homeNo: ['Ходите полдня, расспрашиваете — никто не знает. В конце концов отдаёте дитя сторожу у ворот: он обещает найти родню.'],
+      guard: ['Вы отводите дитя к страже. Стражник вздыхает: «Найдём. Не впервой».'],
+    },
+    sobaka: {
+      zach: ['За вами увязался лохматый пёс: бежит рядом, заглядывает в глаза и машет хвостом.', 'Худая собака с умными глазами садится у ваших ног и не уходит.'],
+      take: ['Пёс радостно гавкает и бежит рядом с {H:i}. Похоже, теперь он ваш.'],
+      feed: ['Вы бросаете псу кусок хлеба. Он съедает, лижет руку и убегает по своим делам.'],
+      have: ['Ваш пёс рычит на чужака, и тот, поджав хвост, отбегает.'],
+    },
+    nishchiy: {
+      zach: ['У ворот сидит слепой нищий с клюкой. Когда вы проходите, он вдруг поворачивает к вам лицо.', 'Старуха в лохмотьях хватает {H:a} за рукав: глаза мутные, а говорит ясно.'],
+      o: {nol: ['Подай, добр<ый|ая> человек… А я тебе скажу, чего ждать.', 'Вижу я, вижу, хоть и слеп. Подай — скажу.'], ter: ['Дай монету. Скажу, что видел во сне.'], imp: ['Подайте немощному — и узнаете то, что сокрыто.']},
+      give: ['Нищий сжимает монету и шепчет: {X}'],
+      omen: ['«Не ходи, где вода чёрная, а иди, где ворон кружит», — бормочет он. Что это значит — поди пойми.', '«Огонь да железо тебе, а покой потом», — шепчет нищий и отворачивается.'],
+      ask: ['Нищий долго молчит, а потом рассказывает, что видел сам: {X}. Место отмечено на карте.'],
+      askNone: ['Нищий лишь качает головой: «Сказал всё, что знал».'],
+    },
+    silach: {
+      zach: ['На торгу силач в одной рубахе поднимает над головой бочку и вызывает любого побороться. Приз — кошель серебра.', 'На помосте ярмарочный силач гнёт подкову и зовёт: «Кто положит меня на лопатки — тому кошель!»'],
+      o: {nol: ['Ну, кто смел? Подходи, не бойся, ломать не буду — так, помну малость!'], ter: ['Кто сильнее меня? Никто. Докажи обратное.'], imp: ['Достойные граждане! Кто дерзнёт сразиться с непобедимым?'], step: ['Эй, кто на пояса? Батыры, выходи!']},
+      winH: ['{H} сбивает силача с ног! Толпа ревёт, а силач, отдуваясь, сам отдаёт приз — {P}.'],
+      loseH: ['Силач кладёт {H:a} на лопатки, но помогает встать: «Крепк<ий|ая>! Почти взял<|а>!»'],
+      betOk: ['Ставка сыграла: вам платят {P}.'],
+      betNo: ['Ставка не сыграла: {P} в чужом кармане.'],
+    },
+    pozhar: {
+      zach: ['Над крышами поднимается чёрный дым: горит изба! Люди бегут с вёдрами, баба голосит.', 'Из окна амбара вырывается пламя. Кто-то кричит, что внутри остались люди.'],
+      o: {nol: ['Горим! Люди, помогите! Там дед на печи!', 'Воды! Воды несите!'], ter: ['Огонь! Все к воде!'], imp: ['Пожар! Немедленно передавайте вёдра!']},
+      fightOk: ['Вы встаёте в цепь с вёдрами и бьёте огонь, пока он не сдаётся. Изба спасена. Люди кланяются вам в пояс.'],
+      fightNo: ['Огонь яростен: {H} обжигает руки, но избу всё-таки отстояли общими силами.'],
+      saveOk: ['{H} ныряет в дым и выносит на руках старика. Толпа ахает, а потом кричит здравицу.'],
+      saveNo: ['{H} врывается в дым, но жар отбрасывает назад. Старика вытаскивают соседи, а {H} кашляет и держится за обожжённый бок.'],
+    },
+    spor: {
+      zach: ['Два купца сцепились у весов: один кричит, что его обвесили, другой — что тот сам подсунул гнилое.', 'У прилавка спорят торговец и покупатель: кто кому должен, уже не разберёшь.'],
+      o: {nol: ['Рассудите, люди добрые! Он меня обжулил!', 'Ну хоть вы скажите, кто прав!'], ter: ['Рассуди. Ты чужой — тебе нет выгоды.'], imp: ['Будьте нашим судьёй, раз вы человек посторонний.']},
+      judgeOk: ['Вы разбираетесь, перевешиваете, и правда выходит наружу. Оба нехотя соглашаются, а один даже платит за труды — {P}.'],
+      judgeNo: ['Как ни судите, оба остаются недовольны и ругают уже вас.'],
+      side: ['Вы встаёте за одного — тот радуется и платит {P}. Другой плюёт вам вслед.'],
+    },
+
+    /* =============================== НОЧЬ =============================== */
+    grab: {
+      zach: ['Из переулка выходят трое. Один поигрывает ножом, другие встают у вас за спиной.', 'В темноте между амбарами вам преграждают путь. Слышно, как звякает кистень.'],
+      o: {nol: ['Ну что, люди добрые, кошелёчки-то сами отдадите — или помочь?', 'Тихо. Серебро на землю — и идите своей дорогой.'], ter: ['Серебро. Сейчас. Или кровь.'], imp: ['Кошельки, будьте любезны. Ночь длинная, а мы торопимся.']},
+      payOk: ['Грабители забирают {P} и растворяются в темноте.'],
+      scareOk: ['Грабители переглядываются — и пятятся в темноту. С такими связываться — себе дороже.'],
+      scareNo: ['Смеются: «Пугать надумал<|а>? Ну держись!»'],
+      runOk: ['Вы срываетесь с места и петляете по переулкам. Позади ругаются и топают, но отстают.'],
+      runNo: ['Убежать не вышло: переулок глухой, а они уже рядом.'],
+      stay: ['Вы поворачиваете назад, к свету. Вслед свистят, но не идут.'],
+      win: ['Грабители лежат в грязи или бегут. Утром стража скажет вам спасибо.'],
+    },
+    straga: {
+      zach: ['Из-за угла выходит ночная стража: двое с фонарём и алебардами.', 'Вас окликают: «Стой! Кто идёт?» Фонарь светит прямо в лицо.'],
+      o: {nol: ['Чего бродите по ночам? Кто такие, откуда?', 'А ну, покажитесь. Ночью добрые люди дома сидят.'], ter: ['Стой. Назовись.'], imp: ['Стоять! Назовите себя и цель ночной прогулки!']},
+      want: 'Стражник щурится и долго разглядывает {H:a}, будто сверяет с чем-то.',
+      okLine: ['Стражник машет рукой: «Ну, ступайте. Да не шатайтесь допоздна».'],
+      liesOk: ['Стражник кивает: «Ладно, проходите». Пронесло.'],
+      liesNo: ['«Врёшь!» — стражник хватается за алебарду и свистит в свисток.'],
+      bribe: ['Серебро исчезает в кулаке стражника. «Никого не видели», — говорит он напарнику.'],
+      star: ['Стражник видит звезду Ока и кланяется: «Простите, брат. Проходите».'],
+      ask: ['Стражник рад поболтать: {X}.'],
+      askNone: ['Стражник зевает: «Тихо нынче. И слава богам».'],
+      win: ['Стража лежит, свисток затих. Надо уходить, пока не набежали другие.'],
+    },
+    tayna: {
+      zach: ['У заднего крыльца корчмы двое шепчутся при свете огарка. Один передаёт другому свёрток.', 'В тёмном переулке слышны голоса. Говорят тихо, но слова «завтра» и «у брода» разобрать можно.'],
+      listenOk: ['Вы подбираетесь ближе и слышите всё: {X}.'],
+      listenNo: ['Под ногой хрустит черепок. «Кто тут?!» — в темноте блестят ножи.'],
+      job: 'речь о деле, за которое хорошо платят',
+      stay: ['Вы уходите, не дослушав. Меньше знаешь — крепче спишь.'],
+      win: ['Шептуны разбежались, оставив свёрток. В нём — {P} серебром.'],
+    },
+    krik: {
+      zach: ['Из темноты раздаётся отчаянный крик: «Помогите! Убивают!»', 'Где-то за углом женский визг и глухие удары.'],
+      runTo: ['Вы бежите на крик. В переулке двое трясут припозднившегося купца, третий держит нож.'],
+      callOk: ['Вы поднимаете шум, стучите в ставни. Сбегается народ, грабители бегут. Спасённый не знает, как благодарить.'],
+      callNo: ['Вы кричите, но никто не открывает. Когда добегаете, в переулке уже никого — только кровь на снегу и тишина.'],
+      stay: ['Вы проходите мимо. Крик обрывается. Утром люди будут говорить, что кого-то нашли в канаве.'],
+      win: ['Грабители разбиты. Спасённый купец трясущимися руками суёт вам кошель — {P} — и обещает всем рассказать, кто его выручил.'],
+    },
+    konokrad: {
+      zach: ['Ночью вас будит фырканье коней. В конюшне кто-то возится и тихо уговаривает коня не шуметь.', 'У коновязи мелькает тень: кто-то отвязывает чужого коня — вашего.'],
+      catchOk: ['Вы подкрадываетесь и хватаете конокрада за шиворот. Тот бледнеет и падает на колени.'],
+      catchNo: ['Конокрад слышит вас и бросается наутёк через забор. Конь остался, а вор ушёл.'],
+      noise: ['Вы поднимаете шум. Конокрад бросает повод и исчезает в темноте.'],
+      guard: ['Утром конокрада отводят к старосте. Хозяин двора долго благодарит.'],
+      free: ['Вы отпускаете его с пинком. Больше он сюда не сунется.'],
+      stay: ['Вы переворачиваетесь на другой бок. Утром конь на месте — видно, вор струсил.'],
+    },
+    pyan: {
+      zach: ['Посреди улицы шатается пьяный дружинник с мечом на поясе и задирает прохожих.', 'Из кабака вываливается здоровяк в кольчуге, видит вас и широко расставляет руки.'],
+      o: {nol: ['Эй, вы! А ну, кланяйтесь, когда княжий человек идёт!', 'Кто тут косо глядит? Ты? А ну иди сюда!'], ter: ['Ты. Иди сюда. Подерёмся.'], imp: ['Вы! Как смеете стоять у меня на пути!']},
+      dipOk: ['Вы уговариваете его идти спать. Он плачет у вас на плече о несчастной любви и, шатаясь, бредёт домой.'],
+      dipNo: ['«Учить меня вздумал<|а>?!» — дружинник засучивает рукава.'],
+      win: ['Дружинник храпит в канаве. Утром он ничего не вспомнит, а вот соседи запомнят.'],
+      lose: ['Вы просыпаетесь в канаве с разбитым носом. Дружинник ушёл, довольный собой.'],
+    },
+
+    /* =============================== ХРАМ И КАПИЩЕ =============================== */
+    sestra: {
+      zach: ['На ступенях храма Ока сестра в простом облачении протягивает кружку для подаяния.', 'Сестра Ока с кротким лицом подходит к вам и показывает кружку: на хлеб сиротам при храме.'],
+      o: {oko: ['Подайте на сирот, добрые люди. Око видит всякую милость.', 'Да осветит вас звезда. Не оставьте сирот без хлеба.']},
+      give: ['Сестра благодарит и осеняет вас знамением звезды.'],
+      askOk: ['Сестра тихо говорит: {X}'],
+      askNo: ['Сестра улыбается и молчит. Дела дознавателей — не её дело.'],
+    },
+    palom: {
+      zach: ['У дороги отдыхает паломник с посохом: ноги в пыли, котомка за плечами.', 'Седой паломник сидит у стены и жуёт сухарь. Видно, идёт издалека.'],
+      o: {oko: ['Иду к святым местам. Ноги стёр, но сердце бодро.'], volhv: ['Иду поклониться старому дубу. Пока ноги носят — хожу.'], nol: ['Устал я, люди добрые. Далеко ещё идти.']},
+      askOk: ['Паломник рассказывает о дороге: {X}. Место отмечено на карте.'],
+      askNone: ['Паломник рассказывает, где кормят даром, а где спускают собак. Полезно, но не более.'],
+      bread: ['Паломник благодарит за хлеб и обещает помолиться за вас.'],
+    },
+    vedun: {
+      zach: ['В тени у стены старуха в тёмном платке манит вас пальцем и тихо шепчет: «Погадать?»', 'Молодая ведунья с бусами из костяшек ловит ваш взгляд и кивает в сторону переулка.'],
+      o: {volhv: ['Тише, тише… Тут чужие глаза. Дай руку — скажу, что тебе боги сулят.', 'Не бойся. Я не со зла. Хочешь знать, что впереди?']},
+      tell: ['Ведунья смотрит на ладонь {H:g} и шепчет: {X}'],
+      tellNone: ['«Путь твой ещё не выбран, — говорит она. — Выберешь — тогда и приходи».'],
+      report: ['Вы указываете на неё стражнику у храма. Ведунью уводят. Братья Ока благодарят, а люди вокруг отводят глаза.'],
+    },
+    treba: {
+      zach: ['У жертвенника старый волхв раскладывает дары и зовёт вас: одному не управиться.', 'Волхв в белой рубахе стоит у огня и смотрит на небо. Увидев вас, кивает: «Помогите с требой».'],
+      o: {volhv: ['Боги ждут дара, а у меня руки не те. Помогите — и боги вас запомнят.', 'Нынче знамение было: ворон трижды каркнул. Надо задобрить Велеса.']},
+      helpOk: ['Треба принесена как надо: дым идёт прямо в небо. Волхв кладёт руку вам на плечо: «Боги видели».'],
+      helpNo: ['Дым стелется по земле. Волхв хмурится: «Не приняли… Но то не ваша вина».'],
+      gift: ['Вы кладёте дар на жертвенник. Волхв кивает: «Не забудут».'],
+    },
+    sporv: {
+      zach: ['У старого капища брат Ока и волхв спорят при народе. Брат грозит судом, волхв — гневом богов. Толпа ждёт, кто кого.', 'На площади сцепились словами сестра Ока и знахарка. Народ разделился надвое.'],
+      oko: {oko: ['Эти истуканы — гнилое дерево! Око видит, кто им кланяется!']},
+      volhv: {volhv: ['Дерево гнилое, да корни крепкие. Деды наши кланялись — и мы не забудем!']},
+      forOko: ['Вы встаёте на сторону Ока. Защитник старой веры уходит, но взгляды вокруг — тяжёлые.'],
+      forVolhv: ['Вы встаёте за старую веру. Человек Ока что-то записывает и уходит.'],
+      peaceOk: ['Вы разводите спорщиков миром. Каждый уходит, думая, что победил.'],
+      peaceNo: ['Мирить не вышло: теперь оба косятся на вас.'],
+    },
+  },
+
+  /* бой: подписи */
+  fist: {title: 'Драка в корчме', titleStreet: 'Кулачки на улице', start: 'Сдвинуты лавки, и в корчме уже машут кулаками. Бьют без железа — до того, как кто-то не встанет.', ko: '{N} валится без чувств — жив<|а>, но встанет не скоро.', koHero: '{N} падает без памяти — жив<|а>, но до конца драки не встанет.', noKick: 'Лежачего не бьют.'},
+  /* имена бойцов */
+  brawlers: ['Буян', 'Задира', 'Пьяница', 'Кулачник', 'Бугай'],
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* town_life.js */
+/* Колдовство — города и сёла живут: случайные события, пока отряд тратит время в месте (решение Ника). Без DOM. Тексты — town_life_data.js.
+   • Когда: после выбора в сцене места (корчма, люди, баня, торг, храм, «между делами»…), если на него ушло полчаса и больше,
+     отряд стоит в селе, городе, на подворье или в стане, не в бою, не в подземелье, не в разговоре, не дома у себя или у супруга.
+     Город — примерно раз на три-четыре таких дела, подворье — реже, село — ещё реже (C.TL.P, после события — передышка
+     C.TL.CD дел в этом месте). Одно событие за дело; одно и то же — не два раза подряд. В главах саг — реже, только безопасные
+     события и только после выборов в общих сценах (корчма, люди), не после сюжетных.
+   • Что: по месту действия (корчма, торг, улица, храм Ока, капище, ворота; ночью — ночная улица), времени суток, погоде,
+     празднику, войне в крае, молве села, славе (песни), розыску, грязи, составу отряда (брат Ока, колдун, тать, гусляр,
+     пригожие герои, конь). Тридцать событий в пяти кучках (C.TL_EV).
+   • Как: короткая сцена 'tl_ev' в окне разговора с лицом и именем встречного; ответы — кнопки, проверки подписаны, как везде;
+     «Не встревать» есть всегда. За общим столом отвечает вожатый (own = его герой).
+   • Последствия — через то, что есть: молва села (C.repAdd), слава (C.fameDeed, C.fameSong), доверие сторон (C.sideAdd),
+     силы мира (C.facAdd), списки дознавателей (C.fameListAdd), розыск (C.crimeAdd, g.crime), дела (Q.make/Q.accept),
+     слухи с местом на карте (C.rumorAt), сватовство и знакомства (C.kvGuestRoll → сцена kv_guest), пёс (вещь pes_*),
+     серебро, раны, дух (C.spiritAdd), знакомые — именные люди (g.tl.known), что потом встречаются снова.
+   • Драки — на большом поле: в корчме — бой ВНУТРИ корчмы (поле — село, где большой дом — корчма; свои и чужие в зале,
+     гости бегут, двери отворены, можно выйти на улицу); ночью — в переулке между домами, на торгу — на площади.
+     Кулачный бой (S.tlFist): кто упал — оглушён, а не убит (и свои, и чужие); бьют кулаком, подручное (лавка, кружка,
+     головня — dnd_a) работает; лежачего не бьют. Грабители и ночная стража — настоящий бой.
+   Состояние: g.tl = {cd: {место: дел до конца передышки}, prev: [последние события], cur: событие, known: [знакомые], n}.
+   Нет g.tl — старые сохранения живут как прежде. Числа — C.TL. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B, W = G.W, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !C.TL_TX || !C.choose) return;
+const TX = C.TL_TX;
+
+C.TL = Object.assign({
+  ON: 1,
+  P: {town: 0.4, yard: 0.26, village: 0.15},   // шанс события после дела, что тратит время
+  CD: {town: 1, yard: 1, village: 2},          // сколько дел после события в этом месте — тихо
+  SAGA: 0.4,                                    // в главах саг — во столько раз реже
+  MIN_H: 0.5,                                   // дело должно занять хотя бы полчаса
+  PREV: 2,                                      // столько последних событий не повторяются
+  KNOWN: 12,
+}, C.TL || {});
+const K = () => C.TL;
+
+/* ---------- мелочи ---------- */
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; x = Math.imul(x, 2246822507); x ^= x >>> 13; return x >>> 0; };
+const pickH = (a, key) => (a && a.length ? a[hsh(key) % a.length] : '');
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const low = s => (s ? s[0].toLowerCase() + s.slice(1) : s);
+const r10 = v => Math.max(10, Math.round(v / 10) * 10);
+const price = v => (R.priceText ? R.priceText(v) : v + ' мм');
+const isFree = g => !!(g && g.camp === 'free' && g.heroes);
+const alive = g => (g && g.heroes ? C.alive(g) : []);
+const lvl = g => Math.max(1, C.zoneLevel ? C.zoneLevel(g) : C.partyLevel(g));
+const decl = (n, sex) => { try { return (Q && Q.decl ? Q.decl(n, sex) : null) || {n, g: n, d: n, a: n, i: n, p: n}; } catch (e) { return {n, g: n, d: n, a: n, i: n, p: n}; } };
+const STN = {str: 'Сила', dex: 'Ловкость', con: 'Телосложение', wis: 'Мудрость', int: 'Ум', cha: 'Очарование'};
+const lbl = (t, st, sk) => `${t} (${STN[st]}${sk ? ', ' + sk : ''})`;
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const nodeOf = g => nodes(g)[g.loc] || null;
+const hrs = g => (((g.day || 1) * 4) + (g.time || 0)) * 6 + (g.walk || 0);
+const DC = (g, k) => 10 + Math.floor(lvl(g) / 2) + (k || 0);
+const stake = g => r10(15 * lvl(g) + 10);
+const small = g => r10(4 * lvl(g) + 6);
+const S = g => { const s = g.tl = g.tl && typeof g.tl === 'object' ? g.tl : {}; s.cd = s.cd || {}; s.prev = s.prev || []; s.known = s.known || []; return s; };
+const cur = g => (g && g.tl && g.tl.cur && g.tl.cur.id ? g.tl.cur : null);
+
+/* ---------- где мы ---------- */
+const TOWN_K = ['город', 'торг', 'застава', 'крепость', 'книжня', 'площадь', 'ворота', 'храм'];
+const VILL_K = ['село', 'мельница', 'хутор', 'промысел', 'пастбище', 'капище'];
+const YARD_K = ['подворье', 'стан', 'лагерь'];
+C.tlClass = g => { const n = nodeOf(g); if (!n) return null; return TOWN_K.includes(n.kind) ? 'town' : YARD_K.includes(n.kind) ? 'yard' : VILL_K.includes(n.kind) ? 'village' : null; };
+const atNode = g => { try { if (!g.pos || !W || !W.isHex || !W.isHex(g)) return true; const n = W.world(g).nodeAt[g.loc]; return !!(n && n.c === g.pos.c && n.r === g.pos.r); } catch (e) { return true; } };
+/* сцены, после которых событие может случиться (возврат в них — место живёт) */
+const HUB = /^(free_place|folk_tavern|folk|folk_hub|folk_learn|folk_craft|folk_gift|folk_mats|tavern_food|tavern_drink|place_inn|place_asks|dt_hub|kv_banya|perform|trd_hub|oko_visit|r_temple|svc_temple|study_oko|study_kap|prof_temple|find_torgovets|war_hub)$/;
+const homeRel = (g, key) => { const r = (g.folkRel || {})[key]; return !!(r && (r.bond === 'wed' || r.bond === 'kin')); };
+/* дома у себя или у супруга — тихо */
+C.tlAtHome = function (g, sceneId) {
+  const id = String(sceneId || '');
+  if (/hearth|home|^dom_|^hm_|spouse|^sp_/.test(id)) return true;
+  if (id === 'folk' && g.folkRole && (/^sp_/.test(g.folkRole) || homeRel(g, g.folkRole + '@' + (g.folkAt || g.loc)))) return true;
+  return false;
+};
+const SPOT_RX = {korchma: /^(folk_tavern|tavern|place_inn|perform|w2_rival_inn|inn)/, torg: /^(trd_|find_torgovets|shop|market)/, hram: /^(oko_|r_temple|svc_temple|study_oko|prof_temple)/, kap: /^study_kap/};
+C.tlSpot = function (g, sceneId, cls) {
+  const n = nodeOf(g) || {}, id = String(sceneId || '');
+  let sp = Object.keys(SPOT_RX).find(k => SPOT_RX[k].test(id)) || (n.kind === 'храм' ? 'hram' : n.kind === 'капище' ? 'kap' : ['застава', 'ворота'].includes(n.kind) ? 'vorota' : 'ulica');
+  if (C.isNight(g) && sp !== 'korchma') sp = 'noch';
+  if (sp === 'ulica' && cls === 'town' && hsh(g.day + '|' + g.time + '|' + (g.walk || 0) + id) % 4 === 0) sp = 'vorota';
+  return sp;
+};
+
+/* ---------- что вокруг: всё, от чего зависит выбор события ---------- */
+const OKO_HERO = h => !!(C.faithOf && C.faithOf(h) === 'oko');
+const KOLDUN = h => ['volhv', 'charovnik', 'vedmak', 'zhrets'].includes(h.cls);
+const hasHorse = g => alive(g).concat(g.mercs || []).some(h => (h.eq && h.eq.mount) || (h.inv || []).some(id => /^kon_/.test(String(id))));
+const hasDog = g => alive(g).concat(g.mercs || []).some(h => (h.inv || []).some(id => /^pes_/.test(String(id))));
+const VOICE = {nolgrim: 'nol', terak: 'ter', imperets: 'imp', parnass: 'imp', stepnyak: 'step'};
+const landPpl = g => { try { const z = isFree(g) && C.zoneOf ? C.zoneOf(g) : null; if (z && z.people) return z.people; } catch (e) {} return C.homeOf ? C.homeOf(g) : 'nolgrim'; };
+const regOf = g => { try { const z = C.zoneOf && C.zoneOf(g); return z ? z.id : (nodeOf(g) || {}).reg || 'dw'; } catch (e) { return 'dw'; } };
+const wkind = g => { const w = C.weather ? C.weather(g) : 'clear'; return ['rain', 'downpour', 'storm'].includes(w) ? 'wet' : ['snow', 'blizzard'].includes(w) ? 'cold' : w === 'fog' ? 'fog' : w === 'heat' ? 'heat' : ''; };
+const festNow = g => { try { if (!isFree(g) || !C.HOLIDAYS || !C.holidayActive) return null; const h = C.HOLIDAYS.find(x => C.holidayActive(g, x) && (!C.holidayMode || C.holidayMode(g, x, g.loc))); return h ? h.id : null; } catch (e) { return null; } };
+C.tlCtx = function (g, sceneId, spot) {
+  const cls = C.tlClass(g), hs = alive(g);
+  const x = {g, cls, saga: !isFree(g), night: C.isNight(g), tm: C.timeName(g), wx: wkind(g), ppl: landPpl(g)};
+  x.spot = spot || C.tlSpot(g, sceneId, cls);
+  x.voice = VOICE[x.ppl] || 'nol';
+  x.fest = festNow(g);
+  x.front = isFree(g) && C.frontOf ? C.frontOf(g, regOf(g)) : 0;
+  x.war = isFree(g) && Math.abs(x.front) < 30;
+  x.rep = C.repOf ? C.repOf(g, g.loc) : 0;
+  try { x.fame = isFree(g) && C.fameLand ? C.fameLand(g) : {good: 0, black: 0}; } catch (e) { x.fame = {good: 0, black: 0}; }
+  try { x.wanted = isFree(g) && C.crimeWanted ? C.crimeWanted(g) : []; } catch (e) { x.wanted = []; }
+  x.grime = Math.max(0, ...hs.map(h => (C.grimeStage ? C.grimeStage(h) : 0)));
+  x.okoHero = hs.find(OKO_HERO) || null;
+  x.koldun = hs.concat(g.mercs || []).some(KOLDUN);
+  x.tat = hs.some(h => h.cls === 'tat');
+  x.gusl = hs.some(h => h.cls === 'guslyar');
+  x.fair = hs.find(h => (h.stats || {}).cha >= 14 && !h.spouse && h.kind !== 'merc') || null;
+  x.single = hs.find(h => !h.spouse && h.kind !== 'merc' && !(C.isCursed && C.isCursed(h))) || null;
+  x.horse = hasHorse(g); x.dog = hasDog(g);
+  x.rivals = isFree(g) && C.rivals ? C.rivals(g).filter(r => r && r.name) : [];
+  x.purse = g.purse || 0;
+  return x;
+};
+
+/* ---------- текст ---------- */
+const sexT = (t, sex, L, Rr) => String(t || '').replace(new RegExp('\\' + L + '([^\\' + L + '\\' + Rr + '|]*)\\|([^\\' + L + '\\' + Rr + '|]*)\\' + Rr, 'g'), (m, a, b) => (sex === 'f' ? b : a));
+const hero = g => { const hs = alive(g); if (g && g.net && g.net.own && g.net.leader) { const h = hs.find(x => g.net.own[x.id] === g.net.leader); if (h) return h; } return hs[0] || null; };
+const ownOf = g => (g && g.net && g.net.own && g.net.leader ? (alive(g).find(x => g.net.own[x.id] === g.net.leader) || {}).id || null : null);
+const fmt = (g, E, t, o) => {
+  o = o || {}; const h = o.h || heroBy(g, E.hid) || hero(g), hd = h ? decl(h.name, h.sex) : null;
+  let s = String(t || '');
+  s = s.replace(/\{N\}/g, (E.who && E.who.name) || '').replace(/\{P\}/g, o.P != null ? price(o.P) : '').replace(/\{X\}/g, o.X != null ? o.X : '')
+    .replace(/\{H(?::([gdaip]))?\}/g, (m, k) => (hd ? (k ? hd[k] : h.name) : ''));
+  s = sexT(s, (E.who && E.who.sex) || 'm', '[', ']'); s = sexT(s, h && h.sex, '<', '>');
+  return s;
+};
+const heroBy = (g, id) => (id ? alive(g).find(h => h.id === id) || null : null);
+const pk = (E, a, salt) => pickH(a, E.seed + '|' + (salt || '') + '|' + (E.n = (E.n || 0) + 1));
+const vpool = (P, v) => (P ? P[v] || P.nol || P.oko || P.volhv || Object.values(P)[0] : []) || [];
+const say = (E, who, text, o) => { if (!text) return; E.log.push(Object.assign({who, text}, o || {})); if (E.log.length > 16) E.log.splice(0, E.log.length - 16); };
+const nar = (g, E, a, o) => say(E, 'n', fmt(g, E, Array.isArray(a) ? pk(E, a, 'n') : a, o));
+const osay = (g, E, a, o) => say(E, 'o', fmt(g, E, Array.isArray(a) ? pk(E, a, 'o') : a, o), o && o.as ? {name: o.as.name, face: o.as.face} : undefined);
+const vsay = (g, E, P, o) => osay(g, E, vpool(P, E.who && E.who.voice ? E.who.voice : E.voice), o);
+const hsay = (g, E, h, a, o) => { h = h || hero(g); if (!h) return; say(E, 'h', fmt(g, E, Array.isArray(a) ? pk(E, a, 'h') : a, Object.assign({h}, o || {})), {name: h.name, face: h.portrait || ''}); };
+const T = id => TX.ev[id] || {};
+/* зачин по номеру (пол встречного в нём уже назван): E.data.zi */
+const zi = (E, n) => { if (E.data.zi == null) E.data.zi = hsh(E.seed + 'z') % (n || 2); return E.data.zi; };
+const zach = (E, a) => (a && a.length ? a[(E.data.zi || 0) % a.length] : '');
+
+/* ---------- проверки: как везде (C.bestCheck), с преимуществом по случаю ---------- */
+let CUR = null;
+if (C.checkAdv) { const ca0 = C.checkAdv; C.checkAdv = function () {
+  const b = ca0.apply(this, arguments) || {a: 0, why: '', A: [], D: []}; if (!CUR) return b;
+  const A = (b.A || []).concat(CUR.A || []), D = (b.D || []).concat(CUR.D || []);
+  const a = A.length && !D.length ? 1 : D.length && !A.length ? -1 : 0;
+  return Object.assign({}, b, {a, A, D, why: a > 0 ? A.join(', ') : a < 0 ? D.join(', ') : ''}); }; }
+const chk = (g, E, stat, skill, dc, adv, dis) => {
+  if (E.own && g.claimHero === E.own) g.claimHero = null;
+  const prev = CUR; CUR = {A: adv ? [adv] : [], D: dis ? [dis] : []}; let r;
+  try { r = C.bestCheck(g, stat, skill, dc); } finally { CUR = prev; }
+  g.lastCheck = r; E.hid = r && r.hero ? r.hero.id : E.hid; return r;
+};
+
+/* ---------- последствия (через то, что есть) ---------- */
+const FX = {
+  rep: (g, d, why) => { try { if (C.repAdd && nodeOf(g)) C.repAdd(g, g.loc, d, why); } catch (e) {} },
+  spirit: (g, d, why, h) => { try { if (C.spiritAdd) C.spiritAdd(g, d, why, h); } catch (e) {} },
+  money: (g, d) => { if (d > 0) g.purse = (g.purse || 0) + d; else g.purse = Math.max(0, (g.purse || 0) + d); return Math.abs(d); },
+  deed: (g, what) => { try { if (isFree(g) && C.fameDeed) C.fameDeed(g, 'job', {what}); } catch (e) {} },
+  song: g => { try { if (isFree(g) && C.fameSong && (g.w2deeds || []).length) C.fameSong(g); } catch (e) {} },
+  side: (g, s, d) => { try { if (C.sideAdd && g.chron) C.sideAdd(g, s, d); } catch (e) {} },
+  fac: (g, id, d) => { try { if (isFree(g) && C.facAdd && C.FACTIONS && C.FACTIONS[id]) C.facAdd(g, id, d); } catch (e) {} },
+  list: (g, d) => { try { if (isFree(g) && C.fameListAdd) C.fameListAdd(g, d); } catch (e) {} },
+  hurt: (g, h, n) => { if (h) h.hp = Math.max(1, (h.hp || 1) - Math.max(1, n)); },
+  crime: (g, h, kind, o) => { try { if (C.crimeAdd) return C.crimeAdd(g, h, kind, Object.assign({noWit: 1, nrav: false}, o || {})); } catch (e) {} return null; },
+  heat: (g, h, d) => { try { if (!isFree(g) || !C.crimeState || !h) return; const s = C.crimeState(g), reg = regOf(g), r = s.w && s.w[reg] && s.w[reg][h.id]; if (r) r.h = Math.max(0, Math.round((r.h + d) * 100) / 100); } catch (e) {} },
+  /* слух: место на карте (как слухи корчмы) */
+  rumor: g => { try { if (!isFree(g) || !C.rumorAt || !W || !W.isHex || !W.isHex(g)) return null; const n0 = (g.rumorSites || []).length; C.rumorAt(g, 4); const s = (g.rumorSites || [])[n0]; return s ? low(s.name) : null; } catch (e) { return null; } },
+  tale: g => { try { const t = C.taleRumor ? C.taleRumor(g) : null; return t ? String(t) : null; } catch (e) { return null; } },
+  /* дело: как у доски дел */
+  job: (g, opt) => { try { if (!isFree(g) || !Q || !Q.make || !Q.accept) return null; const j = Q.make(g, 'town', opt || {}); if (!j) return null; try { j.txt = Q.offerText(g, j); } catch (e) {} Q.accept(g, j); return Q.title ? Q.title(j) : 'новое дело'; } catch (e) { return null; } },
+  /* знакомый — именной человек: встретится снова */
+  know: (g, p, why) => { if (!p || !p.name) return; const s = S(g); s.known = s.known.filter(k => k.n !== p.name).concat({n: p.name, sex: p.sex, face: p.face, ppl: p.ppl, voice: p.voice, at: g.loc, camp: g.camp, why, day: g.day || 1}).slice(-K().KNOWN); },
+  dog: (g, kind) => { const id = kind || 'pes_storozhevoy'; if (!R.item(id)) return null; const h = C.recipient ? C.recipient(g, id) : hero(g); if (!h) return null; h.inv.push(id); C.note(g, `${h.name}: за отрядом увязался пёс — теперь он свой.`); return h; },
+};
+C.TL_FX = FX;
+
+/* ---------- кто перед нами ---------- */
+const FACE_KID = () => [].concat(C.FACE_KID || []);
+C.tlPerson = function (g, E, o) {
+  o = o || {}; const key = E.seed + '|' + (o.role || 'p');
+  const sex = o.sex || (hsh(key + 's') % 100 < (o.fem == null ? 35 : o.fem) ? 'f' : 'm');
+  const ppl = o.ppl || landPpl(g);
+  let name = o.name;
+  if (!name) { try { const nm = C.foeName ? C.foeName(ppl, sex, key, {bare: !!o.title}) : null; name = nm ? (o.title || o.given ? nm.given : nm.full) : (sex === 'f' ? 'Милава' : 'Ждан'); } catch (e) { name = sex === 'f' ? 'Милава' : 'Ждан'; } }
+  if (o.title) name = (sex === 'f' ? o.title[1] : o.title[0]) + ' ' + name;
+  let face = o.face;
+  if (!face) { const pool = o.kid ? FACE_KID() : o.rod && C.foeFaces ? C.foeFaces(o.rod, sex) : null;
+    face = pool && pool.length ? pool[hsh(key + 'f') % pool.length] : (C.fightFace ? C.fightFace(sex, key) : (sex === 'f' ? 'p36' : 'p32')); }
+  return {name, sex, face, ppl, voice: o.voice || VOICE[ppl] || 'nol', sub: o.sub || ''};
+};
+
+/* ======================= бой: кулачные бойцы ======================= */
+const FIST = [['tl_pyan', 1, 'Пьяный гуляка'], ['tl_buyan', 2, 'Буян'], ['tl_kulak', 4, 'Кулачный боец'], ['tl_bugay', 6, 'Бугай'], ['tl_master', 9, 'Кулачный мастер'], ['tl_volot', 13, 'Кулачный богатырь']];
+const LOOKS = ['f2_war_partisan', 'f2_imp_bandit', 'f2_war_hunter', 'f2_step_warrior'];
+C.MON = C.MON || {};
+FIST.forEach(([id, L, name], i) => { C.MON[id] = {id, name, group: 'люди', level: L, hp: 6 + 5 * L, atk: 2 + Math.floor(L / 2), def: 10 + Math.floor(L / 2), attacks: [{name: 'кулак', dmg: '1d4+' + Math.max(1, Math.floor(L / 2))}],
+  save: L + 4, save_bonus: 0, speed: 3, morale: true, xp: 25 * L, specials: ['бьёт кулаком: валит, но не убивает'], lang: null, tlFist: 1};
+  if (B && B.LOOK2) B.LOOK2[id] = [LOOKS[i % LOOKS.length], 1.0, null]; });
+const fistFoes = (g, n, up) => { const L = C.partyLevel(g) + (up || 0); const best = FIST.slice().sort((a, b) => Math.abs(a[1] - L + 1) - Math.abs(b[1] - L + 1))[0]; const low1 = FIST[Math.max(0, FIST.indexOf(best) - 1)];
+  return Array.from({length: n}, (_, i) => (i === 0 ? best[0] : (i % 2 ? low1[0] : best[0]))); };
+const nightField = g => (C.fieldFor ? C.fieldFor('village', C.isNight(g)) : null);
+/* бой события: в корчме (house), в переулке (lane), на площади (square); кулачный (fist) — без смерти */
+C.tlFightSpec = function (g, E, o) {
+  const n = nodeOf(g) || {};
+  const foes = o.foes || fistFoes(g, Math.max(1, Math.min(4, o.n || Math.max(2, C.partySize(g)))), o.up);
+  return {title: o.title || (o.fist ? TX.fist.title : 'Драка'), foes, field: nightField(g), win: 'tl_won', lose: o.lose || 'tl_lost', xpBonus: o.xp != null ? o.xp : 8 * lvl(g),
+    place: o.place === 'house' ? `${n.name || 'село'}, корчма` : n.name, tlIn: o.place || 'square', tlFist: o.fist ? 1 : 0, tlStake: o.stake || 0, tlEv: E.id, noHorse: 1};
+};
+
+/* ======================= события ======================= */
+const EV = C.TL_EV = {};
+const def = (id, o) => { EV[id] = Object.assign({id, grp: [], w: () => 1, ok: () => true}, o); };
+const end = (E, after) => { E.step = 'end'; if (after) E.after = after; };
+const fight = (g, E, spec, line) => { E.step = 'fight'; E.fight = spec; if (line) nar(g, E, line); };
+const opt = (t, k, f, x) => Object.assign({t, k, do: f}, x || {});
+const tried = (E, k) => !!(E.tried && E.tried[k]);
+/* пойманный вор: страже, отпустить, проучить */
+const caughtOpts = (id) => [
+  opt('Отдать страже', 'guard', (g, E) => { hsay(g, E, null, ['Пусть стража с тобой разбирается.', 'К страже его.']); nar(g, E, T(id).guard); FX.rep(g, 1, 'поймали вора'); end(E); }, {nrav: 't'}),
+  opt('Отпустить, отобрав своё', 'free', (g, E) => { hsay(g, E, null, ['Ступай. И чтоб я тебя больше не видел<|а>.', 'Иди уж. Второй раз не попадайся.']); nar(g, E, T(id).free); end(E); }, {nrav: 'M'}),
+  opt('Проучить', 'beat', (g, E) => { hsay(g, E, null, ['Запомнишь, как по чужим кошелям шарить.']); nar(g, E, T(id).beat); FX.spirit(g, 0); end(E); }, {nrav: 'H'}),
+];
+const thiefLoss = g => Math.min(g.purse || 0, r10(Math.min((g.purse || 0) * 0.1 + 8 * lvl(g), 40 * lvl(g))));
+const lostCoin = (g, E, id, k) => { const v = thiefLoss(g); FX.money(g, -v); nar(g, E, T(id)[k || 'escape'], {P: v}); end(E); };
+
+/* -------- корчма -------- */
+def('draka', {grp: ['korchma'], w: x => 3 + (x.fest ? 2 : 0) + (x.rep <= -1 ? 1 : 0) + (x.tm === 'вечер' || x.night ? 1 : 0),
+  who: (g, E) => C.tlPerson(g, E, {role: 'drak', fem: 5, rod: 'bandit', sub: 'Драчун из-за соседнего стола'}),
+  open: (g, E) => { nar(g, E, T('draka').zach); vsay(g, E, T('draka').o); },
+  opts: (g, E) => { const t = T('draka'), st = stake(g);
+    if (E.step === 'fight') return [opt('В драку!', 'go', (g2, X) => { X.go = 1; }, {nrav: 'h'}), opt('Отступить к двери', 'back', (g2, X) => { nar(g2, X, 'Вы пятитесь к двери, и драка катится дальше без вас.'); end(X); })];
+    return [
+      opt(lbl('Разнять словом', 'cha', 'Дипломатия'), 'dip', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2, 1)); hsay(g2, X, r.hero, TX.hero.dip);
+        if (r.ok) { nar(g2, X, t.dipOk); FX.rep(g2, 1, 'разняли драку в корчме'); end(X); } else fight(g2, X, C.tlFightSpec(g2, X, {fist: 1, place: 'house'}), t.dipNo); }, {nrav: 'm'}),
+      opt(lbl('Цыкнуть на драчунов', 'cha', 'Запугивание'), 'scare', (g2, X) => { const r = chk(g2, X, 'cha', 'Запугивание', DC(g2, 1)); hsay(g2, X, r.hero, TX.hero.scare);
+        if (r.ok) { nar(g2, X, t.scareOk); end(X); } else fight(g2, X, C.tlFightSpec(g2, X, {fist: 1, place: 'house'}), t.dipNo); }, {nrav: 'h'}),
+      opt(lbl('Растащить силой', 'str', 'Атлетика'), 'str', (g2, X) => { const r = chk(g2, X, 'str', 'Атлетика', DC(g2, 2));
+        if (r.ok) { nar(g2, X, t.strOk); FX.rep(g2, 1, 'разняли драку в корчме'); end(X); } else fight(g2, X, C.tlFightSpec(g2, X, {fist: 1, place: 'house'}), t.strNo); }),
+      opt('Встрять в драку', 'join', (g2, X) => { hsay(g2, X, null, t.fight); fight(g2, X, C.tlFightSpec(g2, X, {fist: 1, place: 'house'})); X.go = 1; }, {nrav: 'h'}),
+      opt(lbl(`Поставить на исход: ${price(st)}`, 'wis', 'Проницательность'), 'bet', (g2, X) => { if ((g2.purse || 0) < st) return; const r = chk(g2, X, 'wis', 'Проницательность', DC(g2));
+        hsay(g2, X, r.hero, t.bet); if (r.ok) { FX.money(g2, st); nar(g2, X, t.betOk, {P: st}); } else { FX.money(g2, -st); nar(g2, X, t.betNo, {P: st}); } end(X); }, {if: g2 => (g2.purse || 0) >= st, off: 'не хватает серебра', nrav: 'g'}),
+    ]; },
+  won: (g, E, win) => { const t = T('draka'); if (win) { nar(g, E, t.fightWin); FX.spirit(g, 1, 'добрая драка в корчме'); } else nar(g, E, t.fightLose); },
+});
+def('zadira', {grp: ['korchma'], w: x => 2 + (x.fest ? 2 : 0) + (x.grime >= 2 ? 1 : 0),
+  who: (g, E) => C.tlPerson(g, E, {role: 'zad', fem: 0, rod: 'merc', sub: 'Задира'}),
+  open: (g, E, x) => { nar(g, E, T('zadira').zach); vsay(g, E, T('zadira').o); if (x.grime >= 2) osay(g, E, T('zadira').grime); },
+  opts: (g, E) => { const t = T('zadira'), st = stake(g);
+    if (E.step === 'fight') return [opt('Выйти на кулачки', 'go', (g2, X) => { X.go = 1; })];
+    return [
+      opt('Сойтись на интерес', 'yes', (g2, X) => { hsay(g2, X, null, t.sayYes); fight(g2, X, C.tlFightSpec(g2, X, {fist: 1, place: 'house', n: 1, up: 1, title: 'Кулачки в корчме'})); X.go = 1; }, {nrav: 'h'}),
+      opt(`Сойтись на деньги: ${price(st)}`, 'money', (g2, X) => { hsay(g2, X, null, t.sayMoney, {P: st}); X.data.stake = st; fight(g2, X, C.tlFightSpec(g2, X, {fist: 1, place: 'house', n: 1, up: 1, stake: st, title: 'Кулачки в корчме'})); X.go = 1; }, {if: g2 => (g2.purse || 0) >= st, off: 'не хватает серебра', nrav: 'g'}),
+      opt(lbl('Отшутиться', 'cha', 'Дипломатия'), 'joke', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2)); hsay(g2, X, r.hero, t.sayNo); nar(g2, X, r.ok ? t.noOk : t.noNo); end(X); }, {nrav: 'm'}),
+    ]; },
+  won: (g, E, win) => { const t = T('zadira'), st = E.data.stake || 0;
+    if (win) { nar(g, E, t.fightWin); FX.rep(g, 1, 'одолели задиру на кулачках'); if (st) { FX.money(g, st * 2); nar(g, E, t.winMoney, {P: st}); } }
+    else { nar(g, E, t.fightLose); if (st) nar(g, E, t.loseMoney, {P: st}); } },
+});
+const PODSEL = ['slukh', 'prosba', 'sdelka', 'verb', 'svatya', 'glaz'];
+def('podsel', {grp: ['korchma'], safe: 1, w: x => 3 - (x.grime >= 2 ? 2 : 0) + (x.rep >= 2 ? 1 : 0),
+  ok: x => x.rep > -2,
+  who: (g, E, x) => { const kinds = PODSEL.filter(k => !x.saga || k === 'sdelka').filter(k => (k !== 'svatya' || (x.single && C.kvGuestRoll)) && (k !== 'glaz' || (x.fair && C.kvGuestRoll)) && (k !== 'verb' || isFree(g)) && (k !== 'prosba' || isFree(g)));
+    E.data.kind = kinds[hsh(E.seed + 'k') % kinds.length] || 'sdelka'; const k = E.data.kind;
+    return C.tlPerson(g, E, {role: 'pod', fem: k === 'svatya' ? 100 : k === 'verb' ? 10 : 35, rod: k === 'verb' ? 'merc' : k === 'slukh' ? 'wander' : null, sub: ({slukh: 'Бывалый человек', prosba: 'Проситель', sdelka: 'Купец', verb: 'Вербовщик', svatya: 'Сватья', glaz: 'Посыльный'})[k]}); },
+  open: (g, E) => { const t = T('podsel'); nar(g, E, t.zach); vsay(g, E, t[E.data.kind]); },
+  opts: (g, E) => { const t = T('podsel'), k = E.data.kind, pay = r10(12 * lvl(g) + 20);
+    const L = {slukh: 'Выслушать', prosba: 'Выслушать просьбу', sdelka: `Постеречь товар до утра — ${price(pay)}`, verb: 'Пообещать подумать', svatya: 'Пойти со сватьей', glaz: 'Пойти познакомиться'}[k];
+    return [opt(L, 'yes', (g2, X) => { hsay(g2, X, null, t.say[k]);
+      if (k === 'slukh') { const s = FX.rumor(g2); nar(g2, X, s ? t.slukhOk : t.slukhNone, {X: s}); }
+      else if (k === 'prosba') { const j = FX.job(g2); nar(g2, X, j ? t.prosbaOk : t.prosbaNone, {X: j ? '«' + j + '»' : ''}); if (j) FX.know(g2, X.who, 'корчме'); }
+      else if (k === 'sdelka') { if (C.passH) C.passH(g2, 4); FX.money(g2, pay); nar(g2, X, hsh(X.seed + 'sd') % 3 ? t.sdelkaOk : t.sdelkaNo, {P: pay}); }
+      else if (k === 'verb') { const f = landPpl(g2) === 'terak' ? 'terak' : (C.frontOf && C.frontOf(g2, regOf(g2)) >= 30 ? 'palata' : 'liga'); FX.fac(g2, f, 0.5); nar(g2, X, t.verbOk); }
+      else { const h = k === 'glaz' ? (alive(g2).find(y => y.id === (C.tlCtx(g2, 'folk_tavern', 'korchma').fair || {}).id) || hero(g2)) : (C.tlCtx(g2, 'folk_tavern', 'korchma').single || hero(g2));
+        let G0 = null; try { G0 = C.kvGuestRoll(g2, h, {type: 'local', st: k === 'svatya' ? 'maid' : (hsh(X.seed + 'st') % 2 ? 'widow' : 'maid'), q: 2}); } catch (e) { G0 = null; }
+        if (G0) { nar(g2, X, k === 'svatya' ? 'Сватья ведёт вас через улицу, болтая без умолку.' : 'Вы подсаживаетесь к тому столу.'); return end(X, {scene: 'kv_guest'}); }
+        nar(g2, X, t.no); }
+      end(X); }, {nrav: k === 'verb' ? '' : ''})]; },
+  stay: (g, E) => nar(g, E, T('podsel').no),
+});
+def('ruka', {grp: ['korchma'], w: x => 2 + (x.fest ? 1 : 0), ok: x => x.purse > 0 && !x.saga,
+  who: (g, E) => C.tlPerson(g, E, {role: 'vor', fem: 15, rod: 'fugitive', sub: 'Вертлявый малый'}),
+  open: (g, E) => nar(g, E, T('ruka').zach),
+  opts: (g, E, x) => { const t = T('ruka');
+    if (E.step === 'caught') return caughtOpts('ruka');
+    return [
+      opt(lbl('Схватить за руку', 'dex', 'Ловкость рук'), 'grab', (g2, X) => { const r = chk(g2, X, 'dex', 'Ловкость рук', DC(g2), x.tat ? 'глаз татя' : null);
+        if (r.ok) { nar(g2, X, t.caught); vsay(g2, X, t.thiefSay); X.step = 'caught'; } else lostCoin(g2, X, 'ruka'); }),
+      opt(lbl('Крикнуть: «Держи вора!»', 'wis', 'Проницательность'), 'shout', (g2, X) => { const r = chk(g2, X, 'wis', 'Проницательность', DC(g2, 1));
+        if (r.ok) { nar(g2, X, 'Мужики у стойки хватают вора за шиворот и тащат к вам.'); vsay(g2, X, t.thiefSay); X.step = 'caught'; } else lostCoin(g2, X, 'ruka'); }),
+    ]; },
+  stay: (g, E) => lostCoin(g, E, 'ruka', 'lost'),
+});
+def('guslyar', {grp: ['korchma'], safe: 1, w: x => 2 + (x.fame.good >= 3 || x.fame.black >= 2 ? 2 : 0) + (x.gusl ? 1 : 0) + (x.fest ? 1 : 0),
+  who: (g, E) => C.tlPerson(g, E, {role: 'gusl', fem: 10, rod: 'wander', sub: 'Гусляр'}),
+  open: (g, E, x) => { const t = T('guslyar'); const bad = x.saga ? x.rep <= -2 : (x.fame.black >= 2 && x.fame.black > x.fame.good); const good = !bad && (x.saga ? x.rep >= 2 : x.fame.good >= 2);
+    E.data.mode = bad ? 'bad' : good ? 'good' : 'none';
+    nar(g, E, bad ? t.zachBad : good ? t.zachGood : t.zachNone); vsay(g, E, bad ? t.songBad : good ? t.songGood : {nol: t.songNone}); },
+  opts: (g, E, x) => { const t = T('guslyar'), m = E.data.mode, s = small(g);
+    if (m === 'good') return [
+      opt(`Поднести гусляру чарку: ${price(s)}`, 'treat', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); nar(g2, X, t.treat); FX.rep(g2, 1, 'о вас поют в корчме'); FX.spirit(g2, 1, 'о нас поют'); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра'}),
+      opt(lbl('Подхватить песню', 'cha', ''), 'join', (g2, X) => { const r = chk(g2, X, 'cha', '', DC(g2), x.gusl ? 'гусляр в отряде' : null); nar(g2, X, r.ok ? t.join : t.joinNo); if (r.ok) { FX.spirit(g2, 1, 'пели всей корчмой'); FX.rep(g2, 1, 'пели всей корчмой'); } end(X); })];
+    if (m === 'bad') return [
+      opt(lbl('Велеть замолчать', 'cha', 'Запугивание'), 'shut', (g2, X) => { const r = chk(g2, X, 'cha', 'Запугивание', DC(g2, 1)); hsay(g2, X, r.hero, TX.hero.scare); nar(g2, X, r.ok ? t.shut : t.shutNo); if (!r.ok) FX.rep(g2, -1, 'гусляр поёт про вас худое'); end(X); }, {nrav: 'h'}),
+      opt(`Заплатить за другую песню: ${price(s)}`, 'buy', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); nar(g2, X, t.buy); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра'}),
+      opt(lbl('Посмеяться со всеми', 'cha', 'Дипломатия'), 'laugh', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2)); nar(g2, X, r.ok ? t.laugh : t.shutNo); if (r.ok) FX.rep(g2, 1, 'умеют посмеяться над собой'); end(X); }, {nrav: 'm'})];
+    return [opt(`Заказать песню: ${price(s)}`, 'order', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); nar(g2, X, t.order); FX.spirit(g2, 1, 'гусляр пел по заказу'); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра'})]
+      .concat(isFree(g) && (g.w2deeds || []).length ? [opt('Рассказать о своих делах', 'tell', (g2, X) => { hsay(g2, X, null, ['Слушай, гусляр. Было дело…']); FX.song(g2); nar(g2, X, t.tell); end(X); })] : []);
+  },
+  stay: (g, E) => nar(g, E, 'Гусляр поёт своё, и корчма подпевает.'),
+});
+def('dozn', {grp: ['korchma', 'ulica'], w: x => 1 + (x.koldun ? 2 : 0), ok: x => !x.saga && x.cls === 'town' && x.front >= -30 && (!C.w2okoOk || C.w2okoOk(x.g, 'tl')),
+  who: (g, E) => C.tlPerson(g, E, {role: 'dozn', fem: 10, rod: 'oko', title: ['Брат', 'Сестра'], voice: 'oko', ppl: hsh(E.seed + 'op') % 3 ? 'imperets' : 'nolgrim', sub: 'Дознаватель Ока'}),
+  open: (g, E, x) => { const t = T('dozn'); try { if (C.w2okoMark) C.w2okoMark(g, 'tl'); } catch (e) {} nar(g, E, t.zach); vsay(g, E, t.o); if (x.koldun) { E.data.tense = 1; vsay(g, E, t.tense); } },
+  opts: (g, E, x) => { const t = T('dozn'), s = r10(20 * lvl(g)), out = [
+    opt(lbl('Отвечать по правде', 'wis', 'Вера'), 'truth', (g2, X) => { const r = chk(g2, X, 'wis', 'Вера', DC(g2, X.data.tense ? 3 : 0)); hsay(g2, X, r.hero, ['Мы люди дорожные, скрывать нам нечего.', 'Спрашивай — отвечу как есть.']);
+      nar(g2, X, r.ok ? t.truthOk : t.truthNo); if (!r.ok) FX.list(g2, 1); end(X); }, {nrav: 'T'}),
+    opt(lbl('Солгать', 'cha', 'Обман'), 'lie', (g2, X) => { const r = chk(g2, X, 'cha', 'Обман', DC(g2, 2)); hsay(g2, X, r.hero, TX.hero.lie); nar(g2, X, r.ok ? t.lieOk : t.lieNo); if (!r.ok) FX.list(g2, 2); end(X); }, {nrav: 'L'}),
+    opt(`Пожертвовать храму: ${price(s)}`, 'bribe', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); hsay(g2, X, null, TX.hero.pay); nar(g2, X, t.bribe); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра', nrav: 'g'})];
+    if (x.okoHero) out.unshift(opt(`${x.okoHero.name}: показать звезду Ока`, 'star', (g2, X) => { hsay(g2, X, x.okoHero, ['Мы под звездой, брат.']); nar(g2, X, t.star); end(X); }));
+    return out; },
+  stay: (g, E) => { nar(g, E, T('dozn').silent); if (E.data.tense) FX.list(g, 1); },
+});
+def('rival', {grp: ['korchma'], w: () => 2, ok: x => !x.saga && x.rivals.length > 0,
+  who: (g, E, x) => { const r = x.rivals[hsh(E.seed + 'r') % Math.max(1, x.rivals.length)]; if (!r) return null; E.data.rv = r.id; const nm = (r.title ? cap(r.title) + ' ' : '') + r.name;
+    return C.tlPerson(g, E, {name: nm, sex: r.sex, ppl: r.ppl, face: C.fightFace ? C.fightFace(r.sex, r.id) : null, voice: r.type === 'oko' ? 'oko' : null, sub: 'Соперник'}); },
+  open: (g, E) => { const t = T('rival'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('rival'); return [
+    opt(lbl('Поднять чарку мира', 'cha', 'Дипломатия'), 'peace', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2, 2)); hsay(g2, X, r.hero, ['Выпьем. Дорога у нас одна, а драться можно и завтра.']); nar(g2, X, r.ok ? t.peaceOk : t.peaceNo); if (r.ok) FX.spirit(g2, 1, 'выпили мировую с соперником'); end(X); }, {nrav: 'm'}),
+    opt(lbl('Высмеять при всех', 'cha', 'Обман'), 'shame', (g2, X) => { const r = chk(g2, X, 'cha', 'Обман', DC(g2, 1)); hsay(g2, X, r.hero, ['Глядите, люди: это ж тот, кто за нами следом ходит, объедки подбирает!']);
+      nar(g2, X, r.ok ? t.shameOk : t.shameNo); FX.rep(g2, r.ok ? 1 : -1, r.ok ? 'посрамили соперника при людях' : 'над вами посмеялись'); end(X); }, {nrav: 'h'})]; },
+  stay: (g, E) => nar(g, E, 'Вы не глядите в ту сторону. Соперник пьёт у стойки и уходит, не прощаясь.'),
+});
+def('znakomy', {grp: ['korchma', 'ulica', 'torg'], safe: 1, w: () => 2,
+  ok: x => S(x.g).known.some(k => k.camp === x.g.camp && (k.at !== x.g.loc || (x.g.day || 1) - k.day >= 3)),
+  who: (g, E) => { const L = S(g).known.filter(k => k.camp === g.camp && (k.at !== g.loc || (g.day || 1) - k.day >= 3)); const k = L[hsh(E.seed + 'kn') % Math.max(1, L.length)]; if (!k) return null; E.data.k = k.n; E.data.why = k.why;
+    return C.tlPerson(g, E, {name: k.n, sex: k.sex, face: k.face, ppl: k.ppl, voice: k.voice, sub: 'Старый знакомый'}); },
+  open: (g, E) => { const t = T('znakomy'); nar(g, E, t.zach, {X: E.data.why || 'дороге'}); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('znakomy'); return [
+    opt('Выпить вместе и расспросить', 'news', (g2, X) => { const s = FX.rumor(g2); nar(g2, X, s ? t.news : t.newsNone, {X: s}); FX.spirit(g2, 1, 'встретили старого знакомого'); end(X); }),
+    opt('Принять гостинец', 'gift', (g2, X) => { const v = small(g2) * 2; FX.money(g2, v); nar(g2, X, t.gift, {P: v}); const s = S(g2); s.known = s.known.filter(k => k.n !== X.data.k); end(X); })]; },
+  stay: (g, E) => nar(g, E, T('znakomy').bye),
+});
+def('kosti', {grp: ['korchma'], safe: 1, w: x => 2 + (x.fest ? 1 : 0) + (x.tat ? 1 : 0), ok: x => x.purse >= stake(x.g),
+  who: (g, E) => C.tlPerson(g, E, {role: 'kost', fem: 10, rod: 'bandit', sub: 'Игрок у очага'}),
+  open: (g, E) => { const t = T('kosti'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E, x) => { const t = T('kosti'), st = stake(g);
+    if (E.step === 'fight') return [opt('Отбиваться кулаками', 'go', (g2, X) => { X.go = 1; }), opt('Бросить ставку и уйти', 'drop', (g2, X) => { FX.money(g2, -st); FX.rep(g2, -1, 'попались на мечёных костях'); nar(g2, X, 'Вы бросаете ставку на кадушку и уходите под свист.'); end(X); })];
+    const have = g2 => (g2.purse || 0) >= st;
+    return [
+      opt(lbl(`Сыграть честно: ${price(st)}`, 'wis', 'Проницательность'), 'fair', (g2, X) => { if (!have(g2)) return; const r = chk(g2, X, 'wis', 'Проницательность', DC(g2, 1)); if (r.ok) { FX.money(g2, st); nar(g2, X, t.winH, {P: st}); } else { FX.money(g2, -st); nar(g2, X, t.loseH, {P: st}); } end(X); }, {if: have, off: 'не хватает серебра', nrav: 'g'}),
+      opt(lbl(`Сыграть с хитростью: ${price(st)}`, 'dex', 'Ловкость рук'), 'cheat', (g2, X) => { if (!have(g2)) return; const r = chk(g2, X, 'dex', 'Ловкость рук', DC(g2, 2), x.tat ? 'рука татя' : null);
+        if (r.ok) { FX.money(g2, st * 2); nar(g2, X, t.cheatOk, {P: st * 2}); end(X); } else if (isFree(g2)) fight(g2, X, C.tlFightSpec(g2, X, {fist: 1, place: 'house', stake: st}), t.cheatNo); else { FX.money(g2, -st); FX.rep(g2, -1, 'попались на мечёных костях'); nar(g2, X, t.cheatNo); end(X); } }, {if: have, off: 'не хватает серебра', nrav: 'L'}),
+      opt(lbl('Приглядеться, кто мухлюет', 'wis', 'Проницательность'), 'spot', (g2, X) => { const r = chk(g2, X, 'wis', 'Проницательность', DC(g2, 2), x.tat ? 'глаз татя' : null);
+        if (r.ok) { FX.money(g2, st); nar(g2, X, t.spotOk, {P: st}); FX.rep(g2, 1, 'вывели шулера'); } else nar(g2, X, t.spotNo); end(X); }, {nrav: 't'})]; },
+  won: (g, E, win) => nar(g, E, win ? 'Шулеры лежат под лавками. Свои деньги вы забираете с кадушки сами.' : 'Вас выкидывают на крыльцо. Ставка пропала, но рёбра целы.'),
+});
+
+/* -------- улица и торг -------- */
+def('karman', {grp: ['torg', 'ulica', 'vorota'], w: x => (x.spot === 'torg' ? 3 : 1) + (x.fest ? 1 : 0), ok: x => x.purse > 0 && !x.saga && (x.cls === 'town' || x.fest),
+  who: (g, E) => C.tlPerson(g, E, {role: 'karm', fem: 20, rod: 'fugitive', sub: 'Карманник'}),
+  open: (g, E) => nar(g, E, T('karman').zach),
+  opts: (g, E, x) => { const t = T('karman'); if (E.step === 'caught') return caughtOpts('karman');
+    return [
+      opt(lbl('Схватить за руку', 'dex', 'Ловкость рук'), 'grab', (g2, X) => { const r = chk(g2, X, 'dex', 'Ловкость рук', DC(g2, 1), x.tat ? 'глаз татя' : null); if (r.ok) { nar(g2, X, t.caught); vsay(g2, X, t.thiefSay); X.step = 'caught'; } else lostCoin(g2, X, 'karman'); }),
+      opt(lbl('Догнать', 'dex', 'Атлетика'), 'run', (g2, X) => { const r = chk(g2, X, 'dex', 'Атлетика', DC(g2)); if (r.ok) { nar(g2, X, 'Вы настигаете воришку у самых возов.'); nar(g2, X, t.caught); vsay(g2, X, t.thiefSay); X.step = 'caught'; } else lostCoin(g2, X, 'karman'); })]; },
+  stay: (g, E) => lostCoin(g, E, 'karman', 'lost'),
+});
+def('glash', {grp: ['ulica', 'vorota', 'torg'], w: x => 2 + (x.wanted.some(y => y.st >= 2) ? 2 : 0) + (x.war ? 1 : 0), ok: x => !x.saga && x.cls === 'town' && !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'gl', fem: 0, rod: 'guard', sub: 'Глашатай'}),
+  open: (g, E, x) => { const t = T('glash'); nar(g, E, t.zach);
+    const w = x.wanted.find(y => y.st >= 2 && !y.list); let rum = null; try { rum = w && C.crimeRumor ? C.crimeRumor(g, regOf(g), w.h.id) : null; } catch (e) { rum = null; }
+    const news = isFree(g) && C.war ? (C.war(g).news || [])[0] : null;
+    E.data.mode = rum && rum.s ? 'you' : x.war && news ? 'war' : hsh(E.seed + 'gm') % 2 ? 'bounty' : 'news';
+    if (E.data.mode === 'you') { E.data.hid = w.h.id; osay(g, E, t.you, {X: rum.s + ' — за ' + rum.c}); nar(g, E, t.youLine); }
+    else if (E.data.mode === 'war') osay(g, E, t.war, {X: low(String(news).replace(/\.$/, ''))});
+    else if (E.data.mode === 'bounty') osay(g, E, t.bounty, {X: 'серебро из казны'});
+    else osay(g, E, t.news); },
+  opts: (g, E) => { const t = T('glash'), m = E.data.mode;
+    if (m === 'bounty') return [opt('Взять грамоту у писца', 'take', (g2, X) => { const j = FX.job(g2, {kind: 'bandits'}); nar(g2, X, j ? t.take : 'Писец разводит руками: грамоты кончились, разобрали.'); end(X); })];
+    if (m === 'you') { const h = heroBy(g, E.data.hid); return [
+      opt(lbl('Надвинуть капюшон и уйти', 'dex', 'Скрытность'), 'hide', (g2, X) => { const r = chk(g2, X, 'dex', 'Скрытность', DC(g2)); nar(g2, X, r.ok ? t.hideOk : t.hideNo); if (!r.ok) { FX.heat(g2, heroBy(g2, X.data.hid), 0.5); FX.rep(g2, -1, 'узнали по приметам'); } end(X); }),
+      opt(lbl('Сорвать грамоту', 'dex', 'Ловкость рук'), 'tear', (g2, X) => { const r = chk(g2, X, 'dex', 'Ловкость рук', DC(g2, 2)); nar(g2, X, r.ok ? t.tearOk : t.tearNo); FX.heat(g2, heroBy(g2, X.data.hid), r.ok ? -0.5 : 1); end(X); }, {nrav: 'l'})].filter(() => !!h); }
+    return [opt('Дослушать до конца', 'listen', (g2, X) => { nar(g2, X, 'Глашатай сворачивает свиток. Люди расходятся, пересказывая друг другу услышанное.'); end(X); })]; },
+  stay: (g, E) => nar(g, E, 'Вы проходите мимо помоста, не слушая.'),
+});
+def('sud', {grp: ['ulica', 'torg'], safe: 1, w: () => 1.5, ok: x => !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'sud', sex: 'm', rod: 'fugitive', sub: 'Обвиняемый'}),
+  open: (g, E) => { const t = T('sud'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('sud'), v = r10(10 * lvl(g) + 20); return [
+    opt('Послушать, о чём говорят в толпе', 'watch', (g2, X) => { const s = FX.tale(g2); nar(g2, X, s ? t.watch : t.watchNone, {X: s ? low(s.replace(/\.$/, '')) : ''}); end(X); }),
+    opt(lbl('Заступиться', 'cha', 'Дипломатия'), 'def', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2, 1)); hsay(g2, X, r.hero, ['Погодите судить. Где видоки? Кто видел, что он брал?']);
+      nar(g2, X, r.ok ? t.defOk : t.defNo); FX.rep(g2, r.ok ? 1 : -1, r.ok ? 'заступились за невиновного' : 'полезли не в своё дело'); if (r.ok) FX.know(g2, X.who, 'площади, где его судили'); end(X); }, {nrav: 'M'}),
+    opt(`Заплатить виру за беднягу: ${price(v)}`, 'pay', (g2, X) => { if ((g2.purse || 0) < v) return; FX.money(g2, -v); nar(g2, X, t.pay, {P: v}); FX.rep(g2, 1, 'заплатили виру за бедняка'); FX.know(g2, X.who, 'площади, где за него заплатили виру'); end(X); }, {if: g2 => (g2.purse || 0) >= v, off: 'не хватает серебра', nrav: 'MU'})]; },
+  stay: (g, E) => nar(g, E, 'Вы проходите мимо. За спиной свистит кнут, и толпа ахает.'),
+});
+def('propov', {grp: ['ulica', 'hram'], safe: 1, w: x => 1 + (x.okoHero ? 1 : 0) + (x.spot === 'hram' ? 2 : 0), ok: x => x.front > -70 && !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'pr', sex: zi(E) ? 'f' : 'm', rod: 'oko', title: ['Брат', 'Сестра'], voice: 'oko', ppl: 'imperets', sub: E.data.zi ? 'Сестра Ока' : 'Брат Ока'}),
+  open: (g, E) => { const t = T('propov'); nar(g, E, zach(E, t.zach)); vsay(g, E, t.o); },
+  opts: (g, E, x) => { const t = T('propov'), s = small(g); return [
+    opt('Дослушать проповедь', 'listen', (g2, X) => { nar(g2, X, t.listen); if (x.okoHero) { nar(g2, X, t.listenOko, {h: x.okoHero}); FX.spirit(g2, 1, 'слово брата Ока', alive(g2).find(h => h.id === x.okoHero.id)); } end(X); }),
+    opt(lbl('Возразить', 'int', 'Грамота'), 'arg', (g2, X) => { const r = chk(g2, X, 'int', 'Грамота', DC(g2, 2)); hsay(g2, X, r.hero, ['А деды наши жили с богами — и не пропали. Чем твоё Око лучше?']);
+      nar(g2, X, r.ok ? t.argOk : t.argNo); if (r.ok) { FX.side(g2, 'kap', 0.5); FX.side(g2, 'oko', -0.5); FX.rep(g2, x.front >= 30 ? -1 : 1, x.front >= 30 ? 'спорили с братом Ока' : 'переспорили брата Ока'); } end(X); }),
+    opt(`Подать на храм: ${price(s)}`, 'give', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); FX.side(g2, 'oko', 0.5); nar(g2, X, t.give); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра', nrav: 'u'})]; },
+  stay: (g, E) => nar(g, E, 'Вы проходите мимо. Голос проповедника ещё долго слышен за спиной.'),
+});
+def('telega', {grp: ['ulica', 'torg', 'vorota'], safe: 1, w: x => 2 + (x.wx === 'wet' ? 1 : 0), ok: x => !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'tel', fem: 10, rod: 'wander', sub: 'Возчик'}),
+  open: (g, E) => { const t = T('telega'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('telega'), gift = small(g); return [
+    opt(lbl('Помочь поднять', 'str', 'Атлетика'), 'lift', (g2, X) => { const r = chk(g2, X, 'str', 'Атлетика', DC(g2));
+      if (r.ok) { FX.money(g2, gift); nar(g2, X, t.liftOk, {P: gift}); FX.rep(g2, 1, 'помогли поднять телегу'); } else { nar(g2, X, t.liftNo); FX.hurt(g2, r.hero, 2); } end(X); }),
+    opt('Собрать рассыпанное', 'gather', (g2, X) => { if (C.passH) C.passH(g2, 0.5); nar(g2, X, t.gather); FX.rep(g2, 1, 'помогли возчику'); end(X); }, {nrav: 'U'}),
+    opt(lbl('Поживиться в суматохе', 'dex', 'Ловкость рук'), 'grab', (g2, X) => { const r = chk(g2, X, 'dex', 'Ловкость рук', DC(g2, 1));
+      if (r.ok) { FX.money(g2, gift * 2); nar(g2, X, t.grabOk, {P: gift * 2}); FX.crime(g2, r.hero, 'theft', {quiet: 1, why: 'кража с опрокинутого воза'}); }
+      else { nar(g2, X, t.grabNo); FX.rep(g2, -1, 'поживились чужой бедой'); FX.crime(g2, r.hero, 'theft', {seen: true, why: 'кража с опрокинутого воза'}); } end(X); }, {nrav: 'G'})]; },
+  stay: (g, E) => nar(g, E, 'Вы обходите телегу стороной. Возчик ругается вслед, но не вам.'),
+});
+def('rebenok', {grp: ['ulica', 'torg'], safe: 1, w: () => 1.5, ok: x => !x.night && x.tm !== 'вечер',
+  who: (g, E) => C.tlPerson(g, E, {role: 'kid', sex: zi(E) ? 'm' : 'f', kid: 1, given: 1, sub: 'Потерявшееся дитя'}),
+  open: (g, E) => { const t = T('rebenok'); nar(g, E, zach(E, t.zach)); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('rebenok'); return [
+    opt(lbl('Отвести домой', 'wis', 'Поиск'), 'home', (g2, X) => { const r = chk(g2, X, 'wis', 'Поиск', DC(g2, -1)); hsay(g2, X, r.hero, ['Не реви. Сейчас найдём твоих.', 'Пойдём, покажешь, откуда шл<ёл|а>.']);
+      if (r.ok) { if (C.passH) C.passH(g2, 1); nar(g2, X, t.homeOk); FX.rep(g2, 2, 'вернули потерявшееся дитя'); FX.know(g2, C.tlPerson(g2, X, {role: 'otec', fem: 0, sub: 'Отец'}), 'дню, когда вы привели его дитя'); }
+      else { if (C.passH) C.passH(g2, 2); nar(g2, X, t.homeNo); FX.rep(g2, 1, 'не бросили дитя'); } end(X); }, {nrav: 'U'}),
+    opt('Отвести к страже', 'guard', (g2, X) => { nar(g2, X, t.guard); end(X); })]; },
+  stay: (g, E) => nar(g, E, 'Вы проходите мимо. Плач стихает за углом.'),
+});
+def('sobaka', {grp: ['ulica'], safe: 1, w: x => (x.cls === 'village' || x.cls === 'yard' ? 2 : 1), ok: x => !x.dog,
+  who: (g, E) => ({name: 'Лохматый пёс', sex: 'm', face: '', voice: 'nol', sub: 'Бродячий пёс'}),
+  open: (g, E) => nar(g, E, T('sobaka').zach),
+  opts: (g, E) => { const t = T('sobaka'); return [
+    opt('Взять пса с собой', 'take', (g2, X) => { const h = FX.dog(g2, X.data.kind || (hsh(X.seed + 'dg') % 2 ? 'pes_storozhevoy' : 'pes_ohotnichiy')); if (h) nar(g2, X, t.take, {h}); else nar(g2, X, t.feed); end(X); }),
+    opt('Накормить и отпустить', 'feed', (g2, X) => { nar(g2, X, t.feed); FX.spirit(g2, 0); end(X); })]; },
+  stay: (g, E) => nar(g, E, 'Пёс ещё немного бежит следом, потом садится и смотрит вам вслед.'),
+});
+def('nishchiy', {grp: ['ulica', 'vorota', 'hram'], safe: 1, w: () => 1.5,
+  who: (g, E) => C.tlPerson(g, E, {role: 'nish', sex: zi(E) ? 'f' : 'm', rod: 'wander', sub: 'Нищий'}),
+  open: (g, E) => { const t = T('nishchiy'); nar(g, E, zach(E, t.zach)); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('nishchiy'), s = r10(2 * lvl(g) + 5); return [
+    opt(`Подать: ${price(s)}`, 'give', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); const tl = FX.tale(g2); nar(g2, X, tl ? t.give : t.omen, {X: tl ? '«' + cap(tl.replace(/^«|»$/g, '')) + '»' : ''}); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра', nrav: 'U'}),
+    opt(lbl('Расспросить, что он видел', 'wis', 'Проницательность'), 'ask', (g2, X) => { const r = chk(g2, X, 'wis', 'Проницательность', DC(g2)); const site = r.ok ? FX.rumor(g2) : null; nar(g2, X, site ? t.ask : t.askNone, {X: site}); end(X); })]; },
+  stay: (g, E) => nar(g, E, 'Нищий отворачивается и бормочет что-то вам вслед.'),
+});
+def('silach', {grp: ['torg', 'ulica'], safe: 1, w: x => (x.spot === 'torg' ? 1.5 : 0.5) + (x.fest ? 2 : 0), ok: x => !x.night && (x.cls === 'town' || x.fest),
+  who: (g, E) => C.tlPerson(g, E, {role: 'sil', fem: 0, rod: 'merc', sub: 'Ярмарочный силач'}),
+  open: (g, E) => { const t = T('silach'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('silach'), prize = r10(25 * lvl(g)), st = stake(g); return [
+    opt(lbl('Побороться', 'str', 'Атлетика'), 'wrestle', (g2, X) => { const r = chk(g2, X, 'str', 'Атлетика', DC(g2, 4));
+      if (r.ok) { FX.money(g2, prize); nar(g2, X, t.winH, {P: prize, h: r.hero}); FX.rep(g2, 1, 'положили ярмарочного силача'); if (!X.data.deed) { X.data.deed = 1; FX.deed(g2, 'положили на лопатки ярмарочного силача'); } }
+      else nar(g2, X, t.loseH, {h: r.hero}); end(X); }),
+    opt(lbl(`Поставить на силача: ${price(st)}`, 'wis', 'Проницательность'), 'bet', (g2, X) => { if ((g2.purse || 0) < st) return; const r = chk(g2, X, 'wis', 'Проницательность', DC(g2));
+      if (r.ok) { FX.money(g2, st); nar(g2, X, t.betOk, {P: st}); } else { FX.money(g2, -st); nar(g2, X, t.betNo, {P: st}); } end(X); }, {if: g2 => (g2.purse || 0) >= st, off: 'не хватает серебра', nrav: 'g'})]; },
+  stay: (g, E) => nar(g, E, 'Вы глядите издали, как силач кладёт очередного смельчака.'),
+});
+def('pozhar', {grp: ['ulica'], safe: 1, w: x => 0.7 + (x.wx === 'heat' ? 1 : 0), ok: x => !['wet', 'cold'].includes(x.wx),
+  who: (g, E) => C.tlPerson(g, E, {role: 'pozh', fem: 60, sub: 'Погорелец'}),
+  open: (g, E) => { const t = T('pozhar'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('pozhar'); return [
+    opt(lbl('Тушить вместе со всеми', 'con', 'Атлетика'), 'fight', (g2, X) => { const r = chk(g2, X, 'con', 'Атлетика', DC(g2)); if (C.passH) C.passH(g2, 1);
+      if (r.ok) { nar(g2, X, t.fightOk); FX.rep(g2, 2, 'тушили пожар'); } else { nar(g2, X, t.fightNo, {h: r.hero}); FX.hurt(g2, r.hero, lvl(g2)); FX.rep(g2, 1, 'тушили пожар'); } end(X); }, {nrav: 'U'}),
+    opt(lbl('Броситься в дым за людьми', 'dex', 'Атлетика'), 'save', (g2, X) => { const r = chk(g2, X, 'dex', 'Атлетика', DC(g2, 2));
+      if (r.ok) { nar(g2, X, t.saveOk, {h: r.hero}); FX.rep(g2, 2, 'вынесли старика из огня'); FX.deed(g2, 'вынесли старика из горящей избы'); FX.know(g2, X.who, 'пожару'); }
+      else { nar(g2, X, t.saveNo, {h: r.hero}); FX.hurt(g2, r.hero, 2 * lvl(g2)); FX.rep(g2, 1, 'лезли в огонь за людьми'); } end(X); }, {nrav: 'U'})]; },
+  stay: (g, E) => nar(g, E, 'Вы стоите в стороне. Изба догорает, бабы голосят.'),
+});
+def('spor', {grp: ['torg'], safe: 1, w: () => 2, ok: x => !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'spor', fem: 20, rod: 'smuggler', sub: 'Купец'}),
+  open: (g, E) => { const t = T('spor'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('spor'), v = small(g); return [
+    opt(lbl('Рассудить', 'wis', 'Проницательность'), 'judge', (g2, X) => { const r = chk(g2, X, 'wis', 'Проницательность', DC(g2)); if (r.ok) { FX.money(g2, v); nar(g2, X, t.judgeOk, {P: v}); FX.rep(g2, 1, 'рассудили купцов по правде'); } else nar(g2, X, t.judgeNo); end(X); }, {nrav: 't'}),
+    opt('Встать за того, кто платит', 'side', (g2, X) => { FX.money(g2, v * 2); nar(g2, X, t.side, {P: v * 2}); end(X); }, {nrav: 'G'})]; },
+  stay: (g, E) => nar(g, E, 'Вы проходите мимо. Купцы спорят до хрипоты.'),
+});
+
+/* -------- ночь -------- */
+const streetFoes = (g, pool, k) => (C.fit ? C.fit(g, pool, k || 0.9, 2) : pool.slice(0, 2));
+def('grab', {grp: ['noch'], w: x => 2 + (x.rep <= -1 ? 1 : 0) + (x.cls === 'town' ? 1 : 0), ok: x => !x.saga,
+  who: (g, E) => C.tlPerson(g, E, {role: 'gr', fem: 10, rod: 'bandit', sub: 'Грабитель'}),
+  open: (g, E) => { const t = T('grab'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('grab'), toll = Math.min(r10(25 * lvl(g) + 40), Math.max(10, g.purse || 0)), spec = () => C.tlFightSpec(g, E, {title: 'Грабители в переулке', place: 'lane', foes: streetFoes(g, ['razboynik', 'tat', 'razboynik', 'tat', 'razboynik']), xp: 10 * lvl(g)});
+    if (E.step === 'fight') return [opt('К оружию!', 'go', (g2, X) => { X.go = 1; })];
+    return [
+      opt(`Откупиться: ${price(toll)}`, 'pay', (g2, X) => { const v = Math.min(g2.purse || 0, toll); FX.money(g2, -v); hsay(g2, X, null, TX.hero.pay); nar(g2, X, t.payOk, {P: v}); end(X); }, {if: g2 => (g2.purse || 0) > 0, off: 'кошель пуст'}),
+      opt(lbl('Припугнуть', 'cha', 'Запугивание'), 'scare', (g2, X) => { const r = chk(g2, X, 'cha', 'Запугивание', DC(g2, 2)); hsay(g2, X, r.hero, TX.hero.scare); if (r.ok) { nar(g2, X, t.scareOk); end(X); } else fight(g2, X, spec(), t.scareNo); }, {nrav: 'h'}),
+      opt(lbl('Бежать переулками', 'dex', 'Атлетика'), 'run', (g2, X) => { const r = chk(g2, X, 'dex', 'Атлетика', DC(g2, 1)); if (r.ok) { nar(g2, X, t.runOk); end(X); } else fight(g2, X, spec(), t.runNo); }),
+      opt('Драться', 'fight', (g2, X) => { fight(g2, X, spec()); X.go = 1; }, {nrav: 'h'})]; },
+  stay: (g, E) => nar(g, E, T('grab').stay),
+  won: (g, E, win) => { if (win) { nar(g, E, T('grab').win); FX.rep(g, 1, 'побили ночных грабителей'); } else nar(g, E, 'Вы приходите в себя в грязи. Кошель срезан, но живы.'); },
+});
+def('straga', {grp: ['noch'], w: x => 1 + (x.wanted.length ? 3 : 0), ok: x => !x.saga && x.cls === 'town',
+  who: (g, E) => C.tlPerson(g, E, {role: 'str', fem: 0, rod: 'guard', sub: 'Ночная стража'}),
+  open: (g, E, x) => { const t = T('straga'); nar(g, E, t.zach); vsay(g, E, t.o); const w = x.wanted.find(y => !y.list) || x.wanted[0]; if (w) { E.data.hid = w.h.id; E.data.want = 1; nar(g, E, t.want, {h: w.h}); } },
+  opts: (g, E, x) => { const t = T('straga'), s = r10(15 * lvl(g) + 20), out = [];
+    if (E.step === 'fight') return [opt('К оружию!', 'go', (g2, X) => { X.go = 1; }), opt(lbl('Бежать', 'dex', 'Атлетика'), 'run', (g2, X) => { const r = chk(g2, X, 'dex', 'Атлетика', DC(g2, 2)); if (r.ok) { nar(g2, X, 'Вы ныряете в темноту, свисток стихает позади.'); FX.heat(g2, heroBy(g2, X.data.hid), 0.5); end(X); } else { nar(g2, X, 'Из-за угла выходят ещё двое — бежать некуда.'); X.go = 1; } })];
+    if (!E.data.want) out.push(opt('Назваться и спросить, что слышно', 'ask', (g2, X) => { hsay(g2, X, null, ['Свои мы, проездом. Что слышно в городе?']); const s2 = FX.rumor(g2); nar(g2, X, s2 ? t.ask : t.askNone, {X: s2 ? 'говорят про ' + s2 + '. Место отмечено на карте' : ''}); nar(g2, X, t.okLine); end(X); }));
+    if (E.data.want) out.push(opt(lbl('Назваться чужим именем', 'cha', 'Обман'), 'lie', (g2, X) => { const r = chk(g2, X, 'cha', 'Обман', DC(g2, 1)); hsay(g2, X, r.hero, TX.hero.lie);
+      if (r.ok) { nar(g2, X, t.liesOk); end(X); } else fight(g2, X, C.tlFightSpec(g2, X, {title: 'Ночная стража', place: 'lane', foes: streetFoes(g2, ['strazhnik', 'opolchenets', 'opolchenets', 'strazhnik'], 0.8), lose: 'map', xp: 0}), t.liesNo); }, {nrav: 'L'}));
+    out.push(opt(`Сунуть серебра: ${price(s)}`, 'bribe', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); hsay(g2, X, null, TX.hero.pay); nar(g2, X, t.bribe); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра', nrav: 'g'}));
+    if (x.okoHero) out.push(opt(`${x.okoHero.name}: показать звезду Ока`, 'star', (g2, X) => { nar(g2, X, t.star); end(X); }));
+    return out; },
+  stay: (g, E) => { nar(g, E, E.data.want ? 'Вы молча проходите мимо. Стражник долго смотрит вслед.' : T('straga').okLine); if (E.data.want) FX.heat(g, heroBy(g, E.data.hid), 0.3); },
+  won: (g, E, win) => { if (win) { nar(g, E, T('straga').win); const h = heroBy(g, E.data.hid) || hero(g); FX.crime(g, h, 'flight', {seen: true, why: 'драка с ночной стражей'}); } else nar(g, E, 'Стража вяжет вас.'); },
+});
+def('tayna', {grp: ['noch'], w: () => 1, ok: x => !x.saga,
+  who: (g, E) => C.tlPerson(g, E, {role: 'tn', fem: 20, rod: 'smuggler', sub: 'Тёмные люди'}),
+  open: (g, E) => nar(g, E, T('tayna').zach),
+  opts: (g, E) => { const t = T('tayna'), spec = () => C.tlFightSpec(g, E, {title: 'Тёмный переулок', place: 'lane', foes: streetFoes(g, ['tat', 'tat', 'razboynik']), xp: 8 * lvl(g)});
+    if (E.step === 'fight') return [opt('К оружию!', 'go', (g2, X) => { X.go = 1; }), opt(lbl('Бежать', 'dex', 'Атлетика'), 'run', (g2, X) => { const r = chk(g2, X, 'dex', 'Атлетика', DC(g2)); if (r.ok) { nar(g2, X, 'Вы уходите проулками. За спиной ругань, но погони нет.'); end(X); } else X.go = 1; })];
+    return [opt(lbl('Подкрасться и подслушать', 'dex', 'Скрытность'), 'listen', (g2, X) => { const r = chk(g2, X, 'dex', 'Скрытность', DC(g2, 1));
+      if (r.ok) { const s = FX.rumor(g2); if (s) nar(g2, X, t.listenOk, {X: 'речь о месте, где ' + s + ' — его уже отметили на карте'}); else { const j = FX.job(g2, {kind: 'bandits'}); nar(g2, X, t.listenOk, {X: j ? t.job + ' — дело записано: «' + j + '»' : 'кто-то кому-то должен, и долг будут выбивать'}); } end(X); }
+      else fight(g2, X, spec(), t.listenNo); })]; },
+  stay: (g, E) => nar(g, E, T('tayna').stay),
+  won: (g, E, win) => { if (win) { const v = r10(20 * lvl(g)); FX.money(g, v); nar(g, E, T('tayna').win, {P: v}); } else nar(g, E, 'Вас бросили в канаве, обобрав.'); },
+});
+def('krik', {grp: ['noch'], w: () => 1, ok: x => !x.saga,
+  who: (g, E) => C.tlPerson(g, E, {role: 'kr', fem: 0, rod: 'merc', sub: 'Припозднившийся купец'}),
+  open: (g, E) => nar(g, E, T('krik').zach),
+  opts: (g, E) => { const t = T('krik');
+    if (E.step === 'fight') return [opt('К оружию!', 'go', (g2, X) => { X.go = 1; })];
+    return [
+      opt('Бежать на крик', 'run', (g2, X) => { fight(g2, X, C.tlFightSpec(g2, X, {title: 'Крик в ночи', place: 'lane', foes: streetFoes(g2, ['razboynik', 'tat', 'razboynik']), xp: 12 * lvl(g2)}), t.runTo); }, {nrav: 'U'}),
+      opt(lbl('Поднять шум, звать людей', 'cha', 'Запугивание'), 'call', (g2, X) => { const r = chk(g2, X, 'cha', 'Запугивание', DC(g2)); nar(g2, X, r.ok ? t.callOk : t.callNo); if (r.ok) { FX.rep(g2, 1, 'подняли людей на ночной крик'); FX.know(g2, X.who, 'ночи, когда его чуть не зарезали'); } end(X); })]; },
+  stay: (g, E) => { nar(g, E, T('krik').stay); FX.spirit(g, -1, 'прошли мимо крика о помощи'); },
+  won: (g, E, win) => { if (win) { const v = r10(20 * lvl(g)); FX.money(g, v); nar(g, E, T('krik').win, {P: v}); FX.rep(g, 2, 'спасли купца от ночных грабителей'); FX.deed(g, 'отбили купца у ночных грабителей'); FX.know(g, E.who, 'ночи, когда вы отбили его у грабителей'); }
+    else nar(g, E, 'Грабители ушли, оставив вас в грязи рядом с купцом. Оба живы — и то ладно.'); },
+});
+def('konokrad', {grp: ['noch', 'korchma'], safe: 1, w: x => (x.night ? 2 : 0), ok: x => x.horse && x.night && (x.spot === 'korchma' || x.cls === 'yard'),
+  who: (g, E) => C.tlPerson(g, E, {role: 'kk', fem: 5, rod: 'fugitive', sub: 'Конокрад'}),
+  open: (g, E) => nar(g, E, T('konokrad').zach),
+  opts: (g, E) => { const t = T('konokrad');
+    if (E.step === 'caught') return [opt('Отдать старосте', 'guard', (g2, X) => { nar(g2, X, t.guard); FX.rep(g2, 1, 'поймали конокрада'); end(X); }, {nrav: 't'}), opt('Отпустить с пинком', 'free', (g2, X) => { nar(g2, X, t.free); end(X); }, {nrav: 'M'})];
+    return [
+      opt(lbl('Подкрасться и схватить', 'dex', 'Скрытность'), 'catch', (g2, X) => { const r = chk(g2, X, 'dex', 'Скрытность', DC(g2)); if (r.ok) { nar(g2, X, t.catchOk); X.step = 'caught'; } else { nar(g2, X, t.catchNo); end(X); } }),
+      opt('Поднять шум', 'noise', (g2, X) => { nar(g2, X, t.noise); end(X); })]; },
+  stay: (g, E) => nar(g, E, T('konokrad').stay),
+});
+def('pyan', {grp: ['noch', 'ulica'], w: x => 1 + (x.fest ? 1 : 0), ok: x => !x.saga && (x.night || x.tm === 'вечер'),
+  who: (g, E) => C.tlPerson(g, E, {role: 'pyan', fem: 0, rod: 'guard', sub: 'Пьяный дружинник'}),
+  open: (g, E) => { const t = T('pyan'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('pyan'), spec = () => C.tlFightSpec(g, E, {fist: 1, place: 'square', n: 1, up: 2, title: TX.fist.titleStreet});
+    if (E.step === 'fight') return [opt('Сойтись на кулаках', 'go', (g2, X) => { X.go = 1; })];
+    return [
+      opt(lbl('Уговорить идти спать', 'cha', 'Дипломатия'), 'dip', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2)); hsay(g2, X, r.hero, TX.hero.dip); if (r.ok) { nar(g2, X, t.dipOk); end(X); } else fight(g2, X, spec(), t.dipNo); }, {nrav: 'm'}),
+      opt('Отлупить', 'beat', (g2, X) => { fight(g2, X, spec()); X.go = 1; }, {nrav: 'h'})]; },
+  stay: (g, E) => nar(g, E, 'Вы переходите на другую сторону улицы. Дружинник орёт вслед, но не идёт.'),
+  won: (g, E, win) => nar(g, E, win ? T('pyan').win : T('pyan').lose),
+});
+
+/* -------- храм и капище -------- */
+def('sestra', {grp: ['hram', 'ulica'], safe: 1, w: x => (x.spot === 'hram' ? 3 : 0.4), ok: x => x.front > -70 && !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'ses', sex: 'f', rod: 'oko', title: ['Брат', 'Сестра'], voice: 'oko', sub: 'Сестра Ока'}),
+  open: (g, E) => { const t = T('sestra'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E, x) => { const t = T('sestra'), s = small(g); return [
+    opt(`Подать: ${price(s)}`, 'give', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); FX.side(g2, 'oko', 0.5); nar(g2, X, t.give); if (x.okoHero) FX.spirit(g2, 1, 'милостыня сиротам', alive(g2).find(h => h.id === x.okoHero.id)); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра', nrav: 'U'}),
+    opt(lbl('Расспросить о дознавателях', 'cha', 'Дипломатия'), 'ask', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2, 1)); const L = (g2.w2fame || {}).list || 0;
+      nar(g2, X, r.ok ? t.askOk : t.askNo, {X: L >= 5 ? '«Дознаватели спрашивали про таких, как вы. Будьте осторожны».' : L >= 2 ? '«Ваши имена кто-то называл. Пока — только называл».' : '«О вас ничего дурного не говорили. Ступайте с миром».'}); end(X); })]; },
+  stay: (g, E) => nar(g, E, 'Сестра кротко кивает и подходит к другим.'),
+});
+def('palom', {grp: ['hram', 'kap', 'ulica', 'vorota'], safe: 1, w: x => (['hram', 'kap'].includes(x.spot) ? 2 : 0.7),
+  who: (g, E, x) => C.tlPerson(g, E, {role: 'pal', fem: 30, rod: 'wander', voice: x.spot === 'hram' || x.front >= 30 ? 'oko' : 'volhv', sub: 'Паломник'}),
+  open: (g, E) => { const t = T('palom'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('palom'); return [
+    opt(lbl('Расспросить о дороге', 'cha', 'Дипломатия'), 'ask', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2, -1)); const s = r.ok ? FX.rumor(g2) : null; nar(g2, X, s ? t.askOk : t.askNone, {X: s}); end(X); }),
+    opt('Поделиться хлебом', 'bread', (g2, X) => { nar(g2, X, t.bread); FX.spirit(g2, 1, 'поделились хлебом с паломником'); end(X); }, {nrav: 'U'})]; },
+  stay: (g, E) => nar(g, E, 'Паломник кивает вам и снова закрывает глаза.'),
+});
+def('vedun', {grp: ['hram', 'kap', 'ulica'], w: x => 1 + (x.spot === 'kap' ? 1 : 0), ok: x => !x.saga && x.front < 70 && (x.tm === 'вечер' || x.night || x.spot === 'kap'),
+  who: (g, E) => C.tlPerson(g, E, {role: 'ved', sex: 'f', rod: 'wander', voice: 'volhv', sub: 'Ведунья'}),
+  open: (g, E) => { const t = T('vedun'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E, x) => { const t = T('vedun'), s = small(g), out = [
+    opt(`Погадать: ${price(s)}`, 'tell', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); const h = alive(g2).find(y => C.dreamOf && C.dreamOf(y)) || hero(g2); const d = C.dreamOf ? C.dreamOf(h) : null;
+      if (d) nar(g2, X, t.tell, {h, X: `«Вижу, чего ты хочешь: ${low(String(d.short || d.t).replace(/\.$/, ''))}. Дорога к тому есть, только долгая. Не сворачивай — и сбудется»`}); else nar(g2, X, t.tellNone); FX.side(g2, 'kap', 0.25); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра'})];
+    if (x.front > -30) out.push(opt('Донести на неё братьям Ока', 'report', (g2, X) => { nar(g2, X, t.report); FX.side(g2, 'oko', 0.5); FX.side(g2, 'kap', -1); if (x.front < 30) FX.rep(g2, -1, 'выдали ведунью Оку'); end(X); }, {nrav: 'H'}));
+    return out; },
+  stay: (g, E) => nar(g, E, 'Ведунья пожимает плечами и растворяется в тени.'),
+});
+def('treba', {grp: ['kap', 'ulica'], safe: 1, w: x => (x.spot === 'kap' ? 3 : x.cls === 'village' && x.front < -30 ? 0.6 : 0), ok: x => x.front < 30 && !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'vol', sex: 'm', rod: 'wander', voice: 'volhv', sub: 'Волхв'}),
+  open: (g, E) => { const t = T('treba'); nar(g, E, t.zach); vsay(g, E, t.o); },
+  opts: (g, E) => { const t = T('treba'), s = small(g); return [
+    opt(lbl('Помочь с требой', 'wis', 'Вера'), 'help', (g2, X) => { const r = chk(g2, X, 'wis', 'Вера', DC(g2)); if (C.passH) C.passH(g2, 1); nar(g2, X, r.ok ? t.helpOk : t.helpNo); if (r.ok) { FX.spirit(g2, 1, 'боги приняли требу'); FX.side(g2, 'kap', 0.5); } end(X); }),
+    opt(`Положить дар: ${price(s)}`, 'gift', (g2, X) => { if ((g2.purse || 0) < s) return; FX.money(g2, -s); FX.side(g2, 'kap', 0.5); nar(g2, X, t.gift); end(X); }, {if: g2 => (g2.purse || 0) >= s, off: 'не хватает серебра', nrav: 'u'})]; },
+  stay: (g, E) => nar(g, E, 'Волхв не держит зла: кивает и возвращается к огню.'),
+});
+def('sporv', {grp: ['hram', 'kap', 'ulica'], w: x => (['hram', 'kap'].includes(x.spot) ? 2 : 0.6) + (x.war ? 1 : 0), ok: x => !x.saga && x.front > -70 && x.front < 70 && !x.night,
+  who: (g, E) => C.tlPerson(g, E, {role: 'spv', sex: zi(E) ? 'f' : 'm', rod: 'oko', title: ['Брат', 'Сестра'], voice: 'oko', sub: E.data.zi ? 'Сестра Ока' : 'Брат Ока'}),
+  open: (g, E) => { const t = T('sporv'); nar(g, E, zach(E, t.zach)); vsay(g, E, t.oko); const v = C.tlPerson(g, E, {role: 'spvv', sex: E.data.zi ? 'f' : 'm', rod: 'wander', voice: 'volhv'}); E.data.v = v; osay(g, E, vpool(t.volhv, 'volhv'), {as: v}); },
+  opts: (g, E, x) => { const t = T('sporv'), rp = d => (x.front >= 30 ? d : x.front <= -30 ? -d : 0); return [
+    opt('Встать за Око', 'oko', (g2, X) => { nar(g2, X, t.forOko); FX.side(g2, 'oko', 1); FX.side(g2, 'kap', -1); FX.rep(g2, rp(1), 'встали за Око'); end(X); }),
+    opt('Встать за старую веру', 'volhv', (g2, X) => { nar(g2, X, t.forVolhv); FX.side(g2, 'kap', 1); FX.side(g2, 'oko', -1); FX.rep(g2, rp(-1), 'встали за старую веру'); FX.list(g2, x.front >= 0 ? 1 : 0); end(X); }),
+    opt(lbl('Развести миром', 'cha', 'Дипломатия'), 'peace', (g2, X) => { const r = chk(g2, X, 'cha', 'Дипломатия', DC(g2, 2)); hsay(g2, X, r.hero, TX.hero.dip); nar(g2, X, r.ok ? t.peaceOk : t.peaceNo); if (r.ok) FX.rep(g2, 1, 'развели спорщиков миром'); end(X); }, {nrav: 'm'})]; },
+  stay: (g, E) => nar(g, E, 'Вы не вмешиваетесь. Спор кончается ничем, как всегда.'),
+});
+
+/* ======================= выбор и начало события ======================= */
+C.tlCands = function (g, x) { return Object.values(EV).filter(ev => ev.grp.includes(x.spot) || (x.cls === 'yard' && x.spot === 'ulica' && ev.grp.includes('korchma')))
+  .filter(ev => (!x.saga || ev.safe) && (() => { try { return ev.ok(x); } catch (e) { return false; } })())
+  .map(ev => ({ev, w: Math.max(0, (() => { try { return ev.w(x); } catch (e) { return 0; } })())})).filter(c => c.w > 0); };
+C.tlOpen = function (g, id, x, ret) {
+  const ev = EV[id]; if (!ev) return null; const s = S(g);
+  const E = {v: 1, id, spot: x.spot, seed: 'tl|' + (g.seed || 0) + '|' + id + '|' + g.day + '|' + g.time + '|' + (g.walk || 0) + '|' + g.loc + '|' + (s.n || 0), n: 0, step: 'open', log: [], tried: {}, data: {}, day: g.day,
+    voice: x.voice, ret: ret || ((nodeOf(g) || {}).scene) || 'map', keep: {chk: g.lastCheck || null}, own: ownOf(g), saga: x.saga ? 1 : 0, loc: g.loc};
+  s.n = (s.n || 0) + 1;
+  E.who = ev.who(g, E, x); if (!E.who) return null;
+  const set = TX.set[x.spot] || TX.set.ulica, tl = set[x.tm] || set.день || set.ночь || [];
+  const extra = [tl.length ? pk(E, tl, 's') : '']; if (x.wx && TX.set.wx[x.wx] && x.spot !== 'korchma') extra.push(TX.set.wx[x.wx]); if (x.fest) extra.push(TX.set.fest); else if (x.war && hsh(E.seed + 'war') % 3 === 0) extra.push(TX.set.war);
+  say(E, 'n', extra.filter(Boolean).join(' '));
+  ev.open(g, E, x);
+  s.cur = E; s.prev = s.prev.concat(id).slice(-K().PREV); g.lastCheck = null;
+  C.note(g, `${(nodeOf(g) || {}).name || 'Место'}: ${low(E.who.sub || 'встреча')} — ${TX.head[x.spot] ? low(TX.head[x.spot]) : ''}.`.replace(' — .', '.'));
+  return 'tl_ev';
+};
+/* для проверок и отладки: открыть событие нарочно */
+C.tlForce = function (g, id, o) { o = o || {}; const x = C.tlCtx(g, o.scene || 'free_place', o.spot || (EV[id] && EV[id].grp[0])); return C.tlOpen(g, id, x, o.ret); };
+/* можно ли сейчас: место, дом, бой, иные окна */
+C.tlQuiet = function (g, sceneId, resScene) {
+  if (!K().ON || !g || !g.heroes || !alive(g).length) return 'нет';
+  if (g.dungeon || g.mtalk || g.d1gm || g.waCapt || g.waMine || g.pendingBattle || g.carryDead || g.trial || (g.crime && (g.crime.labor || g.crime.death))) return 'занято';
+  if (cur(g)) return 'событие';
+  if (!C.tlClass(g) || !atNode(g)) return 'не место';
+  if (C.tlAtHome(g, sceneId) || C.tlAtHome(g, resScene)) return 'дом';
+  if (!HUB.test(String(resScene || '')) && resScene !== (nodeOf(g) || {}).scene) return 'сцена';
+  if (!isFree(g) && (C.storyScene(g, sceneId) || C.storyScene(g, resScene))) return 'сюжет';
+  return '';
+};
+C.tlAfter = function (g, sceneId, res) {
+  if (!res || typeof res !== 'object' || Object.keys(res).length !== 1 || !res.scene) return null;
+  if (C.tlQuiet(g, sceneId, res.scene)) return null;
+  const s = S(g), cls = C.tlClass(g), key = g.camp + ':' + g.loc;
+  if (s.cd[key] > 0) { s.cd[key]--; return null; }
+  let p = K().P[cls] || 0; if (!isFree(g)) p *= K().SAGA;
+  if (R.rand() >= p) return null;
+  const x = C.tlCtx(g, sceneId);
+  const cands = C.tlCands(g, x).filter(c => !s.prev.includes(c.ev.id));
+  if (!cands.length) return null;
+  let roll = R.rand() * cands.reduce((a, c) => a + c.w, 0), pick = cands[cands.length - 1];
+  for (const c of cands) { roll -= c.w; if (roll <= 0) { pick = c; break; } }
+  const sc = C.tlOpen(g, pick.ev.id, x, res.scene); if (!sc) return null;
+  s.cd[key] = K().CD[cls] || 1;
+  return {scene: sc};
+};
+const ch0 = C.choose;
+C.choose = function (g, sceneId, idx) {
+  if (!g || !g.heroes || /^tl_/.test(String(sceneId))) return ch0.apply(this, arguments);
+  const h0 = hrs(g), res = ch0.apply(this, arguments);
+  try { if (hrs(g) - h0 >= K().MIN_H) { const r = C.tlAfter(g, sceneId, res); if (r) return r; } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return res;
+};
+
+/* ======================= сцена события ======================= */
+const finish = g => { const E = cur(g); const s = S(g); s.cur = null; g.lastCheck = E && E.keep ? E.keep.chk : null;
+  const to = (E && E.after && E.after.scene) || (E && E.ret) || 'map'; return to; };
+const wrapOpt = (ev, o) => ({t: o.t, nrav: o.nrav, if: o.if, off: o.off, end: o.end, do: g2 => { const X = cur(g2); if (!X || X.id !== ev.id) return 'map';
+  X.tried[o.k] = 1; o.do(g2, X); if (X.go && X.fight) { X.go = 0; X.step = 'battle'; g2.lastCheck = null; return {battle: JSON.parse(JSON.stringify(X.fight))}; } return 'tl_ev'; }});
+function choices(g, E) {
+  const ev = EV[E.id], out = [], mk = o => out.push(Object.assign({tl: 1}, E.own ? {own: E.own} : {}, o));
+  if (!ev || E.step === 'end' || E.step === 'battle') { mk({t: TX.back, end: 1, do: g2 => finish(g2)}); return out; }
+  const x = C.tlCtx(g, 'tl_ev', E.spot);
+  (ev.opts(g, E, x) || []).filter(o => !tried(E, o.k) || o.k === 'go').forEach(o => mk(wrapOpt(ev, o)));
+  if (E.step === 'open') mk({t: pickH(TX.stay, E.seed), end: 1, do: g2 => { const X = cur(g2); if (!X) return 'map'; hsay(g2, X, null, TX.hero.stay); if (ev.stay) ev.stay(g2, X); X.tried.stay = 1; if (X.step !== 'end') end(X); return 'tl_ev'; }});
+  return out;
+}
+const SC = {};
+const render = (g, title) => {
+  const E = cur(g);
+  if (!E) return {title: title || 'Улица', bg: 'village', lines: [['n', 'Всё стихло, люди разошлись по своим делам.']], choices: [{t: TX.back, tl: 1, do: g2 => ((nodeOf(g2) || {}).scene) || 'map'}]};
+  const h = hero(g), lines = E.log.map(l => ['n', l.who === 'o' ? `${l.name || E.who.name}: «${l.text}»` : l.who === 'h' ? `${l.name || (h && h.name) || ''}: «${l.text}»` : l.text]);
+  if (g.net && E.step !== 'end') lines.push(['n', TX.netLead]);
+  return {title: TX.head[E.spot] || 'На улице', bg: TX.bg[E.spot] || 'village', lines, choices: choices(g, E),
+    talk: {who: {name: E.who.name, face: E.who.face, sub: E.who.sub, head: TX.head[E.spot] || ''}, hero: h ? {name: h.name, face: h.portrait || ''} : {}, log: E.log.slice()}};
+};
+SC.tl_ev = g => render(g);
+/* после боя: исход события */
+const afterFight = (g, win) => { const E = cur(g); if (!E || E.fightDone) return; E.fightDone = 1; const ev = EV[E.id];
+  try { if (ev && ev.won) ev.won(g, E, win); else nar(g, E, win ? 'Драка кончилась.' : 'Вам досталось.'); } catch (e) {} E.step = 'end'; };
+SC.tl_won = g => Object.assign(render(g), {onEnter: g2 => afterFight(g2, true)});
+SC.tl_lost = g => Object.assign(render(g), {onEnter: g2 => afterFight(g2, false)});
+/* в окно события чужие кнопки и строки не подмешиваются (стол, слабости, вещи) — только его ответы */
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (sc && /^tl_/.test(String(id)) && sc.raw) { sc.choices = (sc.choices || []).filter(c => c.tl); sc.lines = (sc.raw.lines || []).slice(); sc.people = []; } } catch (e) {} return sc; }; }
+Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); } catch (e) {} return r; }; }
+
+/* ======================= бой на большом поле: «в этом доме», в переулке, на площади ======================= */
+const BF = B && B.BF;
+if (BF && C.battleStart) {
+  const bs0 = C.battleStart;
+  C.battleStart = function (g, spec) {
+    const want = spec && spec.tlIn, f0 = BF._vForce;
+    if (want === 'house' && BF.HOUSE_T) BF._vForce = Object.assign({}, f0 || {}, {bigK: BF.HOUSE_T.korchma_big && C.tlClass(g) === 'town' ? 'korchma_big' : 'korchma'}); // в селе большая корчма не встаёт — обычная
+    let Sx; try { Sx = bs0.apply(this, arguments); } finally { if (want === 'house') BF._vForce = f0; }
+    try { if (Sx && want) BF.ownRng(g, spec, () => C.tlPlace(Sx, g, spec)); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+    return Sx;
+  };
+}
+const lib = () => (BF && BF._hbLib) || null;
+const freeCell = (S, x) => x && !B.unitAt(S, x.c, x.r) && B.passable(S, x.c, x.r) && !(B.TERRAIN[x.t] || {}).block;
+const moveTo = (S, u, x) => { if (u.mount && B.dismount) { try { B.dismount(S, u, 'off'); } catch (e) {} } u.c = x.c; u.r = x.r; };
+/* корчма поля: большая — первой; нет корчмы — самый просторный дом */
+C.tlHall = function (S) {
+  const F = S.field; if (!F || !F.houses || !F.houses.length || !BF.houseCells) return null;
+  const inner = h => BF.houseCells(h).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.hin && !(B.TERRAIN[x.t] || {}).block);
+  const rank = h => (h.k === 'korchma_big' ? 3 : h.k === 'korchma' ? 2 : ['dlin', 'terem'].includes(h.k) ? 1 : 0);
+  const hs = F.houses.filter(h => rank(h) > 0 || inner(h).length >= 8).sort((a, b) => rank(b) - rank(a) || inner(b).length - inner(a).length);
+  return hs[0] || null;
+};
+C.tlPlace = function (S, g, spec) {
+  const F = S.field; if (!F || !F.cells) return;
+  const party = S.units.filter(u => u.side === 'party' && B.active(u) && u.c != null && !u.civ);
+  const foes = S.units.filter(u => u.side === 'foe' && B.active(u) && u.c != null);
+  if (spec.tlFist) { S.tlFist = 1; S.bfRein = null; S.tlStake = spec.tlStake || 0; }
+  if (spec.tlIn === 'house') {
+    const h = C.tlHall(S); if (!h) return;
+    S.tlHouse = h.id;
+    const cells = BF.houseCells(h).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.hin && !(B.TERRAIN[x.t] || {}).block);
+    const d0 = h.doors[0] || cells[0];
+    // гости корчмы, что стоят в зале, — к стенам и прочь: место для драки
+    const hall = cells.filter(x => B.dist(x, d0) >= 2).sort((a, b) => B.dist(b, d0) - B.dist(a, d0) || a.c - b.c || a.r - b.r);
+    const take = [];
+    party.forEach(u => { const x = hall.find(y => !take.includes(y) && (!B.unitAt(S, y.c, y.r) || B.unitAt(S, y.c, y.r) === u)); if (x) { take.push(x); moveTo(S, u, x); } });
+    const pc = take.slice();
+    const rest = hall.filter(y => !take.includes(y)).sort((a, b) => Math.min(...pc.map(p => B.dist(p, a))) - Math.min(...pc.map(p => B.dist(p, b))));
+    const near2 = rest.filter(y => pc.every(p => B.dist(p, y) >= 2)).concat(rest.filter(y => pc.some(p => B.dist(p, y) < 2)));
+    foes.forEach(u => { const x = near2.find(y => !take.includes(y) && (!B.unitAt(S, y.c, y.r) || B.unitAt(S, y.c, y.r) === u)); if (x) { take.push(x); moveTo(S, u, x); } });
+    // двери настежь: выйти на улицу можно
+    (h.doors || []).forEach(d => { d.st = 'open'; d.prop = null; d.lock = 0; const c = B.cell(S, d.c, d.r); if (c) c.t = 'hdoor_o'; });
+    // гости: пара селян в зале (бегут прочь, жмутся к стенам)
+    if (S.civ && C.MON.civ_muzhik) { const inside = S.units.filter(u => u.side === 'civ' && BF.inHouse && BF.inHouse(S, u) === h.id).length;
+      for (let i = inside; i < 2; i++) { const x = cells.find(y => !take.includes(y) && freeCell(S, y)); if (!x) break; take.push(x);
+        const m = C.MON[i % 2 ? 'civ_baba' : 'civ_muzhik']; const u = B.fromMonster(m, 'civ', {}); u.c = x.c; u.r = x.r; u.civ = {k: i % 2 ? 'baba' : 'muzhik', home: null, guest: 1}; u.ai = true; u.morale = false; u.init = R.d(20); S.units.push(u); S.order.push(u.id); } }
+    if (B.log) B.log(S, spec.tlFist ? TX.fist.start : 'Бой в корчме: столы опрокинуты, гости жмутся к стенам.', 'bad');
+    return;
+  }
+  // переулок (между домами) или площадь (у колодца, на улице)
+  const all = Object.values(F.cells).filter(x => x && x.hb == null && freeCell(S, x));
+  if (!all.length) return;
+  let center = null;
+  if (spec.tlIn === 'lane') { const walls = Object.values(F.cells).filter(x => x && x.hb != null && !x.hin);
+    const score = x => walls.filter(w => B.dist(w, x) <= 2).length; center = all.map(x => [score(x), x]).filter(a => a[0] >= 2).sort((a, b) => b[0] - a[0] || a[1].c - b[1].c || a[1].r - b[1].r).map(a => a[1])[0] || null; }
+  if (!center) { const well = Object.values(F.cells).find(x => x && x.t === 'well'); const mid = well || {c: Math.floor(F.w / 2), r: Math.floor(F.h / 2)};
+    center = all.filter(x => x.t === 'road').sort((a, b) => B.dist(a, mid) - B.dist(b, mid))[0] || all.sort((a, b) => B.dist(a, mid) - B.dist(b, mid))[0]; }
+  S.tlAt = {c: center.c, r: center.r};
+  const near = all.slice().sort((a, b) => B.dist(a, center) - B.dist(b, center) || a.c - b.c || a.r - b.r), take = [];
+  party.forEach(u => { const x = near.find(y => !take.includes(y) && B.dist(y, center) <= 2 && (!B.unitAt(S, y.c, y.r) || B.unitAt(S, y.c, y.r) === u)); if (x) { take.push(x); moveTo(S, u, x); } });
+  foes.forEach(u => { const x = near.find(y => !take.includes(y) && B.dist(y, center) >= 3 && B.dist(y, center) <= 6 && (!B.unitAt(S, y.c, y.r) || B.unitAt(S, y.c, y.r) === u)); if (x) { take.push(x); moveTo(S, u, x); } });
+  if (B.log) B.log(S, spec.tlIn === 'lane' ? 'Переулок узкий: стены изб с обеих сторон, деться некуда.' : 'Площадь: кругом собирается народ поглазеть.', '');
+};
+/* кулачный бой: кто упал — без чувств, а не мёртв; бьют кулаком; лежачего не бьют */
+if (B && B.damage) { const dm0 = B.damage;
+  B.damage = function (Sx, t, d, src, by) {
+    if (!Sx || !Sx.tlFist || !t || t.side === 'civ' || (by && by.side === 'civ')) return dm0.apply(this, arguments);
+    if (t.down || (t.conds && t.conds.ko)) { if (by && !Sx._tlNoKick) { Sx._tlNoKick = 1; try { B.log(Sx, TX.fist.noKick, ''); } catch (e) {} } return; }
+    if (by && by.side !== t.side && d > 0 && by.ref && by.ref.stats && !by.impro) d = Math.min(d, R.d(4) + Math.max(0, R.mod(by.ref.stats.str || 10)));
+    const up = B.active(t), n0 = (Sx.log || []).length; const r = dm0.call(this, Sx, t, d, src, by);
+    if (up && (t.dead || t.down)) { if (Sx.log) for (let i = Sx.log.length - 1; i >= n0; i--) { const l = Sx.log[i], tx = String((l && (l.t || l.text)) || l || ''); if (/смерт|замертво|убит|добит|не очнётся/.test(tx)) Sx.log.splice(i, 1); } t.dead = false; t.down = true; t.ko = true; t.hp = 0; t.stable = true; t.bleed = 0; t.conds = {ko: 1}; t.waSurr = false; t.tlKo = 1;
+      if (Sx.lastDeath && Sx.lastDeath.id === t.id) Sx.lastDeath = null;
+      try { const nm = String(t.name || '').split(',')[0]; B.log(Sx, sexT((t.side === 'party' ? TX.fist.koHero : TX.fist.ko).replace('{N}', nm), (t.sex || (t.ref && t.ref.sex)) === 'f' ? 'f' : 'm', '<', '>'), 'kill', 'без чувств: жив'); } catch (e) {} }
+    return r;
+  }; }
+/* итог боя: кулачный — никто не убит, ставка вместо половины кошеля; событие знает, чем кончилось */
+{ const be0 = C.battleEnd;
+  C.battleEnd = function (g, Sx, spec) {
+    const fist = !!(Sx && Sx.tlFist), p0 = g ? g.purse || 0 : 0;
+    if (fist) Sx.units.forEach(u => { if (u.tlKo || u.ko) { u.dead = false; u.stable = true; } });
+    const res = be0.apply(this, arguments);
+    try { if (fist && res) { if (!res.won) { const loss = Math.min(p0, Sx.tlStake || 0); g.purse = p0 - loss; res.robbed = loss; } else { g.purse = Math.max(g.purse || 0, p0); } }
+      const E = cur(g); if (E && spec && spec.tlEv === E.id) E.res = res && res.won ? 'win' : 'lose'; } catch (e) {}
+    return res;
+  }; }
+/* старое событие, брошенное после поражения (полон, суд), не висит вечно */
+{ const ps0 = C.pass; C.pass = function (g) { const r = ps0.apply(this, arguments); try { const E = cur(g); if (E && (g.day || 1) - (E.day || 0) > 1) g.tl.cur = null; } catch (e) {} return r; }; }
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* home_errands_data.js */
+/* Колдовство — home_errands_data: тексты для ночи дома с женой (мужем) и домашних поручений (home_errands.js). Без DOM.
+   Подстановки: {n} — супруг(а), {h} — герой, {kid} — имя ребёнка, {where} — «в городе Таррен», {pl} — имя места,
+   {trt} — кто торгует («швея»), {trn} — имя торговца, {pron} — «у него» / «у неё», {thing} — что купить, {when} — срок словами,
+   {kin} — имя родни, {kinw} — кто это («сестра», «брат»), {sum} — сумма словами, {rival} — обидчик, {why} — нужда.
+   Жена говорит с мужем-героем, муж — с героиней: однополых браков в игре нет. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C) return;
+C.HE_T = {
+/* ---------- ночь: затемнение по достатку дома, без подробностей ---------- */
+night: {
+  poor: ['Лучина догорает в светце. В тесной избе пахнет дымом, хлебом и овчиной, и на всём свете нет никого, кроме вас двоих. Ночь проходит…',
+    'Ветер свистит в щелях, но под старым тулупом тепло. Огонь в печи прогорает до углей. Ночь проходит…'],
+  hay: ['На сеновале пахнет мятой и сухой травой, сквозь щели в крыше видны звёзды. Где-то внизу вздыхает корова. Ночь проходит…',
+    'Лестницу на сеновал убирают наверх, чтобы никто не лез. Сено шуршит, светлячки гаснут в траве. Ночь проходит…'],
+  peasant: ['Печь протоплена, на лавке постелены овчины, занавеска задёрнута. Лучину гасят. Ночь проходит…',
+    'Отряд храпит на полатях в сенях, а в горнице тихо и тепло. Свет гаснет. Ночь проходит…'],
+  merchant: ['Светлицу запирают на засов. Перина мягкая, за окном стихает городской шум. Свечу задувают. Ночь проходит…',
+    'В светлице пахнет воском и сушёными яблоками. Ставни закрыты, свеча гаснет. Ночь проходит…'],
+  noble: ['Полог над постелью опущен, слуги отпущены до утра. В горнице пахнет воском и травами, тени от свечей медленно гаснут. Ночь проходит…',
+    'Изразцовая печь дышит теплом, за пологом не видно ни огонька. Дом засыпает. Ночь проходит…'],
+},
+/* ---------- утро: по нраву супруга(и) и по тому, что в семье ---------- */
+morning: {
+  f: {
+    laska: ['«Не вставай ещё. Полежи, пока я тесто поставлю, — успеешь в свою дорогу»', '«Проснулась затемно и всё смотрела, как ты спишь. Во сне ты совсем не грозный, а будто мальчишка»',
+      '«Я тебе рубаху зашила, пока ты спал. Не спорь, носи — она тёплая»'],
+    hozyain: ['«Вставай, солнце уже над овином. Умойся, каша на столе, а портянки я тебе чистые положила»', '«Хорошо, что дома ночевал: хоть рубахи твои перестирала. Ешь, пока горячее»',
+      '«Я тебе в дорогу сала завернула и луку. Смотри, чтоб товарищи не всё съели»'],
+    shutnik: ['«Храпишь ты, муж, как медведь в берлоге. Соседи небось думали, что у нас ночью кузня работает»', '«Ну что, отоспался? Теперь хоть на человека похож, а не на лешего с большой дороги»',
+      '«Вставай, богатырь. Пока ты спал, петух трижды охрип — тебя будил»'],
+    tihiy: ['«Утро уже. Я не будила: так хорошо было слушать, как ты рядом дышишь»', '«Птицы с рассвета поют. Посиди со мной немного на крыльце, пока все спят»',
+      '«Мне сон добрый снился. Не скажу какой, а то не сбудется. Ешь давай»'],
+  },
+  m: {
+    laska: ['«Лежи, я сам печь растоплю. Хоть одно утро ты у меня никуда не спешишь»', '«Проснулся, а ты рядом. Давно я так не просыпался, будто праздник какой»',
+      '«Я тебе воды согрел умыться. Не смейся, сам знаю, что балую»'],
+    hozyain: ['«Вставай, хозяйка. Я уже и скотину напоил, и воды натаскал. Садись есть, пока не остыло»', '«Коня твоего я почистил и подкову глянул — держится. Поешь как следует, дорога не ждёт»',
+      '«Я тебе ремень на суме перешил, старый совсем перетёрся. Бери, не благодари»'],
+    shutnik: ['«Ну и сильна ты спать! Я уж думал, тебя и боевым рогом не поднять»', '«Отряд твой во дворе зевает, а ты всё нежишься. Ладно уж, одно утро можно»',
+      '«Пока ты спала, я трёх петухов успел переспорить. Вставай, а то и тебя переспорю»'],
+    tihiy: ['«Тихо-то как. Давно в доме так тихо не было — потому что ты здесь»', '«Рассвет нынче красный. Посиди со мной, пока все спят, ничего не говори»',
+      '«Я долго не спал, всё думал, как хорошо, когда ты дома. Ешь, остынет»'],
+  },
+  long: {f: ['«Сколько ж тебя не было… Я ночью проснулась и рукой проверила, здесь ли ты. Здесь»', '«Думала уж, не дождусь. А ты пришёл — и будто не уходил вовсе»'],
+    m: ['«Долго ты ходила. Я ту дорогу до дыр проглядел. Ну, теперь хоть насмотрюсь»', '«Проснулся и не поверил, что ты дома. Пришлось глаза протереть»']},
+  cold: {f: ['«Ночь ночью, а сплетни по селу ходят. Я не спрашиваю, что там было. Только знай: мне всё рассказали»', '«Каша в печи. Ешь. Говорить мне с тобой сегодня не хочется»'],
+    m: ['«Утро. Поешь и иди, раз дела ждут. А про то, что люди болтают, мы ещё поговорим»', '«Я не слепой и не глухой. Ешь, а потом ступай — мне подумать надо»']},
+  sore: {f: ['«А про то, о чём я просила, ты, видно, и думать забыл. Ладно уж. Ешь давай»'], m: ['«Я тебя об одном деле просил — и что? Ладно, что было, то прошло. Ешь»']},
+  preg: {f: ['«Малой уже толкается, слышишь? Положи руку — вот тут. Он твой голос узнаёт»', '«Тяжело уже вставать по утрам. Подай мне водицы и посиди рядом, пока я поднимусь»'],
+    m: ['«Ты теперь за двоих ешь — не спорь, я ещё положу. И в поход бы тебе поменьше ходить»', '«Береги себя там. Теперь не одну себя — обоих»']},
+  kids: {f: ['«{kid} с рассвета у порога сидит, тебя караулит. Выйдешь — не отделаешься, так и знай»', '«Дети ещё спят. Хорошо: хоть утро у нас с тобой на двоих»'],
+    m: ['«{kid} с рассвета под дверью шепчет: проснулась ли мама. Иди уж, а то дверь вынесут»', '«Малые ещё спят. Посидим, пока тихо, — потом не дадут»']},
+},
+/* ---------- поручения: просьба утром ---------- */
+askOpen: {f: ['«Слушай, раз уж ты всё равно по краю ходишь…', '«Не сочти за труд, родной…', '«Пока не ушёл, одно дело…'],
+  m: ['«Слушай, раз уж ты всё равно по краю ходишь…', '«Не сочти за труд…', '«Пока не ушла, одно дело…'],
+  merc: ['«Слушай, раз уж пойдём по краю…', '«Не сочти за труд…']},
+buy: {
+  silk: {role: 'shvea', items: ['tkan_bogataya_1_ed', 'tkan_divnaya_pavoloka_1_ed'], sex: 'f', thing: 'ткани доброй на сарафан',
+    ask: 'Привези мне ткани доброй на сарафан. {Where} есть {trt}, {trn}, — {pron} ткани такие, что у нас на торгу и не видали. Только к сроку бы, {when}»'},
+  sukno: {role: 'shvea', items: ['tkan_bogataya_1_ed', 'tkan_prostaya_1_ed'], sex: 'm', thing: 'сукна на кафтан',
+    ask: 'Кафтан мой совсем износился. {Where} есть {trt}, {trn}, — привези {pron2} сукна доброго, {when}»'},
+  salt: {role: 'kupec', items: ['sol_1_funt'], kind: ['промысел', 'город'], reg: 'ber', thing: 'соли поморской',
+    ask: 'Соли бы хорошей, поморской: капусту квасить, сало солить. {Where} есть {trt}, {trn}, — {pron} соль чистая, как снег. Привези {when}»'},
+  spice: {role: 'kupec', items: ['pryanosti_zamorskie_perets_shafran'], rich: 1, thing: 'пряностей заморских',
+    ask: 'Хочу к празднику пирогов напечь, да таких, чтоб соседи ахнули. {Where} есть {trt}, {trn}, — {pron} пряности заморские. Привези {when}»'},
+  spice2: {role: 'snedi', items: ['pryanosti_prostye', 'pryanosti_zhguchie'], thing: 'пряностей к празднику',
+    ask: 'Праздник скоро, а у нас ни перца, ни прочего. {Where} есть {trt}, {trn}, — привези {pron2} пряностей {when}»'},
+  nails: {role: 'kuzn', items: ['topor', 'serp'], thing: 'нового топора',
+    ask: 'Топор наш весь в зазубринах, дров не нарубить. {Where} есть {trt}, {trn}, — {pron} железо доброе. Купи новый {when}»'},
+  serp: {role: 'kuzn', items: ['serp'], thing: 'серпа к жатве',
+    ask: 'Жатва скоро, а серп совсем сточился. {Where} есть {trt}, {trn}, — купи {pron2} новый серп, {when}»'},
+  pot: {role: 'gonchar', items: ['vedro', 'kotelok_zheleznyy', 'mylo_0_5_kg'], thing: 'утвари в дом',
+    ask: 'Ведро у нас прохудилось, а горшки один за другим бьются. {Where} есть {trt}, {trn}, — привези {pron2} утвари в дом, {when}»'},
+  medkid: {role: 'znahar', items: ['zele_lecheniya'], kids: 1, thing: 'лекарства для малого',
+    ask: 'У {kid_g} кашель никак не проходит, я уж всё перепробовала. {Where} есть {trt}, {trn}, — {pron} настой верный. Привези {when}, прошу тебя»'},
+  telka: {role: 'konyuh', items: ['telenok', 'koza'], thing: 'телушки', farm: 1,
+    ask: 'Корова наша стареет, молока всё меньше. {Where} есть {trt}, {trn}, — выбери {pron2} телушку покрепче. Только сам гляди, чтоб не больная, {when}»'},
+  mirror: {role: 'kupec', items: ['zerkaltse_mednoe'], sex: 'f', rich: 1, thing: 'зеркальца медного',
+    ask: 'Смеяться будешь, а я хочу зеркальце. Медное, как у боярынь. {Where} есть {trt}, {trn}, — {pron} такие бывают. Привези {when}»'},
+  boots: {role: 'kozhevnik', items: ['sapogi_sred', 'poyas'], sex: 'm', thing: 'сапог',
+    ask: 'Сапоги мои каши просят, стыдно на торг выйти. {Where} есть {trt}, {trn}, — {pron} кожа добрая. Привези {when}»'},
+},
+/* отнести, передать, забрать долг */
+carry: {
+  gift: {thing: 'гостинец родне', ask: 'Отвези гостинец {kinw_d}, {kin_d}, — {pron3} живёт {where}. Пирогов я напекла, да полотна кусок. Давно я {pron4} не видела, хоть поклон передай, {when}»',
+    askM: 'Отвези гостинец {kinw_d}, {kin_d}, — {pron3} живёт {where}. Мёду я собрал, да ножик выковал на заказ. Хоть поклон передай, {when}»',
+    done: '{kin} принимает гостинец, всплёскивает руками и долго расспрашивает, как там дома. Отпускает только с поклоном и наказом беречь семью.'},
+  news: {thing: 'весть родне', ask: 'Передай {kinw_d}, {kin_d}, — {pron3} живёт {where}: пусть на праздник к нам приезжает, мы ждём. Гонцу не доверю — переврёт. Только {when}»',
+    done: '{kin} слушает весть, улыбается и обещает приехать, как только управится с хозяйством.'},
+  debt: {thing: 'долг', ask: 'Должен нам {kin}, что живёт {where}, {sum} — ещё с прошлой осени, за сено. Сходи, забери. По-хорошему, если можно. {When_c}»',
+    done: '{kin} отсчитывает {sum} и вздыхает так, будто от сердца отрывает.', half: '{kin} божится, что в доме пусто, и отдаёт только половину. Остальное, клянётся, — к зиме.'},
+},
+/* сделать дело */
+deed: {
+  roof: {thing: 'перекрыть крышу', noOpen: 1, ask: '«Раз уж ты дома… Крыша у нас над сенями течёт: как дождь — так таз ставлю. Перекрой, пока не ушёл, а то осень скоро. {When_c}»', askM: '«Раз уж ты дома… Крыша у нас над сенями течёт: как дождь — так ведро подставляю. Перекрой, пока не ушла, а то осень скоро. {When_c}»',
+    done: 'Полдня на крыше: старую дранку долой, новую внахлёст, конёк прибить. Снизу кричат, что криво, но течь больше не будет.'},
+  rite_old: {thing: 'сводить ребёнка к волхву', kids: 1, ask: 'Своди {kid_a} к волхву — {where}. Пусть волхв поглядит, какая доля у дитяти, и оберег даст. Без тебя не пойду, дорога дальняя. {When_c}»',
+    done: 'Волхв долго смотрит {kid_d} в глаза, бросает в огонь щепоть зерна и вешает на шею оберег из рысьего когтя. Говорит: доля крепкая, только бы рядом были свои.'},
+  rite_oko: {thing: 'отвести ребёнка в храм Ока', kids: 1, ask: 'Отведи {kid_a} в храм Ока — {where}. Пусть брат Ока благословит под звездой, как положено. {When_c}»',
+    done: 'Брат Ока чертит над {kid_i} восьмилучевую звезду и читает долгое благословение. {kid} вертится, но терпит до конца.'},
+  master: {thing: 'найти мастера', ask: 'Печь наша дымит, крыльцо покосилось. {Where} есть {trt}, {trn}, — уговори {pron5} приехать к нам, сделать как следует. {When_c}»',
+    done: '{trn} кивает: «Приеду, как управлюсь. Скажи хозяйке, пусть не тревожится»'},
+  rival: {thing: 'приструнить обидчика соседа', ask: 'Соседа нашего, деда Онуфрия, обидел {rival}, что живёт {where}: потравил его овёс своим стадом, а платить не хочет и ещё смеётся. Дед старый, заступиться некому. Поговори с ним, {when}»',
+    done: '{rival} бурчит, мнёт шапку и обещает за потраву заплатить деду сполна.', fail: '{rival} хватается за кол и орёт на всю улицу. До драки не дошло, но и толку вышло мало.'},
+},
+/* жена (муж) из отряда — на привале, о своём */
+merc: {
+  buy: [{role: 'kozhevnik', items: ['sapogi_myagk', 'poyas'], thing: 'сапог', ask: 'Сапоги мои совсем развалились. {Where} есть {trt}, {trn}, — купи мне там, ладно? Только не забудь, как раньше»'},
+    {role: 'shvea', items: ['rubaha_vyshitaya', 'tkan_bogataya_1_ed'], thing: 'вышитой рубахи', ask: 'Хочу рубаху вышитую, нарядную. {Where} есть {trt}, {trn}, — {pron} шьют так, что глаз не отвести. Купишь?»'},
+    {role: 'yuvelir', items: ['koltso_zolotoe'], sex: 'f', thing: 'колечка', ask: 'Видела я {where} колечко: {trt} там есть, {trn}. Маленькое колечко, простое. Не смейся… Купишь, как будем там?»'},
+    {role: 'kuzn', items: ['topor', 'serp'], sex: 'm', thing: 'нового топора', ask: 'Мой топор весь в зазубринах. {Where} есть {trt}, {trn}, — {pron} железо доброе. Возьмём, как будем там?»'}],
+  kin: {thing: 'навестить родню', ask: '{Where} у меня {kinw}, {kin}. Давно не видались — завернём, как будем рядом? Хоть покажусь живой да целой»',
+    askM: '{Where} у меня {kinw}, {kin}. Давно не видались — завернём, как будем рядом? Хоть покажусь живым да целым»',
+    done: '{kin} плачет и смеётся сразу, усаживает за стол и до вечера не отпускает. {n} уходит оттуда тихая и светлая.', doneM: '{kin} обнимает {n_a} до хруста в рёбрах и до вечера не отпускает из-за стола. {n} уходит оттуда весёлый и светлый.'},
+},
+/* ответ на просьбу */
+yes: {f: ['«Вот и спасибо. Я знала, что на тебя можно положиться»', '«Ну и ладно. Только не забудь, слышишь?»'], m: ['«Вот и ладно. Знал, что не откажешь»', '«Договорились. Только не забудь, ладно?»']},
+no: {f: ['«Ну, раз не по пути — так не по пути. Сама как-нибудь»'], m: ['«Ладно, не по пути — так не по пути. Сам управлюсь»']},
+/* исполнено: благодарность и подарок */
+thanks: {f: ['«Вот спасибо! Ну, теперь я тебя без подарка не отпущу»', '«Привёз! А я уж думала, забудешь. Иди сюда, дай обниму»', '«Хозяин ты у меня, хоть и бродяга. Спасибо, родной»'],
+  m: ['«Вот спасибо, хозяйка. Ну, без гостинца теперь не уйдёшь»', '«Не забыла! А я уж и спорил сам с собой. Иди сюда»', '«Ох и молодец ты у меня. Спасибо»']},
+gift: {rubaha_vyshitaya: '{n} достаёт из сундука рубаху, вышитую красной нитью: «Всю зиму вышивала. Носи, она от сглаза»',
+  rubaha_vyshitaya_m: '{n} достаёт из сундука рубаху, вышитую красной нитью: «Сестра вышивала, а я берёг. Носи — от сглаза»',
+  obereg: '{n} вешает тебе на шею оберег на шнурке: «Бабкин ещё. Пусть теперь тебя бережёт»',
+  pirog: '{n} заворачивает в рушник пироги, ещё тёплые: «В дорогу. Чтоб не на сухарях»',
+  ring: '{n} открывает старый ларец и кладёт тебе в ладонь серебряное кольцо: «Это ещё от деда. Дед говорил: отдать, кто дом бережёт. Вот, тебе»',
+  coin: 'Деньги {n} прячет в сундук: «На хозяйство пойдут, до медяка»'},
+/* срок вышел */
+late: {f: ['Срок прошёл, а поручение жены так и осталось несделанным. {n} будет обижена.'], m: ['Срок прошёл, а поручение мужа так и осталось несделанным. {n} будет обижен.'],
+  merc: ['{n} молчит весь вечер, а потом говорит, не глядя: «Ты обещал{hs:|а}. Ладно. Забудь»']},
+/* награда «жаркая ночь»: затемнение без подробностей, утро — довольная реплика */
+hot: {
+  poor: ['Вечер долгий, а ночь ещё дольше. Лучину гасят рано, и до самых петухов в избе не до сна. Ночь проходит…'],
+  hay: ['Лестницу на сеновал убирают наверх. Сено шуршит до самого рассвета, и звёзды в щелях крыши успевают побледнеть. Ночь проходит…'],
+  peasant: ['Ужин остывает на столе — до него сегодня никому нет дела. Занавеску задёргивают, лучину гасят. Ночь проходит…'],
+  merchant: ['Засов задвинут, свеча задута, и до утра в светлице не слышно ничего, кроме тихого смеха. Ночь проходит…'],
+  noble: ['Слуг отпускают до полудня. Полог опущен, свечи догорают сами. Ночь проходит…'],
+},
+hotMorning: {f: ['«Вот это ты поблагодарил… Я до сих пор улыбаюсь, как дурочка. Иди уж, а то не отпущу»', '«Соседка спрашивала, что это я с утра песни пою. А я ей — не твоё дело»'],
+  m: ['«Ну и ночь… Я до сих пор как хмельной. Иди, пока я тебя снова не утащил»', '«Петухи давно пропели, а я и не слыхал. Ступай, родная, — и возвращайся скорей»']},
+hotMerc: ['Этой ночью {n} и {h} уходят от костра далеко, под старую ель, и возвращаются только к рассвету — счастливые и до смешного молчаливые.'],
+mercThanks: ['{n} прячет покупку за пазуху и вдруг целует тебя при всём отряде: «Вот спасибо. Не забыл{hs:|а}!»', '{n} разглядывает покупку и улыбается: «Ну вот. Теперь и мне есть чем похвастать»'],
+};
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* home_errands.js */
+/* Колдовство — home_errands: ночь с женой (мужем) дома и домашние поручения. Без DOM.
+   • НОЧЬ ДОМА. «Остаться дома на ночь» (spouse.js; поверх — w2_kids, w2_hearth, w2_mercwed) ведёт в сцену затемнения
+     «Ночь дома» — без подробностей, «Ночь проходит…»; фон — по достатку дома: бедный — тесная изба, крестьянский —
+     сеновал летом или изба, купеческий — светлица, знатный — богатая горница с пологом (C.heTier); картинки — изба,
+     сеновал, горница с пологом (C.heNightArt). Потом «Утро» — пустая
+     постель на рассвете и короткая реплика супруга(и): по нраву, по тому, как давно не виделись, ждёт ли дитя, есть ли дети;
+     после недавней измены (r.kvBetray, banya.js) или проваленного поручения — холоднее. Только супруг иного пола, живой герой;
+     родственница дома (w2_mercwed: жена в походе) и мать наследника (узы 'kin') — прежняя ночь без сцены.
+   • ПОРУЧЕНИЯ. Утром супруг(а) может попросить (не всегда; не больше одного открытого на дом; срок словами):
+     купить у определённого торговца в другом месте (товар — из его лавки, цена — его), отнести гостинец или весть родне,
+     забрать долг, перекрыть крышу, сводить ребёнка к волхву или в храм Ока (по вере семьи), выбрать телушку, найти мастера,
+     приструнить обидчика соседа. Обещать или нет — выбор игрока. Исполнено — дома «Порадовать…»: отношение вверх, дух героя,
+     домашний подарок (вышитая рубаха, бабкин оберег, пироги в дорогу), изредка семейное кольцо из ларца; долг — в деньги на
+     хозяйство (w2_hearth). Срок вышел — огорчение (отношение вниз), упрёк при встрече.
+   • ЖЕНА (МУЖ) В ОТРЯДЕ. После «ночи у костра вдвоём» (w2_mercwed, mw_fire) изредка просит о своём: купить ей (ему) вещь
+     у торговца или завернуть к родне. Вещь отдаётся сразу и остаётся у наёмника. Срок длиннее, обида — меньше.
+   • Только Вечный мир (g.camp === 'free'): там торговцы и места края. Сцена ночи — везде, где есть дом.
+   • Состояние: g.he = {err: {[key]: E}, home: {[key]: {last, n, ask}}, night, task}. key — role@at дома или 'merc:<id>'.
+     E = {key, hero, kind: buy|carry|deed|mbuy|mkin, def, who, at, tr, item, price, kin, sum, kid, faith, day, due, st, ...}.
+   • Наружу: C.HE (числа), C.heTier, C.heErrands(g), C.heErrandsText(g), C.heOffer(g, key), C.heMercOffer(g, m), C.heTick(g). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !C.FOLK || !C.relOf || !C.HE_T) return;
+const T = C.HE_T;
+C.HE = Object.assign({ASK: 0.45, GAP: 3, MERC_ASK: 0.2, MERC_GAP: 7, LONG: 21, COLD: 30, SORE: 14, REL_OK: 6, REL_HALF: 3, REL_LATE: 6, MW_OK: 2, MW_LATE: 2, MAXD: 7, RING: 0.12,
+  HOT: {laska: 0.75, shutnik: 0.8, hozyain: 0.55, tihiy: 0.6}, HOT_FAR: 0.15, HOT_HARD: 0.1, HOT_EASY: -0.15, HOT_MAX: 0.95, HOT_MERC: 0.5, GLOW_DAYS: 4, WING_DAYS: 3, WING_XP: 1.25}, C.HE || {});
+const K = () => C.HE;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const decl = (n, sex) => (Q && Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const day = g => (g && g.day) || 1;
+const isFree = g => !!(g && g.camp === 'free');
+const nodes = g => ((C.CAMPS[g.camp] || {}).map || {}).nodes || {};
+const nodeName = (g, at) => (nodes(g)[at] || {}).name || 'дорога';
+const nodeScene = g => { const n = nodes(g)[g.loc]; return n ? n.scene : null; };
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const heroById = (g, id) => heroes(g).find(h => h.id === id) || null;
+const baseOf = role => String(role || '').replace(/^sp_/, '');
+const itemName = id => ((R.item(id) || {}).name || id).toLowerCase();
+const st = g => { const S = g.he = (g.he && typeof g.he === 'object') ? g.he : {}; S.err = S.err || {}; S.home = S.home || {}; return S; };
+const peek = g => (g && g.he) || null;
+const nextI = chs => Math.max(0, ...chs.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+const popBack = ch => (ch.length && /^(Назад|Уйти|К другим|На дорогу|Дальше)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null);
+const fillS = (s, sex) => String(s).replace(/\{hs:([^|}]*)\|([^}]*)\}/g, (_, a, b) => (sex === 'f' ? b : a));
+const fill = (s, o) => fillS(String(s || ''), o.hsex).replace(/\{([A-Za-z_0-9]+)\}/g, (m, k) => (o[k] != null ? o[k] : m));
+
+/* ---------- кто дома ---------- */
+/* супруг(а) дома: узы брака у живого героя, иного пола; не родственница вместо жены-наёмницы, не вдова */
+const spouseAt = (g, role, at) => {
+  const key = role + '@' + at, r = (g.folkRel || {})[key]; if (!r || r.bond !== 'wed') return null;
+  const h = heroById(g, r.who); if (!h) return null;
+  const s = (g.homeSp || {})[role]; if (s && s.mw && (s.mw.away || s.mw.dead)) return null;
+  let p = null; try { p = C.folkPerson(g, role, at); } catch (e) {} if (!p || !p.sex || p.sex === h.sex) return null;
+  return {key, role, at, r, h, p, s};
+};
+const NRAV = ['laska', 'hozyain', 'shutnik', 'tihiy'];
+const MERC_NRAV = {lihoy: 'shutnik', star: 'tihiy', zhadny: 'hozyain', trus: 'tihiy', chestny: 'hozyain', nabozhny: 'tihiy', dobry: 'laska'};
+const nravOf = (o) => { const w = o.s && o.s.mw && o.s.mw.wife; if (w && MERC_NRAV[w.nrav]) return MERC_NRAV[w.nrav]; return NRAV[hsh(o.p.n + '|' + o.key) % NRAV.length]; };
+/* вера семьи: брат Ока или набожная жена — храм Ока, прочие — капище */
+const faithOf = o => { const w = o.s && o.s.mw && o.s.mw.wife; return (C.faithOf && C.faithOf(o.h) === 'oko') || (w && w.nrav === 'nabozhny') ? 'oko' : 'old'; };
+
+/* ---------- достаток дома ---------- */
+const HAVE = () => new Set((typeof window !== 'undefined' && window.ATLAS && window.ATLAS.scenes) || []);
+C.heTier = function (g, key) {
+  try { if (C.heTierHook) { const t = C.heTierHook(g, key); if (t) return t; } } catch (e) {}
+  const [role, at] = key.split('@'), n = nodes(g)[at] || {}, base = baseOf(role);
+  let t = n.kind === 'город' ? 2 : ['лес', 'пастбище', 'хутор', 'лагерь', 'застава', 'пепелище'].includes(n.kind) ? 0 : 1;
+  if (['trade', 'jewel', 'book', 'charm'].includes(base)) t = Math.max(t, 2);
+  const H = (g.w2hearth || {})[key], buy = (H && H.buy) || [];
+  if (H && (H.coin || 0) < 0 && buy.length < 2) t = Math.max(0, t - 1);
+  if (buy.length >= 3 && t < 2) t++;
+  if (t >= 2 && n.kind === 'город' && buy.includes('pech') && buy.length >= 5 && (g.estate || []).length >= 2) t = 3;
+  return ['poor', 'peasant', 'merchant', 'noble'][t];
+};
+const summer = g => (C.seasonAt ? C.seasonAt(day(g)) : 'summer') === 'summer';
+/* картинки ночлежных комнат (room_*) — с чужими людьми, для дома не годятся: бедный и крестьянский дом — изба (летом у крестьян —
+   сеновал), купеческий и знатный — горница с пологом; разница — в словах сцены */
+const ART = {poor: ['hut'], peasant: ['hut'], merchant: ['noble_chamber', 'hut'], noble: ['noble_chamber', 'hut']};
+C.heNightArt = function (g, tier) {
+  if (tier === 'peasant' && summer(g)) return 'hayloft';
+  const L = ART[tier] || ART.peasant, have = HAVE(); return have.size ? (L.find(x => have.has(x)) || 'hut') : L[0];
+};
+
+/* ---------- сроки и места словами ---------- */
+const whenW = d => (d <= 4 ? 'дня за три' : d <= 8 ? 'за седмицу' : d <= 15 ? 'седмицы за две' : d <= 22 ? 'седмицы за три' : 'до конца месяца');
+C.heLeftWord = left => (left < 0 ? 'срок вышел' : left <= 1 ? 'срок — сегодня-завтра' : left <= 3 ? 'срок на исходе' : left <= 8 ? 'срок — около седмицы' : 'время ещё есть');
+const WHERE = {'город': 'в городе', 'село': 'в селе', 'подворье': 'на подворье', 'стан': 'в стане', 'торг': 'на торгу', 'промысел': 'на промысле', 'мельница': 'на мельнице', 'капище': 'на капище', 'храм': 'в храме', 'хутор': 'на хуторе',
+  'застава': 'на заставе', 'лагерь': 'в лагере', 'крепость': 'в крепости', 'рудник': 'на руднике', 'книжня': 'в книжне', 'башня': 'у башни', 'площадь': 'на площади', 'ворота': 'у ворот', 'брод': 'у брода'};
+const QUOTE = Object.keys(WHERE).filter(k => !['город', 'село'].includes(k));
+/* «Мельница на Ольше» → «на мельнице на Ольше», «Капище Мокоши» → «на капище Мокоши», «Торг у Соляного брода» → «на торгу у Соляного брода» */
+const SELF = {'Мельница': 'на мельнице', 'Капище': 'на капище', 'Торг': 'на торгу', 'Погост': 'на погосте', 'Обоз': 'при обозе', 'Лагерь': 'в лагере'};
+const whereOf = (g, at) => { const n = nodes(g)[at] || {}, nm = String(n.name || ''), w0 = nm.split(' ')[0];
+  if (SELF[w0] && nm.includes(' ')) return `${SELF[w0]} ${nm.slice(w0.length + 1)}`;
+  const w = WHERE[n.kind] || 'в месте'; return `${w} ${QUOTE.includes(n.kind) || !WHERE[n.kind] ? '«' + nm + '»' : nm}`; };
+const NUM = {10: 'десять', 20: 'двадцать', 30: 'тридцать', 40: 'сорок', 50: 'пятьдесят', 60: 'шестьдесят', 70: 'семьдесят', 80: 'восемьдесят'};
+const sumW = c => `${NUM[Math.round(c / 1000) * 10] || 'тридцать'} золотых`;
+const dueOf = (g, d) => day(g) + Math.max(4, Math.min(30, (d || 1) * 2 + 3));
+/* куда: места края в нескольких днях пути; виденные отрядом — в первую очередь (о прочих жена знает понаслышке) */
+const seenOf = (g, id, n) => { try { return !n.if || !!n.if(g, C.ctx ? C.ctx(g) : {}); } catch (e) { return false; } };
+const DCACHE = {};
+const daysTo = (g, a, b) => { const k = g.camp + '|' + a + '|' + b; if (k in DCACHE) return DCACHE[k]; let d = null; try { d = C.moveDays ? C.moveDays(g, a, b) : 2; } catch (e) { d = null; } return (DCACHE[k] = d); };
+const targets = (g, at, ok) => Object.entries(nodes(g)).filter(([id, n]) => id !== at && ok(n)).map(([id, n]) => ({n: Object.assign({id}, n), seen: seenOf(g, id, n), d: daysTo(g, at, id)}))
+  .filter(x => x.d != null && x.d >= 1 && x.d <= K().MAXD).sort((a, b) => (b.seen - a.seen) || a.d - b.d || (a.n.id < b.n.id ? -1 : 1));
+const pickNear = L => { if (!L.length) return null; const S = L.some(x => x.seen) ? L.filter(x => x.seen) : L; return S[Math.floor(R.rand() * Math.min(4, S.length))]; };
+
+/* ---------- кто кому родня ---------- */
+const KIN_F = [['сестра', 'сестре', 'f'], ['тётка', 'тётке', 'f'], ['мать', 'матери', 'f'], ['брат', 'брату', 'm'], ['дядька', 'дядьке', 'm']];
+const kinOf = (g, ppl) => { const [w, wd, sex] = pick(KIN_F); let n = null; try { n = Q.person(g, sex, ppl || 'nolgrim').n; } catch (e) {} n = n || (sex === 'f' ? 'Добрава' : 'Ждан');
+  return {n, sex, w, wd}; };
+
+/* ---------- подстановки ---------- */
+const ctxOf = (g, E, o) => {
+  const x = {n: E.who.n, n_a: decl(E.who.n, E.who.sex).a, h: (heroById(g, E.hero) || {}).name || '', hsex: (heroById(g, E.hero) || {}).sex, thing: E.thing,
+    pl: nodeName(g, E.at), where: whereOf(g, E.at), when: whenW(E.due - E.day)};
+  x.Where = cap(x.where); x.When_c = `Управься ${x.when}`; x.When_c = cap(x.When_c);
+  if (E.tr && C.trdPerson) { const p = C.trdPerson(g, E.tr); if (p) { x.trt = p.t; x.trn = p.n; x.pron = p.sex === 'f' ? 'у неё' : 'у него'; x.pron2 = x.pron; x.pron5 = p.sex === 'f' ? 'её' : 'его'; } }
+  if (E.kin) { const d = decl(E.kin.n, E.kin.sex); Object.assign(x, {kin: E.kin.n, kin_d: d.d, kinw: E.kin.w, kinw_d: E.kin.wd, pron3: E.kin.sex === 'f' ? 'она' : 'он', pron4: E.kin.sex === 'f' ? 'её' : 'его'}); }
+  if (E.kid) { const d = decl(E.kid.n, E.kid.sex); Object.assign(x, {kid: E.kid.n, kid_g: d.g, kid_a: d.a, kid_d: d.d, kid_i: d.i}); }
+  if (E.sum) x.sum = sumW(E.sum);
+  if (E.rival) x.rival = E.rival;
+  return Object.assign(x, o || {});
+};
+const defOf = E => E.kind === 'buy' ? T.buy[E.def] : E.kind === 'carry' ? T.carry[E.def] : E.kind === 'deed' ? T.deed[E.def] : E.kind === 'mbuy' ? T.merc.buy[E.def] : E.kind === 'mkin' ? T.merc.kin : null;
+const askText = (g, E) => { const D = defOf(E); if (!D) return ''; const open = pick(E.merc ? T.askOpen.merc : T.askOpen[E.who.sex === 'f' ? 'f' : 'm']);
+  const body = (E.who.sex === 'm' && D.askM) ? D.askM : D.ask;
+  return fill(D.noOpen ? body : `${open} ${body}`, ctxOf(g, E)).replace(/…\s+/, '… '); };
+const wifeWord = E => (E.who.sex === 'f' ? 'жены' : 'мужа');
+const errTitle = (g, E) => `Поручение ${wifeWord(E)}: ${E.thing} — ${nodeName(g, E.at)}`;
+
+/* ---------- поручения от супруга(и) дома ---------- */
+const mkE = (g, o, kind, def, extra) => Object.assign({key: o.key, hero: o.h.id, who: {n: o.p.n, sex: o.p.sex, face: o.p.face}, kind, def, day: day(g), st: 'open'}, extra);
+const BUILD = {
+  buy: (g, o) => {
+    const kids = C.kidsOf ? C.kidsOf(g, o.key).filter(k => k.n) : [], tier = C.heTier(g, o.key), rich = ['merchant', 'noble'].includes(tier);
+    const defs = Object.entries(T.buy).filter(([, D]) => (!D.sex || D.sex === o.p.sex) && (!D.kids || kids.length) && (!D.rich || rich));
+    for (let tries = 0; tries < 6 && defs.length; tries++) {
+      const [id, D] = defs.splice(Math.floor(R.rand() * defs.length), 1)[0];
+      let L = targets(g, o.at, n => !D.kind || D.kind.includes(n.kind)).map(x => {
+        const key = C.trdKey(D.role, x.n.id); if (!C.trdRoster(g, x.n.id).includes(D.role)) return null;
+        let stock = []; try { stock = C.trdStock(g, key); } catch (e) {} const item = D.items.find(i => (D.farm || stock.includes(i)) && R.item(i)); return item ? Object.assign(x, {key, item}) : null; }).filter(Boolean); // скотину конюх приводит с выгона — её нет на прилавке
+      if (D.reg && L.some(x => x.n.reg === D.reg)) L = L.filter(x => x.n.reg === D.reg);
+      const x = pickNear(L); if (!x) continue;
+      return mkE(g, o, 'buy', id, {at: x.n.id, tr: x.key, item: x.item, thing: D.thing, due: dueOf(g, x.d), kid: D.kids ? {n: kids[0].n, sex: kids[0].sex} : null});
+    }
+    return null;
+  },
+  carry: (g, o) => {
+    const def = pick(['gift', 'gift', 'news', 'debt']), D = T.carry[def];
+    const x = pickNear(targets(g, o.at, n => ['село', 'город', 'подворье', 'мельница', 'хутор'].includes(n.kind))); if (!x) return null;
+    const kin = kinOf(g, o.p.ppl), E = mkE(g, o, 'carry', def, {at: x.n.id, kin, thing: D.thing, due: dueOf(g, x.d)});
+    if (def === 'debt') { let dn = null; try { dn = Q.person(g, 'm', o.p.ppl || 'nolgrim').n; } catch (e) {} E.kin = {n: dn || 'Гордята', sex: 'm', w: 'должник', wd: 'должнику'}; E.sum = (2 + Math.floor(R.rand() * 5)) * 1000; E.thing = 'забрать долг'; }
+    return E;
+  },
+  deed: (g, o) => {
+    const kids = C.kidsOf ? C.kidsOf(g, o.key).filter(k => k.n) : [], opts = ['roof', 'master', 'rival'].concat(kids.length ? ['rite', 'rite'] : []);
+    const def0 = pick(opts);
+    if (def0 === 'roof') return mkE(g, o, 'deed', 'roof', {at: o.at, thing: T.deed.roof.thing, due: day(g) + 3});
+    if (def0 === 'rite') { const f = faithOf(o), def = f === 'oko' ? 'rite_oko' : 'rite_old';
+      const x = pickNear(targets(g, o.at, n => f === 'oko' ? (n.kind === 'храм' && !/Палата|Дознан/.test(n.name)) || n.kind === 'город' : n.kind === 'капище')); if (!x) return null;
+      const kid = kids[Math.floor(R.rand() * kids.length)];
+      return mkE(g, o, 'deed', def, {at: x.n.id, thing: T.deed[def].thing, faith: f, kid: {n: kid.n, sex: kid.sex}, due: dueOf(g, x.d) + 4}); }
+    if (def0 === 'master') { const L = targets(g, o.at, n => n.kind === 'город').map(x => { const role = ['plotnik', 'gonchar', 'kuzn'].find(r => C.trdRoster(g, x.n.id).includes(r)); return role ? Object.assign(x, {key: C.trdKey(role, x.n.id)}) : null; }).filter(Boolean);
+      const x = pickNear(L); if (!x) return null; return mkE(g, o, 'deed', 'master', {at: x.n.id, tr: x.key, thing: T.deed.master.thing, due: dueOf(g, x.d)}); }
+    const x = pickNear(targets(g, o.at, n => ['село', 'подворье', 'мельница', 'хутор'].includes(n.kind))); if (!x) return null;
+    let rival = null; try { rival = Q.person(g, 'm', o.p.ppl || 'nolgrim').n; } catch (e) {} rival = rival || 'Гордята';
+    return mkE(g, o, 'deed', 'rival', {at: x.n.id, rival, thing: T.deed.rival.thing, due: dueOf(g, x.d)});
+  },
+};
+/* попросит ли: не всегда, не чаще, чем через несколько дней, и не больше одного открытого */
+C.heOffer = function (g, key, force) {
+  if (!g || !isFree(g)) return null;
+  const S = st(g); if (S.err[key]) return null;
+  const [role, at] = key.split('@'), o = spouseAt(g, role, at); if (!o) return null;
+  const Hm = S.home[key] = S.home[key] || {};
+  if (!force && ((Hm.ask && day(g) - Hm.ask < K().GAP) || R.rand() >= K().ASK)) return null;
+  const order = force && force.kind ? [force.kind] : ['buy', 'buy', 'carry', 'deed'].sort(() => R.rand() - 0.5);
+  for (const k of order) { let E = null; try { E = BUILD[k](g, o, force); } catch (e) { if (C.HE.DEBUG) console.log(e); E = null; } if (E) { if (force && force.def && E.def !== force.def && k === force.kind) { /* нужен определённый — пробуем ещё */
+      for (let i = 0; i < 12 && E && E.def !== force.def; i++) { try { E = BUILD[k](g, o, force); } catch (e) { E = null; } } }
+    if (E) { Hm.ask = day(g); return E; } } }
+  return null;
+};
+const accept = (g, E) => { const S = st(g); S.err[E.key] = E; C.note(g, `${errTitle(g, E)}. ${cap(C.heLeftWord(E.due - day(g)))}.`); };
+
+/* ---------- жена (муж) в отряде ---------- */
+const mercsOf = g => ((g && g.mercs) || []).filter(m => m && !m.dead && m.hp > 0);
+C.heMercOffer = function (g, m, force) {
+  if (!g || !isFree(g) || !m || !m.mw || m.mw.tier !== 'wed') return null;
+  const h = heroById(g, m.mw.who); if (!h || h.sex === m.sex) return null;
+  const S = st(g), key = 'merc:' + m.id; if (S.err[key]) return null;
+  const Hm = S.home[key] = S.home[key] || {};
+  if (!force && ((Hm.ask && day(g) - Hm.ask < K().MERC_GAP) || R.rand() >= K().MERC_ASK)) return null;
+  const at = g.loc, base = {key, hero: h.id, who: {n: m.name, sex: m.sex, face: m.portrait}, merc: m.id, day: day(g), st: 'open'};
+  const kind = force && force.kind ? force.kind : R.rand() < 0.6 ? 'mbuy' : 'mkin';
+  let E = null;
+  if (kind === 'mbuy') { const defs = T.merc.buy.map((D, i) => [i, D]).filter(([, D]) => !D.sex || D.sex === m.sex);
+    for (let t = 0; t < 6 && defs.length && !E; t++) { const [i, D] = defs.splice(Math.floor(R.rand() * defs.length), 1)[0];
+      const L = targets(g, at, () => true).map(x => { const key2 = C.trdKey(D.role, x.n.id); if (!C.trdRoster(g, x.n.id).includes(D.role)) return null;
+        let stock = []; try { stock = C.trdStock(g, key2); } catch (e) {} const item = D.items.find(it => stock.includes(it) && R.item(it)); return item ? Object.assign(x, {key: key2, item}) : null; }).filter(Boolean);
+      const x = pickNear(L); if (x) E = Object.assign({}, base, {kind: 'mbuy', def: i, at: x.n.id, tr: x.key, item: x.item, thing: D.thing, due: dueOf(g, x.d) + 10}); } }
+  if (!E) { const x = pickNear(targets(g, at, n => ['село', 'город', 'подворье', 'мельница', 'хутор'].includes(n.kind))); if (!x) return null;
+    E = Object.assign({}, base, {kind: 'mkin', def: 0, at: x.n.id, kin: kinOf(g, m.people), thing: T.merc.kin.thing, due: dueOf(g, x.d) + 10}); }
+  Hm.ask = day(g); S.err[key] = E;
+  return E;
+};
+/* после ночи у костра вдвоём — иногда просьба о своём */
+{ const ab0 = C.abil; if (ab0) C.abil = function (g, h, arg) {
+  const r = ab0.apply(this, arguments);
+  try { if (arg === 'mw_fire' && r && r.ok && !r.err && h && h.kind === 'merc' && h.mw && h.mw.tier === 'wed') { const E = C.heMercOffer(g, h);
+    if (E) { const t = `${h.name}: ${askText(g, E)}`; C.note(g, t); C.note(g, `${errTitle(g, E)}.`); r.text = (r.text ? r.text + ' ' : '') + t; } } } catch (e) {}
+  return r; }; }
+
+/* ---------- исполнение ---------- */
+const relAdd = (g, E, d, why) => { try { const [role, at] = E.key.split('@'); if (C.relAdd) C.relAdd(g, role, at, d, why); } catch (e) {} };
+const mercOf = (g, E) => mercsOf(g).find(m => m.id === E.merc) || null;
+const GIFTS = ['pirog', 'pirog', 'rubaha', 'obereg'];
+/* ---------- награда «жаркая ночь»: дух до предела и держится дольше; опыт идёт с прибавкой несколько дней ---------- */
+/* шанс: по нраву супруга(и) и по трудности — дальний срок, долг, обряд, обидчик чаще; крыша дома — реже; полдела — никогда */
+C.heHotChance = function (g, E, nrav, half) {
+  if (half || !E) return 0; const k = K(); let p = k.HOT[nrav] != null ? k.HOT[nrav] : 0.65;
+  if ((E.due - E.day) >= 12) p += k.HOT_FAR;
+  if (E.def === 'debt' || E.def === 'rival' || /^rite/.test(E.def) || E.kind === 'deed' && E.def === 'master') p += k.HOT_HARD;
+  if (E.def === 'roof') p += k.HOT_EASY;
+  return Math.max(0, Math.min(k.HOT_MAX, p)); };
+/* окрылён: дух до самого высокого настроя; держится GLOW_DAYS дней, пока сыт; опыт ×WING_XP WING_DAYS дней — не складывается */
+C.heGlow = function (g, h) { if (!h) return; const d = day(g), k = K();
+  h.heGlow = Math.max(h.heGlow || 0, d + k.GLOW_DAYS); h.heWing = Math.max(h.heWing || 0, d + k.WING_DAYS); h.spirit = 3; };
+const glowing = (h, g) => !!(h && h.heGlow && g && day(g) <= h.heGlow && !(h.hunger > 0));
+C.heWinged = (g, h) => !!(h && h.heWing && day(g) <= h.heWing);
+{ const cap0 = C.spiritCap; if (cap0) C.spiritCap = function (h) { const c = cap0.apply(this, arguments); return h && h.heGlow && !(h.hunger > 0) && C._heDay && C._heDay <= h.heGlow ? Math.max(c, 3) : c; }; }
+{ const dm0 = C.dailyMeal; if (dm0) C.dailyMeal = function (g) { C._heDay = day(g); const keep = C.alive(g).filter(h => glowing(h, g)).map(h => [h, h.spirit]);
+  const r = dm0.apply(this, arguments); keep.forEach(([h, s]) => { if (!(h.hunger > 0)) h.spirit = Math.max(h.spirit || 0, s); }); return r; }; }
+{ const ps1 = C.pass; C.pass = function (g) { if (g) C._heDay = day(g); return ps1.apply(this, arguments); }; }
+{ const xm0 = C.xpMul; if (xm0) C.xpMul = function (g, h) { const m = xm0.apply(this, arguments); return h && h.kind !== 'merc' && C.heWinged(g, h) ? m * K().WING_XP : m; }; }
+if (C.heroStatus) { const hs1 = C.heroStatus; C.heroStatus = function (g, h) { const out = hs1.apply(this, arguments) || [];
+  try { if (C.heWinged(g, h)) out.push({t: 'Окрылён — всё схватывает на лету', cls: 'ok', why: 'после жаркой ночи дома: учится легче обычного, и дух держится дольше'}); } catch (e) {}
+  return out; }; }
+const hotNight = (g, o, E) => {
+  const S = st(g), tier = C.heTier(g, o.key), art = C.heNightArt(g, tier), nk = tier === 'peasant' && art === 'hayloft' ? 'hay' : tier;
+  g._sleeping = 1; try { if (C.rest) C.rest(g, true); } finally { g._sleeping = 0; } g.awake = 0;
+  try { o.r.nightDay = day(g); } catch (e) {}
+  C.alive(g).forEach(x => { x.hunger = 0; x.fedDay = day(g); x.meal = {id: x.id === o.h.id ? 'home_love' : 'home_supper', day: day(g)}; x.mealAcc = 0; });
+  C._heDay = day(g); C.heGlow(g, o.h);
+  const Hm = S.home[o.key] = S.home[o.key] || {}; Hm.last = day(g); Hm.n = (Hm.n || 0) + 1;
+  S.night = {key: o.key, hero: o.h.id, tier, art, text: pick(T.hot[nk] || T.hot.peasant), mood: 'hot', say: pick(T.hotMorning[o.p.sex === 'f' ? 'f' : 'm']), n: o.p.n, sex: o.p.sex, face: o.p.face, ask: null, hot: 1};
+  C.note(g, `${o.h.name} — окрылён${o.h.sex === 'f' ? 'а' : ''}: после такой ночи всё схватывается на лету.`);
+  return S.night; };
+const reward = (g, E, half) => {
+  const h = heroById(g, E.hero), out = [];
+  out.push(`${E.who.n}: ${pick(T.thanks[E.who.sex === 'f' ? 'f' : 'm'])}`);
+  relAdd(g, E, half ? K().REL_HALF : K().REL_OK, 'поручение');
+  try { if (C.hearthCare) C.hearthCare(g, E.key, 1); } catch (e) {}
+  if (E.got && E.got.coin) { try { g.w2hearth = g.w2hearth || {}; const H = g.w2hearth[E.key] = g.w2hearth[E.key] || {care: 0, coin: 0, buy: [], pack: 0, seen: day(g)}; H.coin = (H.coin || 0) + E.got.coin; } catch (e) {}
+    out.push(fill(T.gift.coin, ctxOf(g, E))); }
+  if (h && !half) {
+    const ring = R.rand() < K().RING && R.item('tr_serebryanoe_koltso');
+    const k = ring ? 'ring' : GIFTS[Math.floor(R.rand() * GIFTS.length)];
+    const give = (id, n) => { if (!R.item(id)) return false; for (let i = 0; i < (n || 1); i++) h.inv.push(id); return true; };
+    if (k === 'ring' && give('tr_serebryanoe_koltso')) out.push(fill(T.gift.ring, ctxOf(g, E)));
+    else if (k === 'rubaha' && give('rubaha_vyshitaya')) out.push(fill(E.who.sex === 'f' ? T.gift.rubaha_vyshitaya : T.gift.rubaha_vyshitaya_m, ctxOf(g, E)));
+    else if (k === 'obereg' && give(R.item('bz_obereg_mat') ? 'bz_obereg_mat' : 'obereg_znak_boga')) out.push(fill(T.gift.obereg, ctxOf(g, E)));
+    else if (give('dish_pirog', 2)) out.push(fill(T.gift.pirog, ctxOf(g, E)));
+  }
+  if (h && C.spiritAdd) try { C.spiritAdd(g, 1, `${cap(E.thing)} — исполнено.`, h); } catch (e) {}
+  delete st(g).err[E.key];
+  const t = out.join(' '); C.note(g, `Поручение ${wifeWord(E)} исполнено. ${t}`); return t;
+};
+const mercDone = (g, E, m) => {
+  const h = heroById(g, E.hero), out = [];
+  if (C.mwAdd) try { C.mwAdd(g, m, K().MW_OK); } catch (e) {}
+  if (C.spiritAdd) try { C.spiritAdd(g, 1, '', m); if (h) C.spiritAdd(g, 1, '', h); } catch (e) {}
+  delete st(g).err[E.key];
+  try { if (h && m.sex !== h.sex && R.rand() < K().HOT_MERC) { C._heDay = day(g); C.heGlow(g, h); m.spirit = 3; const t = fill(pick(T.hotMerc), ctxOf(g, E)); C.note(g, t); C.note(g, `${h.name} — окрылён${h.sex === 'f' ? 'а' : ''}: всё схватывается на лету.`); out.push(t); } } catch (e) {}
+  return out;
+};
+/* срок вышел */
+C.heTick = function (g) {
+  const S = peek(g); if (!S || !S.err) return;
+  Object.values(S.err).forEach(E => {
+    if (!E || E.st !== 'open') return;
+    if (E.merc != null && !mercOf(g, E)) { delete S.err[E.key]; return; }   // наёмник ушёл или пал
+    if (!heroById(g, E.hero)) { delete S.err[E.key]; return; }
+    if (day(g) <= E.due) return;
+    E.st = 'late';
+    if (E.merc != null) { const m = mercOf(g, E); if (C.mwAdd) try { C.mwAdd(g, m, -K().MW_LATE); } catch (e) {}
+      C.note(g, fill(pick(T.late.merc), ctxOf(g, E))); delete S.err[E.key]; return; }
+    relAdd(g, E, -K().REL_LATE, 'поручение не исполнено'); const Hm = S.home[E.key] = S.home[E.key] || {}; Hm.sore = day(g);
+    C.note(g, fill(pick(T.late[E.who.sex === 'f' ? 'f' : 'm']), ctxOf(g, E)));
+  });
+};
+{ const ps0 = C.pass; C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments); if (g && g.day !== d0) try { C.heTick(g); } catch (e) {} return r; }; }
+
+/* ---------- ночь дома: затемнение и утро ---------- */
+const moodOf = (g, o) => {
+  const S = st(g), Hm = S.home[o.key] || {}, d = day(g), sx = o.p.sex === 'f' ? 'f' : 'm';
+  if (o.r.kvBetray && d - o.r.kvBetray < K().COLD) return {m: 'cold', t: pick(T.morning.cold[sx])};
+  if (Hm.sore && d - Hm.sore < K().SORE) return {m: 'sore', t: pick(T.morning.sore[sx])};
+  try { const F = (C.kidsFams ? C.kidsFams(g) : []).find(f => f.key === o.key && f.preg && f.preg.told); if (F) return {m: 'preg', t: pick(T.morning.preg[sx])}; } catch (e) {}
+  if (!Hm.last || d - Hm.last >= K().LONG) return {m: 'long', t: pick(T.morning.long[sx])};
+  const kids = C.kidsOf ? C.kidsOf(g, o.key).filter(k => k.n) : [];
+  if (kids.length && R.rand() < 0.5) { const k = kids[Math.floor(R.rand() * kids.length)]; return {m: 'kids', t: pick(T.morning.kids[sx]).replace(/\{kid\}/g, k.n)}; }
+  return {m: 'plain', t: pick(T.morning[sx][nravOf(o)])};
+};
+const startNight = (g, o) => {
+  const S = st(g), tier = C.heTier(g, o.key), art = C.heNightArt(g, tier), nk = tier === 'peasant' && art === 'hayloft' ? 'hay' : tier;
+  const mood = moodOf(g, o);
+  const Hm = S.home[o.key] = S.home[o.key] || {}; Hm.last = day(g); Hm.n = (Hm.n || 0) + 1;
+  S.night = {key: o.key, hero: o.h.id, tier, art, text: pick(T.night[nk] || T.night.peasant), mood: mood.m, say: mood.t, n: o.p.n, sex: o.p.sex, face: o.p.face, ask: null};
+  if (mood.m !== 'cold') { const E = C.heOffer(g, o.key); if (E) S.night.ask = E; }
+  return S.night;
+};
+const SC = {};
+SC.he_night = g => { const N = (peek(g) || {}).night;
+  if (!N) return {title: 'Ночь', bg: 'hut', lines: [['n', 'Ночь проходит…']], choices: [{t: 'Дальше', do: () => 'folk'}]};
+  return {title: 'Ночь дома', bg: 'hut', art: N.art, lines: [['n', N.text]], choices: [{t: 'Утро', do: () => 'he_morning'}]}; };
+SC.he_morning = g => { const S = peek(g) || {}, N = S.night;
+  if (!N) return {title: 'Утро', bg: 'hut', art: 'morning_after', lines: [['n', 'Утро.']], choices: [{t: 'Дальше', do: () => 'folk'}]};
+  const lines = [['n', 'Рассвет. Постель уже пуста, в печи потрескивает огонь.'], ['n', `${N.n}: ${N.say}`]], E = N.ask, sx = N.sex === 'f' ? 'f' : 'm';
+  if (E) lines.push(['n', `${N.n}: ${askText(g, E)}`]);
+  if (N.reply) lines.push(['n', N.reply]);
+  const fin = g2 => { const S2 = st(g2); delete S2.night; return 'folk'; };
+  const ch = E && !N.reply ? [{t: 'Обещать: сделаю', do: g2 => { const N2 = st(g2).night; accept(g2, N2.ask); N2.reply = `${N2.n}: ${pick(T.yes[sx])}`; return 'he_morning'; }},
+    {t: 'Не обещать: не по пути', do: g2 => { const N2 = st(g2).night; N2.reply = `${N2.n}: ${pick(T.no[sx])}`; N2.ask = null; return 'he_morning'; }}]
+    : [{t: 'Дальше', do: fin}];
+  return {title: 'Утро', bg: 'hut', art: 'morning_after', face: N.face, faceName: N.n, faceSub: N.sex === 'f' ? 'жена' : 'муж', lines, choices: ch}; };
+/* дело на месте: гостинец, весть, долг, обряд, обидчик, родня жены-наёмницы */
+SC.he_task = g => { const S = peek(g) || {}, X = S.task;
+  const back = g2 => { const S2 = st(g2); delete S2.task; return nodeScene(g2) || 'map'; };
+  if (!X) return {title: 'Поручение', bg: 'village', lines: [['n', 'Дело сделано.']], choices: [{t: 'Дальше', do: back}]};
+  const lines = (X.lines || []).map(t => ['n', t]);
+  const ch = X.ask ? X.ask.map(a => ({t: a.t, do: g2 => { const S2 = st(g2), E = S2.err[X.key]; if (E) S2.task = {key: X.key, lines: [taskAct(g2, E, a.k)]}; return 'he_task'; }})) : [{t: 'Дальше', do: back}];
+  return {title: X.title || 'Поручение', bg: X.bg || 'village', art: X.art || 'village', face: X.face, faceName: X.faceName, faceSub: X.faceSub, lines, choices: ch}; };
+const putScenes = camp => { if (camp && camp.scenes) Object.entries(SC).forEach(([id, sc]) => { camp.scenes[id] = sc; }); };
+Object.values(C.CAMPS).forEach(putScenes);
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); putScenes(camp); return r; }; }
+
+/* дела на месте */
+const bestOf = (g, stat) => C.alive(g).slice().sort((a, b) => ((b.stats || {})[stat] || 10) - ((a.stats || {})[stat] || 10))[0];
+const roll = (g, stat, dc) => { const h = bestOf(g, stat); return h && (R.d(20) + R.mod((h.stats || {})[stat] || 10)) >= dc; };
+function taskAct(g, E, k) {
+  const x = ctxOf(g, E), D = defOf(E);
+  if (E.def === 'debt') { const full = k === 'press' ? roll(g, 'cha', 12) || roll(g, 'str', 14) : R.rand() < 0.5;
+    const coin = full ? E.sum : Math.round(E.sum / 2 / 100) * 100; E.got = {coin}; E.st = 'got'; x.sum = sumW(coin * (full ? 1 : 2));
+    return fill(full ? D.done : D.half, x); }
+  if (E.def === 'rival') { const ok = k === 'threat' ? roll(g, 'str', 13) : roll(g, 'cha', 13); E.st = 'got'; E.half = !ok;
+    if (ok) try { if (C.repAdd) C.repAdd(g, E.key.split('@')[1], 1, 'заступились за соседа'); } catch (e) {}
+    return fill(ok ? D.done : D.fail, x); }
+  return '';
+}
+const placeTask = (g, E) => {
+  const x = ctxOf(g, E), D = defOf(E);
+  if (E.kind === 'mkin') { const m = mercOf(g, E); if (!m) return null; const t = fill(m.sex === 'f' ? D.done : D.doneM, x); mercDone(g, E, m); C.note(g, t); return {key: E.key, lines: [t]}; }
+  if (E.def === 'debt') return {key: E.key, lines: [`${E.kin.n} встречает вас у ворот и сразу понимает, зачем пришли.`], ask: [{t: 'Настоять: долг платежом красен', k: 'press'}, {t: 'По-хорошему: сколько сможет', k: 'soft'}]};
+  if (E.def === 'rival') return {key: E.key, lines: [`${E.rival} стоит у плетня и недобро щурится: «Чего надо?»`], ask: [{t: 'Пригрозить', k: 'threat'}, {t: 'Усовестить при людях', k: 'shame'}]};
+  E.st = 'got'; const t = fill(D.done, x); C.note(g, t); return {key: E.key, lines: [t]};
+};
+const placeLabel = (g, E) => E.kind === 'mkin' ? `Навестить родню ${decl(E.who.n, E.who.sex).g}: ${E.kin.w}, ${E.kin.n}`
+  : E.def === 'debt' ? `Поручение ${wifeWord(E)}: забрать долг у ${decl(E.kin.n, E.kin.sex).g}` : E.def === 'rival' ? `Поручение ${wifeWord(E)}: поговорить с обидчиком соседа`
+  : /^rite/.test(E.def) ? `Поручение ${wifeWord(E)}: ${E.def === 'rite_oko' ? 'благословение в храме Ока' : 'к волхву на капище'}` : `Поручение ${wifeWord(E)}: ${E.def === 'news' ? 'передать весть' : 'отдать гостинец'} — ${E.kin.wd} ${E.kin.n}`;
+const PLACE_KINDS = E => E.kind === 'carry' || E.kind === 'mkin' || (E.kind === 'deed' && E.def !== 'roof' && E.def !== 'master');
+
+/* ---------- кнопки в сценах ---------- */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try {
+    if (!sc || !g) return sc;
+    if (/^he_/.test(id) && sc.raw && sc.raw.face && !sc.face) Object.assign(sc, {face: sc.raw.face, faceName: sc.raw.faceName, faceSub: sc.raw.faceSub});
+    if (id === 'folk' && g.folkRole) return homeScene(g, sc);
+    if (id === 'trd' && g.trdKey) return trdScene(g, sc);
+    if (id === nodeScene(g) && !g.folkAt) return placeScene(g, sc);
+  } catch (e) {}
+  return sc;
+};
+function homeScene(g, sc) {
+  const role = g.folkRole, at = g.folkAt || g.loc, o = spouseAt(g, role, at); if (!o) return sc;
+  const ch = sc.choices.slice(), lines = (sc.lines || []).slice();
+  for (let k = 0; k < ch.length; k++) { const c = ch[k]; if (!c || c.label !== 'Остаться дома на ночь' || c.dis || !c.do || c.heNight) continue;
+    ch[k] = Object.assign({}, c, {heNight: 1, do: function (g2) { const out = c.do.apply(this, arguments);
+      try { const o2 = spouseAt(g2, role, at); if (o2) { startNight(g2, o2); return 'he_night'; } } catch (e) {} return out; }}); }
+  const S = peek(g), E = S && S.err[o.key];
+  if (E) {
+    const back = popBack(ch); let i = nextI(sc.choices);
+    if (E.st === 'late') { lines.push(['n', `${o.p.n} поджимает губы: «${E.who.sex === 'f' ? 'Я тебя просила' : 'Я тебя просил'}, а ты и не вспомнил${o.h.sex === 'f' ? 'а' : ''}. Ладно, что прошло — то прошло»`]); delete S.err[o.key]; }
+    else if (E.st === 'got' || E.st === 'did') ch.push({i: i++, label: `Порадовать ${decl(o.p.n, o.p.sex).a}: поручение исполнено`, do: g2 => { const S2 = st(g2), E2 = S2.err[o.key]; if (!E2) return 'folk'; const half = !!E2.half, ch0 = C.heHotChance(g2, E2, nravOf(o), half); g2.folkLast = reward(g2, E2, half);
+      try { const o2 = spouseAt(g2, role, at); if (o2 && R.rand() < ch0) { hotNight(g2, o2, E2); return 'he_night'; } } catch (e) {} return 'folk'; }});
+    else if (E.kind === 'deed' && E.def === 'roof') ch.push({i: i++, label: 'Поручение: перекрыть крышу над сенями', do: g2 => { const S2 = st(g2), E2 = S2.err[o.key]; if (!E2) return 'folk';
+      if (C.passH) C.passH(g2, 4); const t = fill(T.deed.roof.done, ctxOf(g2, E2)); C.note(g2, t); E2.st = 'did'; const ch0 = C.heHotChance(g2, E2, nravOf(o)); g2.folkLast = t + ' ' + reward(g2, E2);
+      try { const o2 = spouseAt(g2, role, at); if (o2 && R.rand() < ch0) { hotNight(g2, o2, E2); return 'he_night'; } } catch (e) {} return 'folk'; }});
+    else if (E.st === 'open') lines.push(['n', `${o.p.n} напоминает: ${E.thing} — ${nodeName(g, E.at)}. ${cap(C.heLeftWord(E.due - day(g)))}.`]);
+    if (back) ch.push(back);
+  }
+  return Object.assign({}, sc, {lines, choices: ch});
+}
+function trdScene(g, sc) {
+  const S = peek(g); if (!S || !S.err) return sc;
+  const Es = Object.values(S.err).filter(E => E && E.st === 'open' && E.tr === g.trdKey && (E.kind === 'buy' || E.kind === 'mbuy' || (E.kind === 'deed' && E.def === 'master'))); if (!Es.length) return sc;
+  const ch = sc.choices.slice(), back = popBack(ch); let i = nextI(sc.choices);
+  Es.forEach(E => {
+    if (E.kind === 'deed') { ch.push({i: i++, t: `Поручение ${wifeWord(E)}: позвать мастера к нам домой`, label: `Поручение ${wifeWord(E)}: позвать мастера к нам домой`, free: 1, do: g2 => { const E2 = st(g2).err[E.key]; if (!E2) return 'trd';
+      E2.st = 'got'; const t = fill(T.deed.master.done, ctxOf(g2, E2)); if (C.trdSay) C.trdSay(g2, 'o', t); C.note(g2, t); return 'trd'; }}); return; }
+    const price = C.trdPriceIn ? C.trdPriceIn(g, E.tr, E.item) : (R.item(E.item) || {}).price || 0, nm = itemName(E.item), forWho = E.kind === 'mbuy' ? `для ${decl(E.who.n, E.who.sex).g}` : 'для дома';
+    const lbl = `Купить ${forWho}: ${nm} — ${R.priceText(price)}`;
+    ch.push({i: i++, t: lbl, label: lbl, dis: (g.purse || 0) < price ? 'в кошеле не хватает' : null, do: g2 => {
+      const E2 = st(g2).err[E.key]; if (!E2 || (g2.purse || 0) < price) return 'trd';
+      g2.purse -= price; try { if (C.trdRelAdd) C.trdRelAdd(g2, E2.tr, 1, 'покупка'); } catch (e) {}
+      const p = C.trdPerson(g2, E2.tr), x = ctxOf(g2, E2);
+      const say = p ? `${p.n} заворачивает покупку: «${E2.kind === 'mbuy' ? 'Для своих — выберу получше' : E2.who.sex === 'f' ? 'Для жены? Тогда вот это, получше. Пусть носит на радость' : 'Для мужа? Тогда вот это, покрепче. Пусть служит долго'}»` : '';
+      if (say && C.trdSay) C.trdSay(g2, 'o', say);
+      if (E2.kind === 'mbuy') { const m = mercOf(g2, E2); if (m) { m.inv = m.inv || []; m.inv.push(E2.item); const t = fill(pick(T.mercThanks), x); mercDone(g2, E2, m); if (C.trdSay) C.trdSay(g2, 'o', t); C.note(g2, `${cap(nm)} — для ${decl(E2.who.n, E2.who.sex).g}. ${t}`); } else delete st(g2).err[E2.key]; return 'trd'; }
+      E2.st = 'got'; C.note(g2, `Куплено для дома: ${nm}. Осталось отнести домой — ${E2.who.n} ждёт.`); return 'trd'; }});
+  });
+  if (back) ch.push(back);
+  return Object.assign({}, sc, {choices: ch});
+}
+function placeScene(g, sc) {
+  const S = peek(g); if (!S || !S.err) return sc;
+  const Es = Object.values(S.err).filter(E => E && E.st === 'open' && E.at === g.loc && PLACE_KINDS(E) && (E.merc == null || mercOf(g, E))); if (!Es.length) return sc;
+  const ch = sc.choices.slice(), back = popBack(ch); let i = nextI(sc.choices);
+  Es.forEach(E => { const lbl = placeLabel(g, E); ch.push({i: i++, t: lbl, label: lbl, do: g2 => { const E2 = st(g2).err[E.key]; if (!E2) return nodeScene(g2) || 'map';
+    const X = placeTask(g2, E2); if (!X) return nodeScene(g2) || 'map'; st(g2).task = Object.assign({title: E2.kind === 'mkin' ? 'В гостях у родни' : 'Поручение'}, X); return 'he_task'; }}); });
+  if (back) ch.push(back);
+  return Object.assign({}, sc, {choices: ch});
+}
+
+/* ---------- журнал и лист героя ---------- */
+C.heErrands = g => Object.values((peek(g) || {}).err || {}).filter(E => E && (E.st === 'open' || E.st === 'got' || E.st === 'did'));
+C.heErrandsText = g => C.heErrands(g).map(E => { const h = heroById(g, E.hero);
+  const state = E.st === 'open' ? C.heLeftWord(E.due - day(g)) : 'сделано — рассказать дома';
+  return `${errTitle(g, E)}${h && heroes(g).length > 1 ? ` (${h.name})` : ''}. ${cap(state)}.`; });
+if (C.heroStatus) { const hs0 = C.heroStatus; C.heroStatus = function (g, h) { const out = hs0.apply(this, arguments) || [];
+  try { C.heErrands(g).filter(E => E.hero === h.id).forEach(E => out.push({t: `Поручение ${wifeWord(E)}: ${E.thing}`, cls: '', why: `${nodeName(g, E.at)}; ${E.st === 'open' ? C.heLeftWord(E.due - day(g)) : 'сделано — рассказать дома'}`})); } catch (e) {}
+  return out; }; }
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* trinka_data.js */
+/* Колдовство — тринька в корчме: тексты (реплики игроков по повадке и народу, слова рассказчика, итог). Без DOM. Логика — trinka.js.
+   Реплики: TRK_TX.say[событие][повадка] — по нраву игрока; TRK_TX.voice[событие][народ] — терак, имперец, степняк говорят
+   по-своему (берётся вместо повадки примерно в половине случаев). {N} — имя говорящего, {H} — имя героя, {X} — имя другого
+   игрока, {P} — сумма. [м|ж] — по полу говорящего, <м|ж> — по полу героя. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C) return;
+C.TRK_TX = {
+  title: 'Тринька',
+  /* повадки — как их видит герой (шулер прячется под «играет ровно», пока не пойман) */
+  trait: {
+    ostor: ['осторожен', 'осторожна'], risk: ['рисковый', 'рисковая'], blef: ['любит блефовать', 'любит блефовать'],
+    rovny: ['играет ровно', 'играет ровно'], shuler: ['играет ровно', 'играет ровно'], shulerOpen: ['шулер', 'шулерша'],
+  },
+  drunk: ['навеселе', 'навеселе'],
+  /* стол в корчме: строка в сцене корчмы */
+  tableBusy: [
+    'У окна за длинным столом режутся в триньку: шлёпают картами, звенят медью, и всякий раз, как кто-то вскрывается, стол ахает.',
+    'В углу, под светцом, сидят картёжники. Банк в глиняной миске, ставки называют вполголоса, а проигравший громко зовёт корчмаря.',
+    'За дальним столом идёт тринька. Кто-то тасует колоду, кто-то пересчитывает медь, и место у края скамьи пустует, будто ждёт вас.',
+  ],
+  tableEmpty: [
+    'Стол у окна, где обычно играют в триньку, пуст: картёжники сходятся ближе к вечеру.',
+    'Колода лежит на полке у стойки, но играть не с кем: днём люди при деле.',
+  ],
+  tableBan: 'За карточным столом при виде вас замолкают и прикрывают карты ладонями. Шулеров здесь не забывают.',
+  seatAsk: 'Кто из вас сядет за стол? Играют с местными, на свои деньги: проиграете — серебро уйдёт, выиграете — уйдёт чужое.',
+  sin: '{H} садится за карты, и звезда Ока на груди будто холодеет. Азарт для давшего обет — грех, а грех не даёт знаку силы до покаяния в храме Ока.',
+  sinWhy: 'На душе нечисто: грех азарта. Знак Ока не даёт своей силы до покаяния в храме Ока.',
+  sinWarn: 'для давшего обет Оку азарт — грех',
+  /* рассказчик */
+  n: {
+    sit: ['{H} садится на край скамьи. Стол потесняется, кто-то пододвигает миску для банка.', 'Вам освобождают место у края стола. Колода ходит по рукам, медь звенит о миску.'],
+    deal: ['Колода у {Xg}. В банк — по {P} с каждого, и по три карты ложатся рубашкой вверх.', 'Сдача за {Xi}. Звенит медь: по {P} в банк с носа.', 'Карты тасует {Xn}. Каждый бросает в миску по {P}.'],
+    dealSvara: 'Свара: банк остаётся на столе, карты раздают заново только тем, кто в сваре.',
+    fold: '{X} сбрасывает карты.',
+    call: '{X} поддерживает: {P} в банк.',
+    raise: '{X} повышает: теперь ставка {P}.',
+    open: '{X} платит {P} и вскрывается против {Ya}.',
+    heroOpen: 'Вы платите {P} и вскрываетесь против {Ya}.',
+    cmp: 'У {Xg} — {A}, у {Yg} — {B}.',
+    out: '{X} выходит из раздачи.',
+    heroOut: 'Вы выходите из раздачи.',
+    tie: 'Поровну, {A}: равная рука предыдущую не бьёт.',
+    svara: 'Поровну, {A}. Свара! Банк можно переиграть или поделить.',
+    svaraSplit: 'Банк делят поровну: каждому по {P}.',
+    svaraRe: 'Решено переиграть: свара.',
+    svaraJoin: '{X} входит в свару и докладывает в банк {P}.',
+    svaraNoJoin: 'В свару больше никто не входит.',
+    win: '{X} забирает банк: {P}.',
+    winLast: 'Все сбросили. {X} забирает банк: {P}.',
+    heroWin: 'Вы забираете банк: {P}.',
+    heroWinLast: 'Все сбросили. Вы забираете банк: {P}.',
+    bust: '{X} выгребает из кошеля последнюю медь и встаёт из-за стола.',
+    leaveNpc: '{X} встаёт: на сегодня хватит.',
+    drunk: '{X} уже изрядно навеселе: смеётся невпопад и заказывает ещё кружку.',
+    noMoney: 'У вас не хватает серебра даже на вход в раздачу.',
+    heroFold: 'Вы сбрасываете карты.',
+    heroCall: 'Вы поддерживаете: {P} в банк.',
+    heroRaise: 'Вы повышаете ставку до {P}.',
+    heroLeave: 'Вы бросаете карты и встаёте из-за стола.',
+    cheatOk: 'Рука идёт быстро и тихо: карта уходит в рукав, другая ложится на её место. Никто ничего не заметил.',
+    cheatNo: '{X} перехватывает вашу руку над столом: из рукава торчит карта. Стол замирает, потом взрывается криком.',
+    cheatSeen: 'Вы видите, как {X} будто невзначай роняет ладонь на колоду, и одна карта уходит к нему из-под низа.',
+    catchOk: 'Вы хватаете {X} за запястье и вытряхиваете из рукава лишнюю карту. По обычаю шулер платит каждому за столом — его медь делят на всех.',
+    catchFight: '{X} вырывает руку и опрокидывает лавку: «Докажи сперва!» — и кулаки идут в ход.',
+    catchQuiet: 'Вы молчите. Пусть играет — вы-то теперь знаете, кто он.',
+    tableEnd: 'За столом больше не с кем играть.',
+    ceil: 'Выше потолка стола не поднимают.',
+  },
+  /* итог */
+  end: {
+    head: 'Игра окончена',
+    heroUp: 'Вы встаёте из-за стола с прибытком: {P}.',
+    heroDown: 'Вы встаёте из-за стола в убытке: {P}.',
+    heroEven: 'Вы встаёте из-за стола при своих.',
+    npcUp: '{X} в выигрыше: {P}',
+    npcDown: '{X} проиграл[|а] {P}',
+    npcEven: '{X} остал[ся|ась] при своих',
+    npcBust: '{X} проиграл[ся|ась] до нитки',
+    warm: ['смотрит на вас теплее', 'теперь здоровается как со своим', 'хлопает вас по плечу: играть с удачливым — честь'],
+    cold: ['затаил[|а] обиду', 'смотрит исподлобья', 'уходит, не попрощавшись'],
+    same: ['кивает на прощанье', 'ничего не говорит'],
+    lucky: 'По селу пойдёт молва: везунчик, обчистил<|а> весь стол. Такие слухи ночью слышат не только честные люди.',
+    gossip: 'Наутро вся округа будет знать, что {X} проиграл[ся|ась] вам до последней медяшки. Добрым словом это не поминают.',
+    freq: 'Здесь вас уже знают за столом: «Садись, садись, без тебя и игра не та».',
+  },
+  /* отношение (свои люди стола): от обиды до дружбы */
+  rel: ['держит на вас обиду', 'держится холодно', 'знает вас в лицо', 'приятель по столу', 'друг', 'близкий друг'],
+  /* услуги друзей — после игры */
+  favor: {
+    invite: '{X} зовёт вас назавтра отужинать: «У меня в горнице и мёд, и разговор найдутся». Вечер выходит добрый, и на душе светлеет.',
+    job: '{X} отводит вас в сторону: «Есть дело для удачливых. Возьмётесь?» — и называет его: {Y}.',
+    recommend: '{X} громко, на всю корчму, называет вас честными игроками и добрыми людьми. Торговцы этого места такое слышат.',
+    vouch: '{X} говорит вполголоса: «Если, не дай боги, попадёте под суд в здешнем краю — пошлите за мной. Поручусь».',
+    rumor: '{X} между делом рассказывает, что слышал[|а]: {Y}.',
+    master: '{X} подмигивает: «Заходи ко мне по-свойски — для своих и учёба, и работа дешевле».',
+    trader: '{X} шепчет: «Будешь на торгу — подойди. Для своих у меня кое-что отложено».',
+  },
+  vouchBtn: 'Позвать поручителя: {X}',
+  vouchSay: '{X} приходит в судную избу, кланяется судьям и ручается за вас своим добрым именем. Судьи переглядываются: виру, пожалуй, можно и скостить.',
+  /* кулачный бой */
+  fight: {title: 'Драка за карточным столом', titleShuler: 'Драка с шулером', place: 'корчма',
+    winCheat: 'Вас всё-таки выкидывают на крыльцо, но и сами картёжники потирают бока. Банк, понятно, остался на столе.',
+    loseCheat: 'Вы приходите в себя на крыльце. Карманы пусты от всего, что было на столе, а в корчме вам больше не рады.',
+    winShuler: 'Шулер лежит под лавкой. Его медь поделили на всех, а вам наливают за счёт стола.',
+    loseShuler: 'Шулер бьёт ловчее, чем играет, и сбегает в суматохе. Его медь всё же осталась на столе — делят на всех.'},
+  /* реплики игроков: событие → повадка → строки */
+  say: {
+    sit: {
+      ostor: ['Садись, коли пришёл[|а]. Только у нас по-честному: проиграл — не плачь.', 'Ставки у нас малые, да и не гонимся. Садись.'],
+      risk: ['О, свежая кровь! Садись, сейчас разгоним банк до потолка!', 'Ну наконец-то! А то эти всё по медяшке ставят.'],
+      blef: ['Садись, садись. Только в глаза мне не гляди, а то всё прочтёшь.', 'Ещё один? Хорошо. Мне как раз скучно было выигрывать.'],
+      rovny: ['Места хватит. Сдаём на всех.', 'Садись. Игра идёт тихая, без драк.'],
+      shuler: ['Милости просим. Чем больше за столом, тем веселее.', 'Садись, добрый человек. С новенькими играть — одно удовольствие.'],
+    },
+    fold: {
+      ostor: ['Не моё. Пас.', 'Сброшу, пожалуй. Деньги любят тишину.'],
+      risk: ['Тьфу, пришла же дрянь. Сбрасываю.', 'Да чтоб её! Пас, пас.'],
+      blef: ['Ладно, на этот раз ваша взяла.', 'Отдохну раздачу. Смотрите не разорвите миску.'],
+      rovny: ['Пас.', 'Без меня.'],
+      shuler: ['Не везёт сегодня. Сбрасываю.', 'Пас, люди добрые.'],
+    },
+    call: {
+      ostor: ['Поддержу. Так и быть.', 'Ну, поддержу, раз уж сел[|а].'],
+      risk: ['Поддерживаю! И не моргну.', 'Держу! Куда ж я денусь.'],
+      blef: ['Поддержу, а там поглядим, кто кого.', 'Держу. Не страшно ни капли.'],
+      rovny: ['Поддерживаю.', 'Держу ставку.'],
+      shuler: ['Поддержу, пожалуй.', 'Держу, держу.'],
+    },
+    raise: {
+      ostor: ['Подниму. Есть у меня кое-что.', 'Добавлю. Немного.'],
+      risk: ['Подымаю! Кто не трус — за мной!', 'Ещё сверху! Гулять так гулять!'],
+      blef: ['Поднимаю. Есть чем, не сомневайтесь.', 'Ставлю больше. Испугаетесь — забираю.'],
+      rovny: ['Поднимаю.', 'Добавлю в банк.'],
+      shuler: ['Ну, рискну. Подниму.', 'Поднимаю, раз карта пошла.'],
+    },
+    open: {
+      ostor: ['Вскрываюсь. Показывай, что там у тебя.', 'Хватит гонять. Вскрываемся.'],
+      risk: ['А ну, вскрывайся! Посмотрим, кто тут храбрый.', 'Вскрываюсь! Кажи карты!'],
+      blef: ['Ну давай, покажи, чем пугал.', 'Вскрываюсь. Сейчас узнаем, кто врал.'],
+      rovny: ['Вскрываюсь.', 'Посмотрим твои.'],
+      shuler: ['Вскроемся, пожалуй.', 'Покажи-ка карты, мил человек.'],
+    },
+    win: {
+      ostor: ['Вот так, понемножку.', 'Сам[|а] не ждал[|а], а пришло.'],
+      risk: ['Ха! Моё! Корчмарь, всем по кружке!', 'Говорил[|а] же — пойдёт карта!'],
+      blef: ['А вы думали, я пугаю?', 'Ну, кто теперь смеётся?'],
+      rovny: ['Банк мой.', 'Ну, вот и ладно.'],
+      shuler: ['Повезло, повезло.', 'Боги сегодня на моей стороне.'],
+    },
+    lose: {
+      ostor: ['Эх. Знал[|а] ведь, что не надо.', 'Ну и ладно. Не последнее.'],
+      risk: ['Да чтоб тебя! Сдавай ещё, отыграюсь!', 'Ничего, сейчас всё верну с лихвой.'],
+      blef: ['Хм. Ловко. Но в другой раз не выйдет.', 'Поймал[|а] меня. Бывает.'],
+      rovny: ['Твоя взяла.', 'Бывает.'],
+      shuler: ['Не везёт, хоть плачь.', 'Ох, обчистили меня.'],
+    },
+    bust: {
+      ostor: ['Всё. Хватит с меня. Жена прибьёт.', 'Последнее отдал[|а]. Пойду, пока штаны целы.'],
+      risk: ['Пусто… Ну ничего, завтра отыграюсь!', 'До нитки! Вот это игра была!'],
+      blef: ['Ладно, сегодня вы меня раскусили.', 'Ухожу. Но я вас запомнил[|а].'],
+      rovny: ['Пусто в кошеле. Я пошёл[|ла].', 'На сегодня всё.'],
+      shuler: ['Обобрали, разбойники.', 'Ничего не осталось. Пойду.'],
+    },
+    heroWin: {
+      ostor: ['Везёт тебе, ох везёт.', 'Ну и рука у тебя лёгкая.'],
+      risk: ['Ловко! Ну, ещё раз!', 'Счастливая у тебя рука, <брат|сестрица>!'],
+      blef: ['Хорошо играешь. Почти как я.', 'Ишь ты. С тобой ухо востро держать надо.'],
+      rovny: ['Банк твой.', 'Честно взято.'],
+      shuler: ['Повезло тебе, повезло.', 'Ох, удачлив[ый|ая] гость попался.'],
+    },
+  },
+  /* по народам: вместо повадки примерно в половине случаев */
+  voice: {
+    fold: {ter: ['Не моя. Пас.', 'Бросаю.'], imp: ['Позвольте мне воздержаться.', 'На сей раз уступаю.'], step: ['Плохая масть. Пас.', 'Пусть идёт мимо.']},
+    call: {ter: ['Держу.', 'Плачу.'], imp: ['Поддерживаю, разумеется.', 'Извольте: ставка уплачена.'], step: ['Держу. Конь не пугается.', 'Плачу.']},
+    raise: {ter: ['Выше.', 'Поднимаю. Кто смел — за мной.'], imp: ['Позволю себе поднять ставку.', 'Добавлю, с вашего позволения.'], step: ['Поднимаю, как ветер в степи.', 'Ещё сверху.']},
+    open: {ter: ['Покажи карты.', 'Вскрывайся. Хватит болтать.'], imp: ['Будьте любезны показать карты.', 'Довольно игры в прятки. Вскрываемся.'], step: ['Покажи, что в руке.', 'Вскрываемся, как на суде у биев.']},
+    win: {ter: ['Моё.', 'Так и знал.'], imp: ['Фортуна благосклонна.', 'Расчёт не подвёл.'], step: ['Удача в седле.', 'Моё, как добыча.']},
+    lose: {ter: ['Твоё.', 'Бывает.'], imp: ['Досадно, но поправимо.', 'Признаю поражение.'], step: ['Сегодня ветер не мой.', 'Ладно.']},
+  },
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* trinka.js */
+/* Колдовство — тринька: азартная карточная игра в корчме с местными людьми (решение Ника). Без DOM. Тексты — trinka_data.js,
+   сцена стола в браузере — trinka_ui.js.
+   • Правила (YellowClub): колода 36 (6–туз), у каждого три закрытые карты, вход в раздачу — ставка в банк. Очки — по лучшей
+     масти: туз 11, десятка и фигуры 10, 6–9 по номиналу; разные масти не складываются. Три шестёрки — 34 (сильнее всего),
+     три туза — 33, два туза — 22. Джокер 7♠ — C.TRK.JOKER (по умолчанию выключен).
+     Ход: сбросить, поддержать (заплатить ставку), повысить (до потолка стола). После полного первого круга можно вскрыться —
+     заплатить ставку и сравнить руку с рукой предыдущего, кто ещё в игре: слабый выходит. Втроём и больше равная рука не бьёт
+     предыдущего. Двое последних поровну — свара: переиграть банк (новая раздача тем же банком; другие входят, доложив половину
+     банка) или поделить. Раздачи идут, пока за столом двое, кто может внести вход.
+   • За столом — местные: торговцы (traders.js, их тайное отношение), мастера (folk/hearts, g.folkRel), знакомые из town_life
+     (g.tl.known), местная знакомая из vesely (g.kvLoc), богатые люди места и захожие (своё отношение в g.trk.rel).
+     У каждого лицо, имя, повадка (осторожный, рисковый, любит блефовать, ровный, изредка шулер), к вечеру иной навеселе.
+     Ставки и потолок — по месту (село, подворье, город), уровню края и богатству игроков: богач за столом — вход крупнее.
+   • Дружба: игра за одним столом и особенно удача героя поднимают отношение (удачливого уважают); крупный проигрыш —
+     обида; обобрал до нитки — сплетня по селу (молва вниз). Друзья: у торговцев — их ступени (скидки, «для своих», заказы),
+     у мастеров — дешевле учёба и работа, богачи — ужин, рекомендации, дела, поручительство в суде (crime_law: вира вдвое
+     меньше) и заступничество (C.waRescuer); все — слухи и наводки.
+   • Тать (или кто владеет ловкостью рук) может передёрнуть карту: удача — лучшая карта из колоды, пойман — кулачная драка
+     в корчме (town_life: бой внутри корчмы) и худая молва, за стол здесь три дня не пустят. Шулер-местный жульничает
+     так же; заметить его можно (Проницательность или Поиск лучшего в отряде), уличить — его медь делят на всех.
+   • Брат Ока и обетник за картами — грех (как в banya.js: знак Ока без силы до покаяния, благодать Ока снята).
+   • Большой выигрыш — молва «везунчик»: ночью в этом месте чаще грабители (town_life 'grab'), а уходя ночью — могут подстеречь.
+   Состояние: g.trk = {rel: {id: 0–100}, loc: {место: {n, won, net, lucky, ban}}, st: {sess, hands, won, net}, cur: стол}.
+   Нет g.trk — старые сохранения живут как прежде. Числа — C.TRK. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !C.CAMPS.free || !C.TRK_TX) return;
+const TX = C.TRK_TX, FREE = C.CAMPS.free;
+
+C.TRK = Object.assign({
+  ON: 1, JOKER: false,
+  BASE: {village: 10, yard: 15, town: 20},  // вход в раздачу (мм) на первом уровне края
+  LV: 0.25,                                 // прибавка входа за уровень края
+  RICH: 0.5,                                // богач за столом: вход больше на столько за ступень богатства выше простой
+  CEIL: 8,                                  // потолок ставки — во столько раз больше входа
+  SIT_MIN: 4,                               // сесть можно, когда в кошеле хотя бы столько входов
+  KOSH: [12, 22, 40],                       // сколько входов приносят к столу простой, зажиточный, богатый
+  BUSY: {утро: 0.2, день: 0.35, вечер: 0.9, ночь: 0.7}, VILLAGE_BUSY: 0.8,
+  HAND_H: 0.2,                              // часов на раздачу
+  FORCE_CIRCLE: 4,                          // с этого круга игроки вскрываются или сбрасывают
+  MAX_RAISES: 2,
+  SHULER_P: 0.5, SHULER_EYE: 14,            // как часто шулер мухлюет в своей раздаче; сложность заметить
+  CHEAT_DC: 11,                             // сложность передёрнуть: + глаз лучшего за столом + уровень края / 3
+  BAN_DAYS: 3, LUCKY_DAYS: 2, LUCKY_K: 10,  // большой выигрыш — столько входов и больше
+  ROB_P: 0.35,                              // уходя ночью везунчиком — подстерегут
+  REL0: 20, REL_PLAY: 1, REL_WIN: 3, REL_FREQ: 5, REL_HURT: -4, REL_BUST: -4, REL_CHEAT: -10, REL_SHULER: 3,
+  BIG_LOSS: 0.4,                            // доля принесённого — проигрыш «по-крупному»
+  FAVOR_P: 0.4, FRIEND: 55, VOUCH: 55,
+}, C.TRK || {});
+const K = () => C.TRK;
+
+/* ---------- мелочи ---------- */
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); x ^= x >>> 15; x = Math.imul(x, 2246822507); x ^= x >>> 13; return x >>> 0; };
+const r10 = v => Math.max(10, Math.round(v / 10) * 10);
+const price = v => (R.priceText ? R.priceText(v) : v + ' мм');
+const isFree = g => !!(g && g.camp === 'free' && g.heroes);
+const alive = g => (g && g.heroes ? C.alive(g) : []);
+const heroes = g => alive(g).filter(h => h.kind !== 'merc');
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const nodeOf = g => nodes(g)[g.loc] || null;
+const lvl = g => Math.max(1, C.zoneLevel ? C.zoneLevel(g) : C.partyLevel(g));
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const low = s => (s ? s[0].toLowerCase() + s.slice(1) : s);
+const sexT = (t, sex, L, Rr) => String(t || '').replace(new RegExp('\\' + L + '([^\\' + L + '\\' + Rr + '|]*)\\|([^\\' + L + '\\' + Rr + '|]*)\\' + Rr, 'g'), (m, a, b) => (sex === 'f' ? b : a));
+const decl = (n, sex) => { try { return (Q && Q.decl ? Q.decl(n, sex) : null) || {n, g: n, d: n, a: n, i: n, p: n}; } catch (e) { return {n, g: n, d: n, a: n, i: n, p: n}; } };
+const VOICE = {terak: 'ter', gorets: 'ter', imperets: 'imp', parnass: 'imp', yuzhnober: 'imp', stepnyak: 'step'};
+
+/* ======================= карты и очки ======================= */
+const RANKS = ['6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'], SUITS = ['S', 'H', 'D', 'C'];
+C.TRK_RANKS = RANKS; C.TRK_SUITS = SUITS;
+C.TRK_SUIT_NAME = {S: 'пики', H: 'черви', D: 'бубны', C: 'трефы'};
+const DECK = []; SUITS.forEach(s => RANKS.forEach(r => DECK.push(r + s)));
+C.trkDeck = () => DECK.slice();
+const cr = c => c[0], cs = c => c[1];
+const val = c => { const r = cr(c); return r === 'A' ? 11 : 'TJQK'.includes(r) ? 10 : +r; };
+C.trkVal = val;
+const plain = cards => {
+  const n6 = cards.filter(c => cr(c) === '6').length, nA = cards.filter(c => cr(c) === 'A').length;
+  if (n6 === 3) return 34; if (nA === 3) return 33;
+  const by = {}; cards.forEach(c => { by[cs(c)] = (by[cs(c)] || 0) + val(c); });
+  let best = Math.max(0, ...Object.values(by));
+  if (nA >= 2) best = Math.max(best, 22);
+  return best;
+};
+/* очки руки; джокер 7♠ (если включён) становится любой картой, какой выгоднее */
+C.trkScore = function (cards, joker) {
+  cards = (cards || []).filter(Boolean);
+  if ((joker == null ? K().JOKER : joker) && cards.includes('7S')) {
+    const rest = cards.filter(c => c !== '7S'); let best = 0;
+    DECK.forEach(c => { if (c === '7S' || rest.includes(c)) return; best = Math.max(best, plain(rest.concat(c))); });
+    return best;
+  }
+  return plain(cards);
+};
+/* словами: «двадцать одно в червях», «три шестёрки» */
+C.trkScoreWord = function (cards) {
+  const s = C.trkScore(cards);
+  const n6 = cards.filter(c => cr(c) === '6').length, nA = cards.filter(c => cr(c) === 'A').length;
+  if (s === 34 && n6 === 3) return 'три шестёрки';
+  if (s === 33 && nA === 3) return 'три туза';
+  const by = {}; cards.forEach(c => { by[cs(c)] = (by[cs(c)] || 0) + val(c); });
+  if (s === 22 && nA >= 2 && Math.max(...Object.values(by)) < 22) return 'два туза';
+  const su = Object.keys(by).find(k => by[k] === s);
+  return s + (su ? ' в ' + {S: 'пиках', H: 'червях', D: 'бубнах', C: 'трефах'}[su] : '');
+};
+/* сила руки: доля рук слабее (половина равных) — по всем тройкам колоды */
+const CDF = (() => { const cnt = {}; let n = 0;
+  for (let a = 0; a < 36; a++) for (let b = a + 1; b < 36; b++) for (let c = b + 1; c < 36; c++) { const s = plain([DECK[a], DECK[b], DECK[c]]); cnt[s] = (cnt[s] || 0) + 1; n++; }
+  const out = {}; let below = 0; Object.keys(cnt).map(Number).sort((x, y) => x - y).forEach(s => { out[s] = (below + cnt[s] / 2) / n; below += cnt[s]; });
+  return out; })();
+C.trkStrength = cards => { const s = C.trkScore(cards); if (CDF[s] != null) return CDF[s]; const ks = Object.keys(CDF).map(Number).filter(x => x <= s); return ks.length ? CDF[Math.max(...ks)] : 0; };
+const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(R.rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+
+/* ======================= повадки и ИИ ======================= */
+const TRAIT = {
+  ostor: {fold: 0.47, raise: 0.84, open: 0.70, bluff: 0.02, noise: 0.06, eye: 4, agree: 0.3, join: 0.1},
+  rovny: {fold: 0.40, raise: 0.78, open: 0.63, bluff: 0.05, noise: 0.08, eye: 3, agree: 0.5, join: 0.2},
+  risk: {fold: 0.30, raise: 0.66, open: 0.56, bluff: 0.10, noise: 0.10, eye: 2, agree: 0.8, join: 0.5},
+  blef: {fold: 0.36, raise: 0.72, open: 0.60, bluff: 0.22, noise: 0.10, eye: 3, agree: 0.6, join: 0.3},
+  shuler: {fold: 0.40, raise: 0.76, open: 0.62, bluff: 0.06, noise: 0.08, eye: 6, agree: 0.6, join: 0.3},
+};
+C.TRK_TRAIT = TRAIT;
+const TRAIT_W = [['ostor', 3], ['rovny', 3], ['risk', 3], ['blef', 2], ['shuler', 0.6]];
+const traitOf = (key, noShuler) => { const L = TRAIT_W.filter(x => !(noShuler && x[0] === 'shuler')), sum = L.reduce((s, x) => s + x[1], 0); let x = (hsh(key + '|trait') % 1000) / 1000 * sum;
+  for (const [t, w] of L) { if (x < w) return t; x -= w; } return 'rovny'; };
+/* решение игрока за столом: что сделать на своём ходу */
+C.trkDecide = function (T, i) {
+  const H = T.hand, s = T.seats[i], P = TRAIT[s.trait] || TRAIT.rovny, A = T.ante, S = H.stake;
+  const act = H.st.map((x, j) => x === 'in' ? j : -1).filter(j => j >= 0), n = act.length;
+  const q = C.trkStrength(H.cards[i]);
+  const drunk = s.drunk ? 1 : 0;
+  let e = q + (P.noise + 0.18 * drunk) * (R.rand() - 0.5) * 2 - 0.05 * Math.max(0, n - 2);
+  e -= 0.035 * Math.max(0, S / A - 1) * (s.trait === 'ostor' ? 1.4 : s.trait === 'risk' ? 0.6 : 1);   // за ставкой чужая сила
+  const pot = H.pot; const cheap = pot / Math.max(1, S) > 6 ? 0.05 : 0;
+  const foldT = P.fold - 0.08 * drunk - cheap, can = s.kosh >= S;
+  if (!can) return {a: 'fold'};
+  const circle = H.circle, first = !H.firstDone;
+  if (!first) {
+    const openT = P.open - 0.06 * circle;
+    if (circle >= K().FORCE_CIRCLE) return e >= 0.38 ? {a: 'open'} : {a: 'fold'};
+    if (e >= openT && (e < P.raise + 0.08 || (H.raises[i] || 0) >= K().MAX_RAISES || S >= T.ceil)) return {a: 'open'};
+  }
+  const canRaise = S < T.ceil && (H.raises[i] || 0) < K().MAX_RAISES;
+  const bluff = R.rand() < P.bluff + 0.1 * drunk;
+  if (canRaise && (e >= P.raise || (bluff && e < foldT + 0.15))) {
+    const step = A * (e >= P.raise + 0.1 || s.trait === 'risk' ? 2 : 1), to = Math.min(T.ceil, S + step);
+    if (s.kosh >= to) return {a: 'raise', to};
+  }
+  if (e < foldT - (first ? 0.08 : 0) && !bluff) return {a: 'fold'};
+  return {a: 'call'};
+};
+
+/* ======================= люди места ======================= */
+const S = g => { const s = g.trk = g.trk && typeof g.trk === 'object' ? g.trk : {}; s.rel = s.rel || {}; s.loc = s.loc || {}; s.st = s.st || {}; return s; };
+const LS = (g, loc) => { const s = S(g); return (s.loc[loc || g.loc] = s.loc[loc || g.loc] || {n: 0, won: 0, net: 0}); };
+C.trkState = S;
+const cls = g => (C.tlClass ? C.tlClass(g) : 'village') || 'village';
+const homeRel = (g, key) => { const r = (g.folkRel || {})[key]; return !!(r && (r.bond === 'wed' || r.bond === 'kin')); };
+/* свои люди: богатые места и захожие (имя, лицо — как у встречных town_life) */
+const OWN = {
+  town: [['boyar', ['боярин', 'боярыня'], 3, 25, null], ['gost', ['богатый гость', 'богатая купчиха'], 3, 30, null], ['ratnik', ['ратник', 'ратница'], 1, 10, 'merc'], ['vozchik', ['возчик', 'возчица'], 1, 15, 'wander'], ['pisec', ['писарь', 'писарша'], 1.5, 20, null]],
+  yard: [['hozyain', ['хозяин подворья', 'хозяйка подворья'], 2.5, 30, null], ['vozchik', ['возчик', 'возчица'], 1, 15, 'wander'], ['ratnik', ['наёмник', 'наёмница'], 1, 10, 'merc']],
+  village: [['starosta', ['староста', 'старостиха'], 2.5, 15, null], ['melnik', ['мельник', 'мельничиха'], 1.5, 25, null], ['bortnik', ['бортник', 'бортничиха'], 1, 20, 'wander'], ['pastuh', ['пастух', 'пастушка'], 1, 20, 'wander']],
+};
+const ownPeople = g => {
+  const c = cls(g), L = OWN[c] || OWN.village;
+  return L.map(([role, t, wealth, fem, rod]) => {
+    const id = 'o:' + role + '@' + g.loc;
+    let p = null; try { p = C.tlPerson ? C.tlPerson(g, {seed: 'trk|' + g.camp + '|' + id}, {role: 'trk', fem, rod}) : null; } catch (e) { p = null; }
+    p = p || {name: 'Ждан', sex: 'm', face: 'p32', ppl: 'nolgrim'};
+    return {id, kind: 'own', name: p.name, sex: p.sex, face: p.face, ppl: p.ppl, sub: p.sex === 'f' ? t[1] : t[0], wealth, rich: wealth >= 2.5};
+  });
+};
+const WEALTH_TRD = {kupec: 3, yuvelir: 3, konyuh: 2, bronnik: 2, kuznec: 2};
+/* все, кто может сесть за стол в этом месте */
+C.trkPool = function (g) {
+  const out = [], seen = new Set();
+  const add = p => { if (!p || !p.name || seen.has(p.name)) return; seen.add(p.name); out.push(p); };
+  try { (C.trdPeople ? C.trdPeople(g, g.loc) : []).forEach(p => { if (p.folk === 'temple') return; if (p.folk && homeRel(g, p.folk + '@' + g.loc)) return;
+    add({id: 't:' + p.key, kind: 'trd', key: p.key, name: p.n, sex: p.sex, face: p.face, ppl: p.ppl, sub: p.t, wealth: WEALTH_TRD[p.role] || 1.5}); }); } catch (e) {}
+  try { (C.folkHere ? C.folkHere(g) : []).forEach(role => { if (role === 'temple' || homeRel(g, role + '@' + g.loc)) return; const p = C.folkPerson(g, role, g.loc);
+    add({id: 'f:' + role + '@' + g.loc, kind: 'folk', role, at: g.loc, name: p.n, sex: p.sex, face: p.face, ppl: p.ppl, sub: p.t, wealth: ['trade', 'jewel', 'war'].includes(role) ? 2.5 : 1.5}); }); } catch (e) {}
+  try { ((g.tl && g.tl.known) || []).filter(k => k.camp === g.camp && k.at === g.loc).forEach(k => add({id: 'k:' + k.n, kind: 'tl', name: k.n, sex: k.sex, face: k.face, ppl: k.ppl, sub: 'старый знакомый', wealth: 1.5})); } catch (e) {}
+  try { Object.values(g.kvLoc || {}).filter(r => r && r.camp === g.camp && r.at === g.loc && !r.gone && !r.wed).forEach(r => add({id: 'v:' + r.id, kind: 'kv', kvId: r.id, name: r.n, sex: r.sex, face: r.face, ppl: r.ppl, sub: 'знакомая душа', wealth: 1.5})); } catch (e) {}
+  ownPeople(g).forEach(add);
+  return out;
+};
+/* отношение: у каждого — в своём хозяйстве */
+const relGet = (g, p) => {
+  try {
+    if (p.kind === 'trd' && C.trdRep) return C.trdRep(g, p.key);
+    if (p.kind === 'folk' && C.relOf) return C.relOf(g, p.role, p.at).rep || 0;
+    if (p.kind === 'kv') { const r = (g.kvLoc || {})[p.kvId]; if (r) return r.rel || 0; }
+  } catch (e) {}
+  const s = S(g); return s.rel[p.id] != null ? s.rel[p.id] : K().REL0;
+};
+const relAdd = (g, p, d, why) => {
+  if (!d) return 0;
+  try {
+    if (p.kind === 'trd' && C.trdRelAdd) return C.trdRelAdd(g, p.key, d, why) || 0;
+    if (p.kind === 'folk' && C.relAdd) return C.relAdd(g, p.role, p.at, d, why) || 0;
+    if (p.kind === 'kv') { const r = (g.kvLoc || {})[p.kvId]; if (r) { const w = r.rel || 0; r.rel = Math.max(0, Math.min(100, w + d)); return r.rel - w; } }
+  } catch (e) {}
+  const s = S(g), w = relGet(g, p); s.rel[p.id] = Math.max(0, Math.min(100, w + d)); return s.rel[p.id] - w;
+};
+/* ступень своих (0–5) — общая шкала для слов и услуг */
+const relTier = v => (v < 8 ? 0 : v < 18 ? 1 : v < 35 ? 2 : v < 55 ? 3 : v < 75 ? 4 : 5);
+const relWord = (g, p) => {
+  try { if (p.kind === 'trd' && C.trdWord) return C.trdWord(g, p.key); if (p.kind === 'folk' && C.relWord) return C.relWord(g, p.role, p.at); } catch (e) {}
+  return TX.rel[relTier(relGet(g, p))];
+};
+C.trkRel = (g, p) => relGet(g, p); C.trkRelAdd = (g, p, d, why) => relAdd(g, p, d, why); C.trkRelWord = (g, p) => relWord(g, p);
+
+/* ======================= стол: кто играет, вход, потолок ======================= */
+const slot = g => (g.day || 1) + '|' + (g.time || 0);
+C.trkBanned = g => { const L = (S(g).loc || {})[g.loc]; return !!(L && L.ban && (g.day || 1) < L.ban); };
+C.trkBusy = function (g) {
+  if (!K().ON || !isFree(g) || g.net || !C.tlClass || !C.tlClass(g)) return false;
+  const p = (K().BUSY[C.timeName(g)] || 0.3) * (cls(g) === 'village' ? K().VILLAGE_BUSY : 1);
+  return (hsh('trkbusy|' + g.camp + '|' + g.loc + '|' + slot(g)) % 1000) / 1000 < p;
+};
+C.trkWho = function (g) {
+  const pool = C.trkPool(g); if (pool.length < 2) return [];
+  const ev = ['вечер', 'ночь'].includes(C.timeName(g));
+  const w = p => (p.kind === 'own' && p.rich ? (ev ? 1.4 : 0.6) : p.kind === 'tl' ? 1.6 : p.kind === 'kv' ? (ev ? 0.8 : 0.2) : p.kind === 'folk' ? 0.8 : 1) * (0.5 + (hsh(slot(g) + '|' + p.id) % 1000) / 1000);
+  return pool.map(p => [w(p), p]).sort((a, b) => b[0] - a[0] || (a[1].id < b[1].id ? -1 : 1)).slice(0, 3).map(x => x[1]);
+};
+C.trkAnte = function (g, who) {
+  const base = (K().BASE[cls(g)] || K().BASE.village) * (1 + K().LV * (lvl(g) - 1));
+  const rich = Math.max(1, ...(who || []).map(p => p.wealth || 1));
+  return r10(base * (1 + K().RICH * (rich - 1)));
+};
+const seatOf = (g, p, ante, i) => {
+  const key = g.camp + '|' + p.id, trait = p.shulerOpen ? 'shuler' : traitOf(key, p.rich || p.kind === 'kv');
+  const wi = p.wealth >= 2.5 ? 2 : p.wealth >= 1.5 ? 1 : 0, mul = 0.8 + ((hsh(key + '|kosh|' + g.day) % 100) / 100) * 0.5;
+  const kosh = r10(ante * K().KOSH[wi] * mul);
+  const drinker = !p.rich && hsh(key + '|drink') % 10 < 3;
+  return {pid: p.id, p, name: p.name, sex: p.sex, face: p.face, ppl: p.ppl, voice: VOICE[p.ppl] || 'nol', sub: p.sub, trait, kosh, kosh0: kosh, drinker, drunk: 0, rel0: relGet(g, p), won: 0, i};
+};
+
+/* ======================= лог и реплики ======================= */
+const T_ = g => (g.trk && g.trk.cur) || null;
+const fmt = (t, o) => { o = o || {}; let s = String(t || '');
+  ['X', 'Y'].forEach(k => { const v = o[k + 'c']; if (v) ['g', 'a', 'i', 'n', 'd'].forEach(c => { s = s.split('{' + k + c + '}').join(v[c] || v.n); }); });
+  s = s.replace(/\{X\}/g, o.X || '').replace(/\{Y\}/g, o.Y || '').replace(/\{A\}/g, o.A != null ? o.A : '').replace(/\{B\}/g, o.B != null ? o.B : '').replace(/\{P\}/g, o.P != null ? price(o.P) : '').replace(/\{H\}/g, o.H || '');
+  s = sexT(s, o.sx || 'm', '[', ']'); s = sexT(s, o.hs || 'm', '<', '>'); return s; };
+const log = (T, k, text, o) => { if (!text) return; T.log.push(Object.assign({k, text}, o || {})); if (T.log.length > 40) T.log.splice(0, T.log.length - 40); };
+const heroOf = (g, T) => alive(g).find(h => h.id === T.hid) || null;
+const nar = (T, t, o) => log(T, 'n', fmt(Array.isArray(t) ? pick(t) : t, o));
+/* реплика игрока: по повадке, а у терака, имперца, степняка — часто своим голосом */
+const say = (g, T, i, ev, p) => {
+  const s = T.seats[i]; if (!s || s.hero) return; if (p != null && R.rand() > p) return;
+  const vp = TX.voice[ev] && TX.voice[ev][s.voice];
+  const pool = vp && R.rand() < 0.5 ? vp : ((TX.say[ev] || {})[s.trait] || (TX.say[ev] || {}).rovny);
+  if (!pool) return; const h = heroOf(g, T);
+  const text = fmt(pick(pool), {sx: s.sex, hs: h ? h.sex : 'm'});
+  log(T, 'o', text, {who: s.name, face: s.face, i}); s.said = text;
+};
+const nm = (T, i) => (T.seats[i].hero ? 'вы' : T.seats[i].name);
+const HERO_C = {n: 'вы', g: 'вас', a: 'вас', i: 'вами', d: 'вам'};
+const cs_ = (T, i) => (T.seats[i].hero ? HERO_C : decl(T.seats[i].name, T.seats[i].sex));
+const NM = (T, i) => cap(nm(T, i));
+
+/* ======================= раздача ======================= */
+const inIdx = H => H.st.map((x, j) => x === 'in' ? j : -1).filter(j => j >= 0);
+const nextIn = (H, i) => { const n = H.st.length; for (let k = 1; k <= n; k++) { const j = (i + k) % n; if (H.st[j] === 'in') return j; } return -1; };
+const prevIn = (H, i) => { const n = H.st.length; for (let k = 1; k <= n; k++) { const j = (i - k + n) % n; if (H.st[j] === 'in') return j; } return -1; };
+const purseOf = (g, T, i) => (T.seats[i].hero ? (g.purse || 0) : T.seats[i].kosh);
+const pay = (g, T, i, v) => { v = Math.max(0, Math.min(v, purseOf(g, T, i))); if (T.seats[i].hero) g.purse = (g.purse || 0) - v; else T.seats[i].kosh -= v; T.hand.pot += v; T.hand.put[i] = (T.hand.put[i] || 0) + v; return v; };
+const gain = (g, T, i, v) => { if (T.seats[i].hero) g.purse = (g.purse || 0) + v; else T.seats[i].kosh += v; };
+const sinCheck = (g, T) => { const h = heroOf(g, T); if (!h || T.sinned || !C.faithOf || C.faithOf(h) !== 'oko') return; T.sinned = 1; C.trkSin(g, h); nar(T, TX.sin, {H: h.name}); };
+
+/* новая раздача: вход, тасовка, по три карты; svara — переигрыш банка теми, кто в сваре (и вошедшими) */
+const deal = (g, T, sv) => {
+  const n = T.seats.length;
+  // кому не на что войти — встают
+  if (!sv) T.seats.forEach((s, i) => { if (!s.hero && !s.gone && s.kosh < T.ante) { s.gone = 1; s.bust = s.kosh < T.ante; nar(T, TX.n.bust, {X: s.name}); say(g, T, i, 'bust', 1); } });
+  const npcs = T.seats.filter(s => !s.hero && !s.gone);
+  if (!sv && !npcs.length) { nar(T, TX.n.tableEnd); return endSession(g, T); }
+  if (!sv && (g.purse || 0) < T.ante) { nar(T, TX.n.noMoney); T.phase = 'between'; return; }
+  T.hands++; T.dealer = sv ? T.dealer : (T.dealer + 1) % n; while (!sv && T.seats[T.dealer].gone) T.dealer = (T.dealer + 1) % n;
+  const H = T.hand = {n: T.hands, pot: sv ? sv.pot : 0, stake: T.ante, st: T.seats.map((s, i) => (sv ? (sv.who.includes(i) ? 'in' : 'sit') : (s.gone ? 'out' : 'in'))), cards: T.seats.map(() => null),
+    put: {}, raises: {}, circle: 0, steps: 0, firstDone: false, shown: {}, svara: sv ? 1 : 0, cheat: null, heroCheat: 0, opener: null};
+  const dl = T.seats[T.dealer];
+  if (sv) nar(T, TX.n.dealSvara);
+  else { inIdx(H).forEach(i => pay(g, T, i, T.ante)); T.seats.forEach(s => { s.said = ''; }); nar(T, TX.n.deal, {Xc: cs_(T, T.dealer), P: T.ante}); if (H.st[0] === 'in') sinCheck(g, T); }
+  const deck = shuffle(DECK.slice()); H.deck = deck;
+  inIdx(H).forEach(i => { H.cards[i] = [deck.pop(), deck.pop(), deck.pop()]; T.seats[i].played = (T.seats[i].played || 0) + 1; });
+  H.dealt = inIdx(H).length;
+  // к вечеру любитель выпить хмелеет
+  if (!sv && ['вечер', 'ночь'].includes(C.timeName(g))) T.seats.forEach((s, i) => { if (!s.hero && !s.gone && s.drinker && !s.drunk && T.hands >= 3 && R.rand() < 0.3) { s.drunk = 1; nar(T, TX.n.drunk, {X: s.name}); } });
+  H.turn = nextIn(H, T.dealer);
+  T.phase = 'hand';
+  run(g, T);
+};
+/* ход переходит к следующему; полный первый круг — когда каждый, кто сел в раздачу, сходил */
+const advance = (T, i) => { const H = T.hand; H.steps++; if (H.steps >= H.dealt) H.firstDone = true; H.circle = Math.floor(H.steps / Math.max(1, H.dealt)); H.turn = nextIn(H, i); };
+const award = (g, T, i, last) => {
+  const H = T.hand, v = H.pot; H.pot = 0; gain(g, T, i, v); T.seats[i].won++;
+  nar(T, T.seats[i].hero ? (last ? TX.n.heroWinLast : TX.n.heroWin) : (last ? TX.n.winLast : TX.n.win), {X: NM(T, i), P: v});
+  if (T.seats[i].hero) { T.heroWon++; T.seats.forEach((s, j) => { if (!s.hero && H.st[j] !== 'out' && !s.gone && R.rand() < 0.3) { say(g, T, j, 'heroWin', 1); } }); }
+  else { say(g, T, i, 'win', 0.6); }
+  T.phase = 'between'; H.over = 1;
+  // кто остался без входа — встаёт сразу
+  T.seats.forEach((s, j) => { if (!s.hero && !s.gone && s.kosh < T.ante) { s.gone = 1; s.bust = 1; nar(T, TX.n.bust, {X: s.name}); say(g, T, j, 'bust', 1); } });
+  if (!T.seats.some(s => !s.hero && !s.gone)) { nar(T, TX.n.tableEnd); endSession(g, T); }
+};
+/* вскрыться: заплатить ставку и сравнить с предыдущим в игре */
+const openUp = (g, T, i) => {
+  const H = T.hand, j = prevIn(H, i); if (j < 0 || j === i) return;
+  pay(g, T, i, H.stake);
+  nar(T, T.seats[i].hero ? TX.n.heroOpen : TX.n.open, {X: NM(T, i), Yc: cs_(T, j), P: H.stake});
+  if (!T.seats[i].hero) say(g, T, i, 'open', 0.7);
+  const a = C.trkScore(H.cards[i]), b = C.trkScore(H.cards[j]); H.shown[i] = 1; H.shown[j] = 1;
+  const A = C.trkScoreWord(H.cards[i]), B2 = C.trkScoreWord(H.cards[j]);
+  const n = inIdx(H).length;
+  nar(T, TX.n.cmp, {Xc: cs_(T, i), Yc: cs_(T, j), A, B: B2});
+  if (a === b && n === 2) { nar(T, TX.n.svara, {A}); return svara(g, T, [i, j]); }
+  if (a === b) nar(T, TX.n.tie, {A});
+  const lo = a > b ? j : i; H.st[lo] = 'fold';
+  nar(T, T.seats[lo].hero ? TX.n.heroOut : TX.n.out, {X: NM(T, lo)}); if (!T.seats[lo].hero) say(g, T, lo, 'lose', 0.5);
+  const left = inIdx(H); if (left.length === 1) return award(g, T, left[0]);
+  advance(T, i);
+};
+/* свара: двое поровну. Герой в сваре — решает сам; иначе игроки — по нраву */
+const svara = (g, T, two) => {
+  const H = T.hand; H.svaraWho = two;
+  if (two.includes(0)) { T.phase = 'svara'; return; }
+  const agree = two.every(i => R.rand() < (TRAIT[T.seats[i].trait] || TRAIT.rovny).agree);
+  if (!agree) return splitPot(g, T, two);
+  nar(T, TX.n.svaraRe);
+  svaraJoin(g, T, two);
+};
+const splitPot = (g, T, two) => { const H = T.hand, v = Math.floor(H.pot / two.length / 10) * 10, rest = H.pot - v * two.length; two.forEach((i, k) => gain(g, T, i, v + (k === 0 ? rest : 0))); H.pot = 0;
+  nar(T, TX.n.svaraSplit, {P: v}); T.phase = 'between'; H.over = 1; };
+/* кто войдёт в свару: другие игроки за столом, доложив половину банка */
+const svaraJoin = (g, T, two) => {
+  const H = T.hand, half = r10(H.pot / 2), who = two.slice();
+  T.seats.forEach((s, i) => { if (two.includes(i) || s.gone || s.hero) return; if (s.kosh >= half + T.ante * 2 && R.rand() < (TRAIT[s.trait] || TRAIT.rovny).join) { pay(g, T, i, half); who.push(i); nar(T, TX.n.svaraJoin, {X: s.name, P: half}); } });
+  if (!two.includes(0) && !T.seats[0].gone && (g.purse || 0) >= half) { T.phase = 'svjoin'; H.svJoin = {who, half}; return; }
+  if (who.length === two.length) nar(T, TX.n.svaraNoJoin);
+  deal(g, T, {pot: H.pot, who: who.sort((a, b) => a - b)});
+};
+/* ход игрока-ИИ */
+const npcTurn = (g, T, i) => {
+  const H = T.hand, s = T.seats[i];
+  // шулер: подменяет карту, пока никто не смотрит
+  if (s.trait === 'shuler' && H.firstDone && !H.cheat && C.trkStrength(H.cards[i]) < 0.75 && R.rand() < K().SHULER_P) {
+    H.cheat = {i}; swapBest(H, i, 5); s.cheats = (s.cheats || 0) + 1; T.cheats = (T.cheats || 0) + 1;
+    if (!T.seats[0].gone && spotShuler(g, T)) { T.seen = (T.seen || 0) + 1; nar(T, TX.n.cheatSeen, {X: s.name}); T.phase = 'catch'; H.catchI = i; return 'pause'; }
+  }
+  const d = C.trkDecide(T, i);
+  if (d.a === 'fold') { H.st[i] = 'fold'; nar(T, TX.n.fold, {X: s.name}); say(g, T, i, 'fold', 0.35); }
+  else if (d.a === 'raise') { H.stake = d.to; H.raises[i] = (H.raises[i] || 0) + 1; pay(g, T, i, H.stake); nar(T, TX.n.raise, {X: s.name, P: H.stake}); say(g, T, i, 'raise', 0.5); }
+  else if (d.a === 'open') { openUp(g, T, i); return; }
+  else { pay(g, T, i, H.stake); nar(T, TX.n.call, {X: s.name, P: H.stake}); say(g, T, i, 'call', 0.2); }
+  const left = inIdx(H); if (left.length === 1) return award(g, T, left[0], true);
+  advance(T, i);
+};
+/* лучшая замена худшей карты из n случайных из колоды */
+const swapBest = (H, i, n) => {
+  const hand = H.cards[i], deck = H.deck; let best = C.trkScore(hand), mv = null;
+  for (let k = 0; k < Math.min(n, deck.length); k++) { const di = Math.floor(R.rand() * deck.length), c = deck[di];
+    for (let m = 0; m < 3; m++) { const t = hand.slice(); t[m] = c; const v = C.trkScore(t); if (v > best) { best = v; mv = [m, di]; } } }
+  if (mv) { const [m, di] = mv; const old = hand[m]; hand[m] = deck[di]; deck[di] = old; }
+  return !!mv;
+};
+/* заметит ли отряд шулера: лучший глаз (Мудрость и Проницательность или Ум и Поиск) */
+const eyeOf = h => Math.max(R.mod((h.stats || {}).wis || 10) + R.skill(h, 'Проницательность'), R.mod((h.stats || {}).int || 10) + R.skill(h, 'Поиск'));
+const spotShuler = (g) => { const hs = alive(g); if (!hs.length) return false; const b = Math.max(...hs.map(eyeOf)); return R.d(20) + b >= K().SHULER_EYE + Math.floor(lvl(g) / 3); };
+C.trkEye = eyeOf;
+/* ИИ ходит, пока очередь не дойдёт до героя или раздача не кончится */
+const run = (g, T) => {
+  for (let k = 0; k < 400; k++) {
+    if (T.phase !== 'hand') return;
+    const H = T.hand; if (H.over) return;
+    const left = inIdx(H); if (left.length <= 1) { if (left.length === 1) award(g, T, left[0], true); else T.phase = 'between'; return; }
+    if (H.turn === 0 && H.st[0] === 'in') return;   // ход героя
+    if (H.turn < 0) return;
+    if (npcTurn(g, T, H.turn) === 'pause') return;
+  }
+};
+
+/* ======================= действия героя ======================= */
+C.trkCur = g => T_(g);
+const heroCan = (g, T) => T && T.phase === 'hand' && T.hand && !T.hand.over && T.hand.turn === 0 && T.hand.st[0] === 'in';
+C.trkRaiseTo = function (g) {
+  const T = T_(g); if (!heroCan(g, T)) return [];
+  const H = T.hand, out = [], p = g.purse || 0;
+  if ((H.raises[0] || 0) >= K().MAX_RAISES + 1) return [];
+  [1, 2, 4].forEach(k => { const v = Math.min(T.ceil, H.stake + k * T.ante); if (v > H.stake && v <= p && !out.includes(v)) out.push(v); });
+  if (T.ceil > H.stake && T.ceil <= p && !out.includes(T.ceil)) out.push(T.ceil);
+  return out;
+};
+C.trkAct = function (g, a, v) {
+  const T = T_(g); if (!T) return {err: 'стола нет'};
+  if (a === 'leave') return leave(g, T);
+  if (a === 'deal') { if (T.phase !== 'between') return {err: 'раздача идёт'}; deal(g, T); return {ok: 1}; }
+  if (a === 'catch' || a === 'quiet') return catchShuler(g, T, a === 'catch');
+  if (a === 'svara_re' || a === 'svara_split') { if (T.phase !== 'svara') return {err: 'свары нет'}; const two = T.hand.svaraWho;
+    if (a === 'svara_split') { splitPot(g, T, two); return {ok: 1}; }
+    const other = two.find(i => i !== 0); const ok = R.rand() < (TRAIT[T.seats[other].trait] || TRAIT.rovny).agree + 0.25;
+    if (!ok) { nar(T, '{X} мотает головой: «Делим, и баста».', {X: T.seats[other].name}); splitPot(g, T, two); return {ok: 1}; }
+    nar(T, TX.n.svaraRe); T.phase = 'hand'; svaraJoin(g, T, two); return {ok: 1}; }
+  if (a === 'svjoin' || a === 'svskip') { if (T.phase !== 'svjoin') return {err: 'свары нет'}; const J = T.hand.svJoin, who = J.who.slice();
+    if (a === 'svjoin' && (g.purse || 0) >= J.half) { pay(g, T, 0, J.half); who.push(0); nar(T, 'Вы входите в свару: {P} в банк.', {P: J.half}); }
+    else if (who.length === T.hand.svaraWho.length) nar(T, TX.n.svaraNoJoin);
+    T.phase = 'hand'; deal(g, T, {pot: T.hand.pot, who: who.sort((x, y) => x - y)}); return {ok: 1}; }
+  if (!heroCan(g, T)) return {err: 'не ваш ход'};
+  const H = T.hand;
+  if (a === 'fold') { H.st[0] = 'fold'; nar(T, TX.n.heroFold); const left = inIdx(H); if (left.length === 1) { award(g, T, left[0], true); return {ok: 1}; } advance(T, 0); run(g, T); return {ok: 1}; }
+  if (a === 'call') { if ((g.purse || 0) < H.stake) return {err: 'не хватает серебра'}; pay(g, T, 0, H.stake); nar(T, TX.n.heroCall, {P: H.stake}); advance(T, 0); run(g, T); return {ok: 1}; }
+  if (a === 'raise') { if (!C.trkRaiseTo(g).includes(v)) return {err: 'так не поднять'}; H.stake = v; H.raises[0] = (H.raises[0] || 0) + 1; pay(g, T, 0, v); nar(T, TX.n.heroRaise, {P: v}); advance(T, 0); run(g, T); return {ok: 1}; }
+  if (a === 'open') { if (!H.firstDone) return {err: 'первый круг ещё не прошёл'}; if ((g.purse || 0) < H.stake) return {err: 'не хватает серебра'}; openUp(g, T, 0); run(g, T); return {ok: 1}; }
+  if (a === 'cheat') return heroCheat(g, T);
+  return {err: 'нет такого хода'};
+};
+/* передёрнуть карту: Ловкость рук против глаза стола */
+C.trkCanCheat = (g) => { const T = T_(g), h = T && heroOf(g, T); return !!(h && (h.cls === 'tat' || R.skill(h, 'Ловкость рук') > 0) && heroCan(g, T) && !T.hand.heroCheat); };
+C.trkCheatDC = (g, T) => K().CHEAT_DC + Math.max(0, ...T.seats.filter((s, i) => !s.hero && !s.gone && T.hand.st[i] !== 'out').map(s => (TRAIT[s.trait] || TRAIT.rovny).eye - (s.drunk ? 3 : 0))) + Math.floor(lvl(g) / 3);
+const heroCheat = (g, T) => {
+  if (!C.trkCanCheat(g)) return {err: 'не выйдет'};
+  const h = heroOf(g, T), H = T.hand; H.heroCheat = 1;
+  const r = R.check(h, 'dex', 'Ловкость рук', C.trkCheatDC(g, T)); T.lastCheck = {ok: r.ok, what: 'Ловкость рук'};
+  if (r.ok) { swapBest(H, 0, 6); nar(T, TX.n.cheatOk); T.cheatOk = (T.cheatOk || 0) + 1; return {ok: 1}; }
+  const w = T.seats.map((s, i) => [s, i]).filter(([s, i]) => !s.hero && !s.gone).sort((a, b) => (TRAIT[b[0].trait] || {}).eye - (TRAIT[a[0].trait] || {}).eye)[0];
+  nar(T, TX.n.cheatNo, {X: w ? w[0].name : 'Сосед'});
+  H.st[0] = 'fold'; T.caught = 1; T.phase = 'caught';
+  // банк делят те, кто ещё в игре
+  const left = inIdx(H).length ? inIdx(H) : T.seats.map((s, i) => i).filter(i => i && !T.seats[i].gone);
+  const part = Math.floor(H.pot / Math.max(1, left.length)); left.forEach(i => gain(g, T, i, part)); H.pot = 0; H.over = 1;
+  const L = LS(g); L.ban = (g.day || 1) + K().BAN_DAYS;
+  if (C.repAdd && nodeOf(g)) C.repAdd(g, g.loc, -1, 'пойман на шулерстве за картами');
+  return {ok: 0, caught: 1};
+};
+/* уличить шулера-местного */
+const catchShuler = (g, T, yes) => {
+  if (T.phase !== 'catch') return {err: 'не время'};
+  const H = T.hand, i = H.catchI, s = T.seats[i]; T.phase = 'hand';
+  if (!yes) { nar(T, TX.n.catchQuiet); s.known = 1; run(g, T); return {ok: 1}; }
+  s.shulerOpen = 1; s.p.shulerOpen = 1; T.caughtShuler = (T.caughtShuler || 0) + 1;
+  // медь шулера — всем за столом поровну; сам — прочь
+  const others = T.seats.map((x, j) => j).filter(j => j !== i && !T.seats[j].gone), part = Math.floor(s.kosh / Math.max(1, others.length) / 10) * 10;
+  // его ставки в банке остаются в банке; сам выходит из раздачи
+  H.st[i] = 'out';
+  const fight = s.trait === 'shuler' && R.rand() < 0.4;
+  if (fight) { nar(T, TX.n.catchFight, {X: s.name}); T.phase = 'shfight'; T.shI = i; }
+  else nar(T, TX.n.catchOk, {X: decl(s.name, s.sex).a});
+  others.forEach(j => { gain(g, T, j, part); }); s.kosh -= part * others.length; s.gone = 1; s.exposed = 1;
+  T.seats.forEach((x, j) => { if (!x.hero && j !== i) x.shulerBonus = 1; });
+  if (C.repAdd && nodeOf(g)) C.repAdd(g, g.loc, 1, 'вывели шулера за картами');
+  if (fight) return {ok: 1, fight: 1};
+  const left = inIdx(H); if (left.length === 1) { award(g, T, left[0], true); return {ok: 1}; }
+  if (H.turn === i) advance(T, i);
+  run(g, T); return {ok: 1};
+};
+/* бой: кулачки внутри корчмы (town_life) */
+C.trkFightSpec = function (g, kind) {
+  const T = T_(g), n = kind === 'shuler' ? 1 : Math.max(1, Math.min(3, T ? T.seats.filter(s => !s.hero && !s.gone).length : 2));
+  let spec = null;
+  try { spec = C.tlFightSpec ? C.tlFightSpec(g, {id: 'trk'}, {fist: 1, place: 'house', n, up: kind === 'shuler' ? 1 : 0, title: kind === 'shuler' ? TX.fight.titleShuler : TX.fight.title}) : null; } catch (e) { spec = null; }
+  if (!spec) spec = {title: TX.fight.title, foes: ['tl_buyan'], field: C.fieldFor ? C.fieldFor('village', false) : null, place: 'корчма', tlIn: 'house', tlFist: 1, noHorse: 1};
+  spec.win = 'trk_won'; spec.lose = 'trk_lost'; spec.trk = kind; spec.tlEv = null;
+  return spec;
+};
+
+/* ======================= конец игры ======================= */
+const leave = (g, T) => {
+  if (T.phase === 'end') return {ok: 1};
+  if (T.phase === 'hand' && T.hand && !T.hand.over && T.hand.st[0] === 'in') { T.hand.st[0] = 'fold'; nar(T, TX.n.heroLeave); const left = inIdx(T.hand); if (left.length === 1) award(g, T, left[0], true); else { advance(T, 0); run(g, T); } }
+  if (T.phase === 'svara' || T.phase === 'svjoin') { if (T.phase === 'svara') splitPot(g, T, T.hand.svaraWho); }
+  if (T.hand && !T.hand.over && T.hand.pot > 0) { // раздача без героя доигрывается
+    const left = inIdx(T.hand).filter(i => i); if (left.length) { const best = left.sort((a, b) => C.trkScore(T.hand.cards[b]) - C.trkScore(T.hand.cards[a]))[0]; gain(g, T, best, T.hand.pot); T.hand.pot = 0; T.hand.over = 1; } }
+  endSession(g, T); return {ok: 1};
+};
+const endSession = (g, T) => {
+  if (T.done) { T.phase = 'end'; return; }
+  T.done = 1; T.phase = 'end';
+  const s = S(g), L = LS(g), net = (g.purse || 0) - T.purse0;
+  L.n++; L.won += T.heroWon; L.net += net; s.st.sess = (s.st.sess || 0) + 1; s.st.hands = (s.st.hands || 0) + T.hands; s.st.won = (s.st.won || 0) + T.heroWon; s.st.net = (s.st.net || 0) + net;
+  if (C.passH && T.hands) C.passH(g, Math.max(0.5, Math.round(T.hands * K().HAND_H * 2) / 2));
+  const res = T.res = {net, lines: [], rel: []};
+  const h = heroOf(g, T);
+  res.head = net > 0 ? fmt(TX.end.heroUp, {P: net}) : net < 0 ? fmt(TX.end.heroDown, {P: -net}) : TX.end.heroEven;
+  if (L.n >= K().REL_FREQ && L.n % K().REL_FREQ === 0) res.lines.push(TX.end.freq);
+  let gossip = null;
+  T.seats.forEach((x, i) => { if (x.hero || !(x.played > 0)) return;
+    const d0 = x.kosh - x.kosh0, p = x.p;
+    let d = K().REL_PLAY;
+    if (net > 0) d += Math.min(K().REL_WIN, Math.ceil(T.heroWon / 2));
+    if (L.n >= K().REL_FREQ) d += 1;
+    if (x.shulerBonus) d += K().REL_SHULER;
+    const big = d0 <= -Math.max(6 * T.ante, K().BIG_LOSS * x.kosh0);
+    if (big && net > 0) d = K().REL_HURT - (x.trait === 'ostor' ? 1 : 0);
+    if (x.bust && net > 0) { d += K().REL_BUST; gossip = gossip || x; }
+    if (T.caught) d = K().REL_CHEAT;
+    if (x.exposed) d = -15;
+    const w0 = relWord(g, p); const got = relAdd(g, p, d, 'тринька');
+    const w1 = relWord(g, p);
+    const money = x.bust ? fmt(TX.end.npcBust, {X: x.name, sx: x.sex}) : d0 > 0 ? fmt(TX.end.npcUp, {X: x.name, P: d0, sx: x.sex}) : d0 < 0 ? fmt(TX.end.npcDown, {X: x.name, P: -d0, sx: x.sex}) : fmt(TX.end.npcEven, {X: x.name, sx: x.sex});
+    const how = fmt(pick(got > 0 || d > 0 ? TX.end.warm : got < 0 || d < 0 ? TX.end.cold : TX.end.same), {sx: x.sex});
+    res.rel.push({i, name: x.name, face: x.face, d, got, w0, w1, text: `${money}; ${how}${w1 !== w0 ? ' — теперь ' + low(w1) : ''}.`});
+  });
+  if (gossip && !T.caught) { res.lines.push(fmt(TX.end.gossip, {X: gossip.name, sx: gossip.sex})); if (C.repAdd && nodeOf(g)) C.repAdd(g, g.loc, -1, 'обобрали за картами до нитки'); }
+  if (!T.caught && net >= K().LUCKY_K * T.ante) { L.lucky = g.day || 1; res.lucky = 1; res.lines.push(fmt(TX.end.lucky, {hs: h ? h.sex : 'm'})); }
+  if (!T.caught) favor(g, T, res);
+  try { C.note(g, `${(nodeOf(g) || {}).name || 'Корчма'}: тринька. ${res.head}`); } catch (e) {}
+};
+/* услуги друзей: одна за игру, от лучшего друга за столом */
+const favor = (g, T, res) => {
+  if (!isFree(g)) return;
+  const fr = T.seats.filter(x => !x.hero && x.played > 0 && !x.exposed).map(x => [relGet(g, x.p), x]).filter(([v, x]) => v >= K().FRIEND || (x.p.kind === 'trd' && C.trdTier && C.trdTier(g, x.p.key) >= 5)).sort((a, b) => b[0] - a[0]);
+  if (!fr.length || R.rand() >= K().FAVOR_P) return;
+  const x = fr[0][1], p = x.p, FX = C.TL_FX || {}; let t = null;
+  const sx = {X: x.name, sx: x.sex};
+  if (p.kind === 'own' && p.rich) {
+    const k = ['invite', 'job', 'recommend', 'vouch'][Math.floor(R.rand() * 4)];
+    if (k === 'job') { const j = FX.job ? FX.job(g) : null; if (j) t = fmt(TX.favor.job, Object.assign({Y: '«' + j + '»'}, sx)); }
+    if (k === 'recommend') { try { (C.trdPeople ? C.trdPeople(g, g.loc) : []).forEach(q => C.trdRelAdd(g, q.key, 3, 'рекомендация')); } catch (e) {} t = fmt(TX.favor.recommend, sx); }
+    if (k === 'vouch') { S(g).vouch = S(g).vouch || {}; t = fmt(TX.favor.vouch, sx); }
+    if (!t) { if (C.spiritAdd) try { C.spiritAdd(g, 1, 'ужин у друга по картам'); } catch (e) {} t = fmt(TX.favor.invite, sx); }
+  } else if (p.kind === 'folk') t = fmt(TX.favor.master, sx);
+  else if (p.kind === 'trd') t = fmt(TX.favor.trader, sx);
+  if (!t) { const s2 = FX.rumor ? FX.rumor(g) : null; if (s2) t = fmt(TX.favor.rumor, Object.assign({Y: s2}, sx)); }
+  if (t) { res.favor = t; C.note(g, t); }
+};
+C.trkResult = g => { const T = T_(g); return T && T.res || null; };
+/* уйти от стола: везунчика ночью могут подстеречь */
+C.trkClose = function (g) {
+  const T = T_(g); if (!T) return null; const s = S(g); s.cur = null;
+  if (T.res && T.res.lucky && C.isNight(g) && C.tlForce && R.rand() < K().ROB_P) { try { const sc = C.tlForce(g, 'grab', {ret: 'folk_tavern'}); if (sc) return sc; } catch (e) {} }
+  return null;
+};
+
+/* ======================= открыть стол ======================= */
+C.trkOpen = function (g) {
+  if (!isFree(g) || g.net) return null;
+  const who = C.trkWho(g); if (!who.length) return null;
+  const ante = C.trkAnte(g, who);
+  const seats = [{hero: 1, name: 'вы', kosh: 0}].concat(who.map((p, i) => seatOf(g, p, ante, i + 1)));
+  const T = {v: 1, loc: g.loc, camp: g.camp, day: g.day || 1, ante, ceil: ante * K().CEIL, seats, dealer: Math.floor(R.rand() * seats.length), hands: 0, heroWon: 0, log: [], phase: 'seat', hid: null, purse0: g.purse || 0};
+  S(g).cur = T;
+  nar(T, TX.seatAsk);
+  return 'trk_table';
+};
+C.trkSit = function (g, hid) {
+  const T = T_(g); if (!T || T.phase !== 'seat') return {err: 'не время'};
+  const h = heroes(g).find(x => x.id === hid) || heroes(g)[0]; if (!h) return {err: 'некому сесть'};
+  if ((g.purse || 0) < T.ante * K().SIT_MIN) return {err: 'не хватает серебра'};
+  T.hid = h.id; T.seats[0] = {hero: 1, name: h.name, sex: h.sex, face: h.portrait || '', sub: '', i: 0, won: 0}; T.purse0 = g.purse || 0;
+  nar(T, TX.n.sit, {H: h.name});
+  T.seats.forEach((s, i) => { if (!s.hero && R.rand() < 0.5) say(g, T, i, 'sit', 1); });
+  deal(g, T); return {ok: 1};
+};
+/* грех азарта у брата Ока и обетника (механизм — banya.js: h.kvSin, покаяние в храме Ока) */
+C.trkSin = function (g, h) {
+  if (!h || !C.faithOf || C.faithOf(h) !== 'oko') return false;
+  const first = !h.kvSin; h.kvSin = g.day || 1; h.trkSin = 1;
+  try { const x = C.graceOf && C.graceOf(h); if (x && x.god === 'oko' && C.graceBreak) C.graceBreak(g, h, 'азарт'); } catch (e) {}
+  try { if (h.power != null && R.powerMax) h.power = Math.min(h.power, R.powerMax(h)); } catch (e) {}
+  if (first) C.note(g, fmt(TX.sin, {H: h.name}));
+  return true;
+};
+if (C.heroStatus) { const hs0 = C.heroStatus; C.heroStatus = function (g, h) { const out = hs0.apply(this, arguments) || [];
+  try { if (h && h.trkSin && !h.kvSin) delete h.trkSin; if (h && h.trkSin) out.forEach(x => { if (x && x.t === 'грех на душе') x.why = TX.sinWhy; }); } catch (e) {} return out; }; }
+
+/* ======================= сцена стола ======================= */
+const SC = {};
+const view = (g, T) => {
+  const H = T.hand, hero = heroOf(g, T), heroTurn = heroCan(g, T);
+  const showAll = T.phase !== 'hand' || (H && H.over);
+  return {phase: T.phase, ante: T.ante, ceil: T.ceil, pot: H ? H.pot : 0, stake: H ? H.stake : T.ante, hands: T.hands, deck: cls(g) === 'village' ? 'lubok-1850' : 'russian-style', back: cls(g) === 'village' ? 'ua-rushnyk' : 'dondorf-russian',
+    turn: H && !H.over ? H.turn : -1, heroTurn, firstDone: H ? H.firstDone : false, place: (nodeOf(g) || {}).name || '',
+    seats: T.seats.map((s, i) => { const st = H ? H.st[i] : 'sit', mine = i === 0;
+      const open = mine || (H && (H.shown[i] || (showAll && H.over && st === 'in')));
+      return {i, name: s.hero ? (hero ? hero.name : 'вы') : s.name, face: s.hero ? (hero ? hero.portrait || '' : '') : s.face, hero: !!s.hero, sex: s.sex,
+        sub: s.hero ? '' : [s.sub, (TX[s.shulerOpen ? 'trait' : 'trait'][s.shulerOpen ? 'shulerOpen' : s.trait] || ['', ''])[s.sex === 'f' ? 1 : 0], s.drunk ? TX.drunk[0] : ''].filter(Boolean).join(', '),
+        money: s.hero ? (g.purse || 0) : s.kosh, gone: !!s.gone, st, said: s.said || '',
+        cards: H && H.cards[i] ? H.cards[i].map(c => (open ? c : null)) : null, score: H && H.cards[i] && open ? C.trkScoreWord(H.cards[i]) : ''}; }),
+    log: T.log.slice(-14), res: T.res || null, raise: C.trkRaiseTo(g)};
+};
+const act = (a, v) => g2 => { const r = C.trkAct(g2, a, v); if (r && r.caught) return 'trk_table'; return 'trk_table'; };
+SC.trk_table = g => {
+  const T = T_(g);
+  if (!T) return {title: TX.title, bg: 'tavern', lines: [['n', 'Карты собраны, стол пуст.']], choices: [{t: 'Назад', trk: 'back', do: () => 'folk_tavern'}]};
+  const V = view(g, T), ch = [], H = T.hand;
+  const lines = T.log.slice(-10).map(l => ['n', l.k === 'o' ? `${l.who}: «${l.text}»` : l.text]);
+  if (T.phase === 'seat') {
+    heroes(g).forEach(h => ch.push({t: `Сесть за стол: ${h.name}${C.faithOf && C.faithOf(h) === 'oko' ? ' (' + TX.sinWarn + ')' : ''}`, trk: 'sit', hid: h.id,
+      if: g2 => (g2.purse || 0) >= T.ante * K().SIT_MIN, off: 'не хватает серебра на игру', do: g2 => { C.trkSit(g2, h.id); return 'trk_table'; }}));
+    ch.push({t: 'Не садиться', trk: 'back', do: g2 => { S(g2).cur = null; return 'folk_tavern'; }});
+  } else if (T.phase === 'hand' && heroCan(g, T)) {
+    ch.push({t: 'Сбросить', trk: 'fold', do: act('fold')});
+    ch.push({t: `Поддержать: ${price(H.stake)}`, trk: 'call', if: g2 => (g2.purse || 0) >= H.stake, off: 'не хватает серебра', do: act('call')});
+    C.trkRaiseTo(g).forEach(v => ch.push({t: `Повысить до ${price(v)}`, trk: 'raise', v, do: act('raise', v)}));
+    if (H.firstDone) ch.push({t: `Вскрыться: ${price(H.stake)}`, trk: 'open', if: g2 => (g2.purse || 0) >= H.stake, off: 'не хватает серебра', do: act('open')});
+    if (C.trkCanCheat(g)) ch.push({t: 'Передёрнуть карту (Ловкость, Ловкость рук)', trk: 'cheat', do: g2 => { const r = C.trkAct(g2, 'cheat'); return 'trk_table'; }});
+    ch.push({t: 'Встать из-за стола', trk: 'leave', do: act('leave')});
+  } else if (T.phase === 'catch') {
+    const s = T.seats[H.catchI];
+    ch.push({t: `Схватить ${decl(s.name, s.sex).a} за руку`, trk: 'catch', do: g2 => { const r = C.trkAct(g2, 'catch'); if (r && r.fight) return {battle: C.trkFightSpec(g2, 'shuler')}; return 'trk_table'; }});
+    ch.push({t: 'Промолчать', trk: 'quiet', do: act('quiet')});
+  } else if (T.phase === 'svara') {
+    ch.push({t: 'Переиграть банк', trk: 'svara_re', do: act('svara_re')});
+    ch.push({t: 'Поделить банк', trk: 'svara_split', do: act('svara_split')});
+  } else if (T.phase === 'svjoin') {
+    ch.push({t: `Войти в свару: ${price(H.svJoin.half)}`, trk: 'svjoin', if: g2 => (g2.purse || 0) >= H.svJoin.half, off: 'не хватает серебра', do: act('svjoin')});
+    ch.push({t: 'Не входить', trk: 'svskip', do: act('svskip')});
+  } else if (T.phase === 'between') {
+    ch.push({t: `Новая раздача: вход ${price(T.ante)}`, trk: 'deal', if: g2 => (g2.purse || 0) >= T.ante, off: 'не хватает серебра', do: act('deal')});
+    ch.push({t: 'Встать из-за стола', trk: 'leave', do: act('leave')});
+  } else if (T.phase === 'caught') {
+    ch.push({t: 'Отбиваться', trk: 'fight', do: g2 => { const spec = C.trkFightSpec(g2, 'cheat'); endSession(g2, T_(g2)); return {battle: spec}; }});
+    ch.push({t: 'Бросить всё и уйти под свист', trk: 'flee', do: g2 => { const T2 = T_(g2); endSession(g2, T2); const L = LS(g2); if (C.repAdd && nodeOf(g2)) C.repAdd(g2, g2.loc, -1, 'сбежали, пойманные на шулерстве'); L.ban = Math.max(L.ban || 0, (g2.day || 1) + K().BAN_DAYS); return 'trk_table'; }});
+  } else if (T.phase === 'shfight') {
+    ch.push({t: 'Драться', trk: 'fight', do: g2 => ({battle: C.trkFightSpec(g2, 'shuler')})});
+  } else if (T.phase === 'end') {
+    if (T.res) { lines.push(['n', T.res.head]); T.res.rel.forEach(r => lines.push(['n', r.text])); T.res.lines.forEach(x => lines.push(['n', x])); if (T.res.favor) lines.push(['n', T.res.favor]); }
+    ch.push({t: 'Отойти от стола', trk: 'back', do: g2 => C.trkClose(g2) || 'folk_tavern'});
+  } else {
+    ch.push({t: 'Отойти от стола', trk: 'back', do: g2 => { const T2 = T_(g2); if (T2) leave(g2, T2); return C.trkClose(g2) || 'folk_tavern'; }});
+  }
+  return {title: TX.title + (V.place ? ' — ' + V.place : ''), bg: 'tavern', art: 'tavern', lines, choices: ch, trk: V};
+};
+/* после драки */
+const afterFight = (g, win) => {
+  const T = T_(g); if (!T || T.fightDone) return; T.fightDone = 1;
+  const k = T.caught ? 'Cheat' : 'Shuler';
+  nar(T, TX.fight[(win ? 'win' : 'lose') + k]);
+  if (!T.caught && win && C.repAdd && nodeOf(g)) C.repAdd(g, g.loc, 1, 'побили шулера в корчме');
+  if (T.phase !== 'end') { T.phase = 'hand'; leave(g, T); }
+  T.phase = 'end';
+};
+SC.trk_won = g => Object.assign(SC.trk_table(g), {onEnter: g2 => afterFight(g2, true)});
+SC.trk_lost = g => Object.assign(SC.trk_table(g), {onEnter: g2 => afterFight(g2, false)});
+/* в окне стола — только его кнопки */
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (sc && /^trk_/.test(String(id)) && sc.raw) { sc.choices = (sc.choices || []).filter(c => c.trk); sc.people = []; } } catch (e) {} return sc; }; }
+Object.entries(SC).forEach(([id, sc]) => { FREE.scenes[id] = sc; });
+
+/* ======================= корчма: кнопка «Сыграть в триньку» ======================= */
+if (FREE.scenes.folk_tavern) { const ft0 = FREE.scenes.folk_tavern; FREE.scenes.folk_tavern = function (g) {
+  const sc = ft0.apply(this, arguments);
+  try { if (!sc || !isFree(g) || g.net || !K().ON || !C.tlClass || !C.tlClass(g)) return sc;
+    const T = T_(g);
+    if (T && (T.loc !== g.loc || T.camp !== g.camp)) { leave(g, T); S(g).cur = null; }
+    sc.lines = (sc.lines || []).slice(); sc.choices = (sc.choices || []).slice();
+    const back = sc.choices.findIndex(c => c.t === 'Назад'), ins = c => { if (back >= 0) sc.choices.splice(back, 0, c); else sc.choices.push(c); };
+    if (T_(g)) { ins({t: 'Вернуться за карточный стол', go: 'trk_table'}); return sc; }
+    const key = g.loc + '|' + slot(g);
+    if (C.trkBanned(g)) { sc.lines.push(['n', TX.tableBan]); return sc; }
+    if (!C.trkBusy(g)) { sc.lines.push(['n', TX.tableEmpty[hsh(key) % TX.tableEmpty.length]]); return sc; }
+    const who = C.trkWho(g); if (!who.length) return sc;
+    sc.lines.push(['n', TX.tableBusy[hsh(key) % TX.tableBusy.length]]);
+    const names = who.map(p => p.name.split(' ')[0]);
+    ins({t: `Сыграть в триньку: за столом ${names.slice(0, -1).join(', ')} и ${names[names.length - 1]}`, do: g2 => C.trkOpen(g2) || 'folk_tavern'});
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc; }; }
+
+/* ======================= молва «везунчик»: грабители ночью ======================= */
+if (C.TL_EV && C.TL_EV.grab) { const ev = C.TL_EV.grab, w0 = ev.w;
+  ev.w = function (x) { let w = w0.apply(this, arguments); try { const L = x && x.g && ((x.g.trk || {}).loc || {})[x.g.loc]; if (L && L.lucky && (x.g.day || 1) - L.lucky <= K().LUCKY_DAYS) w += 4; } catch (e) {} return w; }; }
+
+/* ======================= суд: поручитель из друзей по столу ======================= */
+const richFriend = (g, reg) => {
+  const s = S(g); let best = null;
+  Object.entries(s.rel || {}).forEach(([id, v]) => { if (!/^o:(boyar|gost|hozyain|starosta)@/.test(id) || v < K().VOUCH) return; const at = id.split('@')[1];
+    const n = (FREE.map.nodes || {})[at]; if (!n) return; if (reg && (n.reg || (C.trdReg ? C.trdReg(g, at) : '')) !== reg) return;
+    if (!best || v > best.v) best = {id, at, v}; });
+  if (!best) return null;
+  const role = best.id.slice(2).split('@')[0];
+  const g2 = Object.assign({}, g, {loc: best.at}); let p = null; try { p = ownPeople(g2).find(x => x.id === best.id); } catch (e) {}
+  return p ? Object.assign({}, p, {at: best.at, v: best.v, role}) : null;
+};
+C.trkRichFriend = richFriend;
+if (C.crVira) { const cv0 = C.crVira; C.crVira = function (g, c) { const v = cv0.apply(this, arguments); return c && c.trkVouch ? r10(v / 2) : v; }; }
+if (FREE.scenes.cus_court) { const cc0 = FREE.scenes.cus_court; FREE.scenes.cus_court = function (g) {
+  const sc = cc0.apply(this, arguments);
+  try { const s = g.w2cus, c = s && s.court ? (s.crimes || []).find(x => x.id === s.court && !x.done) : null;
+    if (!sc || !c || c.doom || c.trkVouch || c.k === 'debt' || !sc.choices || !sc.choices.length) return sc;
+    const f = richFriend(g, c.reg); if (!f) return sc;
+    sc.choices = sc.choices.slice(); sc.choices.unshift({t: fmt(TX.vouchBtn, {X: f.name}), do: g2 => { const s2 = g2.w2cus, c2 = (s2.crimes || []).find(x => x.id === s2.court); if (c2) c2.trkVouch = 1; g2.cusLast = fmt(TX.vouchSay, {X: f.name}); return 'cus_court'; }});
+  } catch (e) {} return sc; }; }
+/* заступник перед казнью: богатый друг по столу */
+if (C.waRescuer) { const wr0 = C.waRescuer; C.waRescuer = function (g) { const r = wr0.apply(this, arguments); if (r) return r;
+  try { const f = isFree(g) ? richFriend(g, null) : null; if (f) return {key: f.id, name: f.name, sex: f.sex, bond: 'friend'}; } catch (e) {} return null; }; }
+
+/* старый стол в другом месте или дне — закрыть без шума */
+{ const ps0 = C.pass; C.pass = function (g) { const r = ps0.apply(this, arguments); try { const T = T_(g); if (T && ((g.day || 1) - (T.day || 0) > 1)) { leave(g, T); g.trk.cur = null; } } catch (e) {} return r; }; }
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
