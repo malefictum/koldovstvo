@@ -47849,6 +47849,9 @@ Object.assign(B.TERRAIN, {
   chest: {name: 'сундук', block: true, cover: 1},
   hlamp: {name: 'светец', block: true, cover: 1},
   oko_star: {name: 'звезда Ока', block: true, cover: 1},
+  cradle: {name: 'люлька', block: true, cover: 1},
+  kadka: {name: 'кадка с водой', block: true, cover: 1},
+  loom: {name: 'ткацкий стан', block: true, cover: 1},
 });
 if (B.LOS_BLOCK) Object.assign(B.LOS_BLOCK, {hwall: 1, hdoor_c: 1, stove: 1});
 if (B.IMPRO) { if (B.IMPRO.bench) B.IMPRO.bench.t.push('hbench'); if (B.IMPRO.brand) B.IMPRO.brand.t.push('hlamp', 'stove'); }
@@ -47881,29 +47884,44 @@ const HT = BF.HOUSE_T = {
 /* ряд от стены с дверью: 'd1' — первый внутренний ряд у двери */
 const dRow = (h, k) => h.side === 'top' ? k : h.H - 1 - k, dOf = dRow; // ряд от стены с дверью и обратно — одно и то же
 /* утварь в местных координатах (до зеркала): [x, y, t]; 'far' — ряд у дальней от двери стены */
+/* жилые дома обставлены гуще и по-разному (Ник 25.11: «сделай солиднее, утвари картинок хватает»): кадка в сенях, сундук, прялка-стан,
+   люлька там, где малые дети. Необязательное — в конце списка: если запирает проход, его снимают первым */
+const opt = (rnd, p, a) => (rnd && rnd() < p ? a : []);
 const FURN = {
-  izba: (T, lit) => [[3, 1, 'stove'], [5, 3, 'table'], [4, 3, 'hbench'], [5, 1, 'bed'], [1, 3, 'barrels']].concat(lit ? [[3, 3, 'hlamp']] : []),
-  korchma: () => [[3, 1, 'stove'], [5, 2, 'table'], [5, 4, 'table'], [4, 2, 'hbench'], [6, 2, 'hbench'], [4, 4, 'hbench'], [6, 4, 'hbench'], [6, 5, 'barrels'], [1, 5, 'barrels'], [3, 5, 'hlamp']],
-  terem: (T, lit) => [[3, 1, 'stove'], [4, 3, 'table'], [4, 2, 'hbench'], [4, 4, 'hbench'], [5, 1, 'chest'], [5, 5, 'chest'], [1, 5, 'barrels']].concat(lit ? [[3, 5, 'hlamp']] : []),
+  izba: (T, lit, rnd) => [[3, 1, 'stove'], [5, 3, 'table'], [4, 3, 'hbench'], [5, 1, 'bed'], [1, 3, 'barrels']].concat(lit ? [[3, 3, 'hlamp']] : [], [[1, 1, 'kadka']], opt(rnd, 0.55, [[4, 1, rnd && rnd() < 0.5 ? 'loom' : 'chest']]), opt(rnd, 0.3, [[5, 2, 'cradle']])),
+  korchma: () => [[3, 1, 'stove'], [5, 2, 'table'], [5, 4, 'table'], [4, 2, 'hbench'], [6, 2, 'hbench'], [4, 4, 'hbench'], [6, 4, 'hbench'], [6, 5, 'barrels'], [1, 5, 'barrels'], [3, 5, 'hlamp'], [1, 1, 'kadka'], [1, 4, 'barrels'], [3, 4, 'chest']],
+  terem: (T, lit, rnd) => [[3, 1, 'stove'], [4, 3, 'table'], [4, 2, 'hbench'], [4, 4, 'hbench'], [5, 1, 'chest'], [5, 5, 'chest'], [1, 5, 'barrels']].concat(lit ? [[3, 5, 'hlamp']] : [], [[1, 1, 'kadka'], [5, 3, 'bed']], opt(rnd, 0.6, [[3, 4, 'loom']]), opt(rnd, 0.35, [[3, 2, 'cradle']])),
   hram: () => [[3, 'far', 'oko_star'], [2, 3, 'hbench'], [4, 3, 'hbench'], [2, 5, 'hbench'], [4, 5, 'hbench'], [1, 'far', 'hlamp'], [5, 'd7', 'chest']], // в ризнице — сундук
   dlin: () => [[5, 2, 'fire'], [6, 2, 'fire'], [7, 2, 'fire'], [2, 1, 'hbench'], [3, 1, 'hbench'], [9, 3, 'hbench'], [10, 3, 'hbench'], [1, 3, 'barrels'], [11, 1, 'bed'], [11, 3, 'chest']],
-  banya: () => [[2, 'far', 'stove'], [1, 'far', 'hbench'], [1, 'd1', 'barrels']], // каменка, полок, кадка с водой
+  banya: () => [[2, 'far', 'stove'], [1, 'far', 'hbench'], [1, 'd1', 'kadka']], // каменка, полок, кадка с водой
   ambar: () => [[1, 'far', 'crate'], [2, 'far', 'hay'], [3, 'far', 'barrels'], [1, 'd1', 'crate'], [3, 'd1', 'barrels']], // лари с зерном, бочки, сено
   klet: () => [[2, 'far', 'chest'], [1, 'far', 'barrels'], [1, 'd1', 'crate']],
-  starosta: (T, lit) => [[3, 'd4', 'stove'], [6, 'd2', 'table'], [5, 'd2', 'hbench'], [6, 'd4', 'bed'], [1, 'd4', 'barrels'], [4, 'd4', 'chest']].concat(lit ? [[3, 'd1', 'hlamp']] : []),
-  kupec: () => [[1, 'd2', 'table'], [2, 'd2', 'table'], [1, 'd5', 'crate'], [2, 'd5', 'crate'], [3, 'd5', 'barrels'], [5, 'd1', 'stove'], [7, 'd2', 'table'], [6, 'd2', 'hbench'], [5, 'd4', 'chest'], [6, 'd5', 'chest'], [7, 'd5', 'crate'], [3, 'd1', 'hlamp']],
-  boyar: () => [[1, 'd7', 'barrels'], [2, 'd7', 'chest'], [4, 'd7', 'stove'], [5, 'd3', 'table'], [5, 'd4', 'table'], [4, 'd3', 'hbench'], [6, 'd3', 'hbench'], [4, 'd4', 'hbench'], [6, 'd4', 'hbench'], [6, 'd7', 'hlamp'], [8, 'd1', 'bed'], [9, 'd2', 'chest'], [8, 'd6', 'chest'], [9, 'd6', 'chest'], [9, 'd7', 'chest']],
+  starosta: (T, lit, rnd) => [[3, 'd4', 'stove'], [6, 'd2', 'table'], [5, 'd2', 'hbench'], [6, 'd4', 'bed'], [1, 'd4', 'barrels'], [4, 'd4', 'chest']].concat(lit ? [[3, 'd1', 'hlamp']] : [], [[1, 'd1', 'kadka'], [6, 'd3', 'hbench'], [5, 'd4', 'bed']], opt(rnd, 0.6, [[3, 'd2', 'loom']]), opt(rnd, 0.4, [[4, 'd2', 'cradle']])),
+  kupec: (T, lit, rnd) => [[1, 'd2', 'table'], [2, 'd2', 'table'], [1, 'd5', 'crate'], [2, 'd5', 'crate'], [3, 'd5', 'barrels'], [5, 'd1', 'stove'], [7, 'd2', 'table'], [6, 'd2', 'hbench'], [5, 'd4', 'chest'], [6, 'd5', 'chest'], [7, 'd5', 'crate'], [3, 'd1', 'hlamp'],
+    [7, 'd1', 'bed'], [6, 'd1', 'kadka'], [3, 'd4', 'barrels']].concat(opt(rnd, 0.5, [[7, 'd4', 'loom']]), opt(rnd, 0.3, [[6, 'd4', 'cradle']])), // лавка с прилавками и товаром, жилая половина, кладовая
+  boyar: (T, lit, rnd) => [[1, 'd7', 'barrels'], [2, 'd7', 'chest'], [4, 'd7', 'stove'], [5, 'd3', 'table'], [5, 'd4', 'table'], [4, 'd3', 'hbench'], [6, 'd3', 'hbench'], [4, 'd4', 'hbench'], [6, 'd4', 'hbench'], [6, 'd7', 'hlamp'], [8, 'd1', 'bed'], [9, 'd2', 'chest'], [8, 'd6', 'chest'], [9, 'd6', 'chest'], [9, 'd7', 'chest'],
+    [1, 'd1', 'kadka'], [9, 'd1', 'bed'], [2, 'd1', 'hbench'], [1, 'd5', 'crate'], [5, 'd7', 'hlamp']].concat(opt(rnd, 0.7, [[8, 'd3', 'loom']]), opt(rnd, 0.4, [[9, 'd3', 'cradle']])), // сени, гридница, светёлка с ткацким станом, казна
   korchma_big: () => [[4, 'd6', 'stove'], [5, 'd2', 'hbench'], [6, 'd2', 'table'], [7, 'd2', 'hbench'], [5, 'd4', 'hbench'], [6, 'd4', 'table'], [7, 'd4', 'hbench'], [8, 'd3', 'table'],
     [6, 'd6', 'barrels'], [7, 'd6', 'barrels'], [8, 'd6', 'crate'], [8, 'd1', 'barrels'], [1, 'd5', 'barrels'], [2, 'd6', 'chest'], [1, 'd6', 'crate'], [7, 'd1', 'hlamp']], // сени, зала со стойкой и бочками, чулан
-  kuznya: () => [[1, 'd3', 'gorn'], [3, 'd2', 'nakovalnya'], [4, 'd3', 'barrels'], [4, 'd1', 'crate']],
-  masterskaya: () => [[2, 'd3', 'table'], [3, 'd3', 'table'], [1, 'd1', 'crate'], [4, 'd3', 'crate'], [4, 'd1', 'hbench']],
+  kuznya: () => [[1, 'd3', 'gorn'], [3, 'd2', 'nakovalnya'], [4, 'd3', 'barrels'], [4, 'd1', 'crate'], [2, 'd1', 'kadka']], // кадка — калить
+  masterskaya: (T, lit, rnd) => [[2, 'd3', 'table'], [3, 'd3', 'table'], [1, 'd1', 'crate'], [4, 'd3', 'crate'], [4, 'd1', 'hbench']].concat(opt(rnd, 0.5, [[1, 'd3', 'loom']]), [[2, 'd1', 'chest']]),
   sklad: () => [[1, 'd1', 'barrels'], [1, 'd2', 'barrels'], [1, 'd4', 'crate'], [2, 'd4', 'crate'], [3, 'd4', 'barrels'], [4, 'd4', 'crate'], [4, 'd1', 'crate'], [6, 'd1', 'table'], [6, 'd4', 'chest'], [3, 'd2', 'crate']],
   konyushnya: () => [[1, 'd3', 'yasli'], [3, 'd3', 'yasli'], [5, 'd3', 'yasli'], [7, 'd3', 'yasli'], [7, 'd1', 'barrels']],
   hlev: () => [[1, 'd2', 'yasli'], [4, 'd2', 'yasli'], [2, 'd2', 'hay']],
   saray: () => [[1, 'd2', 'wood'], [4, 'd2', 'cart'], [1, 'd1', 'hay']],
   melnitsa: () => [[3, 'd3', 'zhernov'], [1, 'd4', 'crate'], [4, 'd4', 'crate'], [1, 'd1', 'crate']],
 };
-const MOVABLE = {hbench: 'лавку', table: 'стол', chest: 'сундук', barrels: 'бочки', crate: 'короба', bed: 'лежанку'};
+const EXTRA = {
+  izba: r => ['chest'].concat(r() < 0.5 ? ['loom'] : [], r() < 0.35 ? ['cradle'] : [], r() < 0.4 ? ['crate'] : []),
+  terem: r => ['bed', 'kadka'].concat(r() < 0.6 ? ['loom'] : [], r() < 0.4 ? ['cradle'] : [], ['crate']),
+  starosta: r => ['kadka', 'hbench', 'bed'].concat(r() < 0.6 ? ['loom'] : [], r() < 0.4 ? ['cradle'] : [], ['crate']),
+  kupec: r => ['bed', 'kadka', 'barrels', 'crate'].concat(r() < 0.5 ? ['loom'] : [], r() < 0.3 ? ['cradle'] : []),
+  boyar: r => ['kadka', 'bed', 'hbench', 'crate', 'loom'].concat(r() < 0.4 ? ['cradle'] : [], ['hlamp']),
+  dlin: r => ['kadka', 'loom', 'crate'].concat(r() < 0.5 ? ['cradle'] : []),
+  korchma: () => ['kadka', 'barrels', 'chest'], korchma_big: () => ['kadka', 'barrels', 'hbench'],
+  kuznya: () => ['kadka'], masterskaya: r => (r() < 0.5 ? ['loom'] : ['crate']).concat(['chest']), hlev: () => ['kadka'],
+};
+const MOVABLE = {hbench: 'лавку', table: 'стол', chest: 'сундук', barrels: 'бочки', crate: 'короба', bed: 'лежанку', kadka: 'кадку', cradle: 'люльку'};
 const LIGHTS = ['hlamp', 'fire', 'gorn'];
 Object.assign(B.TERRAIN, {gorn: {name: 'горн', block: true, cover: 2}, nakovalnya: {name: 'наковальня', block: true, cover: 1}, zhernov: {name: 'жернов', block: true, cover: 2}, yasli: {name: 'ясли', block: true, cover: 1}});
 
@@ -47967,11 +47985,14 @@ BF.houseNew = function (F, kind, c0, r0, side, flip, rnd, id) {
   if (T.part == null && kind !== 'dlin' && kind !== 'hram' && rnd() < 0.3 && T.W >= 5) { const p = loc(h, T.W - 1, 1); h.wins.push([p.c, p.r]); }
   if (T.parts || T.hparts) innerDoors(F, h, T, rnd);
   h.lit = rnd() < T.lit ? 1 : 0;
-  h.furn = (FURN[kind] || (() => []))(T, h.lit).map(([x, y, t]) => { const p = loc(h, x, y); return [p.c, p.r, t]; });
+  h.furn = (FURN[kind] || (() => []))(T, h.lit, rnd).map(([x, y, t]) => { const p = loc(h, x, y); return [p.c, p.r, t]; });
+  { const seen = new Set(); h.furn = h.furn.filter(([c, r]) => { const k = c + ',' + r; if (seen.has(k) || h.doors.some(d => !d.inner && B.dist(d, {c, r}) <= 1)) return false; seen.add(k); return true; }); } // у входа не ставим, на одну клетку — одно
   BF.houseBuild(F, h);
   // утварь не должна запирать проход: лишнее убираем с конца
   let guard = 0; while (!innerOK(F, h) && h.furn.length && guard++ < 12) { h.furn.pop(); BF.houseBuild(F, h); }
   if (!innerOK(F, h)) return null;
+  // ещё утвари — к стенам, где встанет и не запрёт проход (Ник 25.11: «солиднее»)
+  { const X = EXTRA[kind] ? EXTRA[kind](rnd) : null; if (X && X.length) { const have = t => h.furn.filter(f => f[2] === t).length; BF.houseFurnish(F, h, X.filter(t => !(['loom', 'cradle', 'kadka'].includes(t) && have(t)))); } }
   h.lit = h.furn.some(f => LIGHTS.includes(f[2])) || ['korchma', 'hram', 'korchma_big', 'kupec', 'boyar'].includes(kind) ? 1 : 0;
   return h;
 };
@@ -48582,7 +48603,7 @@ const wallKey = (S, h, c, st) => {
   if (m === 'log') return d.lock ? 'w_log_door_l' : d.prop === 'out' ? 'w_log_door_p' : 'w_log_door_c';
   return 'w_' + m + '_door_c';
 };
-const FURN_SPR = {stove: ['f_stove', 1.55], table: ['f_table', 1.6], hbench: ['f_bench', 1.5], bed: ['f_bed', 1.6], chest: ['f_chest', 1.15], barrels: ['f_barrel', 0.9], crate: ['f_lar', 1.15], hlamp: ['f_svetec', 0.55], fire: ['f_hearth', 1.7], oko_star: ['f_altar', 1.45], yasli: ['f_yasli', 1.5]};
+const FURN_SPR = {stove: ['f_stove', 1.55], table: ['f_table', 1.6], hbench: ['f_bench', 1.5], bed: ['f_bed', 1.6], chest: ['f_chest', 1.15], barrels: ['f_barrel', 0.9], crate: ['f_lar', 1.15], hlamp: ['f_svetec', 0.55], fire: ['f_hearth', 1.7], oko_star: ['f_altar', 1.45], yasli: ['f_yasli', 1.5], cradle: ['f_cradle', 1.05], kadka: ['f_kadka', 0.8], loom: ['f_loom', 1.55]};
 const hbThing0 = BF.hbThing;
 BF.hbThing = function (X, c, p, s, S, U) {
   const img = U && U.img, h = BF.houseById(S.field, c.hb);
@@ -49162,6 +49183,18 @@ BF.houseVillage = function (F) {
     cellsAll.forEach(x => { const da = Math.abs(Math.abs(along(x) - sl.s) - slot / 2), a = across(x) * sl.side;
       if (da < 0.9 && a > 3 && a < sad1 + 2 && free(x) && ((x.c + x.r) % 4)) x.t = 'fence';
       if (Math.abs(a - (sad1 + 2)) < 0.8 && Math.abs(along(x) - sl.s) < slot / 2 && free(x) && ((x.c * 3 + x.r) % 5)) x.t = 'fence'; });
+    // хозяйство у дома (Ник 25.11: «солиднее»): поленница у задней стены, бочки, телега во дворе, стог — у кого земля
+    yardDress(h, sl.side, far);
+  }
+  function yardDress(h, side, far) {
+    const fp = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(Boolean), doors = h.doors.filter(d => !d.inner);
+    const ok = x => x && x.hb == null && x.o == null && !x.river && ['grass', 'brush'].includes(x.t) && !doors.some(d => B.dist(d, x) <= 2) && !street.some(w => w.c === x.c && w.r === x.r)
+      && B.neigh(x.c, x.r).every(q => { const y = F.cells[key(q.c, q.r)]; return !y || y.hb != null || !['wood', 'barrels', 'cart', 'hay', 'well', 'kadka'].includes(y.t); }) // не лепить в стенку — проход остаётся
+      && B.neigh(x.c, x.r).filter(q => { const y = F.cells[key(q.c, q.r)]; return y && y.hb == null && !B.TERRAIN[y.t].block; }).length >= 3;
+    const back = Object.values(F.cells).filter(x => ok(x) && fp.some(p => B.dist(p, x) === 1) && across(x) * side >= far - 2.5).sort((a, b) => ((a.c * 7 + a.r * 3) % 5) - ((b.c * 7 + b.r * 3) % 5));
+    let n = 0; for (const x of back) { if (n >= (town ? 1 : 2)) break; if (!ok(x)) continue; x.t = n === 0 || rnd() < 0.5 ? 'wood' : 'barrels'; n++; }
+    if (!town && rnd() < 0.35) { const y = Object.values(F.cells).filter(x => ok(x) && fp.every(p => B.dist(p, x) >= 2) && fp.some(p => B.dist(p, x) <= 3) && across(x) * side > far - 1)[0]; if (y) y.t = rnd() < 0.5 ? 'cart' : 'hay'; }
+    if (town && h.k === 'kupec' && rnd() < 0.7) { const y = Object.values(F.cells).filter(x => x && x.hb == null && x.o == null && ['grass', 'brush'].includes(x.t) && doors.some(d => B.dist(d, x) === 2) && !street.some(w => w.c === x.c && w.r === x.r) && fp.some(p => B.dist(p, x) === 1))[0]; if (y) y.t = 'barrels'; } // товар у лавки
   }
   if (!town && !terak && !villa && kind !== 'khutor') place('sklad', (rnd() - 0.5) * 20, (rnd() < 0.5 ? 1 : -1) * 8, 120) || place('ambar', (rnd() - 0.5) * 20, (rnd() < 0.5 ? 1 : -1) * 8, 120); // общий амбар — если осталось место
   // город: добрать дома по улице в свободных местах (без огородов — город тесный)
@@ -49317,10 +49350,15 @@ BF.civTurn = function (S, u) {
   if (h) {
     const inside = BF.inHouse(S, u) === h.id;
     if (inside) { // дома: затворить и подпереть
-      const o = BF.doorsNear(S, u).find(x => x.h === h);
+      const o = BF.doorsNear(S, u).find(x => x.h === h && !x.d.inner); // своя наружная дверь, не межкомнатная
       if (o && o.d.st === 'open' && !B.unitAt(S, o.d.c, o.d.r) && !S.bonus) { BF.doorDo(S, u, o.id, 'close'); if (!S.civ.shutSaid) { S.civ.shutSaid = 1; B.log(S, 'Хлопают двери: селяне запираются по избам.', ''); } }
       if (o && o.d.st === 'shut' && !o.d.prop && !S.acted && k !== 'child' && R.rand() < 0.7) BF.doorDo(S, u, o.id, 'prop');
-      if (!o && h.doors.some(d => d.st === 'open')) { const d = h.doors.find(x => x.st === 'open'); if (B.dist(u, d) > 1) B.goNear(S, u, d); }
+      if (!o && h.doors.some(d => d.st === 'open' && !d.inner)) { const d = h.doors.find(x => x.st === 'open' && !x.inner);
+        // к двери изнутри — на клетку пола у порога, а не в сам проём (иначе ходит туда-сюда: на пороге она уже «не дома»)
+        const n = B.neigh(d.c, d.r).map(q => B.cell(S, q.c, q.r)).find(x => x && x.hb === h.id && x.hin && !B.TERRAIN[x.t].block && (!B.unitAt(S, x.c, x.r) || B.unitAt(S, x.c, x.r) === u));
+        if (n && !(u.c === n.c && u.r === n.r)) { const rch = B.reach(S, u), q = rch[B.key(n.c, n.r)]; if (q) B.move(S, u, n.c, n.r); else B.goNear(S, u, n); }
+        else if (!n && B.dist(u, d) > 1) B.goNear(S, u, d);
+        const o2 = BF.doorsNear(S, u).find(x => x.h === h && !x.d.inner); if (o2 && o2.d.st === 'open' && !B.unitAt(S, o2.d.c, o2.d.r) && !S.bonus) BF.doorDo(S, u, o2.id, 'close'); }
       S.acted = true; return; }
     // домой: к двери, отворить, войти
     const d = h.doors.filter(x => !x.inner).sort((a, b) => B.dist(a, u) - B.dist(b, u))[0];
@@ -50116,7 +50154,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252148"></script><script>
+</script><script src="world.js?v=202611252158"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

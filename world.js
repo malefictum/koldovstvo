@@ -73375,7 +73375,7 @@ C.walkOwnHome = function (S, g) {
   const yard = Object.values(F.cells).filter(c => { if (c.hb != null || c.o != null || c.river || busy.has(c.c + ',' + c.r) || !['grass', 'brush', 'mud'].includes(c.t)) return false;
     const d = Math.min(...foot.map(p => B.dist(p, c))); return d >= 2 && d <= 4; }).sort((a, b) => Math.min(...foot.map(p => B.dist(p, a))) - Math.min(...foot.map(p => B.dist(p, b))) || ((a.c * 31 + a.r) % 7) - ((b.c * 31 + b.r) % 7));
   const put = (n, t) => { let k = 0; for (const c of yard) { if (k >= n) break; if (c.t !== 'grass' && c.t !== 'brush' && c.t !== 'mud') continue; c.t = t; k++; } };
-  if (x('sad')) { put(6, 'rye'); put(2, 'tree'); }
+  if (x('sad')) { put(6, 'ogorod'); put(2, 'tree'); }
   if (H.est.includes('izba')) put(6, 'rye');
   if (x('banya') && BF.housePut) try { const bh = (BF.housePut(S, 'banya', {c: h.c0 + h.W + 2, r: h.r0}, {n: 400}) || BF.housePut(S, 'banya', {c: h.c0, r: h.r0}, {n: 1500, face: 'any'})); if (bh) bh.own = 1; } catch (e) {}
   if ((b('hlev') || H.est.includes('dvor')) && BF.housePut) try { const hv = (BF.housePut(S, 'hlev', {c: h.c0 - 3, r: h.r0 + h.H}, {n: 400}) || BF.housePut(S, 'hlev', {c: h.c0, r: h.r0}, {n: 1500, face: 'any'})); if (hv) hv.own = 1; } catch (e) {}
@@ -73766,7 +73766,7 @@ const GEN = {
       `свадьба — ${p.n}, ${p.t}, ${W0 ? 'снова ' : ''}выходит за ${G0.a}.`,
       `${p.n} ${W0 ? 'снова ' : ''}идёт под венец — жених ${gn}. Гулять будут три дня.`,
       `${p.n}, ${p.t}, просватана${W0 ? ' — во второй раз' : ''}: за ${G0.a}. Говорят, он давно к ней присматривался.`,
-      `у ${decl(p.n, 'f').g} свадьба. ${gn} увёз её с гармонью и бубенцами — полсела бежало следом.`,
+      `у ${decl(p.n, 'f').g} свадьба. ${gn} увёз её на тройке с бубенцами — полсела бежало следом.`,
     ]) + (lost ? vary(g, at, 'lost', [` Та самая ${p.n}. Не дождалась.`, ` Да, та самая ${p.n}. Не дождалась — ждать устала.`, ` Ваша ${p.n}. Не дождалась: видно, решила, что вы не вернётесь.`]) : '');
     return {kind: 'wed', text: text.replace(/\s+/g, ' '), who: p.id, groom: gn, lost: !!lost}; },
   arrive: (g, at, S) => { const town = (nodes(g)[at] || {}).kind === 'город', ks = Object.keys(VIS).filter(k => town || k !== 'vdova'), k = pick(ks); const sex = k === 'vdova' ? 'f' : (R.rand() < 0.3 && VIS_F[k] ? 'f' : 'm');
