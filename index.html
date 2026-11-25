@@ -26545,12 +26545,12 @@ const SC = {
   hire_road: g => {
     const offs = C.roadBoard(g), full = !C.MERC_ROOM(g);
     const lines = [['n', offs.length ? 'У дальнего стола сидят те, кто ищет найма. Корчмарь кивает на них: «Эти пойдут с кем угодно, лишь бы платили. Люди проверенные — ну, почти».' : 'Сегодня найма никто не ищет. Загляните через пару дней.']];
-    offs.forEach(m => { const c = C.offerAskSay ? C.offerAskSay(g, m) : ''; lines.push(['n', `${m.name}, ${R.CLASSES[m.hero.cls].name.toLowerCase()}: «${m.say}${c ? ' ' + c.replace(/\.$/, '') : ''}»`]); });
+    offs.forEach(m => { const c = C.offerAskSay ? C.offerAskSay(g, m) : ''; lines.push(['n', `${m.name}, ${C.clsWord ? C.clsWord(m.hero.cls, m.hero.sex) : R.CLASSES[m.hero.cls].name.toLowerCase()}: «${m.say}${c ? ' ' + c.replace(/\.$/, '') : ''}»`]); });
     const idle = C.mercIdleHere(g); idle.forEach(x => lines.push(['n', `За угловым столом — ${x.hero.name}: «Не забыли ещё? Позовёте — пойду, как прежде${x.hero.ask && x.hero.ask.job && !x.hero.loyal && !x.hero.askDone && C.askCond ? `. И уговор наш помню: ${C.askCond(x.hero.ask)}` : ''}»`]));
     if (full) lines.push(['n', 'В отряде уже шестеро — больше не прокормить. Хотите взять другого — сперва распрощайтесь с кем-то из наёмников.']);
     if (g.hireLast) lines.push(['n', g.hireLast]);
     return {title: 'Корчма: наём', bg: 'tavern', art: 'tavern', lines,
-      choices: offs.map(m => ({t: `Нанять: ${m.name} — ${R.CLASSES[m.hero.cls].name.toLowerCase()}, ${m.level}-й ур., ${R.priceText(m.price)}`, if: g2 => !full && g2.purse >= m.price,
+      choices: offs.map(m => ({t: `Нанять: ${m.name} — ${C.clsWord ? C.clsWord(m.hero.cls, m.hero.sex) : R.CLASSES[m.hero.cls].name.toLowerCase()}, ${m.level}-й ур., ${R.priceText(m.price)}`, if: g2 => !full && g2.purse >= m.price,
         off: g2 => full ? 'места нет: сперва распрощайтесь с кем-то' : `не хватает серебра: в кошеле ${R.priceText(g2.purse)}`,
         do: g2 => { const mm = (C.roadBoard(g2) || []).find(x => x.id === m.id); if (mm) { C.hireRoad(g2, mm); g2.hireLast = null; } return 'hire_road'; }}))
         .concat(idle.map(x => ({t: `Позвать снова: ${x.hero.name} (${R.CLASSES[x.hero.cls].name.toLowerCase()}, ${x.hero.level}-й ур.)`, if: () => !full, off: () => 'места нет: сперва распрощайтесь с кем-то',
@@ -32083,7 +32083,7 @@ SC.rogue_pick = g => {
     const w = WEALTH[n.kind] || 1, cr = CROWD[g2.time || 0] || 1, L = hh.level || 1, dc = 12 + (n.kind === 'город' ? 2 : 0) + Math.floor(L / 3), r = R.d(20), tot = r + sk(hh) + (cr >= 1 ? 1 : -2);
     if (r === 20 || (r !== 1 && tot >= dc)) { let dd = 0; for (let k = 0; k < L; k++) dd += R.d(12); const m = Math.max(1, Math.round((dd + sk(hh)) * w * cr)) * 10; /* серебром: по к12 за уровень */ g2.purse += m; g2.rogueLast = `${hh.name} возвращается, насвистывая: ${R.priceText(m)} чужого серебра.`; }
     else if (tot >= dc - 4) g2.rogueLast = `${hh.name} тянется к кошелю — хозяин оборачивается. Обошлось, но пусто.`;
-    else g2.rogueLast = caught(g2, hh, 1, `«Держи вора!» — ${hh.name} пойман за руку.`);
+    else g2.rogueLast = caught(g2, hh, 1, `«Держи вора!» — ${hh.name} пойман${hh.sex === 'f' ? 'а' : ''} за руку.`);
     C.pass(g2, 1); C.note(g2, g2.rogueLast); return 'rogue_pick'; }});
   else if (h) lines.push(['n', 'Здесь сегодня уже шарили — люди держатся за кошели.']);
   ch.push({t: 'Уйти', do: g2 => { g2.rogueLast = null; return nodeScene(g2); }});
@@ -32096,7 +32096,7 @@ SC.rogue_night = g => {
     const hh = C.alive(g2).find(x => x.id === h.id); g2.burgDay = g2.day; const L = hh.level || 1, w = WEALTH[n.kind] || 1;
     const dc1 = 13 + Math.floor(L / 2), r1 = R.d(20), t1 = r1 + bk(hh), dc2 = 12 + Math.floor(L / 2), r2 = R.d(20), t2 = r2 + R.mod(hh.stats.dex) + R.skill(hh, 'Скрытность') + 2 * T(hh, 'ten');
     if (!(r1 === 20 || (r1 !== 1 && t1 >= dc1) || (C.toolHas && C.toolHas(hh, 'zagovor')))) g2.rogueLast = `Замок оказался хитрее отмычки. ${hh.name} уходит ни с чем, пока не рассвело.`;
-    else if (!(r2 === 20 || (r2 !== 1 && t2 >= dc2))) g2.rogueLast = caught(g2, hh, 2, `Половица скрипнула — в доме крик, собака рвёт цепь. ${hh.name} уходит через забор, но его узнали.`);
+    else if (!(r2 === 20 || (r2 !== 1 && t2 >= dc2))) g2.rogueLast = caught(g2, hh, 2, `Половица скрипнула — в доме крик, собака рвёт цепь. ${hh.name} уходит через забор, но ${hh.sex === 'f' ? 'её' : 'его'} узнали.`);
     else { const m = Math.round((300 + 200 * L) * w * (0.7 + R.rand() * 0.8) / 10) * 10; g2.purse += m; let it = null;
       if (R.rand() < 0.6) { const gems = Object.values(DATA.items).filter(x => (x.category === 'самоцветы' || /^tr_(serebr|kurgan|visoch)/.test(x.id)) && x.price && x.price <= 800 * L); if (gems.length) { it = pick(gems).id; hh.inv.push(it); } }
       g2.rogueLast = `${hh.name} возвращается до первых петухов: ${R.priceText(m)}${it ? ' и ' + R.item(it).name.toLowerCase() : ''}. В доме никто не проснулся.`; }
@@ -33751,7 +33751,18 @@ C.askCond = function (ask) {
   return {retrieve: 'вернуть родовой меч, что у меня отняли обманом', bandits: 'поквитаться с теми, кто бросил меня подыхать в канаве',
     haunt: 'упокоить человека, что погиб из-за меня', clear: 'очистить капище моего рода от погани'}[ask.kind] || 'с одним моим делом';
 };
-C.askCondSay = ask => `Пойду с вами, только и вы мне помогите — ${C.askCond(ask)}. Дольше трёх седмиц ждать не стану.`;
+/* класс словом — по полу: гуслярка, ярая, чаровница */
+const CLS_F = {druzhinnik: 'поляница', yaryi: 'ярая', obetnik: 'обетница', vedmak: 'ведьмачка', lovchiy: 'ловчая', tat: 'тать', dushegub: 'душегубка', guslyar: 'гуслярка', chernets: 'сестра Ока', volhv: 'волхва', zhrets: 'жрица иной веры', knizhnik: 'книжница', charovnik: 'чаровница'};
+C.clsWord = (cls, sex) => { const c = G.R && G.R.CLASSES[cls]; if (!c) return ''; return sex === 'f' && CLS_F[cls] ? CLS_F[cls] : (cls === 'chernets' ? c.name : c.name.toLowerCase()); };
+/* просьба наёмника — на разные лады (Ник 25.11: оценить диалоги); без повтора «пойду с вами», если человек уже это сказал */
+const ASK_SAY = [
+  c => `Пойду с вами, только и вы мне помогите — ${c}. Дольше трёх седмиц ждать не стану.`,
+  c => `Одно условие: ${c}. Три седмицы подожду, не больше.`,
+  c => `Плату возьму, но есть у меня и своя нужда — ${c}. Седмицы три потерплю.`,
+  c => `Ваша дорога — моя дорога. А моя забота — ${c}, и с ней тянуть дольше трёх седмиц нельзя.`];
+const ASK_SAY2 = [c => `Только и вы мне помогите — ${c}. Дольше трёх седмиц ждать не стану.`, c => `Одно условие: ${c}. Три седмицы подожду, не больше.`, c => `Плату возьму, но есть и своя нужда — ${c}. Седмицы три потерплю.`];
+const askH = s => { let h = 7; s = String(s || ''); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h; };
+C.askCondSay = (ask, said) => { const c = C.askCond(ask), L = said && /с вами|я с вами|возьмёте|по пути/i.test(said) ? ASK_SAY2 : ASK_SAY; return L[askH(c + (ask && ask.kind) + (said || '')) % L.length](c); };
 const condLine = (name, ask) => `${name}: «${C.askCondSay(ask).replace(/\.$/, '')}»`;
 /* предложение из корчмы: нрав и дело известны до найма */
 C.offerAsk = function (g, m) {
@@ -33760,7 +33771,7 @@ C.offerAsk = function (g, m) {
   if (!m.ask && !askOff(g)) m.ask = makeAsk(g, m.nrav, m.hero.people);
   return m.ask || null;
 };
-C.offerAskSay = (g, m) => { const a = C.offerAsk(g, m); return a ? C.askCondSay(a) : ''; };
+C.offerAskSay = (g, m) => { const a = C.offerAsk(g, m); return a ? C.askCondSay(a, m && m.say) : ''; };
 /* человек главы: что он попросит, видно в сцене найма — и это же дело он получит, когда его возьмут */
 C.mercPre = function (g, id) {
   const camp = C.CAMPS[g.camp], m = camp && camp.mercs && camp.mercs[id]; if (!m || !m.hero || m.noAsk || askOff(g)) return null;
@@ -41918,7 +41929,7 @@ SC.folk_mats = g => {
   const p = C.folkPerson(g, role, atKey(g)), hs = C.alive(g), ids = Object.keys(s.left).filter(id => s.left[id] > 0 && R.item(id));
   const lines = [['n', `${p.n} отворяет ларь: «Это — для своих работ берегу. Отдам, но не по лавочной цене. Что есть — то есть, завтра может не быть»`]]; if (g.folkLast) lines.push(['n', g.folkLast]);
   const ch = ids.map(id => { const pr = C.stockPrice(id); return {t: `${R.item(id).name} — ${R.priceText(pr)} (есть ${s.left[id]})`, if: g2 => g2.purse >= pr, off: 'не хватает серебра',
-    do: g2 => { const ss = C.folkStock(g2, role); if (!ss.left[id] || g2.purse < pr) return 'folk_mats'; ss.left[id]--; g2.purse -= pr; const to = C.recipient ? C.recipient(g2, id) : C.alive(g2)[0]; (to || C.alive(g2)[0]).inv.push(id); g2.folkLast = `Куплено: ${R.item(id).name.toLowerCase()}.`; return 'folk_mats'; }}; });
+    do: g2 => { const ss = C.folkStock(g2, role); if (!ss.left[id] || g2.purse < pr) return 'folk_mats'; ss.left[id]--; g2.purse -= pr; const to = C.recipient ? C.recipient(g2, id) : C.alive(g2)[0]; (to || C.alive(g2)[0]).inv.push(id); g2.folkLast = `Куплено: ${R.item(id).name.toLowerCase().replace(/\.$/, '')}.`; return 'folk_mats'; }}; });
   if (!ids.length) lines.push(['n', 'Ларь пуст. Загляните через несколько дней.']);
   ch.push({t: 'Назад', free: 1, do: g2 => { g2.folkLast = null; return 'folk'; }});
   return {title: `${p.n}: материал`, bg: F.bg, art: F.art, lines, choices: ch};
@@ -49969,7 +49980,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251926"></script><script>
+</script><script src="world.js?v=202611252023"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

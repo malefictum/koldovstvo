@@ -36467,7 +36467,7 @@ add({id: 'skriptoriy', ppl: ['imperets', 'parnass', 'nolgrim'], cls: ['knizhnik'
       win: ['Аделина переписывает углевые строки на бересту и прячет за пазуху: «Пусть хоть у нас останется. Серые своё не показывают никому»'],
       lore: 'Старый переписчик Эдвина брат Ульберт пишет во сне велесской вязью — о пирамиде о девяти гранях и чаше под болотом. Серые канцелярии записывают за ним, как за пророком.'}]});
 
-add({id: 'palata_beg', ppl: ['imperets', 'nolgrim', 'yuzhnober'], cls: ['chernets', 'obetnik', 'knizhnik', 'tat', 'dushegub'], home: 'imp_palata', t: 'беглый младший {брат|сестра} Палаты',
+add({id: 'palata_beg', ppl: ['imperets', 'nolgrim', 'yuzhnober'], cls: ['chernets', 'obetnik', 'knizhnik', 'tat', 'dushegub'], home: 'imp_palata', t: '{беглый младший брат|беглая младшая сестра} Палаты',
   d: 'Вас растили для Палаты Дознания, но вы ушли до обета. Палата не любит, когда от неё уходят.',
   gift: {item: 'znak_zvezdy'}, fac: {palata: -2, kants: -1},
   homeT: 'Палата Дознания стоит, холодная и прямая. Вы помните, какой камень под ногами скрипит у третьей ступени.',
@@ -59650,7 +59650,9 @@ U.face = (seed, sex, role) => U.faceRole(role || 'adult', sex, seed);
 { const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
   if (sc && sc.raw && sc.raw.d1face && !sc.face) Object.assign(sc, {face: sc.raw.d1face.id, faceName: sc.raw.d1face.n, faceSub: sc.raw.d1face.sub}); return sc; }; }
 /* сцена-разговор: строки для обычного показа из ленты talk */
-U.talkLines = log => log.map(x => ['n', x.who === 'n' ? x.text : `${x.name ? x.name + ': ' : ''}«${x.text}»`]);
+// реплика в кавычках; уже закавыченную не оборачиваем второй раз, а рассказ с цитатой внутри («…смеётся: «…»») — как рассказ
+U.talkLines = log => log.map(x => { const t = String(x.text == null ? '' : x.text); if (x.who === 'n') return ['n', t];
+  if (/^«[\s\S]*»$/.test(t)) return ['n', `${x.name ? x.name + ': ' : ''}${t}`]; if (/«/.test(t)) return ['n', t]; return ['n', `${x.name ? x.name + ': ' : ''}«${t}»`]; });
 
 /* ---------- слава: новые дела ---------- */
 if (C.FAME_KINDS) {
@@ -60743,7 +60745,7 @@ const dcOf = (g, add) => K.FEAST_DC + Math.floor(U.lvl(g) / 2) + (add || 0);
 const relWord = x => U.sx(MOOD[Math.max(-2, Math.min(2, x.rel))], x.sex).replace(/\{n\}/g, x.n);
 const sayX = (x, t) => U.sx(String(t), x.sex).replace(/\{n:d\}/g, U.decl(x.n, x.sex).d).replace(/\{n\}/g, x.n);
 const pickS = (g, key, a) => U.newPick(g, 'fe|' + key, a);
-const logPush = (F, o) => { F.log.push(o); if (F.log.length > K.FEAST_LOG) F.log.splice(0, F.log.length - K.FEAST_LOG); };
+const logPush = (F, o) => { if (o && o.who !== 'n' && typeof o.text === 'string') o.text = o.text.replace(/^«([\s\S]*)»$/, '$1'); /* кавычки ставит окно разговора — свои снимаем, чтобы не было «« »» */ F.log.push(o); if (F.log.length > K.FEAST_LOG) F.log.splice(0, F.log.length - K.FEAST_LOG); };
 C.feastStart = function (g, kind, why) {
   const D = C.FEASTS[kind]; if (!D || !U.isFree(g)) return null;
   const seed = 'fe|' + kind + '|' + g.day + '|' + (g.seed || 0);
@@ -60868,7 +60870,7 @@ FC.scenes.d1_feast = function (g) {
   if (F.phase === 'next') advance(g); // старое состояние: дошагать
   if (F.phase === 'pick') {
     F.guests.forEach(x => ch.push({t: `${x.n}, ${x.t}`, d1fg: x.id, do: g2 => { const F2 = cur(g2); if (!F2) return nodeScene(g2); F2.phase = 'act'; F2.who = x.id;
-      const xx = guestOf(F2, x.id); if (!xx.met) { xx.met = 1; logPush(F2, {who: 'o', name: xx.n, face: xx.face, text: (D.guests.find(y => y.id === xx.id) || {}).hi || ''}); }
+      const xx = guestOf(F2, x.id); if (!xx.met) { xx.met = 1; logPush(F2, {who: 'o', name: xx.n, face: xx.face, text: String((D.guests.find(y => y.id === xx.id) || {}).hi || '').replace(/^«([\s\S]*)»$/, '$1')}); }
       logPush(F2, {who: 'n', text: relWord(xx) + ' ' + U.sx(WANT[xx.want], xx.sex)}); return 'd1_feast'; }}));
   } else if (F.phase === 'act') {
     const x = guestOf(F, F.who); who = {name: x.n, face: x.face, head: D.n, sub: x.t};
@@ -73683,14 +73685,14 @@ if (C.folkRumor) { const fr0 = C.folkRumor; C.folkRumor = function (g) { try { c
 C.TN.FEST = 1.35;
 C.tnFestive = g => { try { if (C.holidaysAt && C.holidaysAt(g).length) return true; const S = peek(g, g.loc); return !!(S && S.ev.some(e => e.kind === 'wed' && e.at === g.loc && day(g) - e.day <= K().NEAR)); } catch (e) { return false; } };
 if (C.kvAttract) { const ka0 = C.kvAttract; C.kvAttract = function (g) { const v = ka0.apply(this, arguments); try { return g && C.tnFestive(g) ? Math.round(v * K().FEST * 100) / 100 : v; } catch (e) { return v; } }; }
-const DANCE = {m: ['В хороводе {h} оказывается рядом с {n} — рука в руке, щёки горят от браги и от пляски.', 'Через костёр {h} прыгает вместе с {n}. На том берегу огня {n} не спешит отпускать руку.'],
-  f: ['В хороводе {h} оказывается рядом с {n} — он сжимает ладонь чуть крепче, чем надо.', 'Когда хоровод рассыпается, {n} подаёт {h} ковш медовухи: «За тебя, хозяйка праздника»']};
+const DANCE = {m: ['В хороводе {h} оказывается рядом с {n_i} — рука в руке, щёки горят от браги и от пляски.', 'Через костёр {h} прыгает вместе с {n_i}. На том берегу огня {n} не спешит отпускать руку.'],
+  f: ['В хороводе {h} оказывается рядом с {n_i} — он сжимает ладонь чуть крепче, чем надо.', 'Когда хоровод рассыпается, {n} подаёт {h_d} ковш медовухи: «За тебя, хозяйка праздника»']};
 const danceCh = (g, i0, back0) => { const hs = heroes(g), out = []; let i = i0;
   hs.forEach(x => { const P = alive(g, g.loc).filter(p => p.sex !== x.sex && p.age !== 'kid' && p.age !== 'old' && p.st !== 'old' && !(g.kvLoc && Object.values(g.kvLoc).some(k => k.tf === g.loc + '|' + p.id && k.hid === x.id)));
     if (!P.length) return; const rr = id => tfRel(g, g.loc, id);
     out.push({i: i++, own: x.id, label: `${x.name}: пойти в хоровод`, if: g2 => !(x.tnDance === day(g2)), off: 'сегодня уже плясали', do: g2 => { const hh = heroes(g2).find(y => y.id === x.id); if (!hh) return back0; hh.tnDance = day(g2);
       const p = P[Math.floor(R.rand() * P.length)], r0 = tfRelW(g2, g2.loc, p.id); r0.met = r0.met || day(g2); r0.rel = Math.min(100, (r0.rel || 0) + 6);
-      const intro = DANCE[hh.sex === 'f' ? 'f' : 'm'][Math.floor(R.rand() * 2)].replace(/\{h\}/g, hh.name).replace(/\{n\}/g, p.n);
+      const intro = DANCE[hh.sex === 'f' ? 'f' : 'm'][Math.floor(R.rand() * 2)].replace(/\{h_d\}/g, decl(hh.name, hh.sex).d).replace(/\{h\}/g, hh.name).replace(/\{n_i\}/g, decl(p.n, p.sex).i).replace(/\{n\}/g, p.n);
       const res = C.tfFlirt ? C.tfFlirt(g2, hh, g2.loc, p.id) : null; g2.tnLast = intro + (res ? ' ' + res.text : ''); C.note(g2, g2.tnLast); return back0; }}); });
   return out; };
 { const so3 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so3.apply(this, arguments);
