@@ -49949,7 +49949,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611250705"></script><script>
+</script><script src="world.js?v=202611250713"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50837,6 +50837,15 @@ document.addEventListener('keydown', e => {
   if (TYPING && (/^[1-9]$/.test(e.key) || e.key === ' ' || e.key === 'Enter')) { e.preventDefault(); TYPING.finish(); return; }
   if (/^[1-9]$/.test(e.key)) { const bs = [...document.querySelectorAll('.choices .btn, .side .btn')].filter(b => !b.disabled && b.offsetParent !== null); const b = bs[+e.key - 1]; if (b) { e.preventDefault(); b.click(); } }
 });
+C.faceHas = id => !!(ATLAS.portraits && ATLAS.portraits[id]);
+/* облик постарше (faces_years.js): лица следующей ступени, похожие волосами и бородой */
+document.addEventListener('click', e => { const t = e.target.closest('[data-faceage]'); if (!t || !g) return; e.stopPropagation();
+  const h = C.alive(g).find(x => x.id === t.dataset.faceage); if (!h) return; const L = C.facesOlder(h, 6);
+  openModal(`<h3 class="ttl"><span class="ui-i i-people"></span>${esc(h.name)}: облик</h3><p class="note">Годы берут своё. Выберите, каким ${h.sex === 'f' ? 'её' : 'его'} видят теперь, — или оставьте прежнее лицо.</p>
+   <div class="faces">${[h.portrait].concat(L).map((p, i) => `<canvas data-face="${p}" data-fpick="${i ? p : ''}" class="${i ? '' : 'on'}" width="96" height="96" title="${i ? 'Выбрать' : 'Прежнее лицо'}"></canvas>`).join('')}</div>
+   <div class="row" style="margin-top:10px"><button class="btn" data-fpick="">Оставить прежнее</button></div>`);
+  $('#modal').querySelectorAll('[data-fpick]').forEach(b => b.onclick = () => { C.faceSet(g, h, b.dataset.fpick || null); save(); closeModal(); renderTop(); });
+}, true);
 document.addEventListener('click', e => { const t = e.target.closest('[data-mtalk]'); if (t && !e.target.closest('#modal')) { e.stopPropagation(); mercTalkGo(t.dataset.mtalk); return; }
   const c = e.target.closest('[data-hero]'); if (c && !e.target.closest('#modal')) showParty(c.dataset.hero); });
 /* разговор с наёмником с карточки отряда и со сцены: кто ждёт ответа — к тому, иначе по душам */
@@ -51035,6 +51044,7 @@ function heroSheet(h) {
   return `<div class="hhead">${heroFace(h, 'sface')}<div>
     <h3>${esc(h.name)}</h3><div class="sub">${esc(C.clsName ? C.clsName(h) : cls.name)} (${esc(cls.was)}), ${h.level}-й уровень · ${esc((R.PEOPLES[h.people] || {})[h.sex === 'f' ? 'f' : 'name'] || '')}${h.kind === 'merc' ? ' · наёмник' : ''} · <span title="Опыт до следующего уровня">опыт ${h.xp}/${R.xpFor(h.level + 1, h.cls)}</span></div>
     <div class="note">${esc(cls.note)}${h.motive ? ' Мотив: ' + esc(h.motive) : ''}</div>${C.originLine && C.originLine(h) ? `<div class="note">${esc(C.originLine(h))}</div>` : ''}${C.heroLoreLines && h.kind !== 'merc' ? C.heroLoreLines(g, h).map(t => `<div class="note">${esc(t)}</div>`).join('') : ''}${C.ageLine ? `<div class="note">${esc(C.ageLine(h))}</div>` : ''}${C.nravLine && h.kind !== 'merc' && C.nravLine(h) ? `<div class="note">${esc(C.nravLine(h))}</div>` : ''}</div></div>
+    ${h.faceAsk && mineH(h) && C.facesOlder ? `<div class="note" style="margin:4px 0">Годы берут своё. <button class="btn small" data-faceage="${h.id}">Облик постарше…</button></div>` : ''}
     ${C.heroStatus ? (() => { const st = C.heroStatus(g, h); return `<div class="hstate"><b>Состояние:</b> ${st.length ? st.map(x => `<span class="hs ${x.cls}" title="${esc(x.why)}">${esc(x.t)}</span>`).join(' ') + `<div class="note">${esc(st.map(x => x.why).join(' '))}</div>` : '<span class="hs up">бодр и здоров</span>'}</div>`; })() : ''}
     <div class="doll"><div class="dcol">${slot('head', 'Шлем', x => R.isArmor(x) && x.slot === 'голова')}${slot('body', 'Доспех', x => R.isArmor(x) && x.slot === 'тело')}${slot('shield', 'Щит / вторая рука', x => (R.isArmor(x) && x.slot === 'щит') || (R.offhandOk(x) && (x.id !== h.eq.weapon || h.inv.filter(y => y === x.id).length > 1)))}</div>
       <canvas class="dfig" data-doll="${h.id}" width="400" height="520"></canvas>
@@ -51688,6 +51698,10 @@ function showCreate(first, opts) {
   const draw = () => {
     if (st.origin && !ORIG().some(o => o.id === st.origin)) st.origin = '';
     const c = R.CLASSES[st.cls], h = preview(), D = h ? R.derive(h) : null;
+    /* лица по возрасту (faces_years.js): сколько герою лет — такие лица и даём; в первой саге герой юн */
+    const AG = (() => { try { if (!h) return 25; if (G0 && C.SAGA && C.SAGA.includes(G0.camp) && C.ageSagaStart) h.age = C.ageSagaStart(h); return C.ageOf ? C.ageOf(h) : 25; } catch (e) { return 25; } })();
+    const FACES = C.facesFor ? C.facesFor(st.sex, AG) : (st.sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M);
+    if (!FACES.includes(st.portrait)) { st.portrait = FACES[0]; if (h) h.portrait = st.portrait; }
     const pool = (c.power && c.power.from <= LV && st.cls !== 'vedmak') ? DATA.spells.filter(s => !s.retired && (c.pickSchool ? [st.school] : c.schools).includes(s.school) && s.circle === 1 && R.Spells.battleUsable(s)) : [];
     const want = c.power && c.power.per >= 2 ? 2 : 1;
     const fallenNote = NO ? `<p class="note">Герой ${LV}-го уровня, со снаряжением по уровню и своим кошелём. Он останется в вашем списке героев и после этого стола.</p>` : G0.fallen.length ? `<p class="note">На смену павшему: ${esc(C.lastFallen(g).name)}. Новый герой входит в кампанию на её стартовом уровне — ${LV}-м, со снаряжением по уровню и небольшим запасом денег. Дело, вещи отряда и память павших остаются.</p>` : `<p class="note">«${esc(CAMP_OF().name)}» начинается с ${LV}-го уровня. У огня каждому — свой герой: спутников нанимают в корчмах за серебро, живых товарищей зовут к столу.</p>`;
@@ -51707,7 +51721,7 @@ function showCreate(first, opts) {
       <div class="stats">${R.STATS.map(([k, n]) => `<div>${esc(n)}<b>${st.assign[k] + ((R.PEOPLES[st.people] || {}).stat === k ? 1 : 0)}${(R.PEOPLES[st.people] || {}).stat === k ? '<small class="pbon">+1 народ</small>' : ''}</b><select data-st="${k}" style="font:13px var(--t-text);padding:2px">${st.rolls.map((v, i) => `<option value="${i}" ${st.assign[k] === v ? 'selected' : ''}>${v}</option>`).join('')}</select></div>`).join('')}</div>
       <div style="display:flex;gap:6px;margin-top:6px"><button class="btn small" id="c-roll">Бросить заново</button><button class="btn small" id="c-auto">Расставить под класс</button></div>
       ${reqOk() ? '' : `<p class="note" style="color:var(--blood)">Не хватает для класса: ${esc(Object.entries(c.req).map(([k, v]) => R.STAT_NAME[k] + ' ' + v).join(', '))}.</p>`}
-      <label>Лицо</label><div class="faces">${(st.sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M).map(p => `<canvas data-face="${p}" data-pf="${p}" class="${st.portrait === p ? 'on' : ''}" width="64" height="64"></canvas>`).join('')}</div>
+      <label>Лицо</label><div class="faces">${FACES.map(p => `<canvas data-face="${p}" data-pf="${p}" class="${st.portrait === p ? 'on' : ''}" width="64" height="64"></canvas>`).join('')}</div>
       ${D ? `<div class="kv" style="margin-top:10px"><div><span>Хиты</span><b>${h.hpMax}</b></div><div><span>Атака</span><b>+${D.atk}</b></div><div><span>Защита</span><b>${D.def}</b></div><div><span>Шаги</span><b>${D.steps}</b></div>${h.power ? `<div title="Сила — запас для чар"><span>Сила чар</span><b>${h.power}</b></div>` : ''}</div>
       ${C.ageLine ? `<p class="note">${esc(C.ageLine(h))}</p>` : ''}<p class="note">Снаряжение: ${esc((() => { const n = {}; h.inv.forEach(id => { const nm = (R.item(id) || {name: id}).name.replace(/\s*\(.*\)/, ''); n[nm] = (n[nm] || 0) + 1; }); return Object.entries(n).map(([k, v]) => v > 1 ? `${k} ×${v}` : k).join(', '); })())}. В кошеле: ${esc(R.priceText(h.gold))}.</p>` : ''}
     </div></div>

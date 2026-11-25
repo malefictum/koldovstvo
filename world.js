@@ -72184,3 +72184,64 @@ C.ageSagaStart = h => { const over = Object.values(h.stats || {}).reduce((s, v) 
 const ah0 = C.addHero;
 C.addHero = function (g, h) { try { if (g && h && !h.ageCamp && !h.ageYoung && C.SAGA.includes(g.camp) && h.kind !== 'merc') { h.age = C.ageSagaStart(h); h.ageYoung = 1; } } catch (e) {} return ah0.apply(this, arguments); };
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* faces_years.js */
+/* Колдовство — лица и годы (Ник 25.11: «портрет героя не стареет… и деда чтобы нельзя было выбрать, когда тебе 17»).
+   • C.FACE_AGE: разметка лиц героев по возрасту — 1 юный (до 25), 2 зрелый (25–40), 3 в годах (40–55), 4 старик (55+), 0 — дитя;
+     волосы (d тёмные, b русые, l светлые, r рыжие, g седые, w белые, h — под шлемом/шапкой), борода (1/0).
+   • При создании героя — лица его ступени и соседней (C.faceFits): семнадцатилетнему деда не дают, старику — мальчишку.
+   • Герой перешёл в ступень старше своего лица — в «Отряде» у него кнопка «Облик постарше»: лица следующей ступени того же пола,
+     похожие волосами и бородой (с годами — и седые). Можно выбрать, можно оставить своё.
+   • C.FACE_AGED[лицо] = {3: 'лицо в годах', 4: 'лицо старика'} — постаревшие версии того же лица (Gemini, набор 17):
+     если есть — лицо меняется само, без вопроса. Наёмникам лица не меняем: их лицо — часть ключа человека. Без DOM. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C) return;
+const T = s => { const o = {}; s.trim().split(/\s+/).forEach(x => { const [id, v] = x.split(':'); o[id] = {a: +v[0], hair: v[1], beard: v[2] === '1' ? 1 : 0}; }); return o; };
+C.FACE_AGE = Object.assign(T(`
+pa01:1b1 pa03:4g1 pa05:2r1 pa07:2d0 pa09:3d1 pa11:1d0 pa13:1d0 pa15:4w1 pa16:1b0 pb01:4g1 pb02:2d1 pb03:1d0 pb05:2b1 pb07:1b0 pb09:2b1 pb11:3g1
+pb13:0b0 pb14:3g1 pb15:4g1 pb16:3g0 p00:1h0 p01:3h0 p02:2b1 p03:3h1 p04:4h0 p05:2b0 p06:2h1 p07:1h0 p08:2h1 p09:3h0 p10:1b0 p11:1h0 p12:3h1 p13:2h1
+p14:2b0 p15:4w1 p24:4g1 p25:1b0 p26:2b0 p27:2d1 p28:2h1 p29:3h1 p30:2l1 p31:1d0 p32:3g1 p33:2d1 p34:3d1 p35:1l0 p39:1b0 p40:4w1 p41:2b0 p42:2h0 p43:2b1 p47:0b0
+pg01:1l0 pg02:2d0 pg03:1r0 pg04:2b0 pg05:1d0 pg06:2b0 pg07:2l1 pg08:2d0 pg09:2d0 pg10:2l0 pg11:1d0 pg12:1w0 pg13:1b0 pg14:1d0 pg15:1b0 pg16:1b0
+ph01:2d1 ph02:3d1 ph03:2r1 ph04:3d0 ph05:2d0 ph06:2d1 ph07:3b1 ph08:3g0 ph09:2b1 ph10:2b1 ph11:2b1 ph12:3d1 ph13:2d0 ph14:2d0 ph15:2d0 ph16:4g0
+pj01:1b0 pj02:1d0 pj03:2l1 pj04:1b0 pj05:2d0 pj06:1d0 pj07:2r0 pj08:1r1 pj09:2b0 pj10:1d0 pj11:1l0 pj12:2d0 pj13:1b0 pj14:1d0 pj15:1l0 pj16:1d0
+pa02:1l0 pa04:4w0 pa06:3l0 pa08:3d0 pa10:1b0 pa12:2d0 pa14:1r0 pb04:1b0 pb06:0b0 pb08:1d0 pb10:2d0 pb12:3g0 p16:1b0 p17:2b0 p18:4h0 p19:2h0 p20:1b0 p21:1b0
+p22:2h0 p23:2b0 p36:3h0 p37:0l0 p38:2r0 p44:3h0 p45:2h0 p46:4g0 pc01:1l0 pc02:1d0 pc03:1r0 pc04:1r0 pc05:1l0 pc06:2d0 pc07:2l0 pc08:1l0 pc09:1l0 pc10:1d0
+pc11:1r0 pc12:1w0 pc13:1b0 pc14:2d0 pc15:1l0 pc16:1d0 pd01:1l0 pd02:1r0 pd03:2b0 pd04:1d0 pd05:3d0 pd06:2d0 pd07:3g0 pd08:1d0 pd09:1d0 pd10:3g0 pd11:1d0
+pd12:1d0 pd13:2b0 pd15:1w0 pd16:1w0 pe01:1d0 pe02:1l0 pe03:2b0 pe04:1d0 pe05:2r0 pe06:3l0 pe07:1w0 pe08:1d0 pe09:3b0 pe10:2d0 pe11:2l0 pe12:2d0 pe13:3g0
+pe14:1b0 pe15:1b0 pe16:1r0 pf01:3b0 pf02:2l0 pf03:3b0 pf04:3d0 pf05:2d0 pf06:3r0 pf07:2l0 pf08:3b0 pf09:4g0 pf10:1d0 pf11:2b0 pf12:2b0 pf13:2d0 pf14:2b0
+pf15:2b0 pf16:2d0 pi01:1l0 pi02:1d0 pi03:1r0 pi04:1b0 pi05:1r0 pi06:1l0 pi07:2l0 pi08:2d0 pi09:1d0 pi10:1d0 pi11:1r0 pi12:2b0 pi13:1d0 pi14:1l0 pi15:1d0 pi16:1l0
+`), C.FACE_AGE || {});
+C.FACE_AGED = C.FACE_AGED || {};
+/* постаревшие листы 94–103 (набор 17): q* — тот же человек в 45, r* — в 65; работают, только когда картинка уже в атласе (C.faceHas) */
+C.faceHas = C.faceHas || (() => false);
+{ const sq = k => Array.from({length: 16}, (_, i) => k + String(i + 1).padStart(2, '0'));
+  ['g', 'j', 'c', 'i'].forEach(L => sq('p' + L).forEach((id, i) => { const n = String(i + 1).padStart(2, '0'); C.FACE_AGED[id] = Object.assign({3: 'q' + L + n, 4: 'r' + L + n}, C.FACE_AGED[id] || {}); }));
+  ['h', 'f'].forEach(L => sq('p' + L).forEach((id, i) => { const n = String(i + 1).padStart(2, '0'); C.FACE_AGED[id] = Object.assign({4: 'r' + L + n}, C.FACE_AGED[id] || {}); })); }
+C.faceStep = age => (age < 25 ? 1 : age < 40 ? 2 : age < 55 ? 3 : 4);
+C.faceOf = id => C.FACE_AGE[id] || null;
+/* годится ли лицо герою такого возраста: своя ступень и соседняя; дитя — никогда */
+C.faceFits = (id, age) => { const f = C.faceOf(id); if (!f) return true; if (!f.a) return false; return Math.abs(f.a - C.faceStep(age)) <= 1; };
+C.facesFor = (sex, age) => { const all = (sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M) || []; const ok = all.filter(id => C.faceFits(id, age)); return ok.length ? ok : all; };
+/* похожие лица постарше: та же ступень, что у героя (или ступень выше лица), тот же пол; волосы и борода похожи */
+C.facesOlder = function (h, n) {
+  const f = C.faceOf(h.portrait) || {a: 2, hair: 'b', beard: 0}, step = C.faceStep(C.ageOf ? C.ageOf(h) : 30), want = Math.max(step, f.a + 1);
+  const all = ((h.sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M) || []).filter(id => id !== h.portrait && C.faceOf(id) && C.faceOf(id).a === Math.min(4, want));
+  const score = id => { const x = C.faceOf(id); let s = 0; if (x.hair === f.hair) s += 3; if (want >= 3 && x.hair === 'g') s += 2; if (want >= 4 && x.hair === 'w') s += 2; if (x.hair === 'h' && f.hair !== 'h') s -= 2; if (x.beard === f.beard) s += 2; return s; };
+  return all.sort((a, b) => score(b) - score(a) || a.localeCompare(b)).slice(0, n || 6);
+};
+/* герой перерос своё лицо: есть постаревшая версия — меняем сами; нет — предлагаем выбрать */
+C.faceAgeCheck = function (g, h) {
+  if (!h || h.kind === 'merc' || !h.portrait) return; const f = C.faceOf(h.faceRoot || h.portrait); if (!f || !f.a) return;
+  const step = C.faceStep(C.ageOf ? C.ageOf(h) : 30), cur = h.faceRoot ? (h.faceLvl || f.a) : f.a; if (step <= cur) return;
+  const AG = C.FACE_AGED[h.faceRoot || h.portrait] || {}, aged = [step, step - 1].map(k => AG[k]).find(x => x && C.faceHas(x) && x !== h.portrait) || null;
+  if (aged) { h.faceRoot = h.faceRoot || h.portrait; h.portrait = aged; h.faceLvl = step; delete h.faceAsk; if (g && C.note) C.note(g, `${h.name}: годы легли на лицо — ${h.sex === 'f' ? 'она' : 'он'} уже не ${h.sex === 'f' ? 'та' : 'тот'}, что прежде.`); return; }
+  if (h.faceAsk === step || h.faceKeep === step) return;
+  h.faceAsk = step; if (g && C.note) C.note(g, `${h.name}: годы берут своё. Облик можно сменить — в «Отряде», у ${h.sex === 'f' ? 'неё' : 'него'} на листе.`);
+};
+C.faceSet = function (g, h, id) { if (!h) return; if (id) { h.faceRoot = null; h.faceLvl = null; h.portrait = id; } else h.faceKeep = h.faceAsk; delete h.faceAsk; };
+if (C.ageBirthday) { const ab0 = C.ageBirthday; C.ageBirthday = function (g, h) { const r = ab0.apply(this, arguments); try { C.faceAgeCheck(g, h); } catch (e) {} return r; }; }
+if (C.ageEnter) { const ae0 = C.ageEnter; C.ageEnter = function (g, h) { const r = ae0.apply(this, arguments); try { C.faceAgeCheck(g, h); } catch (e) {} return r; }; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
