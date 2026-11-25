@@ -71125,8 +71125,11 @@ SC.tw_talk = g => {
     if (r && /Место отмечено/.test(r)) { r = r.replace(/^Гусляр рассказывает про ([^:]+): /, 'Про $1 расскажу: ').replace(/^Гусляр шепчет: /, '').replace(/\s*Место отмечено на карте края\.?/, ''); C.note(g2, TX.talk.mapped); }
     talkLine(X, 'o', r ? r.replace(/^«|»$/g, '') : pickH(TX.talk.rumorNo, X.name + g2.day)); return 'tw_talk'; }});
   if (!T.job && T.k !== 'guard') ch.push({t: TX.talk.job, do: g2 => { const X = g2.twalk.talk; X.job = 1; talkLine(X, 'h', TX.talk.job); let offers = []; try { offers = Q.board(g2) || []; } catch (e) {}
-    if (offers.length && Q.active(g2).length < 4) { talkLine(X, 'o', TX.talk.jobYes); g2.jobOffer = offers[0].id; g2.jobFrom = 'town'; return 'q_offer'; }
+    // дело даёт не тот, с кем говоришь, — он сводит с нужным человеком (Ник 25.11)
+    if (offers.length && Q.active(g2).length < 4) { const j0 = offers[0]; let gv = ''; try { gv = Q.giverName ? Q.giverName(j0) : ''; } catch (e) {} X.jobRef = j0.id; X.jobRefN = gv;
+      talkLine(X, 'o', gv ? `Мне-то помощь не нужна. А вот ${gv}${gv.includes(',') ? ',' : ''} людей ищет — сходи, скажи, что от меня.` : TX.talk.jobYes); return 'tw_talk'; }
     talkLine(X, 'o', TX.talk.jobNo); return 'tw_talk'; }});
+  if (T.jobRef) ch.push({t: T.jobRefN ? `Отыскать: ${T.jobRefN}` : 'Отыскать того человека', do: g2 => { const X = g2.twalk.talk; g2.jobOffer = X.jobRef; g2.jobFrom = 'town'; delete X.jobRef; return 'q_offer'; }});
   if (T.job && JOB_GO[T.job]) ch.push({t: JOB_GO[T.job], do: g2 => { if (g2.twalk) delete g2.twalk.talk; const c = placeChoice(g2, T.job); if (!c) return back(g2); const r = runChoice(g2, c); return r.scene || r; }});
   else if (T.k === 'trader') ch.push({t: TX.talk.trade, do: g2 => { const c = placeChoice(g2, 'kupec'); if (!c) return 'tw_talk'; const r = runChoice(g2, c); return r.scene || r; }});
   (g.jobs || []).filter(j => j.status === 'open' && j.tw && j.tw.node === g.loc && j.v && j.v.vic && T.k !== 'tgt').slice(0, 1).forEach(j => { if (T['w' + j.id]) return;
