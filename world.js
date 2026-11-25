@@ -68901,7 +68901,8 @@ C.TRK_TX = {
     heroOut: 'Вы выходите из раздачи.',
     tie: 'Поровну, {A}: равная рука предыдущую не бьёт.',
     svaraBlind: 'Поровну! Свара: банк можно переиграть или поделить.',
-    allShow: 'Ставки упёрлись — дальше гнать некуда. Оставшиеся вскрываются все разом.',
+    allShow: 'Хватит гнать — оставшиеся вскрываются все разом.',
+    capHit: 'Ставка дошла до потолка: выше не поднять. Дальше — поддерживать, вскрываться или сбрасывать.',
     allLine: 'У {Xg} — {A}.',
     svara: 'Поровну, {A}. Свара! Банк можно переиграть или поделить.',
     svaraSplit: 'Банк делят поровну: каждому по {P}.',
@@ -69094,7 +69095,9 @@ C.TRK = Object.assign({
   KOSH: [12, 22, 40],                       // сколько входов приносят к столу простой, зажиточный, богатый
   BUSY: {утро: 0.2, день: 0.35, вечер: 0.9, ночь: 0.7}, VILLAGE_BUSY: 0.8,
   HAND_H: 0.2,                              // часов на раздачу
-  FORCE_CIRCLE: 4,                          // с этого круга игроки вскрываются или сбрасывают
+  FORCE_CIRCLE: 6,                          // с этого круга игроки вскрываются или сбрасывают
+  CAP_CIRCLES: 3,                           // ставка у потолка: ещё столько кругов поддерживают (банк растёт), потом все вскрываются разом (Ник 25.11)
+  PACE: typeof document !== 'undefined',    // по ходу за раз (браузер включает: видно, кто что делает; в сети и проверках — разом)
   MAX_RAISES: 2,
   SHULER_P: 0.5, SHULER_EYE: 14,            // как часто шулер мухлюет в своей раздаче; сложность заметить
   CHEAT_DC: 11,                             // сложность передёрнуть: + глаз лучшего за столом + уровень края / 3
@@ -69184,11 +69187,11 @@ const shuffle = a => { for (let i = a.length - 1; i > 0; i--) { const j = Math.f
 
 /* ======================= повадки и ИИ ======================= */
 const TRAIT = {
-  ostor: {fold: 0.47, raise: 0.84, open: 0.70, bluff: 0.02, noise: 0.06, eye: 4, agree: 0.3, join: 0.1},
-  rovny: {fold: 0.40, raise: 0.78, open: 0.63, bluff: 0.05, noise: 0.08, eye: 3, agree: 0.5, join: 0.2},
-  risk: {fold: 0.30, raise: 0.66, open: 0.56, bluff: 0.10, noise: 0.10, eye: 2, agree: 0.8, join: 0.5},
-  blef: {fold: 0.36, raise: 0.72, open: 0.60, bluff: 0.22, noise: 0.10, eye: 3, agree: 0.6, join: 0.3},
-  shuler: {fold: 0.40, raise: 0.76, open: 0.62, bluff: 0.06, noise: 0.08, eye: 6, agree: 0.6, join: 0.3},
+  ostor: {fold: 0.42, raise: 0.84, open: 0.70, bluff: 0.02, noise: 0.06, eye: 4, agree: 0.3, join: 0.1},
+  rovny: {fold: 0.35, raise: 0.78, open: 0.63, bluff: 0.05, noise: 0.08, eye: 3, agree: 0.5, join: 0.2},
+  risk: {fold: 0.26, raise: 0.66, open: 0.56, bluff: 0.10, noise: 0.10, eye: 2, agree: 0.8, join: 0.5},
+  blef: {fold: 0.31, raise: 0.72, open: 0.60, bluff: 0.22, noise: 0.10, eye: 3, agree: 0.6, join: 0.3},
+  shuler: {fold: 0.35, raise: 0.76, open: 0.62, bluff: 0.06, noise: 0.08, eye: 6, agree: 0.6, join: 0.3},
 };
 C.TRK_TRAIT = TRAIT;
 const TRAIT_W = [['ostor', 3], ['rovny', 3], ['risk', 3], ['blef', 2], ['shuler', 0.6]];
@@ -69225,7 +69228,7 @@ C.trkDecide = function (T, i, money) {
   const drunk = s.drunk ? 1 : 0;
   let e = q + (P.noise + 0.18 * drunk) * (R.rand() - 0.5) * 2 - 0.05 * Math.max(0, n - 2) - 0.04 * pat;   // остался при своих — значит, есть что держать
   { const rd = H.read && H.read[i]; if (rd && H.st[rd.s] === 'in') e += rd.w === 'weak' ? K().READ_FX : -K().READ_FX; }   // прочитал героя
-  e -= 0.035 * Math.max(0, S / A - 1) * (s.trait === 'ostor' ? 1.4 : s.trait === 'risk' ? 0.6 : 1);   // за ставкой чужая сила
+  e -= 0.025 * Math.max(0, S / A - 1) * (s.trait === 'ostor' ? 1.4 : s.trait === 'risk' ? 0.6 : 1);   // за ставкой чужая сила
   const pot = H.pot; const cheap = pot / Math.max(1, S) > 6 ? 0.05 : 0;
   const foldT = P.fold - 0.08 * drunk - cheap, can = kosh >= S;
   if (!can) return {a: 'fold'};
@@ -69443,7 +69446,7 @@ const openUp = (g, T, i) => {
   const H = T.hand, j = prevIn(H, i); if (j < 0 || j === i) return;
   pay(g, T, i, H.stake);
   nar(T, you(T, i) ? TX.n.heroOpen : TX.n.open, {X: NM(T, i), Yc: cs_(T, j), P: H.stake});
-  if (!T.seats[i].hero) say(g, T, i, 'open', 0.7);
+  if (!T.seats[i].hero) say(g, T, i, 'open', 0.9);
   const a = C.trkScore(H.cards[i], H.joker), b = C.trkScore(H.cards[j], H.joker); showTo(H, [i, j], [i, j]);
   const A = C.trkScoreWord(H.cards[i], H.joker), B2 = C.trkScoreWord(H.cards[j], H.joker);
   const n = inIdx(H).length, pr = [i, j];   // очки видят только двое из пары
@@ -69451,7 +69454,7 @@ const openUp = (g, T, i) => {
   if (a === b && n === 2) { nar(T, TX.n.svara, {A}, pr); nar(T, TX.n.svaraBlind, {}, null, pr); return svara(g, T, [i, j]); }
   if (a === b) nar(T, TX.n.tie, {A}, pr);
   const lo = a > b ? j : i; H.st[lo] = 'fold';
-  nar(T, you(T, lo) ? TX.n.heroOut : TX.n.out, {X: NM(T, lo)}); if (!T.seats[lo].hero) say(g, T, lo, 'lose', 0.5);
+  nar(T, you(T, lo) ? TX.n.heroOut : TX.n.out, {X: NM(T, lo)}); if (!T.seats[lo].hero) say(g, T, lo, 'lose', 0.85); { const hi = lo === i ? j : i; if (!T.seats[hi].hero) say(g, T, hi, 'win', 0.6); }
   const left = inIdx(H); if (left.length === 1) return award(g, T, left[0]);
   advance(T, i);
 };
@@ -69467,7 +69470,8 @@ const allCheck = (g, T) => {
   if (noOpen(g, T)) return allShow(g, T), true;
   if (!noRaise(g, T)) { H.capAt = null; return false; }
   if (H.capAt == null) { H.capAt = H.steps; return false; }
-  if (H.steps - H.capAt >= left.length) return allShow(g, T), true;
+  if (H.capAt === H.steps && !H.capSaid) { H.capSaid = 1; nar(T, TX.n.capHit || 'Ставка дошла до потолка: выше не поднять. Дальше — поддерживать, вскрываться или сбрасывать.'); }
+  if (H.steps - H.capAt >= left.length * (K().CAP_CIRCLES || 1)) return allShow(g, T), true;
   return false;
 };
 const allShow = (g, T) => {
@@ -69574,17 +69578,20 @@ const spotShuler = (g) => { const hs = alive(g); if (!hs.length) return false; c
 C.trkEye = eyeOf;
 /* ИИ ходит, пока очередь не дойдёт до героя или раздача не кончится */
 const run = (g, T) => {
+  const pace = K().PACE && !(g.net && T.net); let acted = 0; T.pend = 0;
   for (let k = 0; k < 400; k++) {
-    if (T.phase === 'draw' && T.hand && !T.hand.over) { if (drawStep(g, T) === 'hero') return; continue; }
+    if (T.phase === 'draw' && T.hand && !T.hand.over) { if (pace && acted) { T.pend = 1; return; } const r = drawStep(g, T); if (r === 'hero') return; if (r !== 'end') acted = 1; continue; }
     if (T.phase !== 'hand') return;
     const H = T.hand; if (H.over) return;
     const left = inIdx(H); if (left.length <= 1) { if (left.length === 1) award(g, T, left[0], true); else T.phase = 'between'; return; }
     if (allCheck(g, T)) continue;
     if (T.seats[H.turn] && T.seats[H.turn].hero && H.st[H.turn] === 'in') return;   // ход героя (игрока)
     if (H.turn < 0) return;
-    if (npcTurn(g, T, H.turn) === 'pause') return;
+    if (pace && acted) { T.pend = 1; return; }   // по ходу за раз: дальше — по таймеру стола (C.trkStep)
+    if (npcTurn(g, T, H.turn) === 'pause') return; acted = 1;
   }
 };
+C.trkStep = g => { const T = T_(g); if (!T || !T.pend) return false; run(g, T); return !!T.pend; };
 
 /* ======================= действия героя ======================= */
 C.trkCur = g => T_(g);
@@ -69597,8 +69604,7 @@ C.trkRaiseTo = function (g) {
   const T = T_(g); if (!heroCan(g, T)) return [];
   const m = meOf(g, T), H = T.hand, out = [], p = purseOf(g, T, m);
   if ((H.raises[m] || 0) >= K().MAX_RAISES + 1) return [];
-  [1, 2, 4].forEach(k => { const v = Math.min(T.ceil, H.stake + k * T.ante); if (v > H.stake && v <= p && !out.includes(v)) out.push(v); });
-  if (T.ceil > H.stake && T.ceil <= p && !out.includes(T.ceil)) out.push(T.ceil);
+  [1, 2].forEach(k => { const v = Math.min(T.ceil, H.stake + k * T.ante); if (v > H.stake && v <= p && !out.includes(v)) out.push(v); }); // шаг — на вход или на два (Ник 25.11: не прыгать сразу к потолку)
   return out;
 };
 C.trkAct = function (g, a, v) {
@@ -69839,7 +69845,7 @@ const view = (g, T) => {
   return {phase: T.phase, ante: T.ante, ceil: T.ceil, pot: H ? H.pot : 0, stake: H ? H.stake : T.ante, hands: T.hands, deck: cls(g) === 'village' ? 'lubok-1850' : 'russian-style', back: cls(g) === 'village' ? 'ua-rushnyk' : 'dondorf-russian',
     turn: H && !H.over && posOf[H.turn] != null ? posOf[H.turn] : -1, heroTurn, firstDone: H ? H.firstDone : false, place: (nodeOf(g) || {}).name || '', me, watch: me < 0 && T.phase !== 'seat',
     joker: H ? H.joker : null, drawMe: drawMine(g, T), posOf,
-    seats, log: lg.slice(-14), res: T.res || null, raise: C.trkRaiseTo(g)};
+    seats, log: lg.slice(-14), res: T.res || null, raise: C.trkRaiseTo(g), pend: !!T.pend};
 };
 /* итог для смотрящего: свой выигрыш или проигрыш */
 const headFor = (g, T) => { if (!T.net) return T.res ? T.res.head : ''; const m = T.seats.findIndex(s => s.hero && s.hid && g.net.own[s.hid] === viewPid(g)); if (m < 0) return T.res ? T.res.head : '';
