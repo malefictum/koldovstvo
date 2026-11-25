@@ -71864,7 +71864,7 @@ if (!I.shuba_sobolya) I.shuba_sobolya = {_t: 'g', id: 'shuba_sobolya', category:
 C.dressTier = h => { const t = ct0(h); if (t <= 1) return t; const c = C.dressCond(h); return c >= 50 ? t : c >= 20 ? t - 1 : 0; }; }
 { const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; let wx0 = 'clear'; try { wx0 = g && C.weather ? C.weather(g) : 'clear'; } catch (e) {} const r = ps0.apply(this, arguments);
   try { if (g && g.heroes && g.day > d0) { const wx = wx0, W0 = K().WEAR, onRoad = !!g.pos && !(g.posNode && g.posNode === g.loc) || g.travelDay === g.day;
-    const nd = Math.min(30, g.day - d0); C.alive(g).filter(h => h.kind !== 'merc').forEach(h => { h._g = g; wearDown(h, ((onRoad ? W0.road : 0) + (W0[wx] || 0)) * nd); delete h._g; }); } } catch (e) {}
+    const nd = Math.min(30, g.day - d0); C.alive(g).filter(h => h.kind !== 'merc').forEach(h => { h._g = g; if (onRoad) wearDown(h, (W0.road + (W0[wx] || 0)) * nd); /* в городе погода наряд не портит — только в пути */ delete h._g; }); } } catch (e) {}
   return r; }; }
 if (G.B && G.B.damage) { const B = G.B, dm0 = B.damage; B.damage = function (S, t, d) { const r = dm0.apply(this, arguments); try { if (d > 0 && t && t.ref && t.ref.eq && t.ref.eq.dress && t.ref.kind !== 'merc') wearDown(t.ref, C.DG.WEAR.hit); } catch (e) {} return r; }; }
 const mendPrice = (g, h) => { const id = h.eq.dress, it = I[id] || {}; return Math.max(10, Math.round((it.price || 100) * K().WEAR.mend * (100 - C.dressCond(h)) / 100 / 10) * 10); };
@@ -72093,8 +72093,8 @@ const wearSlot = (g, h, slot, d) => { const id = h && h.eq && h.eq[slot]; if (!i
 { const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; let wx0 = 'clear'; try { wx0 = g && C.weather ? C.weather(g) : 'clear'; } catch (e) {} const r = ps0.apply(this, arguments);
   try { if (g && g.heroes && g.day > d0) { const wx = wx0, onRoad = !!g.pos && !(g.posNode && g.posNode === g.loc) || g.travelDay === g.day;
     const nd = Math.min(30, g.day - d0); C.alive(g).filter(h => h.kind !== 'merc').forEach(h => {
-      const f = h.eq && h.eq.feet; let df = (onRoad ? K().FEET.road : 0) + (onRoad || /rain|downpour|snow|blizzard/.test(wx) ? (K().FEET[wx] || 0) * (onRoad ? 1 : 0.3) : 0); if (f && /^lapti/.test(bid(f))) df *= K().LAPTI; wearSlot(g, h, 'feet', df * nd);
-      const dc = (onRoad ? (K().CLOAK.road || 0) : 0) + (K().CLOAK[wx] || 0) * (onRoad ? 1 : 0.3); wearSlot(g, h, 'cloak', dc * nd); }); } } catch (e) {}
+      const f = h.eq && h.eq.feet; if (!onRoad) return; /* в городе и селе погода одежду не портит (Ник 25.11) — только в пути */ let df = K().FEET.road + (K().FEET[wx] || 0); if (f && /^lapti/.test(bid(f))) df *= K().LAPTI; wearSlot(g, h, 'feet', df * nd);
+      const dc = (K().CLOAK.road || 0) + (K().CLOAK[wx] || 0); wearSlot(g, h, 'cloak', dc * nd); }); } } catch (e) {}
   return r; }; }
 /* бой: плащ рвётся */
 if (G.B && G.B.damage) { const B = G.B, dm0 = B.damage; B.damage = function (S, t, d) { const r = dm0.apply(this, arguments); try { if (d > 0 && t && t.ref && t.ref.eq && t.ref.kind !== 'merc' && t.ref.eq.cloak) { const g = S && S.g; wearSlot(g || {heroes: []}, t.ref, 'cloak', K().HIT); } } catch (e) {} return r; }; }
@@ -72111,5 +72111,52 @@ const mendCh = (g, slot, back, i0) => { let i = i0; const out = [];
     if (id === 'trd' && /^kozhevnik@/.test(g.trdKey || '')) { const add = mendCh(g, 'feet', 'trd', nx); if (add.length) { const b = sc.choices.findIndex(c => /^Назад|^Уйти/.test(c.label || '')); sc.choices.splice(b >= 0 ? b : sc.choices.length, 0, ...add); } }
     if (id === 'dress_order') { const add = mendCh(g, 'cloak', 'dress_order', nx); if (add.length) sc.choices.splice(Math.max(0, sc.choices.length - 1), 0, ...add); } } catch (e) {}
   return sc; }; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* name_chill.js */
+/* Колдовство — доброе имя и терпение жены (Ник 25.11).
+   • ДОБРОЕ ИМЯ: «не сильно». Гулянки (баня с банщицей, весёлый дом, чужая постель) могут дойти до молвы того места, где были:
+     тайный бросок, ниже — у скрытного героя (C.ntHideMul), выше — у женатого. Худые слухи копятся дробно: четыре таких слуха —
+     доверие места на шаг вниз (rep.js), и не ниже одного шага за гулянки на место; со временем забывается. Поправить — делами.
+   • ТЕРПЕНИЕ ЖЕНЫ: «медленно, иначе не будет шанса всё исправить». Чаша обид (divorce.js) наливается медленнее, тихая седмица без
+     новых обид понемногу её отливает («время лечит»), а уйти насовсем жена может лишь после того, как предупредила — и прошло
+     не меньше GRACE дней: есть время загладить. Числа — C.NC (тайна мастера). Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C) return;
+C.NC = Object.assign({NAME_P: {bansh: 0.1, vesely: 0.2, guest: 0.25, local: 0.15}, WED: 1.5, STEP: 0.25, MAX_LOSS: 1, FORGET_DAYS: 30,
+  BETRAY: 3, LEAVE: 13, FADE: 0.5, FADE_BETRAY: 30, GRACE: 21}, C.NC || {});
+const K = () => C.NC;
+const day = g => (g && g.day) || 1;
+const nodes = g => ((C.CAMPS[g.camp] || {}).map || {}).nodes || {};
+/* ---------- доброе имя ---------- */
+C.ncRumour = function (g, h, kind) {
+  const at = g && g.loc, nd = at && nodes(g)[at]; if (!nd || !C.repAdd || !/город|село|подворье|торг/.test(nd.kind || '')) return false;
+  let p = (K().NAME_P[kind] || 0) * (C.ntHideMul ? C.ntHideMul(h) : 1) * (h && h.spouse ? K().WED : 1); if (!p || R.rand() >= p) return false;
+  g.ncName = g.ncName || {}; const N = g.ncName[at] = g.ncName[at] || {acc: 0, lost: 0, day: day(g)};
+  if (day(g) - (N.day || 0) >= K().FORGET_DAYS) { N.lost = Math.max(0, N.lost - K().STEP * Math.floor((day(g) - N.day) / K().FORGET_DAYS)); N.acc = Math.min(0, N.acc + K().STEP); }
+  N.day = day(g); if (N.lost >= K().MAX_LOSS) return false;
+  N.acc -= K().STEP; if (N.acc <= -1) { N.acc += 1; N.lost += 1; C.repAdd(g, at, -1, 'про ваши гулянки шепчутся'); }
+  return true; };
+if (C.kvAfter) { const ka0 = C.kvAfter; C.kvAfter = function (g, h, o) { const out = ka0.apply(this, arguments); try { if (o && K().NAME_P[o.kind]) C.ncRumour(g, h, o.kind); } catch (e) {} return out; }; }
+/* ---------- терпение жены ---------- */
+if (C.HE) Object.assign(C.HE, {CUP_BETRAY: K().BETRAY, CUP_LEAVE: K().LEAVE});
+const home = (g, key) => (g && g.he && g.he.home && g.he.home[key]) || null;
+if (C.heCupWeek) { const cw0 = C.heCupWeek; C.heCupWeek = function (g) {
+  const before = {}; try { Object.keys((g && g.he && g.he.home) || {}).forEach(k => { const H = g.he.home[k]; before[k] = {cup: H.cup || 0, wk: H.cupWk}; }); } catch (e) {}
+  const r = cw0.apply(this, arguments);
+  try { Object.keys(before).forEach(k => { const H = home(g, k), b = before[k], rel = (g.folkRel || {})[k]; if (!H || !rel || rel.bond !== 'wed') return;
+    if (H.cupWk === b.wk || (H.cup || 0) > b.cup || !(H.cup > 0)) return;                 // не та седмица, или налили, или и так пусто
+    if (rel.kvBetray && day(g) - rel.kvBetray < K().FADE_BETRAY) return;                 // измена свежа — само не проходит
+    H.cup = Math.max(0, Math.round((H.cup - K().FADE) * 100) / 100); }); } catch (e) {}
+  return r; }; }
+if (C.heLeave) { const lv0 = C.heLeave; C.heLeave = function (g, key, why) {
+  try { const H = home(g, key); if (H && (!H.warn || day(g) - H.warn < K().GRACE)) {
+    H.cup = Math.min(H.cup || 0, (C.HE.CUP_LEAVE || 13) - 0.5); if (!H.warn) { H.warn = day(g); const p = (g.homeSp || {})[key.split('@')[0]] || {};
+      C.note(g, `${p.n || 'Жена'}: «Ещё раз — и уйду. Слышишь? Последний раз говорю».`); }
+    return null; } } catch (e) {}
+  return lv0.apply(this, arguments); }; }
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
