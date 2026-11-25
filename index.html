@@ -48770,7 +48770,19 @@ const northWall = (X, img, S, h, st, base, s, hh) => {
     X.drawImage(img, a[0], a[1], a[2], a[3], g.x - w / 2, g.y + s * 0.15 - hh, w, hh);
     const d = sp.hd != null ? h.doors[sp.hd] : null;
     if (d && cur && cur.side === 'party' && !cur.ai && B.dist(cur, d) <= 1) { X.strokeStyle = 'rgba(255,215,120,.95)'; X.lineWidth = 2.2; X.strokeRect(g.x - w * 0.28, g.y + s * 0.15 - hh * 0.9, w * 0.56, hh * 0.9); }
+    if (d && !d.inner && S.walk && BF.houseSign) { const t = BF.houseSign(S, h); if (t) { const side = x > 0 ? -1 : 1, px = g.x + side * w, py = g.y + s * 0.15 - hh * 0.62; signAt(X, t, px, py, w * 0.92, s); } }
   }
+};
+/* табличка у двери: кто здесь живёт или что здесь (Ник 25.11) — доска с вырезанной надписью */
+const signAt = BF.signAt = (X, t, cx, cy, maxW, s) => {
+  X.save(); let fs = Math.max(9, s * 0.42); X.font = `600 ${fs}px "Alegreya SC", Georgia, serif`;
+  let tw = X.measureText(t).width; if (tw > maxW - 6) { fs = Math.max(6, fs * (maxW - 6) / tw); X.font = `600 ${fs}px "Alegreya SC", Georgia, serif`; tw = X.measureText(t).width; }
+  const bw = tw + fs * 0.9, bh = fs * 1.55, x0 = cx - bw / 2, y0 = cy - bh / 2;
+  X.fillStyle = 'rgba(0,0,0,.35)'; X.fillRect(x0 + 1.5, y0 + 2, bw, bh);
+  const gr = X.createLinearGradient(0, y0, 0, y0 + bh); gr.addColorStop(0, '#8a6038'); gr.addColorStop(1, '#5c3c20'); X.fillStyle = gr; X.fillRect(x0, y0, bw, bh);
+  X.strokeStyle = '#2e1d0e'; X.lineWidth = 1.2; X.strokeRect(x0 + 0.5, y0 + 0.5, bw - 1, bh - 1);
+  X.fillStyle = '#3a2614'; [x0 + 3, x0 + bw - 3].forEach(px => { X.beginPath(); X.arc(px, y0 + bh / 2, 1.2, 0, 7); X.fill(); });
+  X.fillStyle = '#f3dfae'; X.textAlign = 'center'; X.textBaseline = 'middle'; X.fillText(t, cx, cy + fs * 0.05); X.restore();
 };
 /* отметки дверей и окон на южной, западной и восточной сторонах (при снятой крыше): брус — закрыта, щель — открыта */
 const marks = (X, S, h, base, s) => {
@@ -49950,7 +49962,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251218"></script><script>
+</script><script src="world.js?v=202611251233"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53604,6 +53616,9 @@ function drawField(noFollow) {
   dieInit(); drawHorseCorpses(); DU.filter(u => !u.gone && u.dead && u.kind === 'monster').forEach(drawCorpse);
   DU.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => things.push({y: unitXY(u).y + 0.1 + (u.tree && B.BF.treeLift ? B.BF.treeLift(u, geo.s) + 1 : 0), u}));
   LABELQ = []; try { things.sort((a, b) => a.y - b.y).forEach(t => { const dim = F.fog && (t.o || t.c) && bfFogOf(S, t.c || t.o.cells[0]) === 1; if (dim) { ctx.save(); ctx.globalAlpha = 0.5; } try { t.hr ? B.BF.hbRoof(ctx, t.hr, geo.s, hexXY, S, IMG.house) : t.o ? drawObj(t.o) : t.c ? ((t.c.vy != null && B.BF.vyThing && B.BF.vyThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (t.c.hb != null && B.BF.hbThing && B.BF.hbThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (BF_PROPS.has(t.c.t) && F.big ? bfProp(t.c) : drawProp(t.c))) : (drawUnit(t.u), t.u.tree && B.BF.treeLeaves && B.BF.treeLeaves(ctx, t.u, unitXY(t.u), geo.s, S)); } finally { if (dim) ctx.restore(); } }); if (F.big) bfOver(S, cur); } finally { const q = LABELQ; LABELQ = null; ctx.save(); q.forEach(f => f()); ctx.restore(); }
+  // таблички у дверей на прогулке: что за дом, кто живёт (bf_house.js, town_walk.js; Ник 25.11)
+  if (S.walk && B.BF && B.BF.houseSign && B.BF.signAt && B.BF.houses) { try { B.BF.houses(S.field).forEach(h => { const d = (h.doors || []).find(x => !x.inner); if (!d) return; if (F.fog && bfFogOf(S, d) === 0 && !B.neigh(d.c, d.r).some(n => B.cell(S, n.c, n.r) && bfFogOf(S, n) > 0)) return; const t = B.BF.houseSign(S, h); if (!t) return;
+    const p = hexXY(d.c, d.r); B.BF.signAt(ctx, t, p.x - geo.s * 1.55, p.y - geo.s * 1.05, geo.s * 2.2, geo.s); }); } catch (e) {} }
   if (anyDying() && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
   // шанс попасть: над врагом под курсором
   if (hover && cur && cur.side === 'party' && !cur.ai && !S.over && !(mode && mode.spell)) { let t = B.unitAt(S, hover.c, hover.r); if (t && !seenByParty(S, t)) t = null;
@@ -54774,6 +54789,10 @@ function bop(op, a) {
     case 'bf': { const w = B.bfOp ? B.bfOp(S, u, a) : 'неизвестное действие'; if (w) return w; if (!B.active(u)) end = true; break; }
     default: return 'неизвестное действие';
   }
+  // прогулка: шаги кончились и делать рядом нечего — ход дальше сам (Ник 25.11)
+  if (!end && S.walk && !S.walk.fight && !S.over && B.active(u) && B.current(S) === u && (op === 'move' || op === 'bf') && u.steps - (S.moved || 0) <= 0) {
+    try { const busy = (B.bfPanel ? B.bfPanel(S, u) : []).some(x => !x.dis && !(x.k === 'tw' && ['back', 'light', 'crouch', 'dash', 'hide'].includes(x.v)) && !(x.k === 'hdoor' && ['close', 'lock', 'prop'].includes(x.v)));
+      if (!busy) end = true; } catch (e) {} }
   if (end) { B.endTurn(S); redraw(); runAI(); } else redraw();
 }
 async function runAI() {
