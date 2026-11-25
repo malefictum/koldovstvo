@@ -44832,6 +44832,8 @@ BF.vis = function (S) {
   return v;
 };
 BF.explored = (S, c, r) => { if (!isFog(S)) return true; BF.vis(S); return !!S.bfEx && S.bfEx[(r - (S.field.r0 || 0)) * S.field.w + (c - (S.field.c0 || 0))] === '1'; };
+/* что рисовать на поле: на прогулке — только видимое сейчас, остальное непроглядная темень (Ник 25.11: «чтобы не лагало»); в бою — разведанное */
+BF.shown = (S, c, r) => (S && S.walk ? BF.visible(S, c, r) : BF.explored(S, c, r));
 BF.visible = (S, c, r) => { const v = BF.vis(S); return !v || !!v[key(c, r)]; };
 /* враг скрыт туманом от отряда */
 B.bfHidden = function (S, u) {
@@ -48524,7 +48526,7 @@ BF.hbRoofs = function (S, things, hexXY, off) {
   BF.houses(S.field).forEach(h => {
     const cs = foot(h).map(p => B.cell(S, p.c, p.r)).filter(Boolean); if (cs.length < foot(h).length) return;
     if (BF.houseOpen(S, h)) { open[h.id] = 1; return; }
-    if (S.field.fog && !cs.some(x => BF.explored(S, x.c, x.r))) return;
+    if (S.field.fog && !cs.some(x => (BF.shown || BF.explored)(S, x.c, x.r))) return;
     const ys = cs.map(x => hexXY(x.c, x.r)); if (off && ys.every(off)) return;
     things.push({y: Math.max(...ys.map(q => q.y)) + 0.2, hr: h});
   });
@@ -48741,7 +48743,7 @@ BF.hbRoofs = function (S, things, hexXY, off) {
   BF.houses(S.field).forEach(h => {
     const cs = foot(h).map(p => B.cell(S, p.c, p.r)).filter(Boolean); if (cs.length < foot(h).length) return;
     const isOpen = BF.houseOpen(S, h); if (isOpen) open[h.id] = 1;
-    if (!isOpen && S.field.fog && !cs.some(x => BF.explored(S, x.c, x.r))) return;
+    if (!isOpen && S.field.fog && !cs.some(x => (BF.shown || BF.explored)(S, x.c, x.r))) return;
     const ys = cs.map(x => hexXY(x.c, x.r)); if (off && ys.every(off)) return;
     const yT = Math.min(...ys.map(q => q.y)), yB = Math.max(...ys.map(q => q.y));
     if (isOpen) { things.push({y: yT - 0.5, hr: {house: h, part: 'back'}}); things.push({y: yB + 0.6, hr: {house: h, part: 'front'}}); }
@@ -48948,7 +48950,7 @@ BF.hbRoofs = function (S, things, hexXY, off) {
     const yT = Math.min(...ys.map(q => q.y)), yB = Math.max(...ys.map(q => q.y));
     if (BF.houseOpen(S, h)) { open[h.id] = 1; state[h.id] = 'b'; things.push({y: yT - 0.5, hr: {house: h, part: 'b', sk3: 1}}); return; }
     const fog = S.field.fog;
-    if (fog && !cs.some(x => BF.explored(S, x.c, x.r))) return;
+    if (fog && !cs.some(x => (BF.shown || BF.explored)(S, x.c, x.r))) return;
     // глубина: дом режется на ряды; кусок ряда k рисуется перед фигурами этого ряда, после фигур рядов выше (см. sliceClip)
     const rowY = k => { const q = hc(h, 0, k); return hexXY(q.c, q.r).y; };
     const slices = part => { if (BF._hbNoSlice) return things.push({y: yB + 0.6, hr: {house: h, part, sk3: 1}}); /* прежний порядок — для сравнения */ for (let k = 0; k < h.H; k++) things.push({y: rowY(k) - 1, hr: {house: h, part, sk3: 1, slice: k}}); };
@@ -50178,7 +50180,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252253"></script><script>
+</script><script src="world.js?v=202611252256"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53528,6 +53530,15 @@ function drawMini() {
   Object.assign(COL, {floor: '#3a3128', hill: '#6f7a44', ravine: '#4a4030', reeds: '#5f6a3a', pool: '#3f6a86', column: '#6a6458', stalag: '#6a6458', bed: '#6a5232', table: '#6a5232', crate: '#7a5a36', cauldron: '#3a3a3a', door_shut: '#7a4a22', niche: '#2e2620', altar: '#8a7a6a', rubble: '#6a6458', blaze: '#e0702a', ash: '#4a4440', slick: '#2a2218', ice: '#b8d6e6', loft: '#b8a050', tar: '#3a2a1a', gong: '#a08040', lamp: '#e0a040', hive: '#a07a30', boulder: '#7a7468', kennel: '#6a4c2c', hitch: '#6a4c2c', hatch: '#5a4630', pit: '#1a1410', net: '#8a7a5a', door_open: '#5a4630', deep: '#2a4c66'});
   if (F.big) { const dg = F.bf && F.bf.kind === 'dungeon'; Object.values(F.cells).forEach(c => { const fv = F.fog ? bfFogOf(battle, c) : 2; if (fv === 0) return; const col = c.t === 'wall' && dg ? '#1e1a16' : COL[c.t] || (dg ? '#3a3128' : '#4a5a32'); x.globalAlpha = fv === 1 ? 0.5 : 1; x.fillStyle = col; x.fillRect((SQ3 * (c.c + (c.r & 1) * 0.5) - U.X0) * k, (c.r * 1.5 + 0.25 - U.Y0) * k, SQ3 * k + 0.6, 1.5 * k + 0.6); }); x.globalAlpha = 1; }
   else Object.values(F.cells).forEach(c => { const col = COL[c.t]; if (!col) return; x.fillStyle = col; x.fillRect((SQ3 * (c.c + (c.r & 1) * 0.5) - U.X0) * k, (c.r * 1.5 + 0.25 - U.Y0) * k, SQ3 * k + 0.6, 1.5 * k + 0.6); });
+  // прогулка: разведанные дома — пятном своего цвета и буквой (Корчма, Лавка, Храм, Кузня, свой Дом…) — Ник 25.11
+  if (battle.walk && B.BF && B.BF.houses) { try { const HC = {korchma: '#c08a3a', korchma_big: '#c08a3a', kupec: '#c9b04a', hram: '#e8e0c0', kuznya: '#c0603a', masterskaya: '#a07850', banya: '#6a8aa0', boyar: '#b07ad0', terem: '#b07ad0', starosta: '#d0a070'};
+    const LET = {korchma: 'К', korchma_big: 'К', kupec: 'Л', hram: 'Х', kuznya: 'Н', masterskaya: 'М', banya: 'Б', boyar: 'Т', terem: 'Т', starosta: 'С'};
+    x.font = '700 9px "Alegreya SC", serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
+    B.BF.houses(F).forEach(h => { const cs = B.BF.houseCells(h); if (F.fog && !cs.some(p => B.BF.explored(battle, p.c, p.r))) return;
+      const own = h.own || (battle.walk.kvHomes && battle.walk.kvHomes[h.id] === 'Свой дом'), col = own ? '#8fd06a' : HC[h.k] || '#8a6a44'; x.globalAlpha = 0.9; x.fillStyle = col;
+      let sx = 0, sy = 0; cs.forEach(p => { const px = (SQ3 * (p.c + (p.r & 1) * 0.5) - U.X0) * k, py = (p.r * 1.5 + 0.25 - U.Y0) * k; sx += px; sy += py; x.fillRect(px, py, SQ3 * k + 0.6, 1.5 * k + 0.6); });
+      const L = own ? 'Д' : LET[h.k]; if (L && cs.length) { x.globalAlpha = 1; x.fillStyle = '#1a120a'; x.fillText(L, sx / cs.length + SQ3 * k / 2, sy / cs.length + 0.75 * k); } });
+    x.globalAlpha = 1; } catch (e) {} }
   const vis = battle.units.filter(u => !u.gone && !u.dead && (u.side === 'party' || seenByParty(battle, u))), cur = B.current(battle);
   vis.forEach(u => { x.fillStyle = u.side === 'party' ? '#a6d38a' : u.side === 'civ' ? '#8fa6b8' : '#ff6a50'; x.beginPath(); x.arc((SQ3 * (u.c + 0.5 + (u.r & 1) * 0.5) - U.X0) * k, (1 + u.r * 1.5 - U.Y0) * k, u === cur ? 3.6 : 2.4, 0, 7); x.fill(); if (u === cur) { x.strokeStyle = '#fff3c4'; x.lineWidth = 1.2; x.stroke(); } });
   x.strokeStyle = '#e7c983'; x.lineWidth = 1.2; x.strokeRect((-geo.ox / geo.s - U.X0) * k, (-geo.oy / geo.s - U.Y0) * k, geo.W / geo.s * k, geo.H / geo.s * k);
@@ -53844,7 +53855,7 @@ function drawField(noFollow) {
   const UNK = '#0d0a07'; if (F.fog) { ctx.fillStyle = UNK; ctx.fillRect(0, 0, geo.W, geo.H); }
   cells.forEach(c => {
     const p = hexXY(c.c, c.r); if (off(p)) return;
-    if (F.fog && bfFogOf(S, c) === 0) return; // неразведанное — сплошная темень без сетки (фон уже залит)
+    if (F.fog && fogShow(S, c) === 0) return; // неразведанное — сплошная темень без сетки (фон уже залит)
     hexPath(p.x, p.y, s * 0.98);
     const tex = n => { const im = gImg(n); return im ? (TEXP[n] = TEXP[n] && TEXP[n].im === im ? TEXP[n] : {im, p: ctx.createPattern(im, 'repeat')}).p && pin(TEXP[n].p) : null; };
     const k = cellHash(c);
@@ -53868,7 +53879,7 @@ function drawField(noFollow) {
   // предметы местности и юниты в порядке глубины
   const things = [];
   const seenObj = {};
-  cells.forEach(c => { if (F.fog && bfFogOf(S, c) === 0) return; if (c.o != null && F.objs && F.objs[c.o]) { if (seenObj[c.o]) return; seenObj[c.o] = 1; const o = F.objs[c.o], ys = o.cells.map(x => hexXY(x.c, x.r)); if (ys.every(off)) return; things.push({y: Math.max(...ys.map(q => q.y)), o}); return; }
+  cells.forEach(c => { if (F.fog && fogShow(S, c) === 0) return; if (c.o != null && F.objs && F.objs[c.o]) { if (seenObj[c.o]) return; seenObj[c.o] = 1; const o = F.objs[c.o], ys = o.cells.map(x => hexXY(x.c, x.r)); if (ys.every(off)) return; things.push({y: Math.max(...ys.map(q => q.y)), o}); return; }
     if (['tree', 'rock', 'brush', 'grave', 'fence', 'house', 'wall', 'idol', 'log', 'hay', 'wood', 'barrels', 'well', 'fire', 'shelter', 'rye'].includes(c.t) || (F.big && BF_PROPS.has(c.t)) || (c.hb != null && c.t !== 'hfloor') || (c.vy === 'pali' || c.vy === 'gate')) { if (c.t === 'wall' && F.bf && F.bf.kind === 'dungeon') return; const p = hexXY(c.c, c.r); if (!off(p)) things.push({y: p.y, c}); } });
   if (B.BF) B.BF.viewMine = B.BF._viewForce || (NET() ? mineU : null); // в сети дом и что внутри — по обзору МОИХ героев (bf_house.js)
   if (F.big && B.BF && B.BF.hbRoofs) B.BF.hbRoofs(S, things, hexXY, off); // крыши домов (снимаются, когда внутрь видно)
@@ -53879,7 +53890,7 @@ function drawField(noFollow) {
   DU.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => things.push({y: unitXY(u).y + 0.1 + (u.tree && B.BF.treeLift ? B.BF.treeLift(u, geo.s) + 1 : 0), u}));
   LABELQ = []; try { things.sort((a, b) => a.y - b.y).forEach(t => { const dim = F.fog && (t.o || t.c) && bfFogOf(S, t.c || t.o.cells[0]) === 1; if (dim) { ctx.save(); ctx.globalAlpha = 0.5; } try { t.hr ? B.BF.hbRoof(ctx, t.hr, geo.s, hexXY, S, IMG.house) : t.o ? drawObj(t.o) : t.c ? ((t.c.vy != null && B.BF.vyThing && B.BF.vyThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (t.c.hb != null && B.BF.hbThing && B.BF.hbThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (BF_PROPS.has(t.c.t) && F.big ? bfProp(t.c) : drawProp(t.c))) : (drawUnit(t.u), t.u.tree && B.BF.treeLeaves && B.BF.treeLeaves(ctx, t.u, unitXY(t.u), geo.s, S)); } finally { if (dim) ctx.restore(); } }); if (F.big) bfOver(S, cur); } finally { const q = LABELQ; LABELQ = null; ctx.save(); q.forEach(f => f()); ctx.restore(); }
   // таблички у дверей на прогулке: что за дом, кто живёт (bf_house.js, town_walk.js; Ник 25.11)
-  if (S.walk && B.BF && B.BF.houseSign && B.BF.signAt && B.BF.houses) { try { B.BF.houses(S.field).forEach(h => { const d = (h.doors || []).find(x => !x.inner); if (!d) return; if (F.fog && bfFogOf(S, d) === 0 && !B.neigh(d.c, d.r).some(n => B.cell(S, n.c, n.r) && bfFogOf(S, n) > 0)) return; const t = B.BF.houseSign(S, h); if (!t) return;
+  if (S.walk && B.BF && B.BF.houseSign && B.BF.signAt && B.BF.houses) { try { B.BF.houses(S.field).forEach(h => { const d = (h.doors || []).find(x => !x.inner); if (!d) return; if (F.fog && fogShow(S, d) === 0 && !B.neigh(d.c, d.r).some(n => B.cell(S, n.c, n.r) && fogShow(S, n) > 0)) return; const t = B.BF.houseSign(S, h); if (!t) return;
     const p = hexXY(d.c, d.r); B.BF.signAt(ctx, t, p.x - geo.s * 1.55, p.y - geo.s * 1.05, geo.s * 2.2, geo.s); }); } catch (e) {} }
   if (anyDying() && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
   // шанс попасть: над врагом под курсором
@@ -54346,6 +54357,8 @@ function drawCorpse(u) {
 /* ---------- большое поле: новая местность, предметы, туман, взгляды часовых, подмога у хода ---------- */
 const BF_PROPS = new Set(['hill', 'ravine', 'column', 'bed', 'table', 'cauldron', 'crate', 'niche', 'altar', 'reeds', 'rubble', 'stalag', 'door_shut', 'tar', 'beam', 'gong', 'hive', 'net', 'pit', 'boulder', 'loft', 'lamp', 'kennel', 'hitch', 'hatch', 'ice', 'blaze', 'ash', 'slick', 'door_open', 'stone_holy', 'pool']);
 let BF_FOGK = null, BF_FOGV = null, BF_FOGE = null;
+/* на прогулке поле показывает только то, что видно сейчас: прочее — темень (в миникарте разведанное остаётся) */
+function fogShow(S, c) { const v = bfFogOf(S, c); return S.walk && v === 1 ? 0 : v; }
 let FOGC = null; /* на время одной отрисовки поля: что видно и что разведано считаем один раз, а не на каждую клетку */
 function bfFogOf(S, c) { /* 0 — не разведано, 1 — разведано, но не видно сейчас, 2 — видно */
   const BF = B.BF; if (!BF || !S.field.fog) return 2;
