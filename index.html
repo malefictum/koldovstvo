@@ -49968,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251822"></script><script>
+</script><script src="world.js?v=202611251833"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53134,6 +53134,11 @@ function drawWorld() {
   (g.jobs || []).filter(j => j.status === 'open' && j.site).forEach(j => { const p = wxy(j.site.c, j.site.r);
     x2.beginPath(); x2.arc(p.x, p.y - s * 0.2, s * 0.42, 0, Math.PI * 2); x2.fillStyle = '#9b3226'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#f3e3bd'; x2.stroke();
     x2.fillStyle = '#f3e3bd'; x2.font = `700 ${Math.round(s * 0.62)}px Alegreya, serif`; x2.textAlign = 'center'; x2.fillText('!', p.x, p.y - s * 0.2 + s * 0.22); });
+  // поручения своих (жена, спутники): куда идти — метка на карте, хоть и в тумане (Ник 25.11)
+  try { (C.heErrands ? C.heErrands(g) : []).forEach(E => { const cell = E.at && w.nodeAt[E.at]; if (!cell) return; const p = wxy(cell.c, cell.r);
+    x2.beginPath(); x2.arc(p.x + s * 0.5, p.y - s * 0.55, s * 0.36, 0, Math.PI * 2); x2.fillStyle = '#3f6e4a'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#f3e3bd'; x2.stroke();
+    x2.fillStyle = '#f3e3bd'; x2.font = `700 ${Math.round(s * 0.5)}px Alegreya, serif`; x2.textAlign = 'center'; x2.fillText('!', p.x + s * 0.5, p.y - s * 0.55 + s * 0.18);
+    if (!seen(cell)) { const nm = (camp.map.nodes[E.at] || {}).name; if (nm) { x2.font = `600 ${Math.max(10, Math.round(s * 0.42))}px Alegreya, serif`; x2.textAlign = 'left'; x2.lineWidth = 3; x2.strokeStyle = 'rgba(232,220,192,.9)'; x2.strokeText(nm, p.x + s * 0.95, p.y - s * 0.4); x2.fillStyle = '#2a1c10'; x2.fillText(nm, p.x + s * 0.95, p.y - s * 0.4); } } }); } catch (e) {}
   C.escorts(g).forEach(e => { const cell = w.nodeAt[C.ESCORT[e.id].to]; if (!cell) return; const p = wxy(cell.c, cell.r); hex(p, s * 0.98); x2.lineWidth = Math.max(2.5, s * 0.16); x2.setLineDash([s * 0.35, s * 0.2]); x2.strokeStyle = '#7fd0a0'; x2.stroke(); x2.setLineDash([]); });
   if (g.necro && C.bodies(g).length) { const p = wxy(g.necro.c, g.necro.r); x2.beginPath(); x2.arc(p.x, p.y - s * 0.2, s * 0.46, 0, Math.PI * 2); x2.fillStyle = '#2a1838'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#b89be0'; x2.stroke();
     x2.fillStyle = '#d9c8f5'; x2.font = `700 ${Math.round(s * 0.6)}px Alegreya, serif`; x2.textAlign = 'center'; x2.fillText('☾', p.x, p.y - s * 0.2 + s * 0.2); }

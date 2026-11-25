@@ -68106,9 +68106,12 @@ const dueOf = (g, d) => day(g) + Math.max(4, Math.min(30, (d || 1) * 2 + 3));
 const seenOf = (g, id, n) => { try { return !n.if || !!n.if(g, C.ctx ? C.ctx(g) : {}); } catch (e) { return false; } };
 const DCACHE = {};
 const daysTo = (g, a, b) => { const k = g.camp + '|' + a + '|' + b; if (k in DCACHE) return DCACHE[k]; let d = null; try { d = C.moveDays ? C.moveDays(g, a, b) : 2; } catch (e) { d = null; } return (DCACHE[k] = d); };
-const targets = (g, at, ok) => Object.entries(nodes(g)).filter(([id, n]) => id !== at && ok(n)).map(([id, n]) => ({n: Object.assign({id}, n), seen: seenOf(g, id, n), d: daysTo(g, at, id)}))
-  .filter(x => x.d != null && x.d >= 1 && x.d <= K().MAXD).sort((a, b) => (b.seen - a.seen) || a.d - b.d || (a.n.id < b.n.id ? -1 : 1));
-const pickNear = L => { if (!L.length) return null; const S = L.some(x => x.seen) ? L.filter(x => x.seen) : L; return S[Math.floor(R.rand() * Math.min(4, S.length))]; };
+const targets = (g, at, ok) => Object.entries(nodes(g)).filter(([id, n]) => id !== at && ok(n)).map(([id, n]) => ({n: Object.assign({id}, n), seen: seenOf(g, id, n), d: daysTo(g, at, id), home: regOf(g, id) === regOf(g, at) ? 1 : 0, safe: safeReg(g, id)}))
+  .filter(x => x.d != null && x.d >= 1 && x.d <= K().MAXD).sort((a, b) => (b.home - a.home) || ((b.safe ? 1 : 0) - (a.safe ? 1 : 0)) || (b.seen - a.seen) || a.d - b.d || (a.n.id < b.n.id ? -1 : 1));
+/* родня и дела — в своём краю, а не за тридевять земель; чужой край — только не опаснее отряда (Ник 25.11: «гостинец родне — Террасы Ольвии»?) */
+const regOf = (g, id) => { const n = nodes(g)[id] || {}; return n.reg || String(id).split('_')[0]; };
+const safeReg = (g, id) => { try { const r = (C.FREE_REGIONS || []).find(x => x.id === regOf(g, id)); if (!r || !r.lv) return true; const lv = Math.max(1, ...C.alive(g).map(h => h.level || 1)); return r.lv[0] <= lv + 1; } catch (e) { return true; } };
+const pickNear = L => { if (!L.length) return null; L = L.some(x => x.home) ? L.filter(x => x.home) : L; L = L.some(x => x.safe) ? L.filter(x => x.safe) : L; const S = L.some(x => x.seen) ? L.filter(x => x.seen) : L; return S[Math.floor(R.rand() * Math.min(4, S.length))]; };
 
 /* ---------- кто кому родня ---------- */
 const KIN_F = [['сестра', 'сестре', 'f'], ['тётка', 'тётке', 'f'], ['мать', 'матери', 'f'], ['брат', 'брату', 'm'], ['дядька', 'дядьке', 'm']];
