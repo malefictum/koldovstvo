@@ -47862,13 +47862,15 @@ const B0 = F => BF.bounds ? BF.bounds(F) : {c0: 0, r0: 0, c1: F.w - 1, r1: F.h -
 /* поставить дом вида kind: кандидаты — у улиц (дверь к улице), rnd — генератор */
 BF.housePlace = function (F, kind, cand, wayD, busy, rnd, okCell, id) {
   const T = HT[kind], b = B0(F);
-  for (const a of cand) {
+  // сперва — места, где улица с юга (дверь к улице и к смотрящему); не нашлось — любые
+  for (const pass of wayD ? [0, 1] : [1]) for (const a of cand) {
     const c0 = a.c - Math.floor(T.W / 2), r0 = a.r - Math.floor(T.H / 2);
     if (!fits(F, c0, r0, T, wayD, busy, b, okCell)) continue;
     // дверь — на ту длинную сторону, что ближе к улице
     let side = rnd() < 0.5 ? 'top' : 'bottom';
     if (wayD) { const dTop = Math.min(...Array.from({length: T.W}, (_, x) => { const q = hc({c0, r0, sk: 1}, x, -1), v = wayD[key(q.c, q.r)]; return v == null ? 99 : v; })), dBot = Math.min(...Array.from({length: T.W}, (_, x) => { const q = hc({c0, r0, sk: 1}, x, T.H), v = wayD[key(q.c, q.r)]; return v == null ? 99 : v; }));
-      if (Math.min(dTop, dBot) > 5) continue; side = dTop <= dBot ? 'top' : 'bottom'; }
+      if (Math.min(dTop, dBot) > 5) continue; if (!pass && dBot > 5) continue; side = dTop <= dBot ? 'top' : 'bottom'; }
+    side = 'bottom'; // дверь — всегда на южной стене, к смотрящему: северную за крышей не видно (Ник 25.11)
     // зеркало: сени ближе к середине улицы — как выйдет
     const h = BF.houseNew(F, kind, c0, r0, side, rnd() < 0.5, rnd, id);
     if (!h) { foot({c0, r0, sk: 1, W: T.W, H: T.H}).forEach(p => { const z = F.cells[key(p.c, p.r)]; if (z) { delete z.hb; delete z.hin; delete z.hd; z.t = 'grass'; } }); continue; }
@@ -49966,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251505"></script><script>
+</script><script src="world.js?v=202611251527"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52297,6 +52299,8 @@ function showScene(id, talk) {
   TALK_OK = false;
   battle = null;
   if (id === 'map') return showMap();
+  // с прогулки отходил поговорить или по делу — дело кончилось, снова на улицу (Ник 25.11)
+  try { if (g && !NETG() && g.twalk && g.twalk.ret && g.twalk.snap && C.walkPlaceId && id === C.walkPlaceId(g) && g.twalk.node === g.loc && C.walkSpec) { const spec = C.walkSpec(g); if (spec) { closeModal(); return startBattle(spec); } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
   const view = NETG(); viewPurse();
   if (g && g.net) g._viewPid = myPid(); // кто смотрит: тринька за общим столом показывает каждому своё (trinka.js)
   const sc = talk !== undefined || view ? C.sceneOf(g, id) : C.enter(g, id); if (!sc) return showMap();
@@ -54464,7 +54468,7 @@ const BMORE2 = {open: false}; // «Ещё на поле» — группы пр�
 /* порядок групп B.bfPanel в панели боя — одним местом (меньше — выше); неизвестные группы — внизу */
 const BF_GRP_W = {'Прогулка': 1, 'Походка': 1.5, 'Люди': 2, 'Тёмное дело': 3, 'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
 const BF_GRP_WAR = new Set(['Приёмы', 'Бегущие', 'Побег', 'Бой', 'Удаль']); // на прогулке без боя этих групп нет
-const BF_GRP_TOP = new Set(['Прогулка', 'Походка', 'Люди', 'Тёмное дело', 'Скрытно', 'Бегущие', 'Побег']);
+const BF_GRP_TOP = new Set(['Прогулка', 'Походка', 'Дверь', 'Люди', 'Тёмное дело', 'Скрытно', 'Бегущие', 'Побег']);
 /* лента очерёдности (waveA): лица в порядке хода от текущего; текущий выделен, следующий подписан, невидимый враг — пустой силуэт */
 let TL_KEY = '';
 function drawTurnLine() {

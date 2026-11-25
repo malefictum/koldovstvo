@@ -70346,7 +70346,9 @@ C.walkWhy = function (g) {
 C.walkLabel = function (g) { const n = nodeHere(g) || {}; if (C.isNight(g)) return 'Осмотреться'; return n.kind === 'город' ? 'Пройтись по городу' : n.kind === 'подворье' ? 'Пройтись по подворью' : 'Пройтись по селу'; };
 
 /* ---------- спецификация боя-прогулки ---------- */
+C.walkPlaceId = g => back(g);
 C.walkSpec = function (g) {
+  if (g && g.twalk) delete g.twalk.ret;
   const n = nodeHere(g) || {name: ''}, T = g.twalk || {}, night = !!T.night;
   return {title: fill(TX.title[night ? 'night' : 'day'], {p: n.name}), foes: [], field: C.fieldFor('village', night), setupKey: 'walk', win: back(g), lose: back(g), place: n.name, xpBonus: 0};
 };
@@ -70376,12 +70378,15 @@ const mood = (g, S) => { try { if (!C.SFX || !C.SFX.music) return; if (S && S.wa
 
 /* ======================= начало ======================= */
 const bs0 = C.battleStart;
+/* вернулись на улицу: у кого дело уже взято или кончилось — тот просто здешний, с ним можно поговорить (Ник 25.11) */
+const askRefresh = (S, g) => { try { const L = new Set(((C.placeFull(g) || {}).choices || []).filter(c => c && !c.dis).map(c => c.label));
+  (S.units || []).forEach(u => { if (!u.civ || !u.civ.ask) return; const left = (u.civ.asks || [u.civ.ask]).filter(q => L.has(q)); if (left.length) { u.civ.asks = left; u.civ.ask = left[0]; } else { delete u.civ.ask; delete u.civ.asks; } }); } catch (e) {} };
 C.battleStart = function (g, spec, auto) {
   if (!spec || spec.setupKey !== 'walk' || !g) return bs0.apply(this, arguments);
   if (!g.twalk || g.twalk.node !== g.loc) g.twalk = {v: 1, node: g.loc, night: !!C.isNight(g), who: null, day: g.day, time: g.time, snap: null, min: 0};
   G_ = g;
   if (g.twalk.snap) { let S = null; try { S = unpack(g, g.twalk.snap); } catch (e) { S = null; } g.twalk.snap = null;
-    if (S && S.walk) { S.over = null; S.walk.end = null; S.walk.min = 0; mood(g, S); return S; } }
+    if (S && S.walk) { S.over = null; S.walk.end = null; S.walk.min = 0; askRefresh(S, g); mood(g, S); return S; } }
   BF._twNow = 1; let S;
   try { S = bs0.apply(this, arguments); } finally { BF._twNow = 0; }
   g.battles = Math.max(0, (g.battles || 1) - 1); // прогулка — не бой
@@ -70745,7 +70750,7 @@ C.walkActs = function (S, u) {
   // люди рядом
   S.units.filter(t => t.side === 'civ' && t.civ && B.active(t) && t.c != null && B.dist(t, u) === 1 && people(t) && !t.horseOnly).forEach(t => {
     if (awake(t) && t.civ.ask) (t.civ.asks || [t.civ.ask]).forEach((q, k) => out.push({v: 'ask', t: t.id, p: q, label: k ? shortL(q) : fill(TX2.askBtn, {n: t}), dis: Wk.night && !BF.inHouse(S, u) ? TX.why.night : '', title: q, grp: 'Люди'}));
-    if (awake(t) && t.civ.k !== 'child' && !t.civ.poisoned && !t.civ.ask) out.push({v: 'talk', t: t.id, label: fill(TX.talkBtn, {n: t}), dis: Wk.night && t.civ.k !== 'guard' && !BF.inHouse(S, u) ? TX.why.night : '', title: TX.tips.talk, grp: 'Люди'});
+    if (awake(t) && t.civ.k !== 'child' && !t.civ.poisoned) out.push({v: 'talk', t: t.id, label: fill(TX.talkBtn, {n: t}), dis: Wk.night && t.civ.k !== 'guard' && !BF.inHouse(S, u) ? TX.why.night : '', title: TX.tips.talk, grp: 'Люди'});
     if (awake(t) && !Wk.night && t.civ.k !== 'child' && !Wk.picked[t.id]) out.push({v: 'pick', t: t.id, label: fill(TX.pick, {n: t}), dis: usedA, title: TX.tips.pick, grp: 'Тёмное дело'});
     if (t.civ.sleep && t.civ.k !== 'child') out.push({v: 'kill', t: t.id, label: fill(TX.kill, {n: t}), dis: usedA, title: TX.tips.kill, grp: 'Тёмное дело'});
     if (t.civ.k === 'tgt' && awake(t) && poisonOf(u)) { const inn = BF.inHouse(S, t), hh = inn != null ? houseOf(S, inn) : null; if (hh && /korchma/.test(hh.k)) out.push({v: 'poison', t: t.id, label: fill(TX.poison, {n: t}), dis: usedA, title: TX.tips.poison, grp: 'Тёмное дело'}); } });
@@ -71062,7 +71067,7 @@ C.walkFinish = function (g, S) {
   G_ = g; const Wk = S.walk, E = (Wk && Wk.end) || {k: 'back'};
   if (E.k === 'pause' && g.twalk) {
     passMin(g, Wk); S.over = null; Wk.end = null; Wk._roll = {}; try { if (C.SFX && C.SFX.calm) C.SFX.calm(g); } catch (e) {}
-    g.twalk.snap = pack(S);
+    g.twalk.snap = pack(S); g.twalk.ret = E.go.k === 'scene' ? 0 : 1; // поговорил / сходил по делу — назад на улицу, а не в меню места (Ник 25.11)
     if (E.go.k === 'talk') { g.twalk.talk = Object.assign({log: []}, E.go.who); return {scene: 'tw_talk'}; }
     if (E.go.k === 'scene') { g.innBack = null; return {scene: E.go.id}; }
     if (E.go.k === 'choice') { let ch = null; try { ch = (C.placeFull(g).choices || []).find(c => c.label === E.go.label && !c.dis); } catch (e) {} if (!ch) return {scene: back(g)};
