@@ -68941,7 +68941,7 @@ if (!R || !C || !C.CAMPS || !C.CAMPS.free || !C.TRK_TX) return;
 const TX = C.TRK_TX, FREE = C.CAMPS.free;
 
 C.TRK = Object.assign({
-  ON: 1, JOKER: true, FEM_VILLAGE: 1.2, FEM_FEST: 1.3, SEATS: {village: [2, 3], yard: [2, 4], town: [3, 5]}, EVE_SEAT: 1, MAX_SEATS: 5,
+  ON: 1, JOKER: true, TELL: 0.12, TELL_STAT: 0.03, TELL_SKILL: 0.02, TELL_TRUE: 0.7, READ: 0.1, READ_FX: 0.1, FEM_VILLAGE: 1.2, FEM_FEST: 1.3, SEATS: {village: [2, 3], yard: [2, 4], town: [3, 5]}, EVE_SEAT: 1, MAX_SEATS: 5,
   DRAW_MC: 24,                              // сколько добор прикидывает ИИ на каждый выбор карт
   BASE: {village: 10, yard: 15, town: 20},  // вход в раздачу (мм) на первом уровне края
   LV: 0.25,                                 // прибавка входа за уровень края
@@ -69081,6 +69081,7 @@ C.trkDecide = function (T, i, money) {
   const pat = H.drawDone ? inIdx(H).filter(j => j !== i && H.drawN && H.drawN[j] === 0).length : 0;
   const drunk = s.drunk ? 1 : 0;
   let e = q + (P.noise + 0.18 * drunk) * (R.rand() - 0.5) * 2 - 0.05 * Math.max(0, n - 2) - 0.04 * pat;   // остался при своих — значит, есть что держать
+  if (H.read && H.read[i] && H.st[0] === 'in') e += H.read[i] === 'weak' ? K().READ_FX : -K().READ_FX;   // прочитал героя
   e -= 0.035 * Math.max(0, S / A - 1) * (s.trait === 'ostor' ? 1.4 : s.trait === 'risk' ? 0.6 : 1);   // за ставкой чужая сила
   const pot = H.pot; const cheap = pot / Math.max(1, S) > 6 ? 0.05 : 0;
   const foldT = P.fold - 0.08 * drunk - cheap, can = kosh >= S;
@@ -69095,7 +69096,7 @@ C.trkDecide = function (T, i, money) {
   const bluff = R.rand() < P.bluff + 0.1 * drunk;
   if (canRaise && (e >= P.raise || (bluff && e < foldT + 0.15))) {
     const step = A * (e >= P.raise + 0.1 || s.trait === 'risk' ? 2 : 1), to = Math.min(T.ceil, S + step);
-    if (kosh >= to) return {a: 'raise', to};
+    if (kosh >= to) return {a: 'raise', to, bluff: e < P.raise};
   }
   if (e < foldT - (first ? 0.08 : 0) && !bluff) return {a: 'fold'};
   return {a: 'call'};
@@ -69351,12 +69352,52 @@ const npcTurn = (g, T, i) => {
     if (!T.seats[0].gone && spotShuler(g, T)) { T.seen = (T.seen || 0) + 1; nar(T, TX.n.cheatSeen, {X: s.name}); T.phase = 'catch'; H.catchI = i; return 'pause'; }
   }
   const d = C.trkDecide(T, i);
+  if (d.a !== 'fold') tellRoll(g, T, i, d);
   if (d.a === 'fold') { H.st[i] = 'fold'; nar(T, TX.n.fold, {X: s.name}); say(g, T, i, 'fold', 0.35); }
   else if (d.a === 'raise') { H.stake = d.to; H.raises[i] = (H.raises[i] || 0) + 1; pay(g, T, i, H.stake); nar(T, TX.n.raise, {X: s.name, P: H.stake}); say(g, T, i, 'raise', 0.5); }
   else if (d.a === 'open') { openUp(g, T, i); return; }
   else { pay(g, T, i, H.stake); nar(T, TX.n.call, {X: s.name, P: H.stake}); say(g, T, i, 'call', 0.2); }
   const left = inIdx(H); if (left.length === 1) return award(g, T, left[0], true);
   advance(T, i);
+};
+/* ======================= лица за столом (Ник 25.11) =======================
+   Герой читает соседей: Мудрость (и Проницательность) — нервничает ли, Интеллект (и Поиск) — блефует ли; рука сильная или спокоен —
+   любым из двух. Шанс невысок; заметил — подсказка верна в TELL_TRUE случаев, иначе обманчива. Шулер и любитель блефа держат лицо,
+   хмельной — нет. Соседи читают героя: их глаз против Харизмы и Обмана; прочитали — играют против его руки. */
+const FALSE_OF = {blef: 'strong', strong: 'blef', nerv: 'calm', calm: 'nerv'};
+const TELL_W = {blef: ['кажется, блефует', 'кажется, блефует'], strong: ['похоже, рука сильная', 'похоже, рука сильная'], nerv: ['нервничает', 'нервничает'], calm: ['спокоен', 'спокойна']};
+C.TRK_TELL_W = TELL_W;
+const hst = (h, k) => R.mod((h.stats || {})[k] || 10);
+C.trkTellRoll = function (g, T, i, d, force) {
+  const H = T.hand, s = T.seats[i], h = heroOf(g, T); if (!h || !H || s.hero || (H.tell && H.tell[i])) return null;
+  const q = H.drawDone ? C.trkStrength(H.cards[i], H.joker) : drawPot(H, i);
+  const kind = d && d.a === 'raise' && d.bluff ? 'blef' : q < 0.45 ? 'nerv' : q >= 0.75 ? 'strong' : 'calm';
+  const wis = hst(h, 'wis') * K().TELL_STAT * 1 + R.skill(h, 'Проницательность') * K().TELL_SKILL, int = hst(h, 'int') * K().TELL_STAT + R.skill(h, 'Поиск') * K().TELL_SKILL;
+  let p = K().TELL + (kind === 'blef' ? int : kind === 'nerv' ? wis : Math.max(wis, int));
+  if (kind === 'calm') p *= 0.6; if (s.trait === 'shuler' || s.trait === 'blef') p *= 0.5; if (s.drunk) p *= 1.5;
+  if (!force && R.rand() >= Math.max(0.02, p)) return null;
+  const honest = R.rand() < K().TELL_TRUE, w = honest ? kind : FALSE_OF[kind];
+  H.tell = H.tell || {}; H.tell[i] = {w, kind, honest}; return H.tell[i];
+};
+const tellRoll = (g, T, i, d) => { try { const H = T.hand; H.tellTry = H.tellTry || {}; if (H.tellTry[i]) return; H.tellTry[i] = 1; C.trkTellRoll(g, T, i, d); } catch (e) {} };   // раз за раздачу на соседа
+/* соседи читают героя, когда он ставит */
+C.trkReadHero = function (g, T, force) {
+  const H = T.hand, h = heroOf(g, T); if (!H || !h) return;
+  const q = H.drawDone ? C.trkStrength(H.cards[0], H.joker) : drawPot(H, 0), truth = q >= 0.7 ? 'strong' : q < 0.45 ? 'weak' : null; if (!truth) return;
+  const hide = hst(h, 'cha') * 0.03 + R.skill(h, 'Обман') * 0.02;
+  H.readTry = H.readTry || {};
+  inIdx(H).forEach(i => { if (!i || (H.read && H.read[i]) || (!force && H.readTry[i])) return; H.readTry[i] = 1; const s = T.seats[i], P = TRAIT[s.trait] || TRAIT.rovny;
+    const p = K().READ + 0.02 * ((P.eye || 3) - 3) - hide - (s.drunk ? 0.05 : 0);
+    if (force || R.rand() < Math.max(0.01, p)) { H.read = H.read || {}; H.read[i] = truth; } });
+};
+/* что написано возле имени: подсказка о руке, читает ли вас, настроение, приглянулись ли вы */
+const hintOf = (g, T, i) => {
+  const s = T.seats[i], H = T.hand, out = []; if (s.hero || s.gone) return '';
+  const tl = H && !H.over && H.tell && H.tell[i]; if (tl && H.st[i] === 'in') out.push(TELL_W[tl.w][s.sex === 'f' ? 1 : 0]);
+  if (H && !H.over && H.read && H.read[i] && H.st[i] === 'in') out.push(s.sex === 'f' ? 'изучает вас' : 'изучает вас');
+  if (out.length < 2 && C.trkMood) { const m = C.trkMood(g, T, i); if (m === 'warm') out.push(s.sex === 'f' ? 'весела' : 'весел'); else if (m === 'sour') out.push(s.sex === 'f' ? 'расстроена' : 'расстроен'); }
+  if (out.length < 2 && s.likes) out.push('улыбается вам');
+  return out.join(' · ');
 };
 /* лучшая замена худшей карты из n случайных из колоды */
 const swapBest = (H, i, n) => {
@@ -69417,6 +69458,7 @@ C.trkAct = function (g, a, v) {
   if (!heroCan(g, T)) return {err: 'не ваш ход'};
   const H = T.hand;
   if (a === 'fold') { H.st[0] = 'fold'; nar(T, TX.n.heroFold); const left = inIdx(H); if (left.length === 1) { award(g, T, left[0], true); return {ok: 1}; } advance(T, 0); run(g, T); return {ok: 1}; }
+  if (a === 'call' || a === 'raise') { try { C.trkReadHero(g, T); } catch (e) {} }
   if (a === 'call') { if ((g.purse || 0) < H.stake) return {err: 'не хватает серебра'}; pay(g, T, 0, H.stake); nar(T, TX.n.heroCall, {P: H.stake}); advance(T, 0); run(g, T); return {ok: 1}; }
   if (a === 'raise') { if (!C.trkRaiseTo(g).includes(v)) return {err: 'так не поднять'}; H.stake = v; H.raises[0] = (H.raises[0] || 0) + 1; pay(g, T, 0, v); nar(T, TX.n.heroRaise, {P: v}); advance(T, 0); run(g, T); return {ok: 1}; }
   if (a === 'open') { if (!H.firstDone) return {err: 'первый круг ещё не прошёл'}; if ((g.purse || 0) < H.stake) return {err: 'не хватает серебра'}; openUp(g, T, 0); run(g, T); return {ok: 1}; }
@@ -69558,6 +69600,7 @@ C.trkSit = function (g, hid) {
   if ((g.purse || 0) < T.ante * K().SIT_MIN) return {err: 'не хватает серебра'};
   T.hid = h.id; T.seats[0] = {hero: 1, name: h.name, sex: h.sex, face: h.portrait || '', sub: '', i: 0, won: 0}; T.purse0 = g.purse || 0;
   nar(T, TX.n.sit, {H: h.name});
+  try { T.seats.forEach(s => { if (s.hero || s.sex === h.sex || !C.kvAttract) return; const a = C.kvAttract(g, h, 28); s.likes = a >= 1.6 && R.rand() < Math.min(0.4, (a - 1) * 0.3) ? 1 : 0; }); } catch (e) {}
   T.seats.forEach((s, i) => { if (!s.hero && R.rand() < 0.5) say(g, T, i, 'sit', 1); });
   deal(g, T); return {ok: 1};
 };
@@ -69584,7 +69627,7 @@ const view = (g, T) => {
       const open = mine || (H && C.trkSeen(H, i, 0));
       return {i, name: s.hero ? (hero ? hero.name : 'вы') : s.name, face: s.hero ? (hero ? hero.portrait || '' : '') : s.face, hero: !!s.hero, sex: s.sex,
         sub: s.hero ? '' : [s.sub, (TX[s.shulerOpen ? 'trait' : 'trait'][s.shulerOpen ? 'shulerOpen' : s.trait] || ['', ''])[s.sex === 'f' ? 1 : 0], s.drunk ? TX.drunk[0] : ''].filter(Boolean).join(', '),
-        money: s.hero ? (g.purse || 0) : s.kosh, gone: !!s.gone, st, said: s.said || '', drew: H && H.drawN && H.drawN[i] != null ? H.drawN[i] : null,
+        money: s.hero ? (g.purse || 0) : s.kosh, gone: !!s.gone, st, said: s.said || '', hint: hintOf(g, T, i), drew: H && H.drawN && H.drawN[i] != null ? H.drawN[i] : null,
         cards: H && H.cards[i] ? H.cards[i].map(c => (open ? c : null)) : null, score: H && H.cards[i] && open ? C.trkScoreWord(H.cards[i], H.joker) : ''}; }),
     log: T.log.slice(-14), res: T.res || null, raise: C.trkRaiseTo(g)};
 };
@@ -71999,7 +72042,7 @@ SC.trk_talk = g => {
     const T2 = cur(g2), s2 = T2.seats[i], hh = alive(g2).find(y => y.id === x.id); if (!hh) return 'trk_talk'; tk(s2).fl[hh.id] = 1;
     const m = C.trkMood(g2, T2, i), so = stOf(s2), ox = {X: s2.name, sx: s2.sex, H: hh.name, hs: hh.sex};
     const att = C.kvAttract ? C.kvAttract(g2, hh, so.st === 'maid' ? 22 : 36, {widow: so.st === 'widow', rank: s2.p && s2.p.rich ? 'merchant' : 'peasant'}) : 1;
-    const dc = K().FLIRT_DC - Math.round((att - 1) * 4) - (m === 'warm' ? 2 : 0) - (s2.drunk ? 2 : 0) + (m === 'sour' ? 3 : 0) - ((C.tnFestive && C.tnFestive(g2)) ? 2 : 0);
+    const dc = K().FLIRT_DC - Math.round((att - 1) * 4) - (m === 'warm' ? 2 : 0) - (s2.drunk ? 2 : 0) + (m === 'sour' ? 3 : 0) - ((C.tnFestive && C.tnFestive(g2)) ? 2 : 0) - (s2.likes ? 2 : 0);
     const c = R.check(hh, 'cha', 'Убеждение', dc); g2.lastCheck = Object.assign({}, c, {hero: hh});
     if (c.ok && C.kvMakeLoc) { const rel = C.trkRel ? C.trkRel(g2, s2.p) : 20; const rec = C.kvMakeLoc(g2, {at: g2.loc, hid: hh.id, n: s2.name, sex: s2.sex, face: s2.face, ppl: s2.ppl, st: so.st, t: s2.sub || '', rank: so.rank}, 40 + Math.round(rel / 3));
       if (rec) rec.trk = 1; try { C.trkRelAdd(g2, s2.p, 2, 'перемигнулись за картами'); } catch (e) {} return done(fill(so.st === 'wife' ? TT.flirtWife : TT.flirtOk, ox)); }
