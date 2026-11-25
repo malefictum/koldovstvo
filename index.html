@@ -32772,6 +32772,25 @@ C.dropExcess = function (g, toTier) {
   return {dropped, load: L};
 };
 
+/* сгрузить лишнее в сундук (дома, в своём углу): как dropExcess, но вещи не бросаются, а кладутся (Ник 25.11: «как быстро всё лишнее сгрузить?»).
+   put(h, id) кладёт одну вещь и возвращает true; toTier — до какой ступени ноши разгружать (0 — налегке) */
+C.stashExcess = function (g, put, toTier) {
+  const want = toTier == null ? 0 : toTier, moved = [];
+  let L = C.partyLoad(g);
+  for (let guard = 0; L.tier > want && guard < 800; guard++) {
+    let best = null;
+    people(g).forEach(h => { const worn = wornCount(h);
+      (h.inv || []).forEach((id, i) => { if (worn[id]) { worn[id]--; return; }
+        if (C.PACK_ANIMALS[id] || PACK_GEAR.includes(id) || C.WAGONS[id]) return;
+        const kg = C.itemWeight(id); if (kg <= 0) return;
+        if (C.FOOD && C.FOOD[id]) return; // еду в дорогу не прячем
+        const it = R.item(id) || {}; if (/зель|настой|свит/i.test(it.name || '') || /^(zele_|sv_|svitok_)/.test(id)) return; // зелья и свитки — при себе
+        const v = kg; if (!best || v > best.kg) best = {h, i, id, kg}; }); });
+    if (!best || !put(best.h, best.id)) break;
+    moved.push(best.id); L = C.partyLoad(g);
+  }
+  return {moved, load: L};
+};
 /* ---------- путь по карте ---------- */
 const LS = {k: 1, cart: false};
 const CART_K = {forest: 1.5, marsh: 1.8, hills: 1.3, mountains: 2, wasteland: 1.2};
@@ -47864,7 +47883,7 @@ const HT = BF.HOUSE_T = {
   terem: {n: 'терем', W: 7, H: 7, part: null, parts: [{x: 2, door: 'open'}], door: [1], win: [4, 5], lit: 0.7, lock: 0.4, open: 0.2},
   hram: {n: 'храм Ока', W: 7, H: 9, part: null, parts: [{x: 4, da: 5, db: 7}], hparts: [{d: 5, xa: 5, xb: 5, door: 'lock'}], door: [3], win: [1, 5], lit: 1, lock: 0, open: 0.6},
   dlin: {n: 'длинный дом', W: 13, H: 5, part: null, door: [3, 9], win: [], lit: 1, lock: 0, open: 0.4},
-  banya: {n: 'баня', W: 4, H: 4, part: null, door: [1], win: [], lit: 0, lock: 0, open: 0.3},
+  banya: {n: 'баня', W: 6, H: 4, part: null, door: [1], win: [4], lit: 0, lock: 0, open: 0.3}, // Ник 25.11: побольше — предбанник и парная
   ambar: {n: 'амбар', W: 5, H: 4, part: null, door: [2], win: [], lit: 0, lock: 0.5, open: 0.1},
   klet: {n: 'клеть', W: 4, H: 4, part: null, door: [1], win: [], lit: 0, lock: 0.5, open: 0.1},
   // большие и нежилые (решение Ника 24.11: «нежилые и дома торговцев и богачей большие обычно»; много комнат, двери между ними открыты)
@@ -47893,7 +47912,7 @@ const FURN = {
   terem: (T, lit, rnd) => [[3, 1, 'stove'], [4, 3, 'table'], [4, 2, 'hbench'], [4, 4, 'hbench'], [5, 1, 'chest'], [5, 5, 'chest'], [1, 5, 'barrels']].concat(lit ? [[3, 5, 'hlamp']] : [], [[1, 1, 'kadka'], [5, 3, 'bed']], opt(rnd, 0.6, [[3, 4, 'loom']]), opt(rnd, 0.35, [[3, 2, 'cradle']])),
   hram: () => [[3, 'far', 'oko_star'], [2, 3, 'hbench'], [4, 3, 'hbench'], [2, 5, 'hbench'], [4, 5, 'hbench'], [1, 'far', 'hlamp'], [5, 'd7', 'chest']], // в ризнице — сундук
   dlin: () => [[5, 2, 'fire'], [6, 2, 'fire'], [7, 2, 'fire'], [2, 1, 'hbench'], [3, 1, 'hbench'], [9, 3, 'hbench'], [10, 3, 'hbench'], [1, 3, 'barrels'], [11, 1, 'bed'], [11, 3, 'chest']],
-  banya: () => [[2, 'far', 'stove'], [1, 'far', 'hbench'], [1, 'd1', 'kadka']], // каменка, полок, кадка с водой
+  banya: () => [[1, 'far', 'stove'], [2, 'far', 'hbench'], [3, 'far', 'hbench'], [4, 'd1', 'kadka'], [4, 'far', 'barrels']], // каменка, полки, кадка с водой, кадушка квасу
   ambar: () => [[1, 'far', 'crate'], [2, 'far', 'hay'], [3, 'far', 'barrels'], [1, 'd1', 'crate'], [3, 'd1', 'barrels']], // лари с зерном, бочки, сено
   klet: () => [[2, 'far', 'chest'], [1, 'far', 'barrels'], [1, 'd1', 'crate']],
   starosta: (T, lit, rnd) => [[3, 'd4', 'stove'], [6, 'd2', 'table'], [5, 'd2', 'hbench'], [6, 'd4', 'bed'], [1, 'd4', 'barrels'], [4, 'd4', 'chest']].concat(lit ? [[3, 'd1', 'hlamp']] : [], [[1, 'd1', 'kadka'], [6, 'd3', 'hbench'], [5, 'd4', 'bed']], opt(rnd, 0.6, [[3, 'd2', 'loom']]), opt(rnd, 0.4, [[4, 'd2', 'cradle']])),
@@ -47919,7 +47938,7 @@ const EXTRA = {
   boyar: r => ['kadka', 'bed', 'hbench', 'crate', 'loom'].concat(r() < 0.4 ? ['cradle'] : [], ['hlamp']),
   dlin: r => ['kadka', 'loom', 'crate'].concat(r() < 0.5 ? ['cradle'] : []),
   korchma: () => ['kadka', 'barrels', 'chest'], korchma_big: () => ['kadka', 'barrels', 'hbench'],
-  kuznya: () => ['kadka'], masterskaya: r => (r() < 0.5 ? ['loom'] : ['crate']).concat(['chest']), hlev: () => ['kadka'],
+  kuznya: () => ['kadka'], banya: () => ['hbench', 'kadka'], masterskaya: r => (r() < 0.5 ? ['loom'] : ['crate']).concat(['chest']), hlev: () => ['kadka'],
 };
 const MOVABLE = {hbench: 'лавку', table: 'стол', chest: 'сундук', barrels: 'бочки', crate: 'короба', bed: 'лежанку', kadka: 'кадку', cradle: 'люльку'};
 const LIGHTS = ['hlamp', 'fire', 'gorn'];
@@ -48049,9 +48068,9 @@ BF.housePlan = function (o, rnd) {
   const camp = (BF._hbCtx && BF._hbCtx.camp) || '';
   const bigK = camp === 'terak' ? 'dlin' : rnd() < 0.28 ? 'hram' : rnd() < 0.62 ? 'korchma' : 'terem';
   const out = [bigK]; if (camp === 'terak' && rnd() < 0.5) out.push('dlin');
-  const nIz = 3 + Math.floor(rnd() * 3); for (let i = 0; i < nIz; i++) out.push('izba');
-  ['banya', 'ambar', 'klet'].forEach(k => { if (rnd() < 0.7) out.push(k); });
-  if (rnd() < 0.4) out.push(rnd() < 0.5 ? 'ambar' : 'klet');
+  // Ник 25.11: «тьма амбаров, а домиков людей мало» — больше жилых изб, хозяйственных построек меньше
+  const nIz = 4 + Math.floor(rnd() * 3); for (let i = 0; i < nIz; i++) out.push(i === 1 && rnd() < 0.4 ? 'starosta' : 'izba');
+  [['banya', 0.5], ['ambar', 0.3], ['klet', 0.3]].forEach(([k, p]) => { if (rnd() < p) out.push(k); });
   return out;
 };
 
@@ -48615,6 +48634,7 @@ BF.hbThing = function (X, c, p, s, S, U) {
     X.save();
     if (horiz) {
       const key = wallKey(S, h, c, st), w = SQ3 * s * 1.12;
+      if (cut && t !== 'hdoor_o' && t !== 'hdoor_b') { poly(X, hexV(p.x, p.y, s * 0.96)); X.fillStyle = 'rgba(30,18,8,.55)'; X.fill(); } // стена срезана — клетка тёмная: стена, а не пол
       // крыша снята — ближняя стена срезана до половины, дальняя видна целиком
       const ok = spr(X, img, key, p.x, p.y + s * 0.78, w, {squash: WALL_SQ, cut: cut && ly === h.H - 1 ? 0.45 : 0});
       if (!ok) { X.restore(); return hbThing0.apply(this, arguments); }
@@ -48708,7 +48728,8 @@ BF.hbThing = function (X, c, p, s, S, U) {
   const ly = c.r - h.r0, lx = c.c - hc(h, 0, ly).c;
   if (lx > 0 && ly > 0 && lx < h.W - 1 && ly < h.H - 1 && BF._hbOpenNow && BF._hbOpenNow[h.id]) { // переборка сеней: ровная полоса бревен
     const st = styleOf(S, h), P = pattern(X, U.img, st.wall === 'log' ? 'srub' : st.wall), w = s * 0.4, hh = s * 0.55, y0 = p.y - s * 0.75 - hh, y1 = p.y + s * 0.75 - hh;
-    X.save(); X.fillStyle = P ? pin(P, p, c, s, 1.6) : '#5a3a1f'; X.fillRect(p.x - w / 2, y0, w, y1 - y0); X.fillStyle = 'rgba(0,0,0,.2)'; X.fillRect(p.x - w / 2, y0, w, y1 - y0);
+    X.save(); poly(X, hexV(p.x, p.y, s * 0.96)); X.fillStyle = 'rgba(30,18,8,.62)'; X.fill(); // клетка переборки — тёмная: сюда не встать (Ник 25.11: «вроде пол, а заблочено»)
+    X.fillStyle = P ? pin(P, p, c, s, 1.6) : '#5a3a1f'; X.fillRect(p.x - w / 2, y0, w, y1 - y0); X.fillStyle = 'rgba(0,0,0,.2)'; X.fillRect(p.x - w / 2, y0, w, y1 - y0);
     X.fillStyle = 'rgba(10,6,2,.6)'; X.fillRect(p.x - w / 2, y1, w, hh); X.restore(); }
   return true; };
 /* что ставить в очередь по глубине: закрытый дом — коробка; открытый — задняя часть (до бойцов внутри) и передний срез (после) */
@@ -49140,7 +49161,8 @@ BF.houseVillage = function (F) {
   // город: постоялый двор у въезда (большая корчма и конюшня), кузня у ворот на другом конце, склад у торговой улицы
   const AL = 30 * Math.max(1, F.w / 36), alMin0 = Math.max(-AL, Math.min(...street.map(along))), alMax0 = Math.min(AL, Math.max(...street.map(along)));
   if (town) { const sd = rnd() < 0.5 ? 1 : -1; if (bigK !== 'korchma_big' && bigK !== 'boyar' && place('korchma_big', alMin0 + 10, sd * 9, 60)) place('konyushnya', alMin0 + 8, sd * 18, 60, 1);
-    place('kuznya', alMax0 - 6, -sd * 6.5, 50); if (rnd() < 0.7) place('sklad', alMax0 - 12, sd * 17, 120, 1) || place('sklad', alMin0 + 12, -sd * 17, 120, 1) || place('sklad', (rnd() - 0.5) * 30, (rnd() < 0.5 ? 1 : -1) * 16, 300, 1); } // склад — во втором ряду, у задворок торговой улицы
+    place('kuznya', alMax0 - 6, -sd * 6.5, 50);
+    { const w0 = river.slice().sort((a, b) => B.dist(a, mid) - B.dist(b, mid))[0]; place('banya', w0 ? along(w0) : (rnd() - 0.5) * 20, w0 ? across(w0) - (across(w0) >= 0 ? 4 : -4) : -sd * 16, 200, 1) || place('banya', (rnd() - 0.5) * 30, (rnd() < 0.5 ? 1 : -1) * 18, 400, 1); } /* городская баня — с банщицами */ if (rnd() < 0.7) place('sklad', alMax0 - 12, sd * 17, 120, 1) || place('sklad', alMin0 + 12, -sd * 17, 120, 1) || place('sklad', (rnd() - 0.5) * 30, (rnd() < 0.5 ? 1 : -1) * 16, 300, 1); } // склад — во втором ряду, у задворок торговой улицы
   // село: кузня на краю, общий амбар у пятачка, мельница у реки; хутор: хлев и сарай
   if (!town && !terak && !villa) {
     if (kind !== 'khutor') { place("kuznya", (rnd() < 0.5 ? alMax0 - 5 : alMin0 + 5), (rnd() < 0.5 ? 1 : -1) * 6.5, 200) || place("kuznya", (rnd() - 0.5) * 30, (rnd() < 0.5 ? 1 : -1) * 8, 300, 1); }
@@ -49148,7 +49170,7 @@ BF.houseVillage = function (F) {
     if (kind === 'khutor') { place('hlev', 6, 9, 60, 1); place('saray', -6, -9, 60, 1); }
   }
   // усадьбы полосами
-  const slot = town ? 18 : 19, nMax = kind === 'khutor' ? 2 : town ? 12 : 7;
+  const slot = town ? 18 : 19, nMax = kind === 'khutor' ? 2 : town ? 12 : 11; // сёла гуще: дворов больше, полосы уже
   const alMin = Math.max(-AL, Math.min(...street.map(along))), alMax = Math.min(AL, Math.max(...street.map(along)));
   const slots = []; for (let s = alMin + slot / 2; s <= alMax - slot / 4; s += slot) [1, -1].forEach(side => slots.push({s, side}));
   slots.sort((a, b) => Math.abs(a.s) - Math.abs(b.s) + (rnd() - 0.5) * 6);
@@ -49163,10 +49185,11 @@ BF.houseVillage = function (F) {
     // свой двор теснее: между избой и амбаром — клетка прохода, а не две
     const ring2 = (() => { const d = distMap(F, fp.map(x => ({c: x.c, r: x.r})), 2); return Object.keys(d).filter(k => d[k] >= 1); })(); const others = distMap(F, BF.houses(F).filter(q => q !== h).reduce((a, q) => a.concat(foot(q).map(p => ({c: p.c, r: p.r}))), []), 2);
     const unb = ring2.filter(k => busy[k] && others[k] == null && !street.some(w => key(w.c, w.r) === k)); unb.forEach(k => { delete busy[k]; });
-    if (!villa && !(town && h.k === 'kupec' && rnd() < 0.6)) { const k2 = terak ? 'ambar' : rnd() < 0.5 ? 'ambar' : 'klet'; let b2 = null; for (const [k3, da, dc] of [[k2, 0.25, 3.5], [k2, -0.25, 3.5], ['klet', 0.3, 5], ['klet', -0.3, 5], ['klet', 0, 7]]) { b2 = place(k3, sl.s + (rnd() < 0.5 ? -1 : 1) * slot * da, sl.side * (far + dc), 70, 1); if (b2) break; } if (b2) est.items.push(b2.id); }
+    // Ник 25.11: «тьма амбаров, а домиков людей немного» — клеть или амбар не у каждого двора
+    if (!villa && !(town && h.k === 'kupec' && rnd() < 0.6) && rnd() < (terak ? 0.6 : 0.4)) { const k2 = terak ? 'ambar' : rnd() < 0.5 ? 'ambar' : 'klet'; let b2 = null; for (const [k3, da, dc] of [[k2, 0.25, 3.5], [k2, -0.25, 3.5], ['klet', 0.3, 5], ['klet', -0.3, 5], ['klet', 0, 7]]) { b2 = place(k3, sl.s + (rnd() < 0.5 ? -1 : 1) * slot * da, sl.side * (far + dc), 70, 1); if (b2) break; } if (b2) est.items.push(b2.id); }
     // баня на задах — к воде, если вода близко
     const wet = river.filter(x => Math.abs(along(x) - sl.s) <= slot && across(x) * sl.side > far - 2).sort((a, b) => across(a) * sl.side - across(b) * sl.side)[0];
-    if (!town && !terak && (wet || rnd() < 0.55)) { const tb = wet ? {al: along(wet), ac: across(wet) * sl.side - 4} : {al: sl.s + slot * 0.25, ac: far + 10};
+    if (!town && !terak && (wet ? rnd() < 0.7 : rnd() < 0.3)) { const tb = wet ? {al: along(wet), ac: across(wet) * sl.side - 4} : {al: sl.s + slot * 0.25, ac: far + 10};
       const b3 = place('banya', tb.al, sl.side * tb.ac, 60, 1); if (b3) { est.items.push(b3.id); est.banya = b3.id; } }
     unb.forEach(k => { busy[k] = 1; });
     if (terak) { // загон: плетень кольцом, внутри — свиньи
@@ -50154,7 +50177,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252158"></script><script>
+</script><script src="world.js?v=202611252218"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53341,6 +53364,13 @@ function drawWorld() {
     x2.beginPath(); x2.arc(p.x + s * 0.5, p.y - s * 0.55, s * 0.36, 0, Math.PI * 2); x2.fillStyle = '#3f6e4a'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#f3e3bd'; x2.stroke();
     x2.fillStyle = '#f3e3bd'; x2.font = `700 ${Math.round(s * 0.5)}px Alegreya, serif`; x2.textAlign = 'center'; x2.fillText('!', p.x + s * 0.5, p.y - s * 0.55 + s * 0.18);
     if (!seen(cell)) { const nm = (camp.map.nodes[E.at] || {}).name; if (nm) { x2.font = `600 ${Math.max(10, Math.round(s * 0.42))}px Alegreya, serif`; x2.textAlign = 'left'; x2.lineWidth = 3; x2.strokeStyle = 'rgba(232,220,192,.9)'; x2.strokeText(nm, p.x + s * 0.95, p.y - s * 0.4); x2.fillStyle = '#2a1c10'; x2.fillText(nm, p.x + s * 0.95, p.y - s * 0.4); } } }); } catch (e) {}
+  // свой дом и владения на карте края (Ник 25.11): домик над селом — где семья, кружок с числом — сколько владений
+  try { const homes = {}; (g.heroes || []).forEach(h => { const s0 = h && h.spouse; if (s0 && s0.at && (!s0.camp || s0.camp === g.camp)) homes[s0.at] = (homes[s0.at] || 0) | 1; });
+    (g.estate || []).forEach(e => { if (e && e.node) homes[e.node] = (homes[e.node] || 0) | 2; });
+    Object.entries(homes).forEach(([at, f]) => { const cell = w.nodeAt[at]; if (!cell) return; const p = wxy(cell.c, cell.r), x0 = p.x - s * 0.62, y0 = p.y - s * 0.62, r0 = s * 0.38;
+      x2.beginPath(); x2.arc(x0, y0, r0, 0, Math.PI * 2); x2.fillStyle = f & 1 ? '#7a4a1e' : '#4a5a3a'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#f3e3bd'; x2.stroke();
+      x2.beginPath(); x2.moveTo(x0 - r0 * 0.55, y0 + r0 * 0.05); x2.lineTo(x0, y0 - r0 * 0.55); x2.lineTo(x0 + r0 * 0.55, y0 + r0 * 0.05); x2.closePath(); x2.fillStyle = '#f3e3bd'; x2.fill();
+      x2.fillRect(x0 - r0 * 0.38, y0 + r0 * 0.02, r0 * 0.76, r0 * 0.48); x2.fillStyle = f & 1 ? '#7a4a1e' : '#4a5a3a'; x2.fillRect(x0 - r0 * 0.1, y0 + r0 * 0.18, r0 * 0.2, r0 * 0.32); }); } catch (e) {}
   C.escorts(g).forEach(e => { const cell = w.nodeAt[C.ESCORT[e.id].to]; if (!cell) return; const p = wxy(cell.c, cell.r); hex(p, s * 0.98); x2.lineWidth = Math.max(2.5, s * 0.16); x2.setLineDash([s * 0.35, s * 0.2]); x2.strokeStyle = '#7fd0a0'; x2.stroke(); x2.setLineDash([]); });
   if (g.necro && C.bodies(g).length) { const p = wxy(g.necro.c, g.necro.r); x2.beginPath(); x2.arc(p.x, p.y - s * 0.2, s * 0.46, 0, Math.PI * 2); x2.fillStyle = '#2a1838'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#b89be0'; x2.stroke();
     x2.fillStyle = '#d9c8f5'; x2.font = `700 ${Math.round(s * 0.6)}px Alegreya, serif`; x2.textAlign = 'center'; x2.fillText('☾', p.x, p.y - s * 0.2 + s * 0.2); }

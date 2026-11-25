@@ -44763,6 +44763,11 @@ C.sceneOf = function (g, id) {
     if (baseOf(role) === 'jewel' && !ch.some(c => c.go === 'jeweler')) ch.push({i: i++, label: 'Кольца и обереги — дома, своими руками', go: 'jeweler'});
     const left = K().CHEST - H.chest.length;
     ch.push({i: i++, label: 'Оставить в сундуке…', dis: left <= 0 ? 'сундук полон' : null, do: g2 => { g2.w2chest = {mode: 'put'}; g2.w2chestLast = null; return 'w2_chest'; }});
+    { const L0 = C.partyLoad ? C.partyLoad(g) : null; if (L0 && L0.tier > 0 && C.stashExcess) ch.push({i: i++, label: 'Сгрузить лишнее в сундук — налегке', dis: left <= 0 ? 'сундук полон' : null, do: g2 => {
+      const k2 = homeKey(g2), r = C.stashExcess(g2, (hh, id) => C.famChestPut(g2, k2, hh, id, 1) > 0, 0);
+      const names = {}; r.moved.forEach(id => { const n = nameOf(id).toLowerCase(); names[n] = (names[n] || 0) + 1; });
+      g2.w2chestLast = r.moved.length ? 'В сундук: ' + Object.entries(names).map(([n, k]) => k > 1 ? `${n} ×${k}` : n).join(', ') + '. ' + (C.loadText ? C.loadText(g2) + '.' : '') : 'Сгружать нечего: всё нужное в дороге.';
+      C.note(g2, g2.w2chestLast); g2.w2chest = {mode: 'take'}; return 'w2_chest'; }}); }
     ch.push({i: i++, label: H.chest.length ? 'Взять из сундука…' : 'Взять из сундука… (пусто)', dis: H.chest.length ? null : 'сундук пуст', do: g2 => { g2.w2chest = {mode: 'take'}; g2.w2chestLast = null; return 'w2_chest'; }});
     if (back) ch.push(back);
     sc.choices = ch;
@@ -71070,7 +71075,7 @@ C.walkDo = function (S, u, a) {
   if (a.v === 'menu' && act.p === 'Заночевать…') { Wk.end = {k: 'pause', go: {k: 'scene', id: 'place_inn'}}; S.over = 'walk'; return ''; }
   if (a.v === 'menu' || a.v === 'ask') { Wk.end = {k: 'pause', go: {k: 'choice', label: act.p}}; S.over = 'walk'; return ''; }
   if (a.v === 'talk') { const j = tgtJob(g, t); let face = t.portrait || t.civ.face || ''; if (!face) { try { const fs = C.foeFaces(t.civ.k === 'guard' ? 'guard' : 'wander', sexOf(t)); face = fs.length ? fs[hsh(t.name || t.id) % fs.length] : ''; t.civ.face = face; } catch (e) {} }
-    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null, folk: t.civ.folk || null, job: t.civ.job || null, sub: t.civ.sub || null}}}; S.over = 'walk'; return ''; }
+    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null, folk: t.civ.folk || null, job: t.civ.job || null, sub: t.civ.sub || null, kid: t.civ.kid || null, kv: t.civ.kv || null, kvr: t.civ.kvr || null, svc: t.civ.svc || null}}}; S.over = 'walk'; return ''; }
   if (a.v === 'pick') {
     S.acted = true; Wk.picked[t.id] = 1; B.faceTo(u, t);
     const dc = 10 + Math.floor((t.level || 1) / 2) + (t.civ.k === 'guard' ? 3 : t.civ.k === 'trader' ? 2 : 0), r = roll(u, 'dex', 'Ловкость рук', dc);
@@ -72473,6 +72478,18 @@ if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { cons
     const add = kin ? [{t: 'Пойти домой вместе', do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.folkRole = role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }}]
       : [{t: `О деле: ${p.t} — учёба, ремесло, поручения`, do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.folkRole = role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }}];
     add.forEach((c, k) => { c.i = 950 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); } } catch (e) {}
+  // свои и знакомые на улице: дети героя, знакомые, весёлые девицы, постоянная банщица (Ник 25.11: «с кем познакомился — можно говорить»)
+  try { const T = sc && id === 'tw_talk' && g.twalk && g.twalk.talk; if (T && (T.kid || T.kv || T.svc || T.kvr)) { const add = [], hh = heroes(g)[0];
+    if (T.kid && !T.kidHi) { T.kidHi = 1; const kd = (C.kidsFams ? C.kidsFams(g) : []).flatMap(F => F.kids || []).find(k => k.id === T.kid), par = kd && heroes(g).find(x => (C.kidsFams(g).find(F => F.id === kd.fam) || {}).hero === x.id) || hh;
+      T.log.push({who: 'o', text: pickH(par && par.sex === 'f' ? KID_HI.f : KID_HI.m, T.kid + day(g))}); if (T.who) T.who.sub = T.sub || 'дитя'; }
+    if (T.kid) { add.push({t: 'Поиграть с ребёнком', if: g2 => (g2.twalk.talk.played !== day(g2)), off: 'сегодня уже играли', do: g2 => { const X = g2.twalk.talk; X.played = day(g2); X.log.push({who: 'n', text: pickH(KID_PLAY, X.kid + day(g2))}); if (C.spiritAdd) try { C.spiritAdd(g2, 1, ''); } catch (e) {} if (C.passH) C.passH(g2, 1); return 'tw_talk'; }});
+      const sp = (g.heroes || []).map(x => x && x.spouse).find(x => x && x.at === g.loc); if (sp && sp.role) add.push({t: 'Пойти домой', do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.folkRole = sp.role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }}); }
+    if (T.kv) { const r = (g.kvLoc || {})[T.kv]; if (r) { if (!T.kvHi) { T.kvHi = 1; T.log.push({who: 'o', text: pickH(r.sex === 'f' ? KV_HI.f : KV_HI.m, r.id + day(g))}); }
+      add.push({t: 'Поговорить по-свойски', do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.kvCur = r.id; g2.kvLast = null; return 'kv_local'; }}); } }
+    if (T.svc === 'vesely') { if (!T.svHi) { T.svHi = 1; T.log.push({who: 'o', text: pickH(hh && hh.sex === 'f' ? VES_HI.her : T.kvr ? VES_HI.reg : VES_HI.any, (T.kvr || T.id) + day(g))}); }
+      add.push({t: 'Пойти с ней в весёлый дом', do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.kvLast = null; return 'kv_vesely'; }}); }
+    if (T.svc === 'bansh' && T.kvr && !T.svHi) { T.svHi = 1; T.log.push({who: 'o', text: pickH(BANSH_REG, T.kvr + day(g))}); }
+    add.forEach((c, k) => { c.i = 970 + k; c.label = c.t; if (c.if && !c.if(g)) c.dis = c.off; }); sc.choices = add.concat(sc.choices || []); } } catch (e) {}
   try { if (sc && id === 'tw_talk' && g.twalk && g.twalk.talk && g.twalk.talk.tf) { const T = g.twalk.talk, pid = T.tf, at = g.loc;
     const add = [{t: 'Поболтать о жизни', do: g2 => { const X = g2.twalk.talk; const t = C.tfChat(g2, at, pid); X.log.push({who: 'h', text: 'Как живёте тут?'}); if (t) X.log.push({who: 'o', text: t}); return 'tw_talk'; }}];
     const p = C.tfPeople(g, at).find(x => x.id === pid);
@@ -72480,6 +72497,15 @@ if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { cons
     add.forEach((c, k) => { c.i = 900 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); } } catch (e) {}
   return sc; }; }
 
+const KID_HI = {m: ['«Тятя! Тятя пришёл!» — и с разбегу в колени.', '«Тятя, а ты мне что привёз?»', '«Тятя, а я сегодня сам воду носил!»'],
+  f: ['«Мама! Мама вернулась!» — и цепко в подол.', '«Мама, а ты насовсем? Ну хоть до вечера?»', '«Мама, глянь, что я нашёл!»']};
+const KID_PLAY = ['Играете в салочки до упаду; ребёнок хохочет так, что сбегаются соседские.', 'Мастерите вдвоём свистульку из ивы — свистит, хоть и криво.', 'Катаешь ребёнка на плечах по всей улице. Соседи улыбаются вслед.', 'Строите из щепок крепость, а потом вместе её «берёте приступом».'];
+const KV_HI = {f: ['«Ой, это ты… Здравствуй. Я как раз о тебе думала».', '«Ну наконец-то! А то я уж решила — забыл дорогу».', '«Тише, тут люди смотрят… Но я рада, правда»'],
+  m: ['«А, вот и ты! Здравствуй, здравствуй».', '«Я тебя ещё с того конца улицы приметил».', '«Ну, рассказывай, где пропадала»']};
+const VES_HI = {any: ['«Скучаешь, сокол? Пойдём, развеселю — недорого, а помнить будешь долго».', '«Глазки-то какие… Не стесняйся, я не кусаюсь. Ну разве что чуть-чуть».', '«Эй, красавец, кошель тяжёлый? Давай облегчу — за дело, за дело!»', '«Иди сюда, не робей. У нас тепло, мёд сладкий, а я — слаще»'],
+  her: ['«Чего глядишь, хозяйка? Мужа своего тут не ищи — не скажу. А молодцы у нас и для таких, как ты, найдутся».', '«Ой, какая важная! Заходи, не бойся — у нас и девицам весело бывает»'],
+  reg: ['«А вот и мой любимчик! Соскучился? По глазам вижу — соскучился».', '«Опять ко мне? Ну пойдём, пойдём, для своих — всё по-своему»']};
+const BANSH_REG = ['«О, свой пришёл! Пар сегодня — как ты любишь».', '«Я уж думала, другую баню нашёл. Заходи, не стой»'];
 /* родня героя среди мастеров места: жена, муж, мать, отец */
 function kinWord(g, role, at, p) { const r = (g.folkRel || {})[role + '@' + at]; if (!r || !(r.bond === 'wed' || r.bond === 'kin') || !heroes(g).some(h => h.id === r.who)) return '';
   return r.bond === 'wed' ? (p.sex === 'f' ? 'жена' : 'муж') : (p.sex === 'f' ? 'мать' : 'отец'); }
@@ -73381,9 +73407,47 @@ C.walkOwnHome = function (S, g) {
   if ((b('hlev') || H.est.includes('dvor')) && BF.housePut) try { const hv = (BF.housePut(S, 'hlev', {c: h.c0 - 3, r: h.r0 + h.H}, {n: 400}) || BF.housePut(S, 'hlev', {c: h.c0, r: h.r0}, {n: 1500, face: 'any'})); if (hv) hv.own = 1; } catch (e) {}
   if (BF.touch) try { BF.touch(S); } catch (e) {}
   return h; };
+/* ---------- люди на улице (Ник 25.11): дети героя дома, банщицы при бане, весёлые девицы по городу, знакомые — все ходят,
+   и с каждым можно заговорить (окно разговора: town_folk.js — kid, svc, kv, kvr) ---------- */
+const MK = {muzhik: 'civ_muzhik', baba: 'civ_baba', starik: 'civ_starik', child: 'civ_ditya'};
+const DWELL2 = ['izba', 'terem', 'starosta', 'kupec', 'boyar', 'dlin'];
+const doorOf2 = h => (h.doors || []).find(d => !d.inner) || (h.doors || [])[0];
+const spawn = (S, kind, x, civ, name, face) => { const m = C.MON && C.MON[MK[kind]]; if (!m || !x) return null; const u = B.fromMonster(m, 'civ', {});
+  u.id = 'wp' + (S._wpN = (S._wpN || 0) + 1) + '_' + kind; u.c = x.c; u.r = x.r; u.ai = true; u.morale = false; u.init = 1 + (hsh(u.id) % 20);
+  u.civ = Object.assign({k: kind, sex: kind === 'baba' ? 'f' : 'm'}, civ || {}); if (name) u.name = name; if (face) { u.portrait = face; u.civ.face = face; }
+  if (C.civDress) C.civDress(u); S.units.push(u); return u; };
+const freeIn = (S, h) => BF.houseCells(h).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.hin && x.t === 'hfloor' && !B.unitAt(S, x.c, x.r));
+const freeNear = (S, h, d0, d1) => { const d = doorOf2(h); if (!d) return []; return Object.values(S.field.cells).filter(x => x && x.hb == null && B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r) && B.dist(x, d) >= (d0 || 1) && B.dist(x, d) <= (d1 || 3)); };
+const pickX = (L, salt) => (L.length ? L[hsh(salt) % L.length] : null);
+const personOf = (g, sex, salt) => { const R = G.R; try { const r0 = R.rand; let q = hsh(salt); R.rand = () => { q = Math.imul(q ^ (q >>> 15), 2246822507) >>> 0; return (q % 100000) / 100000; }; try { return C.Q && C.Q.person ? C.Q.person(g, sex, C.kvPpl ? C.kvPpl(g) : null) : null; } finally { R.rand = r0; } } catch (e) { return null; } };
+const FACE_F = salt => { const L = (C.PORTRAITS_F || []).filter(f => !(C.FACE_KID || []).includes(f) && !(C.FACE_ELDER || []).includes(f)); return L.length ? L[hsh(salt) % L.length] : ''; };
+const VES_TINT = ['#c0182a', '#d0204a', '#b8104e', '#e0402a'];
+C.walkPeople = function (S, g) {
+  if (!S || !S.walk || !g || S.walk.peopleDone) return; S.walk.peopleDone = 1; const night = !!S.walk.night, F = S.field, n0 = (C.CAMPS[g.camp].map.nodes[g.loc] || {});
+  const hs = BF.houses(F), K = S.walk.kvHomes || {};
+  // дети героя — в своём доме (и ночью тоже)
+  try { const H = homeOf(g), hid = Object.keys(K).find(id => K[id] === 'Свой дом'), h = hid && BF.houseById(F, hid);
+    if (H && h) (C.kidsOf ? C.kidsOf(g, H.k) : []).slice(0, 4).forEach((kd, i) => { const L = freeIn(S, h).concat(night ? [] : freeNear(S, h, 1, 3)); const x = pickX(L, kd.id + i); if (!x) return;
+      const sx = kd.sex === 'f' ? 'f' : 'm', u = spawn(S, 'child', x, {home: h.id, kid: kd.id, sex: sx, sub: sx === 'f' ? 'дочь' : 'сын'}, `${kd.n || 'дитя'}, ${sx === 'f' ? 'дочь' : 'сын'}`); if (u) C.civDress(u); }); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  if (night) return;
+  const regs = Object.values(g.kvReg || {}).filter(r => r && r.at === g.loc && (!r.camp || r.camp === g.camp) && !r.done);
+  // банщицы уже при каждой бане (workersOf); постоянная банщица героя — одна из них, под своим именем и лицом
+  try { const bw = (S.units || []).filter(u => u.side === 'civ' && u.civ && u.civ.job === 'banya' && /банщиц/.test(u.name || '')); bw.forEach(u => { u.civ.svc = 'bansh'; });
+    regs.filter(r => r.kind === 'bansh').forEach((r, i) => { const u = bw[i]; if (!u) return; u.name = `${r.n}, банщица`; u.civ.kvr = r.key; if (r.face) { u.portrait = r.face; u.civ.face = r.face; } }); } catch (e) {}
+  // весёлые девицы — по городу, у корчмы; наряд яркий
+  try { if (n0.kind === 'город' || n0.kind === 'торг') { const kr = hs.filter(h => /korchma/.test(h.k))[0] || hs[0], reg = regs.filter(r => r.kind === 'vesely');
+    for (let i = 0; i < 2; i++) { const r = reg[i], p = r ? null : personOf(g, 'f', 'ves|' + g.loc + '|' + i), nm = r ? r.n : (p && p.n) || 'Забава', L = kr ? freeNear(S, kr, 2, 6) : [];
+      const u = spawn(S, 'baba', pickX(L, nm + 'v' + i), {home: kr ? kr.id : null, svc: 'vesely', kvr: r ? r.key : null, young: 1, sub: 'из весёлого дома'}, `${nm}, весёлая девица`, r ? r.face : FACE_F('ves' + g.loc + i));
+      if (u) u.look = Object.assign({}, u.look, {tint: VES_TINT[hsh(nm) % VES_TINT.length]}); } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  // знакомые (не из жителей места — те и так на улице) — у своих домов
+  try { Object.values(g.kvLoc || {}).filter(r => r && r.at === g.loc && (!r.camp || r.camp === g.camp) && !['gone', 'wed'].includes(r.st) && !r.tf).slice(0, 4).forEach(r => {
+      const nm0 = String(r.n || '').split(/[,( ]/)[0], hid = Object.keys(K).find(id => String(K[id]).indexOf(nm0) === 0), h = hid ? BF.houseById(F, hid) : pickX(hs.filter(x => DWELL2.includes(x.k)), r.id);
+      const L = h ? freeNear(S, h, 1, 3) : []; spawn(S, r.sex === 'f' ? 'baba' : 'muzhik', pickX(L, r.id), {home: h ? h.id : null, kv: r.id, sex: r.sex === 'f' ? 'f' : 'm', sub: r.sex === 'f' ? 'знакомая' : 'знакомый'}, `${r.n}, ${r.sex === 'f' ? 'знакомая' : 'знакомый'}`, r.face); }); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+};
+
 const hs0 = BF.houseSign;
 BF.houseSign = function (S, h) { try { const K = S && S.walk && S.walk.kvHomes; if (K && h && K[h.id]) return K[h.id]; } catch (e) {} return hs0.apply(this, arguments); };
-if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } try { C.walkPeople(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */
