@@ -72172,3 +72172,15 @@ if (!C || !C.ageEnter) return;
 const ae0 = C.ageEnter;
 C.ageEnter = function (g, h, o) { try { const cp = g && C.CAMPS[g.camp]; if (cp && !cp.free && o && o.retire) o = Object.assign({}, o, {retire: false}); } catch (e) {} return ae0.call(this, g, h, o); };
 })(typeof window !== 'undefined' ? window : globalThis);
+/* Молодые герои первой саги (Ник 25.11: «отличное решение»): летопись от «Мёртвой воды» до «Заката» — 40+ лет, поэтому новый герой,
+   что начинает в любой главе первой саги, юн — 17–20 лет (книжники и жрецы старше, воины моложе). К «Закату» ему 57–65. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C || !C.addHero || !C.SAGA) return;
+const hsh = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+C.ageSagaStart = h => { const over = Object.values(h.stats || {}).reduce((s, v) => s + Math.max(0, (+v || 0) - 10), 0);
+  return Math.max(17, Math.min(20, 16 + Math.ceil(((C.AGE_CLS || {})[h.cls] || 0) / 2) + (over >= 12 ? 1 : 0) + hsh(h.name || h.id) % 2)); };
+const ah0 = C.addHero;
+C.addHero = function (g, h) { try { if (g && h && !h.ageCamp && !h.ageYoung && C.SAGA.includes(g.camp) && h.kind !== 'merc') { h.age = C.ageSagaStart(h); h.ageYoung = 1; } } catch (e) {} return ah0.apply(this, arguments); };
+})(typeof window !== 'undefined' ? window : globalThis);
