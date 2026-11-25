@@ -71831,6 +71831,9 @@ C.DRESS_T = {rubaha_prostaya: 1, plate_rubaha_s_ponevoy: 1, rubaha_vyshitaya: 3}
   if (!I[id]) I[id] = {_t: 'g', id, category: 'одежда', name: n, price: K().PRICE[t] * ZM, weight_kg: t >= 5 ? 3 : 1, notes, dressSex: sx};
   C.DRESS_T[id] = +t; C.WEAR[id] = {slot: 'dress', fx: FX[t]}; }));
 ['rubaha_prostaya', 'plate_rubaha_s_ponevoy', 'rubaha_vyshitaya'].forEach(id => { if (I[id] && !C.WEAR[id]) C.WEAR[id] = {slot: 'dress', fx: FX[C.DRESS_T[id]]}; });
+/* к нарядам — кокошник и шуба: в городе у швеи, готовые; на подарок (Ник 25.11) */
+if (!I.kokoshnik) I.kokoshnik = {_t: 'g', id: 'kokoshnik', category: 'одежда', name: 'Кокошник с жемчугом', price: 60 * ZM, weight_kg: 0.5, notes: 'Бархат, речной жемчуг, цветные камушки — убор замужней знатной женщины.'};
+if (!I.shuba_sobolya) I.shuba_sobolya = {_t: 'g', id: 'shuba_sobolya', category: 'одежда', name: 'Шуба соболья', price: 300 * ZM, weight_kg: 6, notes: 'Соболь под синим сукном. Зимой — тепло, на пиру — честь.'};
 C.dressTier = h => { const id = h && h.eq && h.eq.dress; if (!id) return 0; return C.DRESS_T[R.baseId ? R.baseId(id) : id] || 0; };
 C.dressRelMul = (h, rank) => { const M = K().MUL[rank] || K().MUL.peasant; return M[Math.min(5, C.dressTier(h))]; };
 const bestDressed = g => { const hs = (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc'); return hs.sort((a, b) => C.dressTier(b) - C.dressTier(a))[0] || null; };
@@ -71849,7 +71852,10 @@ C.dressCond = h => { const id = h && h.eq && h.eq.dress; if (!id) return 100; h.
 C.dressCondWord = c => (c >= 80 ? 'как новый' : c >= 50 ? 'поношенный' : c >= 20 ? 'потрёпанный' : 'в лохмотьях');
 const wearDown = (h, d) => { const id = h && h.eq && h.eq.dress; if (!id || (C.DRESS_T[R.baseId ? R.baseId(id) : id] || 0) <= 1) return; h.dressCond = h.dressCond || {}; const c = C.dressCond(h), n = Math.max(0, c - d); h.dressCond[id] = n;
   if (c >= 20 && n < 20 && h._g) C.note(h._g, `${h.name}: ${((I[id] || {}).name || 'наряд').toLowerCase()} в лохмотьях — в таком только огород пугать.`); };
-{ const ct0 = C.dressTier; C.dressTier = h => { const t = ct0(h); if (t <= 1) return t; const c = C.dressCond(h); return c >= 50 ? t : c >= 20 ? t - 1 : 0; }; }
+{ const ct0 = C.dressTier; /* к нарядам — кокошник и шуба: в городе у швеи, готовые; на подарок (Ник 25.11) */
+if (!I.kokoshnik) I.kokoshnik = {_t: 'g', id: 'kokoshnik', category: 'одежда', name: 'Кокошник с жемчугом', price: 60 * ZM, weight_kg: 0.5, notes: 'Бархат, речной жемчуг, цветные камушки — убор замужней знатной женщины.'};
+if (!I.shuba_sobolya) I.shuba_sobolya = {_t: 'g', id: 'shuba_sobolya', category: 'одежда', name: 'Шуба соболья', price: 300 * ZM, weight_kg: 6, notes: 'Соболь под синим сукном. Зимой — тепло, на пиру — честь.'};
+C.dressTier = h => { const t = ct0(h); if (t <= 1) return t; const c = C.dressCond(h); return c >= 50 ? t : c >= 20 ? t - 1 : 0; }; }
 { const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments);
   try { if (g && g.heroes && g.day > d0) { const wx = C.weather ? C.weather(g) : 'clear', W0 = K().WEAR, onRoad = !!g.pos && !(g.posNode && g.posNode === g.loc) || g.travelDay === g.day;
     C.alive(g).filter(h => h.kind !== 'merc').forEach(h => { h._g = g; wearDown(h, (onRoad ? W0.road : 0) + (W0[wx] || 0)); delete h._g; }); } } catch (e) {}
@@ -71882,6 +71888,9 @@ SC.dress_order = g => {
   hs.forEach(h => { if (!h.eq || !h.eq.dress || C.dressCond(h) >= 95 || (C.DRESS_T[R.baseId ? R.baseId(h.eq.dress) : h.eq.dress] || 0) <= 1) return; const pr = mendPrice(g, h);
     ch.unshift({t: `${h.name}: починить ${((I[h.eq.dress] || {}).name || 'наряд').toLowerCase()} (${C.dressCondWord(C.dressCond(h))}) — ${R.priceText(pr)}`, dis: (g.purse || 0) < pr ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < pr) return 'dress_order'; g2.purse -= pr; h.dressCond[h.eq.dress] = 100;
       g2.folkLast = 'Швея цокает языком над прорехами, но к вечеру наряд как новый: «В дорогу в таком не ходят. Для дороги — холст»'; return 'folk'; }}); });
+  if (town) [['kokoshnik', mx >= 5], ['shuba_sobolya', true]].forEach(([id, ok]) => { if (!ok || !I[id]) return; const pr = I[id].price, who = hs[0]; if (!who) return;
+    ch.push({t: `Купить готовое: ${I[id].name.toLowerCase()} — ${R.priceText(pr)}`, dis: (g.purse || 0) < pr ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < pr) return 'dress_order'; g2.purse -= pr; const hh = (C.alive(g2) || []).find(x => x.id === who.id) || who; hh.inv.push(id);
+      g2.folkLast = id === 'kokoshnik' ? 'Швея достаёт из сундука кокошник, сдувает пылинку: «Такой — только для любимой»' : 'Швея с трудом стаскивает с полки шубу: «Носи — внукам достанется»'; C.note(g2, `${hh.name}: ${I[id].name.toLowerCase()} — в мешке.`); return 'folk'; }}); });
   ch.push({t: 'Назад', do: () => 'folk'});
   return {title: 'Наряд на заказ', bg: 'market', art: 'market', lines, choices: ch};
 };
@@ -71889,8 +71898,8 @@ SC.dress_order = g => {
 /* ---------- подарки жене ---------- */
 const STONES = [['yantar', /янтар/i, 'янтарь'], ['biryuza', /бирюз/i, 'бирюза'], ['lunnyy_kamen', /лунн/i, 'лунный камень'], ['granat', /гранат/i, 'гранат'], ['ametist', /аметист/i, 'аметист'],
   ['zhemchug_rechnoy', /жемчуг|жемчуж/i, 'жемчуг'], ['rubin_yahont_chervlenyy', /червл|рубин/i, 'червлёный яхонт'], ['sapfir_yahont_lazorevyy', /лазор|сапфир/i, 'лазоревый яхонт'], ['almaz', /алмаз/i, 'алмаз']];
-const JEWEL = /kolco|koltso|persten|grivna|busy|braslet|serg|ozherel|obruch|kolt|ryasn/;
-const catOf = id => { const b = R.baseId ? R.baseId(id) : id, it = R.item(id) || {}; if (C.DRESS_T[b]) return 'dress'; if (JEWEL.test(b) || (C.isMagic && C.isMagic(id) && /кольц|перстен|гривн|бус|браслет|серьг|ожерел|обруч/i.test(it.name || ''))) return 'jewel';
+const JEWEL = /kokoshnik|kolco|koltso|persten|grivna|busy|braslet|serg|ozherel|obruch|kolt|ryasn/;
+const catOf = id => { const b = R.baseId ? R.baseId(id) : id, it = R.item(id) || {}; if (C.DRESS_T[b] || b === 'shuba_sobolya') return 'dress'; if (JEWEL.test(b) || (C.isMagic && C.isMagic(id) && /кольц|перстен|гривн|бус|браслет|серьг|ожерел|обруч/i.test(it.name || ''))) return 'jewel';
   if (it.category === 'самоцветы' && !/tochil|tesan|opoznat|izgotov/.test(b)) return 'gem'; if (/^tkan_|holst/.test(b)) return 'cloth'; if (/^tr_/.test(b) && /шкур|мех|кож/i.test(it.name || '')) return 'trophy';
   if (/kovsh|kuvshin|kotel|zerkal|greben|posud|chash|gorsh|lozhk|skater|polotn|ubrus|platok/.test(b) || it.category === 'снаряжение') return 'util'; return 'other'; };
 C.giftable = (g, id) => { const it = R.item(id); if (!it || it._t === 'w' || it._t === 'a') return false; if (/еда|зелья|припасы|ночлег|услуги|обучение|транспорт|сбруя|книги/.test(it.category || '') || /^(dish_|rcp_|kon_|pes_)/.test(id)) return false; return (it.price || 0) >= 10; };
