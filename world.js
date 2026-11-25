@@ -70287,7 +70287,9 @@ const pickH = (a, k) => (a && a.length ? a[hsh(k) % a.length] : '');
 const nameOf = u => String((u && u.name) || '').split(/[,(]/)[0].trim();
 const isFree = g => !!(g && g.camp === 'free' && g.heroes);
 const nodes = g => (g && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || FREE.map.nodes;
-const nodeHere = g => (g && !g.pos && nodes(g)[g.loc]) || null;
+/* место, где стоит отряд: в Вечном мире у отряда всегда есть клетка карты — если это клетка самого места, отряд в нём (Ник 25.11: прогулка пропадала) */
+const nodeHere = g => { const n = g && nodes(g)[g.loc]; if (!n) return null; if (!g.pos) return n;
+  try { if (W && W.isHex && W.isHex(g)) { const at = W.world(g).nodeAt[g.loc]; if (at && at.c === g.pos.c && at.r === g.pos.r) return n; } } catch (e) {} return null; };
 /* доп. кампании (Ник 24.11): прогулка и в их сёлах и городах — карта мест, не гексы */
 const isSaga = g => !!(g && g.heroes && g.camp !== 'free' && C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes);
 const lvl = g => Math.max(1, C.partyLevel ? C.partyLevel(g) : 1);
