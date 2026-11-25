@@ -73339,6 +73339,57 @@ const wo0 = W.world;
 W.world = function (g) { try { migrate(g); } catch (e) {} return wo0.apply(this, arguments); };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* ---------- тарренские главы («Суд», «Навьи ворота», «Закат»): сборная карта нескольких краёв — на общую карту ----------
+   Их места — по всему Порубежью. Совпавшие по имени стоят там же, где в Вечном мире; новые — в свой край рядом с «якорем»
+   (тем местом мира, к которому они ближе по сюжету). Открыты края, где есть их места, прочие — за рубежом. */
+(function (G) {
+'use strict';
+const C = G.C, W = G.W;
+if (!C || !W || !W.buildBase || !C.CAMPS || !C.CAMPS.free) return;
+const SPREAD_PLACES = {
+  tarren: {at: 'dw_taren'}, brod: {at: 'dw_brod'}, olshanka: {at: 'dw_olshanka'}, korovino: {at: 'as_korovino'}, lipki: {at: 'as_lipki'}, perun: {at: 'as_dub'},
+  edvin: {at: 'ed_vorota'},
+  roshcha: {near: 'dw_kapishche'}, veles: {near: 'dw_melnitsa'}, temnica: {near: 'dw_taren'}, kanc: {near: 'dw_taren'}, kurgan: {near: 'dw_taren', d: [4, 6]},
+  ostrog: {near: 'as_korovino'}, chasha: {near: 'as_korovino', d: [2, 4]}, sobor: {near: 'as_korovino', d: [3, 6]},
+  vorota: {near: 'ed_stoki'}, zh_lada: {near: 'ed_stoki', d: [3, 6]},
+  pereval: {near: 'tk_pereval'}, ting: {near: 'tk_stavka'}, zh_stribog: {near: 'tk_utes'}, gorn: {near: 'tk_rudnik'},
+  port: {near: 'ber_gavan'}, zh_zhiva: {near: 'dw_pogost', byName: 1}};
+C.SPREAD_CAMPS = C.SPREAD_CAMPS || ['sud', 'late_navi', 'late2_zakat'];
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const campId = camp => Object.keys(C.CAMPS).find(k => C.CAMPS[k] === camp) || null;
+const spread = camp => { const id = campId(camp); return !!(id && C.SPREAD_CAMPS.includes(id) && camp.map && camp.map.hex && !camp.map.hex.free); };
+const buildSpread = function (camp) {
+  if (camp._worldShared) return camp._worldShared;
+  const FR = C.CAMPS.free, fw = W.buildBase(FR), FN = FR.map.nodes, cN = camp.map.nodes;
+  const cells = {}; Object.values(fw.cells).forEach(s => { const n = Object.assign({}, s); delete n.node; delete n.poi; delete n.poiId; delete n.folk; cells[W.key(n.c, n.r)] = n; });
+  const nodeAt = {}, used = new Set(), regs = new Set();
+  const put = (cid, cell) => { if (!cell) return false; cell.node = cid; nodeAt[cid] = cell; used.add(W.key(cell.c, cell.r)); regs.add(cell.reg); return true; };
+  const fcell = fid => { const x = fw.nodeAt[fid]; return x ? cells[W.key(x.c, x.r)] : null; };
+  Object.keys(cN).forEach(cid => {
+    const P = SPREAD_PLACES[cid] || {}, nm = cN[cid].name;
+    const byName = Object.keys(FN).find(k => fw.nodeAt[k] && FN[k].name === nm); if (byName && put(cid, fcell(byName))) return; // то же место мира
+    if (P.at && put(cid, fcell(P.at))) return;
+    const a = P.near && fw.nodeAt[P.near]; if (!a) return; const [d0, d1] = P.d || [2, 4];
+    const L = Object.values(cells).filter(x => x.reg === a.reg && !x.node && !used.has(W.key(x.c, x.r)) && !['water', 'mountains'].includes(x.t) && W.dist(x, a) >= d0 && W.dist(x, a) <= d1 && !Object.values(fw.nodeAt).some(n => W.dist(n, x) <= 1) && !Object.values(nodeAt).some(n => W.dist(n, x) <= 1))
+      .sort((p, q) => hsh(cid + p.c + ',' + p.r) - hsh(cid + q.c + ',' + q.r));
+    put(cid, L[0]); });
+  Object.values(cells).forEach(x => { if (!regs.has(x.reg)) x.shut = 1; });
+  const world = {cols: fw.cols, rows: fw.rows, cells, nodeAt, camp, shared: [...regs].join(','), off: {dc: 0, dr: 0}, spread: 1};
+  // время в пути — как на сборной карте главы: по среднему отношению путей от Таррена
+  try { const sm = W.buildBase(camp), st = camp.start || 'tarren', cst = (wd, a, b) => { const p = W.path(wd, a, b, {}); return p ? p.reduce((q, x) => q + W.cost(x), 0) : 0; };
+    let A = 0, Bs = 0; Object.keys(cN).forEach(id => { if (id === st || !sm.nodeAt[id] || !nodeAt[id] || !sm.nodeAt[st] || !nodeAt[st]) return; A += cst(sm, sm.nodeAt[st], sm.nodeAt[id]); Bs += cst(world, nodeAt[st], nodeAt[id]); });
+    world.timeK = A && Bs ? Math.max(0.25, Math.min(1, A / Bs)) : 1; } catch (e) { world.timeK = 1; }
+  // дороги главы между её местами
+  (camp.map.edges || []).forEach(e => { const a = nodeAt[e[0]], b = nodeAt[e[1]]; if (!a || !b) return; const p = W.path(world, a, b, {road: true}); if (!p) return; [a].concat(p).forEach(x => { x.road = 1; if (x.t === 'water') x.ford = 1; }); });
+  return (camp._worldShared = world); };
+const b0 = W.build;
+W.build = function (camp) { if (!W._baseOnly && camp && spread(camp)) return buildSpread(camp); return b0.apply(this, arguments); };
+const cs0 = C.campShared; C.campShared = g => !!(g && C.CAMPS[g.camp] && (spread(C.CAMPS[g.camp]) || (cs0 && cs0(g))));
+/* старые сохранения: позиция была на сборной карте — ставим отряд в его место на общей, разведанное — заново */
+const wo0 = W.world;
+W.world = function (g) { try { if (g && g.shV !== 1 && C.CAMPS[g.camp] && spread(C.CAMPS[g.camp])) { if (g.pos) { g.pos = null; g.posNode = null; g.seen = {}; } g.shV = 1; } } catch (e) {} return wo0.apply(this, arguments); };
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* town_news.js */
 /* Колдовство — вести города: у места своя судьба (Ник 25.11: «с каким-то интервалом в городах интересные события —
    кто-то женился, кто-то приехал»). Без DOM.

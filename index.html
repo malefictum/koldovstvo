@@ -3608,7 +3608,8 @@ W.march = g => W.MARCH[g.march] || W.MARCH.normal;
 W.step = function (g, cell, isLast) {
   const camp = C.CAMPS[g.camp], M = W.march(g);
   g.pos = {c: cell.c, r: cell.r};
-  g.walk = (g.walk || 0) + W.cost(cell) * M.cost;
+  const tk = (W.world(g) || {}).timeK || 1; // сборные главы на общей карте: путь длиннее, а время сюжета — прежнее
+  g.walk = (g.walk || 0) + W.cost(cell) * M.cost * tk;
   while (g.walk >= 6) { g.walk -= 6; C.pass(g, 1); if (M.tire) C.alive(g).concat(g.mercs).forEach(h => { h.hp = Math.max(1, h.hp - 1); }); }
   W.reveal(g, cell, 2);
   const node = W.visibleNode(g, cell);
@@ -3624,7 +3625,7 @@ W.step = function (g, cell, isLast) {
   if (QQ && !node && !nearTown && !isLast) { if (QQ.omenChance(g, cell)) return {poi: QQ.meet(g, true)}; if (QQ.meetChance(g, cell)) return {poi: QQ.meet(g)}; }
   if (!node && !nearTown) {
     const T = W.T[cell.t] || W.T.meadow;
-    const p = T.danger * M.enc * (cell.road ? 0.6 : 1) * (C.isNight(g) ? 1.6 : 1) * (camp.encounterMul ? camp.encounterMul(g) : 1) * (W.encMul ? W.encMul(g) : 1);
+    const p = T.danger * M.enc * (cell.road ? 0.6 : 1) * (C.isNight(g) ? 1.6 : 1) * (camp.encounterMul ? camp.encounterMul(g) : 1) * (W.encMul ? W.encMul(g) : 1) * tk;
     if (R.rand() < p) {
       const enc = C.encounter(g, T.enc);
       if (enc && enc.battle) { enc.battle.place = T.word[0].toUpperCase() + T.word.slice(1); enc.battle.field = enc.battle.field || C.fieldFor(T.enc === 'swamp' ? 'swamp' : T.enc, C.isNight(g)); }
@@ -49968,7 +49969,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251912"></script><script>
+</script><script src="world.js?v=202611251920"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54937,7 +54938,7 @@ function showEnd() {
    <p>Кампания пройдена за ${done.day} дн. Боёв: ${done.battles}. Павших: ${done.fallen.length}.</p>
    <p>${esc(C.alive(done).map(h => `${h.name} (${R.CLASSES[h.cls].name}, ${h.level}-й ур.)`).join(', '))}</p>
    <p>${esc(LEADW[C.lead(ch)])}</p>
-   <div class="row"><button class="btn" id="e-chron">Летопись края</button>${CH.main.map(id => `<button class="btn primary" data-enext="${id}">Дальше: «${esc(C.CAMPS[id].name)}»</button>`).join('')}${CH.extra.map(id => `<button class="btn" data-enext="${id}">«${esc(C.CAMPS[id].name)}»</button>`).join('')}<button class="btn ${nc ? '' : 'primary'}" id="e-title">На титул</button></div>
+   <div class="row"><button class="btn" id="e-chron">Летопись края</button>${CH.stage === 'after' && C.CAMPS.free ? '<button class="btn primary" id="e-stay">Остаться в этом мире — жить дальше</button>' : ''}${CH.main.map(id => `<button class="btn primary" data-enext="${id}">Дальше: «${esc(C.CAMPS[id].name)}»</button>`).join('')}${CH.extra.map(id => `<button class="btn" data-enext="${id}">«${esc(C.CAMPS[id].name)}»</button>`).join('')}<button class="btn ${nc ? '' : 'primary'}" id="e-title">На титул</button></div>
    ${CH.stage === 'dusk' ? `<p style="font-size:14px">Годы спустя после Веры. «Сумерки»: шесть историй в тех же краях — в каждой гаснет один столп старых чар. Выбирайте любую; пройдя три, откроете «Последние чары». Пройдено: ${C.chainDusk(ch)} из ${Object.values(C.CAMPS).filter(c => c.late && c.tier === 1).length}.</p>`
      : CH.stage === 'charms' ? `<p style="font-size:14px">«Последние чары» открыты: «Подземье встаёт» и «Мощи» — в любом порядке, за ними — «Закат». Непройденные «Сумерки» ещё ждут, если хочется.</p>`
      : CH.stage === 'end' ? `<p style="font-size:14px">Остался «Закат» — конец всего «Колдовства». Сколько столпов пало в «Сумерках», так и закончится.</p>`
@@ -54946,8 +54947,21 @@ function showEnd() {
   $('#e-chron').onclick = () => showChron(ch);
   $('#main').querySelectorAll('[data-enext]').forEach(b => b.onclick = () => showInterlude(ch, b.dataset.enext));
   $('#e-title').onclick = showTitle;
+  if ($('#e-stay')) $('#e-stay').onclick = () => stayWorld(ch, done);
 }
 
+/* история прожита — герои остаются в том же мире: Вечный мир с того места, где кончилась последняя глава (Ник 25.11).
+   Карта у глав и у Вечного мира одна, поэтому место и разведанное переносятся как есть. */
+function stayWorld(ch, done) {
+  g = C.newGame(C.CAMPS.free, undefined, ch); const n = C.carryHeroes(g);
+  try { const wf = W.world(g), at = done && done.pos; if (at) { let cell = wf.cells[W.key(at.c, at.r)], node = cell && cell.node;
+      if (!node) { let bd = 1e9; Object.entries(wf.nodeAt).forEach(([id, c]) => { const d = W.dist(c, at); if (d < bd) { bd = d; node = id; } }); }
+      if (node && wf.nodeAt[node]) { g.loc = node; g.pos = {c: wf.nodeAt[node].c, r: wf.nodeAt[node].r}; g.posNode = node; } }
+    g.seen = Object.assign({}, g.seen || {}, (done && done.seen) || {}); if (done && done.day) { g.day = done.day; g.time = done.time || 0; }
+    g.stayFrom = done ? done.camp : null; C.note(g, 'История прожита. Герои остаются в Порубежье — живут дальше, в том же мире.'); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  save(); if (window.Net) setTimeout(() => korchmaEnsure('game'), 300);
+  if (!n) return showCreate(true);
+  renderTop(); askMore(); }
 /* ---------- привал саги: между кампаниями ---------- */
 function showInterlude(ch, next) {
   const nc = C.CAMPS[next], picks = [];
