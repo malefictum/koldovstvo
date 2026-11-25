@@ -49968,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251818"></script><script>
+</script><script src="world.js?v=202611251822"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50952,9 +50952,10 @@ function showMenu() {
    <div class="mset"><span>Советы бывалого</span><span class="seg">${[['on', 'давать'], ['off', 'не нужно']].map(([k, t]) => `<button class="${(tipsOff() ? 'off' : 'on') === k ? 'on' : ''}" data-tips="${k}">${t}</button>`).join('')}</span></div>
    <div class="mset"><span title="Новый герой сразу садится за стол на выбранном уровне — опробовать умения и заклинания">Пробный герой</span><span class="seg">${[[0, 'нет'], [5, '5'], [10, '10'], [15, '15'], [20, '20']].map(([k, t]) => `<button class="${trialLevel() === k ? 'on' : ''}" data-trial="${k}">${t}</button>`).join('')}</span></div>
    <div class="mset"><span class="note">Игра сохраняется сама после каждой сцены, дороги и боя.${trialLevel() ? ` Новые герои садятся за стол сразу ${trialLevel()}-го уровня.` : ''}</span></div>
-   <div class="mmenu" style="margin-top:6px"><button class="btn" id="m-title"><span class="ui-i i-steps"></span>Выйти на титул</button><button class="btn" id="m-new"><span class="ui-i i-ev_danger"></span>Начать кампанию заново<small>прогресс будет потерян</small></button></div>`, 'sm');
+   <div class="mmenu" style="margin-top:6px"><button class="btn" id="m-dump"><span class="ui-i i-keep"></span>Сохранение в файл<small>чтобы прислать разработчику</small></button><button class="btn" id="m-title"><span class="ui-i i-steps"></span>Выйти на титул</button><button class="btn" id="m-new"><span class="ui-i i-ev_danger"></span>Начать кампанию заново<small>прогресс будет потерян</small></button></div>`, 'sm');
   $('#m-back').onclick = closeModal; $('#m-call').onclick = () => callHero(); $('#m-chron').onclick = () => showChron(g ? g.chron : loadChron()); $('#m-pool').onclick = () => showPool();
   $('#m-title').onclick = () => { closeModal(); showTitle(); };
+  if ($('#m-dump')) $('#m-dump').onclick = () => { try { const txt = C.save(g), nm = `koldovstvo_save_day${g.day || 0}.json`, bl = new Blob([txt], {type: 'application/json'}), a = document.createElement('a'); a.href = URL.createObjectURL(bl); a.download = nm; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000); toast(`Сохранение выгружено: ${nm} — в папке «Загрузки»`); } catch (e) { toast('Не вышло выгрузить сохранение'); } };
   $('#modal').querySelectorAll('[data-tspeed]').forEach(b => b.onclick = () => { try { localStorage.setItem('kldv-type', b.dataset.tspeed); } catch (e) {} showMenu(); });
     $('#modal').querySelectorAll('[data-wspeed]').forEach(b => b.onclick = () => { try { localStorage.setItem('kldv-walk', b.dataset.wspeed); } catch (e) {} showMenu(); });
   $('#modal').querySelectorAll('[data-tips]').forEach(b => b.onclick = () => { try { localStorage.setItem('kldv-tips', b.dataset.tips); if (b.dataset.tips === 'on') localStorage.removeItem('kldv-tips-seen'); } catch (e) {} showMenu(); });
