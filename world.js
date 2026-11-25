@@ -68106,7 +68106,8 @@ const dueOf = (g, d) => day(g) + Math.max(4, Math.min(30, (d || 1) * 2 + 3));
 const seenOf = (g, id, n) => { try { return !n.if || !!n.if(g, C.ctx ? C.ctx(g) : {}); } catch (e) { return false; } };
 const DCACHE = {};
 const daysTo = (g, a, b) => { const k = g.camp + '|' + a + '|' + b; if (k in DCACHE) return DCACHE[k]; let d = null; try { d = C.moveDays ? C.moveDays(g, a, b) : 2; } catch (e) { d = null; } return (DCACHE[k] = d); };
-const targets = (g, at, ok) => Object.entries(nodes(g)).filter(([id, n]) => id !== at && ok(n)).map(([id, n]) => ({n: Object.assign({id}, n), seen: seenOf(g, id, n), d: daysTo(g, at, id), home: regOf(g, id) === regOf(g, at) ? 1 : 0, safe: safeReg(g, id)}))
+const onMap = (g, id) => { try { const W = G.W; return !(W && W.isHex && W.isHex(g)) || !!W.world(g).nodeAt[id]; } catch (e) { return true; } }; // в Вечном мире не все места края лежат на карте
+const targets = (g, at, ok) => Object.entries(nodes(g)).filter(([id, n]) => id !== at && ok(n) && onMap(g, id)).map(([id, n]) => ({n: Object.assign({id}, n), seen: seenOf(g, id, n), d: daysTo(g, at, id), home: regOf(g, id) === regOf(g, at) ? 1 : 0, safe: safeReg(g, id)}))
   .filter(x => x.d != null && x.d >= 1 && x.d <= K().MAXD).sort((a, b) => (b.home - a.home) || ((b.safe ? 1 : 0) - (a.safe ? 1 : 0)) || (b.seen - a.seen) || a.d - b.d || (a.n.id < b.n.id ? -1 : 1));
 /* родня и дела — в своём краю, а не за тридевять земель; чужой край — только не опаснее отряда (Ник 25.11: «гостинец родне — Террасы Ольвии»?) */
 const regOf = (g, id) => { const n = nodes(g)[id] || {}; return n.reg || String(id).split('_')[0]; };
@@ -68299,6 +68300,7 @@ C.heTick = function (g) {
   const S = peek(g); if (!S || !S.err) return;
   Object.values(S.err).forEach(E => {
     if (!E || E.st !== 'open') return;
+    if (E.at && !onMap(g, E.at)) { E.st = 'void'; try { C.note(g, `Поручение ${wifeWord(E)} отменилось: ${E.thing} — туда и дороги-то нет. «Ладно, ${E.who && E.who.sex === 'm' ? 'сам' : 'сама'} как-нибудь», — машет рукой.`); } catch (e) {} return; }
     if (E.merc != null && !mercOf(g, E)) { delete S.err[E.key]; return; }   // наёмник ушёл или пал
     if (!heroById(g, E.hero)) { delete S.err[E.key]; return; }
     if (day(g) <= E.due) return;
