@@ -49950,7 +49950,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251021"></script><script>
+</script><script src="world.js?v=202611251043"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52268,10 +52268,11 @@ function showScene(id, talk) {
   battle = null;
   if (id === 'map') return showMap();
   const view = NETG(); viewPurse();
+  if (g && g.net) g._viewPid = myPid(); // кто смотрит: тринька за общим столом показывает каждому своё (trinka.js)
   const sc = talk !== undefined || view ? C.sceneOf(g, id) : C.enter(g, id); if (!sc) return showMap();
   if (!view && sc.id && sc.id !== id && g.scene === sc.id) id = sc.id; // сцена перенаправила (годы, корни): выборы — от показанной сцены
   if (!view && !NET() && sc.raw && sc.raw.talk) return showTalkScene(id, sc); // волна D1: пир, дух павшего — окном разговора
-  if (!view && !NET() && sc.raw && sc.raw.trk && window.__trkUI) { renderTop(); save(); if (window.__trkUI(id, sc, {choose: i => choose(id, i), faceHTML, paintFaces, toast})) return; } // тринька: стол в корчме (trinka_ui.js)
+  if (sc.raw && sc.raw.trk && window.__trkUI) { renderTop(); if (!view) save(); if (window.__trkUI(id, sc, {choose: i => choose(id, i), faceHTML, paintFaces, toast})) { if (NET()) { try { netBanners(); } catch (e) {} } return; } } // тринька: стол в корчме (trinka_ui.js), и за общим столом — у каждого свой вид
   if (!view && (talkScene(id, sc) || g.w2rest)) { TALK_OK = true; setTimeout(showCompTalk, 650); } // реплики наёмников — в корчме, на ночлеге, после отдыха
   { const nd = CAMP_OF().map.nodes[g.loc]; if (nd && nd.scene === id && ['село', 'город', 'подворье', 'стан'].includes(nd.kind)) setTimeout(() => tip1('town'), 600); if (/^tavern|^folk|^shop/.test(id)) setTimeout(() => tip1('food'), 600); }
   // личное: учёба, кузня, ювелир — решает игрок своего героя, без голосования
@@ -54948,7 +54949,22 @@ function splitChoose(pid, c) {
   if (m > 0 && splitPids().every(p => !(C.splitPv(g, p).clk > 0))) { g.net.splitTick = (g.net.splitTick || 0) + 1; g.net.splitTickT = `Все освободились — ${C.timeName ? C.timeName(g) : 'время дальше'}. Делайте следующее.`; if (myPid() === 'p0') toast(g.net.splitTickT); }
   save(); splitHostView(); return null;
 }
-function splitHostView() { const id = C.splitPv(g, 'p0').id || SCR.id; showScene(id, TALK && TALK.scene === id ? TALK.who : null); }
+function splitHostView() { const id = C.splitPv(g, 'p0').id || SCR.id; showScene(id, TALK && TALK.scene === id ? TALK.who : null); trkInvite(); }
+/* тринька за общим столом: кто-то сел за карты — остальным приглашение: сесть, посмотреть или нет (Ник 25.11) */
+const TRK_INV = {};
+function trkInvite() { try {
+  if (!g || !g.net || !C.trkCur || !C.splitOn || !C.splitOn(g)) return; const T = C.trkCur(g), me = myPid();
+  if (!T || !T.net || T.loc !== g.loc || T.camp !== g.camp || ['end', 'seat'].includes(T.phase)) return;
+  if (/^trk_/.test(C.splitPv(g, me).id || '')) return;
+  const live = T.seats.filter(s => s.hero && !s.gone && s.hid); if (!live.length || live.some(s => g.net.own[s.hid] === me)) return;
+  const key = T.id + '|' + live.map(s => s.hid).join(','); if (TRK_INV[key]) return; TRK_INV[key] = 1;
+  if (!$('#modal').hidden || !myHeroes().length) return;
+  const names = live.map(s => s.name).join(', '), many = live.length > 1;
+  openModal(`<h3>Карты в корчме</h3><p>${esc(names)} ${many ? 'сели' : (live[0].sex === 'f' ? 'села' : 'сел')} за триньку с местными. Подсядете? Можно и просто посмотреть со стороны.</p>
+    <div class="row"><button class="btn primary" id="ti-sit">Сесть за стол</button><button class="btn" id="ti-watch">Посмотреть</button><button class="btn" id="ti-no">Не сейчас</button></div>`);
+  const go = mode => { closeModal(); act({a: 'trkJoin', mode}); };
+  $('#ti-sit').onclick = () => go('sit'); $('#ti-watch').onclick = () => go('watch'); $('#ti-no').onclick = () => closeModal();
+} catch (e) {} }
 /* бой в городе: напали на одного — остальные далеко, на своих делах; добегут, когда дойдёт их ход */
 function splitSpread(S, byPid) { try { const mine = S.units.filter(u => u.side === 'party' && u.ref && g.net.own[u.ref.id] === byPid && !u.ref.kind); if (!mine.length) return;
   const others = S.units.filter(u => u.side === 'party' && u.ref && g.net.own[u.ref.id] && g.net.own[u.ref.id] !== byPid);
@@ -55242,7 +55258,7 @@ function renderNet(changed, gNew) {
   else if (k === 'result') { if (SCR_IN.n !== resSeen) { resSeen = SCR_IN.n; RES = SCR_IN.res; showResult(RES); } }
   else if (k === 'end') renderEndView(SCR_IN);
   if (gNew && MODAL_REFRESH && !$('#modal').hidden) MODAL_REFRESH();
-  netBanners();
+  netBanners(); trkInvite();
 }
 /* хозяин заново рисует то, что сейчас на столе (после прихода героя, обмена и т. п.) */
 function rerender() {
@@ -55279,6 +55295,11 @@ function doCmd1(c, pid) {
     case 'belt': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; const e = C.beltSet(h, c.i | 0, c.val || null); if (e) return e; save(); rerender(); return; }
     case 'eq': { const h = C.alive(g).concat(g.mercs).find(x => x.id === c.hero); if (!h || (h.kind !== 'merc' && ownerOf(h.id) !== pid)) return 'это не ваш герой'; if (h.kind === 'merc' && pid !== leader()) return 'наёмников снаряжает вожатый'; if (c.val && !h.inv.includes(c.val)) return 'такой вещи нет'; if (h.kind === 'merc' && !c.val && h.eq[c.slot] && c.slot !== 'mount') return 'наёмник своё не снимает'; if (C.stuck && C.stuck(h, c.slot)) return 'проклятую вещь не снять'; if (c.val && C.canEquip && C.canEquip(h, R.item(c.val))) return C.canEquip(h, R.item(c.val)); equip(h, c.slot, c.val || null); save(); return; }
     case 'addHero': return addNetHero(c.hero, pid);
+    case 'trkJoin': { const T = C.trkCur && C.trkCur(g); if (!T || T.loc !== g.loc || T.phase === 'end') return 'стол уже разошёлся';
+      const sp = C.splitOn && C.splitOn(g), pv = sp ? C.splitPv(g, pid) : null; if (pv && splitWaiting(pid)) return splitWaiting(pid);
+      if (c.mode === 'sit') { const hs = heroesOf(pid); if (!hs.length) return 'у вас нет героя за столом'; let r = null; g._splitPid = sp ? pid : null;
+        try { r = withPurse(pid, () => C.trkSit(g, hs[0].id)); } finally { g._splitPid = null; } if (r && r.err) return r.err; Net.sysChat(`${hs[0].name} садится за карты.`); }
+      if (pv) pv.id = 'trk_table'; save(); if (sp) splitHostView(); else rerender(); return; }
     case 'swapHero': { if (battle && !battle.over) return 'идёт бой'; if (!(C.isFree && C.isFree(g))) return 'сменить героя можно в корчме Вечного мира';
       const i = c.old ? g.heroes.findIndex(x => x.id === c.old && !x.dead) : -1; let old = null;
       if (i >= 0) { if (ownerOf(c.old) !== pid) return 'это не ваш герой'; old = g.heroes.splice(i, 1)[0]; delete g.net.own[old.id]; }
@@ -56332,6 +56353,7 @@ window.__trkUI = function (id, sc, H) {
   if (pickOn) { const n = (SEL & 1) + (SEL >> 1 & 1) + (SEL >> 2 & 1), c = draws.find(x => +x.v === SEL) || draws[0];
     acts += `<div class="trk-draw-h">Смена: нажмите на карты, которые сбросить, — доберёте столько же из колоды. Сколько вы сменили, увидят все; какие — никто.</div>`;
     acts += `<button class="btn primary" id="trk-draw" data-tch="${c.i}">${esc(n ? c.label : 'Остаться при своих')}</button>`; }
+  if (V.watch) acts += `<div class="trk-draw-h">Вы смотрите со стороны: свои карты игроки прячут, видно только вскрытое при всех.</div>`;
   rest.forEach(c => { acts += btn(c); if (c.trk === 'call' && raise.length) acts += `<button class="btn" id="trk-up">Повысить…</button><div class="trk-raise"${RAISE ? '' : ' hidden'}>${raise.map(r => `<button class="btn" data-tch="${r.i}">${esc(r.label.replace(/^Повысить до /, 'до '))}</button>`).join('')}</div>`; });
   if (talks.length) acts += `<div class="trk-draw-h">Можно подсесть поближе и поговорить: нажмите на соседа по столу.</div><div class="trk-raise trk-talk">${talks.map(c => `<button class="btn" data-tch="${c.i}">${esc(c.label.replace(/^Поговорить: /, ''))}</button>`).join('')}</div>`;
   const me = V.seats[0];
@@ -56351,7 +56373,7 @@ window.__trkUI = function (id, sc, H) {
   const lg = document.getElementById('trk-log'); if (lg) lg.scrollTop = lg.scrollHeight;
   const up = document.getElementById('trk-up'); if (up) up.onclick = () => { RAISE = !RAISE; const r = main.querySelector('.trk-raise'); if (r) r.hidden = !RAISE; };
   main.querySelectorAll('[data-tch]').forEach(b => b.onclick = () => { if (b.disabled) return; RAISE = false; SEL = 0; H.choose(+b.dataset.tch); });
-  talks.forEach(c => { const el = main.querySelector(`.trk-seat[data-seat="${c.v}"]`); if (!el) return; el.classList.add('talk'); const w = el.querySelector('.who'); if (w) { w.title = 'Поговорить'; w.onclick = () => { RAISE = false; H.choose(c.i); }; } });
+  talks.forEach(c => { const el = main.querySelector(`.trk-seat[data-seat="${V.posOf && V.posOf[c.v] != null ? V.posOf[c.v] : c.v}"]`); if (!el) return; el.classList.add('talk'); const w = el.querySelector('.who'); if (w) { w.title = 'Поговорить'; w.onclick = () => { RAISE = false; H.choose(c.i); }; } });
   if (pickOn) main.querySelectorAll('.trk-s0 .tc[data-ci]').forEach(el => el.onclick = () => { SEL ^= 1 << +el.dataset.ci; el.classList.toggle('sel', !!(SEL & (1 << +el.dataset.ci)));
     const n = (SEL & 1) + (SEL >> 1 & 1) + (SEL >> 2 & 1), c = draws.find(x => +x.v === SEL), b = document.getElementById('trk-draw');
     if (b && c) { b.dataset.tch = c.i; b.textContent = n ? c.label : 'Остаться при своих'; } });
