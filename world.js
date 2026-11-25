@@ -68941,7 +68941,7 @@ if (!R || !C || !C.CAMPS || !C.CAMPS.free || !C.TRK_TX) return;
 const TX = C.TRK_TX, FREE = C.CAMPS.free;
 
 C.TRK = Object.assign({
-  ON: 1, JOKER: true, SEATS: {village: [2, 3], yard: [2, 4], town: [3, 5]}, EVE_SEAT: 1, MAX_SEATS: 5,
+  ON: 1, JOKER: true, FEM_VILLAGE: 1.2, FEM_FEST: 1.3, SEATS: {village: [2, 3], yard: [2, 4], town: [3, 5]}, EVE_SEAT: 1, MAX_SEATS: 5,
   DRAW_MC: 24,                              // сколько добор прикидывает ИИ на каждый выбор карт
   BASE: {village: 10, yard: 15, town: 20},  // вход в раздачу (мм) на первом уровне края
   LV: 0.25,                                 // прибавка входа за уровень края
@@ -69173,7 +69173,10 @@ C.trkBusy = function (g) {
 C.trkWho = function (g) {
   const pool = C.trkPool(g); if (pool.length < 2) return [];
   const ev = ['вечер', 'ночь'].includes(C.timeName(g));
-  const w = p => (p.kind === 'own' && p.rich ? (ev ? 1.4 : 0.6) : p.kind === 'tl' ? 1.6 : p.kind === 'kv' ? (ev ? 0.8 : 0.2) : p.kind === 'folk' ? 0.8 : 1) * (0.5 + (hsh(slot(g) + '|' + p.id) % 1000) / 1000);
+  /* в селе вечером — посиделки, в праздник все навеселе: женщин за столом больше (Ник 25.11) */
+  let fest = false; try { fest = !!(C.tnFestive && C.tnFestive(g)); } catch (e) {}
+  const fm = (cls(g) === 'village' && ev ? K().FEM_VILLAGE : 1) * (fest ? K().FEM_FEST : 1);
+  const w = p => (p.sex === 'f' ? fm : 1) * (p.kind === 'own' && p.rich ? (ev ? 1.4 : 0.6) : p.kind === 'tl' ? 1.6 : p.kind === 'kv' ? (ev ? 0.8 : 0.2) : p.kind === 'folk' ? 0.8 : 1) * (0.5 + (hsh(slot(g) + '|' + p.id) % 1000) / 1000);
   const [lo, hi] = K().SEATS[cls(g)] || K().SEATS.village, span = hi - lo + 1;
   const want = Math.min(K().MAX_SEATS, lo + (hsh('trkn|' + g.loc + '|' + slot(g)) % span) + (ev ? K().EVE_SEAT : 0));
   return pool.map(p => [w(p), p]).sort((a, b) => b[0] - a[0] || (a[1].id < b[1].id ? -1 : 1)).slice(0, Math.max(2, want)).map(x => x[1]);
