@@ -72160,3 +72160,15 @@ if (C.heLeave) { const lv0 = C.heLeave; C.heLeave = function (g, key, why) {
   return lv0.apply(this, arguments); }; }
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+/* Колдовство — герой проживает всю историю (Ник 25.11: «проверь, не умрёт ли герой от старости за всю цепочку»).
+   Замер: от «Мёртвой воды» до «Заката» — 40–45 лет летописи; герой выходит к «Закату» в 71–76 лет, и на переходах между частями
+   старики уходили на покой (у книжника — каждый четвёртый). Годы летописи держат сюжет («Двадцать лет назад…»), их не сжимаем.
+   Решение: в саге и поздних сагах герои на покой не уходят — старость берёт своё силой и телом (−1 Сила и Телосложение в 65, 70, 75),
+   но не уводит из отряда до конца истории. Смерть от старости — как и было, только в Вечном мире. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C || !C.ageEnter) return;
+const ae0 = C.ageEnter;
+C.ageEnter = function (g, h, o) { try { const cp = g && C.CAMPS[g.camp]; if (cp && !cp.free && o && o.retire) o = Object.assign({}, o, {retire: false}); } catch (e) {} return ae0.call(this, g, h, o); };
+})(typeof window !== 'undefined' ? window : globalThis);
