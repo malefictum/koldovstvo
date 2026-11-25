@@ -73301,9 +73301,11 @@ C.sceneOf = function () { const sc = so0.apply(this, arguments);
 'use strict';
 const C = G.C, W = G.W;
 if (!C || !W || !W.build || !C.CAMPS || !C.CAMPS.free) return;
-C.SHARED_CAMPS = C.SHARED_CAMPS || ['dead_water'];
+C.SHARED_CAMPS = C.SHARED_CAMPS || ['dead_water', 'ashes', 'edvin', 'terak', 'swamp', 'late_olsha', 'late_dub', 'late_edvin', 'late_terak', 'late_boloto', 'late2_podzem', 'late2_moshchi']; // таррен-главы (sud, late_navi, late2_zakat) — своя сборная карта, пока на ней
 const campId = camp => Object.keys(C.CAMPS).find(k => C.CAMPS[k] === camp) || null;
-const regOf = id => (C.FREE_REGIONS || []).find(r => r.camp === id) || null;
+/* край кампании: свой (r.camp) или по той же карте (поздние главы рисуют тот же край — то же зерно и размер) */
+const sameMap = (a, b) => { const A = a && a.map && a.map.hex, Bh = b && b.map && b.map.hex; return !!(A && Bh && A.seed === Bh.seed && A.cols === Bh.cols && A.rows === Bh.rows); };
+const regOf = id => (C.FREE_REGIONS || []).find(r => r.camp === id) || (C.FREE_REGIONS || []).find(r => r.camp && C.CAMPS[r.camp] && sameMap(C.CAMPS[r.camp], C.CAMPS[id])) || null;
 const shared = camp => { const id = campId(camp); return !!(id && C.SHARED_CAMPS.includes(id) && regOf(id) && camp.map && camp.map.hex && !camp.map.hex.free); };
 C.campShared = g => !!(g && C.CAMPS[g.camp] && shared(C.CAMPS[g.camp]));
 const base = W.build;
@@ -73311,12 +73313,14 @@ W.buildBase = camp => { const b = W._baseOnly; W._baseOnly = 1; try { return bas
 const buildShared = function (camp) {
   if (camp._worldShared) return camp._worldShared;
   const id = campId(camp), X = regOf(id), FR = C.CAMPS.free;
-  const small = W.buildBase(camp), fw = W.buildBase(FR);
+  const small = W.buildBase(camp), fw = W.buildBase(FR), baseCamp = C.CAMPS[X.camp] || camp, baseW = W.buildBase(baseCamp);
   // места кампании ↔ места мира: по названию внутри своего края
   const fN = FR.map.nodes, cN = camp.map.nodes, toCamp = {};
   Object.keys(cN).forEach(cid => { const fid = Object.keys(fN).find(k => fw.nodeAt[k] && fw.nodeAt[k].reg === X.id && fN[k].name === cN[cid].name); if (fid) toCamp[fid] = cid; });
+  // сдвиг считаем по основной кампании края: её места все есть в мире
+  const bN = baseCamp.map.nodes, bTo = {}; Object.keys(bN).forEach(bid => { const fid = Object.keys(fN).find(k => fw.nodeAt[k] && fw.nodeAt[k].reg === X.id && fN[k].name === bN[bid].name); if (fid) bTo[fid] = bid; });
   // сдвиг малой карты в большой: по совпавшему месту
-  const off = (() => { const any = Object.keys(toCamp)[0]; if (!any) return {dc: 0, dr: 0}; const a = small.nodeAt[toCamp[any]], b = fw.nodeAt[any]; return a && b ? {dc: b.c - a.c, dr: b.r - a.r} : {dc: 0, dr: 0}; })();
+  const off = (() => { const any = Object.keys(bTo)[0]; if (!any) return {dc: 0, dr: 0}; const a = baseW.nodeAt[bTo[any]], b = fw.nodeAt[any]; return a && b ? {dc: b.c - a.c, dr: b.r - a.r} : {dc: 0, dr: 0}; })();
   const cells = {}, nodeAt = {};
   // чужие края — видны, но за рубежом; свой край — клетки самой кампании (с её местами, приметами, святилищами), со сдвигом
   Object.values(fw.cells).forEach(s => { const n = Object.assign({}, s); delete n.node; delete n.poi; delete n.poiId; delete n.folk;
@@ -73327,8 +73331,7 @@ const buildShared = function (camp) {
 W.build = function (camp) { if (!W._baseOnly && camp && shared(camp)) return buildShared(camp); return base.apply(this, arguments); };
 /* старые сохранения кампании: с малой карты на большую */
 const migrate = g => { if (!g || g.shV === 1 || !C.campShared(g)) return; const w = W.build(C.CAMPS[g.camp]), o = w.off || {dc: 0, dr: 0};
-  const cur = g.pos && w.cells[W.key(g.pos.c, g.pos.r)];
-  if (g.pos && (!cur || cur.shut)) {
+  if (g.pos && (o.dc || o.dr)) { // сохранение ещё с малой карты (до общей) — сдвигаем один раз
     g.pos = {c: g.pos.c + o.dc, r: g.pos.r + o.dr};
     const s2 = {}; Object.keys(g.seen || {}).forEach(k => { const [c, r] = k.split(',').map(Number); s2[W.key(c + o.dc, r + o.dr)] = 1; }); g.seen = s2; }
   g.shV = 1; };
