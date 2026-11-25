@@ -50107,7 +50107,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252130"></script><script>
+</script><script src="world.js?v=202611252140"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51669,7 +51669,12 @@ function showTitle() {
     const head = sv ? `«${esc(camp ? camp.name : sv.camp)}», день ${sv.day}` : next ? `Впереди «${esc(camp.name)}»` : 'Сага края пройдена';
     const sub = [who ? esc(who) : (sv ? 'отряда нет' : ''), done].filter(Boolean).join(' · ');
     let btn = '';
-    if (sv) { btn = tbl ? `<button class="btn primary small" data-stbl="${i}"${contId ? '' : ' id="t-table"'}>Продолжить за столом <b class="tcode">${esc(tbl.code)}</b></button><button class="btn small" data-scont="${i}"${contId ? '' : ' id="t-cont"'}>Одному</button>`
+    /* стол (Ник 25.11): поход принадлежит хозяину стола. Чужой стол отсюда не продолжить — только вернуться к нему.
+       «Одному» у хозяина — гости забирают своих героев: они уходят из отряда, а отряд идёт дальше без них */
+    const myHost = tbl && (!(window.Net && Net.myUid) || !tbl.players.some(p => p.host && p.uid) || tbl.players.some(p => p.host && p.uid === Net.myUid()));
+    const guests = tbl ? C.alive(sv).filter(h => h.kind !== 'merc' && sv.net && sv.net.own && sv.net.own[h.id] && sv.net.own[h.id] !== 'p0').map(h => h.name) : [];
+    if (sv && tbl && !myHost) { btn = `<span class="note">Это стол ${esc(tbl.code)} другого игрока — вернуться к нему можно через корчму.</span>`; contId = true; }
+    else if (sv) { btn = tbl ? `<button class="btn primary small" data-stbl="${i}"${contId ? '' : ' id="t-table"'}>Продолжить за столом <b class="tcode">${esc(tbl.code)}</b></button><button class="btn small" data-scont="${i}" data-sguests="${esc(guests.join(', '))}" id="scont-${i}">Одному</button>`
         : `<button class="btn primary small" data-scont="${i}"${contId ? '' : ' id="t-cont"'}>Продолжить</button>`; contId = true; }
     else if (next) { btn = `<button class="btn primary small" data-snext="${i}"${nextId ? '' : ' id="t-next"'}>Дальше по саге<small>${esc(C.levelsOf(next).join('–'))}-й ур.</small></button>`; nextId = true; }
     return `<div class="saga${i === keep ? ' cur' : ''}"><div class="sg-t"><b>${head}</b><small>${sub || '&nbsp;'}</small></div><div class="sg-b">${btn}${ch ? `<button class="btn small" data-schron="${i}">Летопись</button>` : ''}<button class="btn small ghost" data-sdrop="${i}" id="sdrop-${i}" title="Оставить эту сагу: поход и летопись сотрутся, герои останутся в «Моих героях»">Оставить</button></div></div>`; });
@@ -51701,7 +51706,12 @@ function showTitle() {
   if (lockW) { root.querySelectorAll('[data-scont],[data-snext],#t-back,[data-scont-free]').forEach(b => { b.disabled = true; b.title = lockW; });
     const box = root.querySelector('.tbox h1'); if (box) box.insertAdjacentHTML('afterend', `<div class="info cloudlock"><b>${esc(lockW)}</b>${!Cloud.fresh ? ` <button class="btn small primary" id="t-cloudin">${Cloud.user ? 'Облако' : 'Войти'}</button>` : ''}</div>`);
     const ci = root.querySelector('#t-cloudin'); if (ci) ci.onclick = () => showCloud(); }
-  root.querySelectorAll('[data-scont]').forEach(b => b.onclick = () => { setSaga(+b.dataset.scont); g = loadSave(); afterLoad(); });
+  root.querySelectorAll('[data-scont]').forEach(b => b.onclick = () => { const gs = b.dataset.sguests || '';
+    if (gs && b.id && !confirmBox(b.id, `Без стола: ${gs} уйдут к своим игрокам`)) return;
+    setSaga(+b.dataset.scont); g = loadSave();
+    if (gs && g && g.net) { const own = g.net.own || {}; g.heroes.filter(h => h.kind !== 'merc' && own[h.id] && own[h.id] !== 'p0').forEach(h => { const k = g.heroes.indexOf(h); if (k >= 0) g.heroes.splice(k, 1); C.note(g, `${h.name} уходит из отряда — к своему игроку.`); });
+      delete g.net; save(); }
+    afterLoad(); });
   root.querySelectorAll('[data-snext]').forEach(b => b.onclick = () => { setSaga(+b.dataset.snext); const ch = loadChron(); newGame(C.nextCamp(ch), ch); });
   root.querySelectorAll('[data-schron]').forEach(b => b.onclick = () => { setSaga(+b.dataset.schron); showChron(loadChron()); });
   root.querySelectorAll('[data-sdrop]').forEach(b => b.onclick = () => { if (!confirmBox(b.id, 'Поход и летопись этой саги сотрутся. Нажмите ещё раз')) return; sagaDrop(+b.dataset.sdrop); showTitle(); });
@@ -53170,13 +53180,14 @@ function drawMapFigs(x2, pp, s, moving) {
   const pos = FIG_POS[figs.length - 1], H = s * (figs.some(u => u.mount) ? 1.45 : 1.6), face = (WM.face || 1) < 0 ? -1 : 1;
   x2.beginPath(); x2.ellipse(pp.x, pp.y + s * 0.55, s * (0.35 + 0.22 * figs.length), s * 0.2, 0, 0, Math.PI * 2); x2.fillStyle = 'rgba(0,0,0,.35)'; x2.fill();
   const order = figs.map((u, i) => ({u, d: pos[i]})).sort((a, b) => a.d[1] - b.d[1]);
-  const keep = [ctx, geo]; let ok = true;
+  // каждая фигурка — со своим save/restore в finally: сбой одной не оставляет холст карты испорченным (Ник 25.11, сеть: «карта крашится»)
+  const keep = [ctx, geo]; let drawn = 0;
   try { ctx = x2; geo = {s: H / 2.15};
     order.forEach(({u, d}) => { u.face = face; u.pose = moving && !u.mount ? 'walk' : 'stand';
       const p = {x: pp.x + d[0] * s * face, y: pp.y + s * 0.55 + d[1] * s - geo.s * 0.5};
-      ctx.save(); const done = u.mount ? drawMounted(u, p, H) : false; if (!done) { ctx.restore(); ctx.save(); drawHero(u, p, H); } ctx.restore(); });
-  } catch (e) { ok = false; } finally { [ctx, geo] = keep; }
-  return ok;
+      ctx.save(); try { let done = u.mount ? drawMounted(u, p, H) : false; if (!done) { ctx.restore(); ctx.save(); done = drawHero(u, p, H) !== false; } if (done) drawn++; } catch (e) {} finally { ctx.restore(); } });
+  } finally { [ctx, geo] = keep; }
+  return drawn > 0; // ни одной фигурки не вышло — пусть рисуется простая фишка отряда
 }
 /* кадр карты: подложка + фишка отряда, которая идёт от клетки к клетке */
 function presentWorld() {
@@ -56420,7 +56431,7 @@ function coinize(root) {
 }
 new MutationObserver(ms => { ms.forEach(m => { m.addedNodes.forEach(n => { if (n.nodeType === 1 && n.querySelector && !n.closest('.dd') && (n.tagName === 'SELECT' || n.querySelector('select:not(.dd-src)'))) enhanceSelects(n.tagName === 'SELECT' ? n.parentNode : n); if (n.nodeType === 1) coinize(n); else if (n.nodeType === 3 && n.parentNode) coinize(n.parentNode); }); if (m.type === 'characterData' && m.target.parentNode) coinize(m.target.parentNode); }); }).observe(document.body, {childList: true, subtree: true, characterData: true});
 coinize(document.body);
-window.__kldv = { netEmu: () => { g = C.load(JSON.stringify(g)); battle = unpackBattle(packBattle(battle)); drawField(true); return (window.__kldv || {}).drawErr || ''; }, civMenu: id => civMenu(battle, B.current(battle), B.U(battle, id)), end: () => showEnd(), play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
+window.__kldv = { nethost: n => raiseTable(n || 'Хозяин', ''), netgive: (hid, pid) => { g.net.own[hid] = pid; save(); publish(true); }, scr: () => SCR, netEmu: () => { g = C.load(JSON.stringify(g)); battle = unpackBattle(packBattle(battle)); drawField(true); return (window.__kldv || {}).drawErr || ''; }, civMenu: id => civMenu(battle, B.current(battle), B.U(battle, id)), end: () => showEnd(), play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
   /* картинка для сайта: фигура бойца целиком и значок вещи */
   fig: (c, u) => { const x = c.getContext('2d'), W = c.width, Hc = c.height; x.clearRect(0, 0, W, Hc);
     const fit = (img, a, flip, filt) => { const k = Math.min(W * 0.94 / a[2], Hc * 0.94 / a[3]), w = a[2] * k, h = a[3] * k; x.save(); if (filt) x.filter = filt; x.translate(W / 2, Hc * 0.97); if (flip) x.scale(-1, 1); x.drawImage(img, a[0], a[1], a[2], a[3], -w / 2, -h, w, h); x.restore(); return true; };
