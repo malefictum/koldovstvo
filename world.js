@@ -70448,7 +70448,7 @@ C.walkDo = function (S, u, a) {
   if (a.v === 'light') { u.torch = !u.torch; if (u.look) u.look = Object.assign({}, u.look, {torch: !!u.torch && !((u.ref && u.ref.inv) || []).includes('fonar_slyudyanoy')}); if (BF.touch) BF.touch(S); lg(S, fill(u.torch ? TX.light.onLog : TX.light.offLog, {h: u}), ''); S.walk._roll = {}; perceive(S, u); return ''; }
   if (a.v === 'enter') { const h = houseOf(S, a.p); Wk.end = {k: 'pause', go: {k: 'place', hk: h ? h.k : ''}}; S.over = 'walk'; return ''; }
   if (a.v === 'talk') { const j = tgtJob(g, t); let face = t.portrait || t.civ.face || ''; if (!face) { try { const fs = C.foeFaces(t.civ.k === 'guard' ? 'guard' : 'wander', sexOf(t)); face = fs.length ? fs[hsh(t.name || t.id) % fs.length] : ''; t.civ.face = face; } catch (e) {} }
-    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null}}}; S.over = 'walk'; return ''; }
+    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null, folk: t.civ.folk || null}}}; S.over = 'walk'; return ''; }
   if (a.v === 'pick') {
     S.acted = true; Wk.picked[t.id] = 1; B.faceTo(u, t);
     const dc = 10 + Math.floor((t.level || 1) / 2) + (t.civ.k === 'guard' ? 3 : t.civ.k === 'trader' ? 2 : 0), r = roll(u, 'dex', 'Ловкость рук', dc);
@@ -71529,6 +71529,7 @@ const TALK = {
   kid: {m: ['А у тебя меч настоящий? А ты дракона видел? А волка? А медведя? А… а дай подержать!', 'Мы в разбойников играем. Хочешь — будешь атаманом? Только ты всё равно проиграешь, мы так договорились.'],
     f: ['У меня котёнок, его зовут Уголёк. Хочешь погладить? Он кусается, но не больно.', 'А ты к нам надолго? Мама сказала — чужие все уходят. Ты тоже уйдёшь?']},
 };
+const MASTER_HI = ['Мастер отрывается от работы и вытирает руки о передник: «Ко мне? Говори, только коротко — дело стоит»', '«А, путник. Слыхал про тебя. Чем могу — помогу, чего не могу — не обессудь»', '«Не стой на пороге, люди не пройдут. Ко мне, что ли?»'];
 const WARM = {f: ['{n} машет {h_d} издали: «Опять ты! А я тебя ждала — новость есть»'], m: ['{n} сам идёт навстречу: «Здорово, {h}! Слыхал, что у нас?»']};
 const HELP = {f: ['{h} полдня носит {n_d} воду и колет дрова. К вечеру {n} выносит пирог: «Не человек — золото. Заходи ещё»'], m: ['{h} полдня помогает {n_d} с работой. {n} жмёт руку: «Должник я твой. Обращайся»']};
 const FLIRT = {ok: {f: '{n} краснеет, потом смеётся и тихо говорит: «Вечером, у колодца. Только чтоб никто не видел». Знакомство завязалось.', m: '{n} сперва теряется, потом улыбается во весь рот: «Вечером у реки. Приходи». Знакомство завязалось.'},
@@ -71594,11 +71595,20 @@ C.tfFlirt = function (g, hh, at, pid) { const p = C.tfPeople(g, at).find(x => x.
 if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { const r = ws0.apply(this, arguments);
   try { const ppl = C.tfPeople(g, g.loc).slice(), used = new Set();
     const want = k => k === 'child' ? (p => p.age === 'kid') : k === 'starik' ? (p => p.age === 'old') : k === 'baba' ? (p => p.sex === 'f' && p.age !== 'kid') : k === 'muzhik' ? (p => p.sex === 'm' && p.age !== 'kid' && p.age !== 'old') : null;
-    (S.units || []).filter(u => u.side === 'civ' && u.civ && !u.civ.tf && want(u.civ.k)).forEach(u => { const p = ppl.find(x => !used.has(x.id) && want(u.civ.k)(x)); if (!p) return; used.add(p.id);
+    /* мастера места днём — тоже на улице: кузнец у кузни, швея у ворот, травница с корзиной (Ник 25.11) */
+    if (!(C.isNight && C.isNight(g)) && C.folkHere && C.folkPerson) { const roles = C.folkHere(g) || [];
+      const civ = (S.units || []).filter(u => u.side === 'civ' && u.civ && !u.civ.tf && !u.civ.folk && ['muzhik', 'baba', 'starik'].includes(u.civ.k));
+      roles.forEach(role => { const p = C.folkPerson(g, role, g.loc); if (!p) return; const want2 = p.sex === 'f' ? ['baba'] : ['muzhik', 'starik'];
+        const u = civ.find(x => !x.civ.folk && want2.includes(x.civ.k)); if (!u) return; u.civ.folk = role; u.name = `${p.n}, ${p.t}`; if (p.face) { u.portrait = p.face; u.civ.face = p.face; } }); }
+    (S.units || []).filter(u => u.side === 'civ' && u.civ && !u.civ.tf && !u.civ.folk && want(u.civ.k)).forEach(u => { const p = ppl.find(x => !used.has(x.id) && want(u.civ.k)(x)); if (!p) return; used.add(p.id);
       u.civ.tf = p.id; u.name = `${p.n}, ${p.t}`; if (p.face) { u.portrait = p.face; u.civ.face = p.face; } });
   } catch (e) { if (C.BF_DEBUG) console.error(e); }
   return r; }; }
 { const so1 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so1.apply(this, arguments);
+  try { if (sc && id === 'tw_talk' && g.twalk && g.twalk.talk && g.twalk.talk.folk && C.FOLK && C.FOLK[g.twalk.talk.folk]) { const role = g.twalk.talk.folk, p = C.folkPerson(g, role, g.loc);
+    if (!g.twalk.talk.folkHi) { g.twalk.talk.folkHi = 1; g.twalk.talk.log.push({who: 'o', text: pickH(MASTER_HI, role + day(g))}); }
+    const add = [{t: `О деле: ${p.t} — учёба, ремесло, поручения`, do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.folkRole = role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }}];
+    add.forEach((c, k) => { c.i = 950 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); } } catch (e) {}
   try { if (sc && id === 'tw_talk' && g.twalk && g.twalk.talk && g.twalk.talk.tf) { const T = g.twalk.talk, pid = T.tf, at = g.loc;
     const add = [{t: 'Поболтать о жизни', do: g2 => { const X = g2.twalk.talk; const t = C.tfChat(g2, at, pid); X.log.push({who: 'h', text: 'Как живёте тут?'}); if (t) X.log.push({who: 'o', text: t}); return 'tw_talk'; }}];
     const p = C.tfPeople(g, at).find(x => x.id === pid);
