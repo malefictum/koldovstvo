@@ -70892,6 +70892,7 @@ C.walkActs = function (S, u) {
     out.push({v: 'yield', label: 'Сдаться', title: 'Бросить оружие и поднять руки: бить перестанут, поведут к судьям, если есть за что.', grp: 'Прогулка'});
     return out; }
   const usedA = S.acted ? TX.why.acted : '';
+  out.push({v: 'arm', label: Wk.armed ? 'Убрать оружие' : 'К бою!', on: Wk.armed ? 1 : 0, title: Wk.armed ? 'Спрятать оружие и чары — снова просто прохожий.' : 'Оружие наготове, чары на кончиках пальцев: весь боевой арсенал — бить, стрелять, колдовать. Пока никто не видел и не слышал — тревоги нет. Кто увидит — запомнит.', grp: 'Прогулка'});
   out.push({v: 'back', label: Wk.all ? TX.back.all : TX.back.day, title: TX.tips.back, grp: 'Прогулка'});
   { const G0 = G_, tt = G0 ? G0.time % 4 : 1, busyW = Wk.hot || Wk.fight || (Wk.inv && Wk.inv.until >= Wk.rnd) ? 'Сейчас не до того: всполошились' : ''; /* переждать до нужного часа — вору под ночное дело (Ник 25.11) */
     if (tt < 2) out.push({v: 'wait', p: 'eve', label: 'Дождаться вечера', dis: busyW, title: 'Отсидеться в тихом углу до сумерек — улица станет другой.', grp: 'Прогулка'});
@@ -71034,6 +71035,9 @@ const knock = (S, u, hid, did) => {
   lg(S, fill(pick(mine ? TX2.knockMine : TX2.knockOpen), {n: f, h: u}), 'buff'); sight(S, f, u);
   return '';
 };
+const TX3 = {armSeen: ['{n} косится на {h}: чего это оружие наголо?', '{n} замечает, как {h} берётся за оружие, и пятится.', 'На {h} с оружием в руках смотрит {n} — запомнит.'],
+  armQuiet: ['{h} без шума берётся за оружие. Никто не видит.', 'Ладонь на рукояти, слово заговора на языке — {h} готов.', '{h} тихо готовится к худому делу.'],
+  armOff: ['{h} убирает оружие — снова просто прохожий.', 'Оружие спрятано, руки пусты.']};
 const TX2 = C.TW_TX2 = {
   peek: 'Заглянуть в окно', climb: 'Влезть в окно', vault: 'Перелезть через плетень', hay: 'Зарыться в стог', drink: 'Напиться у колодца',
   peekWho: 'В окне видно: {t}.', peekEmpty: 'Заглянули в окно — в избе пусто.', peekDark: 'В окне темно, ничего не разглядеть.',
@@ -71072,6 +71076,9 @@ C.walkDo = function (S, u, a) {
   const act = C.walkActs(S, u).find(x => x.v === a.v && (a.t == null || x.t === a.t) && (a.p == null || x.p === a.p)); if (!act) return 'Так нельзя.'; if (act.dis) return act.dis;
   const hid = u.ref ? u.ref.id : u.id, t = a.t ? B.U(S, a.t) : null;
   if (a.v === 'back') { Wk.end = {k: 'back'}; S.over = 'walk'; return ''; }
+  if (a.v === 'arm') { Wk.armed = Wk.armed ? 0 : 1;
+    if (Wk.armed) { const ws = C.walkWitness(S, u); if (ws.length) { lg(S, fill(pick(TX3.armSeen), {n: ws[0].f, h: u}), ''); if (Wk.night) Wk.sus[hid] = Wk.rnd; } else lg(S, fill(pick(TX3.armQuiet), {h: u}), ''); }
+    else lg(S, fill(pick(TX3.armOff), {h: u}), ''); return ''; }
   if (a.v === 'yield') { Wk.yielded = 1; Wk.fight = 0; Wk.hot = 0; S.units.forEach(f => { if (f.side === 'foe' && f.civ) { f.side = 'civ'; f.civ.hostile = 0; } });
     lg(S, `${nameOf(u)} бросает оружие и поднимает руки. Бить перестают, хватают под локти.`, 'bad'); Wk.end = {k: 'yield'}; S.over = 'walk'; return ''; }
   if (a.v === 'wait') { Wk.end = {k: 'wait', to: a.p}; S.over = 'walk'; return ''; }
@@ -73491,6 +73498,106 @@ C.walkPeople = function (S, g) {
 const hs0 = BF.houseSign;
 BF.houseSign = function (S, h) { try { const K = S && S.walk && S.walk.kvHomes; if (K && h && K[h.id]) return K[h.id]; } catch (e) {} return hs0.apply(this, arguments); };
 if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } try { C.walkPeople(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* kv_murder.js */
+/* Колдовство — kv_murder: замужняя любовница просит убить мужа, пока спит (Ник 25.11).
+   • В «Поговорить по-свойски» (kv_local) у замужней (r.st === 'wife', есть r.hb), когда она уже крепко привязана (rel ≥ ASK_REL),
+     раз в жизни связи — просьба: «Он спит в нашей избе. Я уйду ночевать к сестре, дверь в сенях не запру. Чтобы никто не знал».
+   • Согласие — заказ (kind 'contract', dark) в ЭТОМ же месте: цель — её муж, дом — её изба (подпись над дверью и пятно в миникарте),
+     ночью он там один и спит, дверь не заперта. Дальше — прогулка: «К бою!», тихо войти, убить (town_walk.js: tgtDead → Q.finish).
+   • Сделано — она вдова (st 'widow', мужа нет), можно свататься; плата — её «вдовья доля». Видели — молва, суд как за убийство.
+   • Отказ — она помнит (rel −), больше не просит. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q, B = G.B;
+if (!R || !C || !Q || !C.kvLocOf) return;
+const K = C.KVM = Object.assign({ASK_REL: 60, PAY: [40, 160], DL: 6, NO_REL: 15}, C.KVM || {});
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const day = g => (g && g.day) || 1;
+const first = n => String(n || '').split(/[,( ]/)[0];
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const T = {
+  ask: ['{p} долго молчит, теребит край платка, потом шепчет: «Не могу я так больше. Он пьёт, он бьёт, он меня в могилу сведёт. Ты сильный… Он спит крепко, как убитый. Пусть и будет убитый». Глаза сухие, страшные.',
+    '{p} берёт тебя за руку и не отпускает: «Пока он жив — мне жизни нет. Я уйду ночевать к сестре, дверь в сенях не запру. Он спит у печи. Никто не узнает — только ты да я».',
+    '«Ты меня любишь? — спрашивает {p} и не дожидается ответа. — Тогда избавь меня от него. Ночью. Тихо. Чтоб ни одна душа не знала. Изба наша — сам знаешь, какая»'],
+  yes: '{p} выдыхает, будто камень с плеч: «Завтра ночью — или когда сможешь. Я буду у сестры. Изба наша — сам знаешь где, дверь в сенях открыта. Он у печи спит». Она суёт тебе в руку узелок с серебром ({m}): «Это всё, что у меня есть своего».',
+  no: ['{p} отдёргивает руку: «Значит, не любишь. Забудь, что я говорила». Больше она об этом не заговорит.', '«Ну и ладно, — {p} отворачивается. — Сама как-нибудь… или так и сгнию с ним». Холодно стало между вами.'],
+  later: '«Подумаю», — говоришь ты. {p} кивает, но в глазах — обида.',
+  done: '{p} вдовеет тихо, как полагается: плачет на похоронах, а ночью приходит к тебе и долго молчит, прижавшись. «Теперь я твоя. Совсем».',
+  doneSeen: 'По селу ползёт шёпот: мужа {pg} зарезали во сне, а саму её видели с чужаком. {p} прячет глаза.',
+  job: '{p} просит избавить её от мужа — {v} спит в их избе ({where}). Ночью она уйдёт к сестре, дверь в сенях не заперта. Никто не должен знать.'
+};
+const fill = (s, o) => String(s).replace(/\{(\w+)\}/g, (m, k) => (o[k] != null ? o[k] : m));
+const decl = (n, sex) => (Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n};
+const whereOf = g => { const n = nodes(g)[g.loc] || {}; return n.kind === 'город' ? 'в городе' : 'в селе'; };
+const jobOf = (g, r) => (g.jobs || []).find(j => j.kvm === r.id && j.status === 'open');
+
+/* --- кнопки в разговоре по-свойски --- */
+const so = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so.apply(this, arguments);
+  try { if (sc && id === 'kv_local' && g.kvCur) { const r = C.kvLocOf(g, g.kvCur);
+    if (r && r.st === 'wife' && r.hb && r.sex === 'f' && (r.rel || 0) >= K.ASK_REL && !r.mAsk && r.at === g.loc) {
+      const p = {p: r.n, pg: decl(r.n, 'f').g, where: whereOf(g)};
+      if (!r.mSaid) { r.mSaid = day(g); }
+      sc.lines = (sc.lines || []).concat([['n', fill(T.ask[hsh(r.id) % T.ask.length], p)]]);
+      const add = [
+        {t: 'Взяться: ночью, пока спит', do: g2 => { const x = C.kvLocOf(g2, r.id); if (!x) return 'kv_local'; x.mAsk = 'yes'; const j = C.kvmJob(g2, x); g2.kvLast = j ? fill(T.yes, Object.assign({m: j.kvmPay + ' монет'}, p)) : 'Только вот дело не сладилось.'; return 'kv_local'; }},
+        {t: 'Подумать', do: g2 => { const x = C.kvLocOf(g2, r.id); if (x) x.mAsk = 'later'; g2.kvLast = fill(T.later, p); return 'kv_local'; }},
+        {t: 'Отказаться', do: g2 => { const x = C.kvLocOf(g2, r.id); if (x) { x.mAsk = 'no'; x.rel = Math.max(0, (x.rel || 0) - K.NO_REL); } g2.kvLast = fill(T.no[hsh(r.id + 'n') % T.no.length], p); return 'kv_local'; }}];
+      add.forEach((c, k) => { c.i = 9600 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); }
+    // передумал после «подумать» — можно вернуться к разговору
+    else if (r && r.mAsk === 'later' && r.hb && !jobOf(g, r)) { const add = [{t: 'Про мужа: я согласен', do: g2 => { const x = C.kvLocOf(g2, r.id); if (!x) return 'kv_local'; x.mAsk = 'yes'; const j = C.kvmJob(g2, x); g2.kvLast = j ? fill(T.yes, {p: x.n, m: j.kvmPay + ' монет'}) : 'Только вот дело не сладилось.'; return 'kv_local'; }}];
+      add.forEach((c, k) => { c.i = 9610 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc;
+};
+
+/* --- заказ: здесь же, цель — муж, дом — её изба --- */
+C.kvmJob = function (g, r) {
+  let j = null; try { j = Q.make(g, 'town', {giver: 'folk_thief', kind: 'contract'}); } catch (e) { j = null; } if (!j) return null;
+  const n = nodes(g)[g.loc] || {};
+  j.kvm = r.id; j.dark = 1; j.diff = 'mid'; j.dl = day(g) + K.DL;
+  j.pay = Math.round((K.PAY[0] + (K.PAY[1] - K.PAY[0]) * ((hsh(r.id + 'p') % 100) / 100)) / 5) * 5;
+  j.v = Object.assign({}, j.v, {vic: {n: r.hb.n, sex: r.hb.sex || 'm'}});
+  j.tw = {node: g.loc, name: n.name, town: n.kind === 'город', wealth: 'izba', day: 'korchma', kvm: r.id};
+  const at = whereOf(g) + ' ' + (n.name || ''); j.v.place = Object.assign({}, j.v.place, {n: n.name, a: n.name, at, to: at});
+  j.txt = fill(T.job, {p: r.n, v: r.hb.n, where: at});
+  try { Q.accept(g, j); } catch (e) { return null; }
+  j.kvmPay = j.pay; g.purse = (g.purse || 0) + j.pay; j.pay = 0; // узелок — сразу, всё, что у неё есть
+  j.txt = fill(T.job, {p: r.n, v: r.hb.n, where: at});
+  return j;
+};
+/* предложения заказа — не через доску: Q.offerText не переписывает наш текст */
+if (Q.offerText) { const ot0 = Q.offerText; Q.offerText = function (g, j) { if (j && j.kvm && j.txt) return j.txt; return ot0.apply(this, arguments); }; }
+
+/* --- на прогулке: её изба — дом цели; ночью он там один, дверь открыта --- */
+if (C.walkTarget) { const wt0 = C.walkTarget; C.walkTarget = function (S, g) {
+  const j = (g.jobs || []).find(x => x.status === 'open' && x.tw && x.tw.node === g.loc && x.kind === 'contract');
+  const mark = () => { try { const t = S.walk.tgt && S.units.find(x => x.id === S.walk.tgt); if (t && t.civ && t.civ.home) S.walk.tgtHome = t.civ.home; } catch (e) {} };
+  if (!j || !j.kvm || !B || !B.BF) { const u0 = wt0.apply(this, arguments); mark(); return u0; }
+  const r = C.kvLocOf(g, j.kvm), BF = B.BF; let home = null;
+  try { const KH = C.walkKnownHomes ? C.walkKnownHomes(S, g) : (S.walk.kvHomes || {}); const hid = Object.keys(KH).find(id => r && String(KH[id]).indexOf(first(r.n)) === 0); home = hid ? BF.houseById(S.field, hid) : null; } catch (e) {}
+  if (!home) { const u0 = wt0.apply(this, arguments); mark(); return u0; }
+  // подменим выбор дома в исходной функции: временно отдаём ей только этот дом
+  const hs0 = BF.houses; BF.houses = F => (F === S.field ? [home] : hs0(F));
+  let u = null; try { u = wt0.apply(this, arguments); } finally { BF.houses = hs0; }
+  try { S.walk.tgtHome = home.id;
+    if (S.walk.night) { (home.doors || []).forEach(d => { if (!d.inner) d.lock = false; }); // она не заперла сени
+      const drop = new Set(S.units.filter(x => x.side === 'civ' && x.civ && x.civ.home === home.id && x.civ.k !== 'tgt' && BF.inHouse(S, x) === home.id).map(x => x.id)); // в избе он один
+      if (drop.size) { S.units = S.units.filter(x => !drop.has(x.id)); S.order = (S.order || []).filter(id => !drop.has(id)); } }
+    if (S.walk.kvHomes) S.walk.kvHomes[home.id] = `Изба ${decl(r.n, 'f').g}`; } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return u; }; }
+
+/* --- сделано: она вдова --- */
+const fin0 = Q.finish;
+Q.finish = function (g, j, text, mul, ex) {
+  const res = fin0.apply(this, arguments);
+  try { if (j && j.kvm) { const r = C.kvLocOf(g, j.kvm); if (r) { const seen = g._twForce && g._twForce.seen;
+      r.st = 'widow'; r.widowDay = day(g); delete r.hb; r.rel = Math.min(100, (r.rel || 0) + 10); r.mDone = 1;
+      C.note(g, fill(seen ? T.doneSeen : T.done, {p: r.n, pg: decl(r.n, 'f').g})); } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return res;
+};
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */

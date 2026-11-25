@@ -49316,7 +49316,7 @@ BF.civLeave = function (S, u) { u.side = 'civ'; u.ally = false; u.civ.ally = 0; 
 
 /* ======================= мирные не враги никому, и им никто не враг (кроме того, кто сам поднял руку) ======================= */
 const en0 = B.enemiesOf;
-B.enemiesOf = function (S, u) { if (isCiv(u)) return []; const r = en0.apply(this, arguments); return r.some(isCiv) ? r.filter(x => !isCiv(x)) : r; };
+B.enemiesOf = function (S, u) { if (isCiv(u)) return []; const r = en0.apply(this, arguments); if (S && S.walk && S.walk.armed && u && u.side === 'party') return r; /* «К бою!» на прогулке — мирные тоже цели */ return r.some(isCiv) ? r.filter(x => !isCiv(x)) : r; };
 /* ИИ отряда и наёмники мирных не трогают: урон от них по мирным гасится; удар героя — считается */
 const dmg0 = B.damage;
 B.damage = function (S, t, d, src, by) {
@@ -50180,7 +50180,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252256"></script><script>
+</script><script src="world.js?v=202611252318"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53534,10 +53534,10 @@ function drawMini() {
   if (battle.walk && B.BF && B.BF.houses) { try { const HC = {korchma: '#c08a3a', korchma_big: '#c08a3a', kupec: '#c9b04a', hram: '#e8e0c0', kuznya: '#c0603a', masterskaya: '#a07850', banya: '#6a8aa0', boyar: '#b07ad0', terem: '#b07ad0', starosta: '#d0a070'};
     const LET = {korchma: 'К', korchma_big: 'К', kupec: 'Л', hram: 'Х', kuznya: 'Н', masterskaya: 'М', banya: 'Б', boyar: 'Т', terem: 'Т', starosta: 'С'};
     x.font = '700 9px "Alegreya SC", serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    B.BF.houses(F).forEach(h => { const cs = B.BF.houseCells(h); if (F.fog && !cs.some(p => B.BF.explored(battle, p.c, p.r))) return;
-      const own = h.own || (battle.walk.kvHomes && battle.walk.kvHomes[h.id] === 'Свой дом'), col = own ? '#8fd06a' : HC[h.k] || '#8a6a44'; x.globalAlpha = 0.9; x.fillStyle = col;
+    B.BF.houses(F).forEach(h => { const cs = B.BF.houseCells(h); if (F.fog && battle.walk.tgtHome !== h.id && !cs.some(p => B.BF.explored(battle, p.c, p.r))) return; /* дом цели показан и неразведанным — «показала, где изба» */
+      const own = h.own || (battle.walk.kvHomes && battle.walk.kvHomes[h.id] === 'Свой дом'), tg = battle.walk.tgtHome === h.id && !battle.walk.tgtDead, col = tg ? '#e0503a' : own ? '#8fd06a' : HC[h.k] || '#8a6a44'; x.globalAlpha = 0.9; x.fillStyle = col;
       let sx = 0, sy = 0; cs.forEach(p => { const px = (SQ3 * (p.c + (p.r & 1) * 0.5) - U.X0) * k, py = (p.r * 1.5 + 0.25 - U.Y0) * k; sx += px; sy += py; x.fillRect(px, py, SQ3 * k + 0.6, 1.5 * k + 0.6); });
-      const L = own ? 'Д' : LET[h.k]; if (L && cs.length) { x.globalAlpha = 1; x.fillStyle = '#1a120a'; x.fillText(L, sx / cs.length + SQ3 * k / 2, sy / cs.length + 0.75 * k); } });
+      const L = tg ? 'Ц' : own ? 'Д' : LET[h.k]; if (L && cs.length) { x.globalAlpha = 1; x.fillStyle = '#1a120a'; x.fillText(L, sx / cs.length + SQ3 * k / 2, sy / cs.length + 0.75 * k); } });
     x.globalAlpha = 1; } catch (e) {} }
   const vis = battle.units.filter(u => !u.gone && !u.dead && (u.side === 'party' || seenByParty(battle, u))), cur = B.current(battle);
   vis.forEach(u => { x.fillStyle = u.side === 'party' ? '#a6d38a' : u.side === 'civ' ? '#8fa6b8' : '#ff6a50'; x.beginPath(); x.arc((SQ3 * (u.c + 0.5 + (u.r & 1) * 0.5) - U.X0) * k, (1 + u.r * 1.5 - U.Y0) * k, u === cur ? 3.6 : 2.4, 0, 7); x.fill(); if (u === cur) { x.strokeStyle = '#fff3c4'; x.lineWidth = 1.2; x.stroke(); } });
@@ -53894,7 +53894,7 @@ function drawField(noFollow) {
     const p = hexXY(d.c, d.r); B.BF.signAt(ctx, t, p.x - geo.s * 1.55, p.y - geo.s * 1.05, geo.s * 2.2, geo.s); }); } catch (e) {} }
   if (anyDying() && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
   // шанс попасть: над врагом под курсором
-  if (hover && cur && cur.side === 'party' && !cur.ai && !S.over && !(mode && mode.spell)) { let t = B.unitAt(S, hover.c, hover.r); if (t && !seenByParty(S, t)) t = null; if (t && t.side === 'civ' && S.walk && !S.walk.fight) t = null; /* мирные на прогулке — без «удар верный» над головой (Ник 25.11) */
+  if (hover && cur && cur.side === 'party' && !cur.ai && !S.over && !(mode && mode.spell)) { let t = B.unitAt(S, hover.c, hover.r); if (t && !seenByParty(S, t)) t = null; if (t && t.side === 'civ' && S.walk && !S.walk.fight && !S.walk.armed) t = null; /* мирные на прогулке — без «удар верный» над головой (Ник 25.11) */
     if (t && t.side !== cur.side && B.active(t) && B.los && !B.los(S, cur, t)) { const p = hexXY(t.c, t.r), s2 = geo.s; ctx.save(); ctx.font = `700 ${Math.max(12, Math.round(s2 * 0.42))}px "Alegreya SC", serif`; const txt = 'не видно', tw = ctx.measureText(txt).width + 14;
       ctx.fillStyle = 'rgba(20,14,8,.9)'; ctx.strokeStyle = '#ff8a70'; ctx.lineWidth = 1.5; ctx.fillRect(p.x - tw / 2, p.y - s2 * 2.75, tw, s2 * 0.62); ctx.strokeRect(p.x - tw / 2, p.y - s2 * 2.75, tw, s2 * 0.62); ctx.fillStyle = '#ff8a70'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, p.x, p.y - s2 * 2.44); ctx.restore(); }
     else if (t && t.side !== cur.side && B.active(t)) { const melee = B.dist(cur, t) === 1 && mode !== 'shoot', ranged = !melee && cur.ranged && B.rangeBand(cur, t) !== null;
@@ -54852,7 +54852,7 @@ function drawPanel() {
       <div class="bfoot">${mode ? `<button class="btn small" id="b-cancel">${bookOpen ? 'Закрыть книгу' : 'Отмена'}</button>` : ''}<button class="btn small primary" id="b-next">Конец хода</button></div>
 `;
     // прогулка по месту без боя (town_walk.js): ни ударов, ни малых действий — только её кнопки; «Конец хода» — «Дальше»
-    if (S.walk && !S.walk.fight) { [...acts.children].forEach(el => { if (!el.matches('.hint, .budget, .bfoot')) el.remove(); }); const bud = acts.querySelector('.budget'); if (bud) bud.innerHTML = `<span>Шаги ${left}/${u.steps}</span>`; const nb = acts.querySelector('#b-next'); if (nb) nb.textContent = 'Дальше'; }
+    if (S.walk && !S.walk.fight && !S.walk.armed) { [...acts.children].forEach(el => { if (!el.matches('.hint, .budget, .bfoot')) el.remove(); }); const bud = acts.querySelector('.budget'); if (bud) bud.innerHTML = `<span>Шаги ${left}/${u.steps}</span>`; const nb = acts.querySelector('#b-next'); if (nb) nb.textContent = 'Дальше'; }
     const on = (id, f) => { const b = $(id); if (b) b.onclick = f; };
     const go = (op, a, keep) => { if (!keep) mode = null; bdo(op, a || {}); };
     on('#b-shoot', () => { mode = mode === 'shoot' ? null : 'shoot'; bdo('look', {r: mode === 'shoot' ? 1 : 0}); });
@@ -54903,7 +54903,7 @@ function drawPanel() {
     on('#b-next', () => go('next'));
     { const dm = $('#b-more'); if (dm) dm.ontoggle = () => { BMORE.open = dm.open; }; }
     if (NET() && g && g.net) { try { S.leadIds = C.alive(g).filter(h => g.net.own[h.id] === leader()).map(h => h.id); } catch (e) {} } // «Сдаться» — решение вожатого (captive.js)
-    if (B.bfPanel) { const L = B.bfPanel(S, u, mode).filter(x => !(S.walk && !S.walk.fight && BF_GRP_WAR.has(x.grp))); if (L.length) { const grp = {}; L.forEach(x => { (grp[x.grp || 'Рядом'] = grp[x.grp || 'Рядом'] || []).push(x); });
+    if (B.bfPanel) { const L = B.bfPanel(S, u, mode).filter(x => !(S.walk && !S.walk.fight && !S.walk.armed && BF_GRP_WAR.has(x.grp))); if (L.length) { const grp = {}; L.forEach(x => { (grp[x.grp || 'Рядом'] = grp[x.grp || 'Рядом'] || []).push(x); });
       // порядок групп — одним местом: сверху основное и малое действие (их рисует панель), ниже группы модулей по весу;
       // всегда на виду — скрытность, бегущие и побег; прочее, если его много, — в раскрывающемся «Ещё на поле»
       const gw = k => BF_GRP_W[k] != null ? BF_GRP_W[k] : 60, gl = Object.keys(grp).sort((a, b) => gw(a) - gw(b));
@@ -54991,7 +54991,7 @@ function onField(e) {
   let t = B.unitAt(S, h.c, h.r) || S.units.find(x => x.c === h.c && x.r === h.r && x.down && !x.dead && !x.gone);
   if (t && !seenByParty(S, t)) t = null;
   // прогулка: клик по жителю — что с ним сделать (Ник 25.11), ударить — последним пунктом
-  if (!mode && t && t.side === 'civ' && S.walk && !S.walk.fight && !t.dead && !t.gone) return civMenu(S, u, t);
+  if (!mode && t && t.side === 'civ' && S.walk && !S.walk.fight && !S.walk.armed && !t.dead && !t.gone) return civMenu(S, u, t); // «К бою!» — клик бьёт, как в бою
   if (!mode && !t) AUTO = null;
   if (mode && mode.spell) {
     const s = mode.spell, tm = B.Spells.targetMode(s);
