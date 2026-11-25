@@ -71884,6 +71884,165 @@ if (inj0) Q.inject = function (g, sceneId, choices) {
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* trinka_talk.js */
+/* Колдовство — тринька: разговоры за столом (Ник 25.11). Без DOM; кнопки — в сцене стола (trinka.js), окно разговора — сцена trk_talk.
+   • Между раздачами и после игры можно подсесть поближе к любому за столом: перекинуться словом, расспросить, угостить чаркой,
+     заигрывать (герой иного пола, взрослые; однополым — только дружба).
+   • Нрав собеседника за вечер: выиграл много — раздобрел (щедр на слова, слухи и дела); проиграл по-крупному — сердит (расспросить
+     труднее, а если ещё и вам проиграл — может нагрубить); хмельной — болтлив. Удачливого героя уважают — расспросить легче.
+   • Кто сгрёб большой банк, иногда угощает весь стол — и сам добреет.
+   • Расспросы — слух о месте на карте, сказание, весть села; от богатого — дело, от торговца — «заходи, для своих отложу».
+   • Заигрывание удалось — новая знакомая или знакомый (как на улице: g.kvLoc), дальше всё по обычным правилам.
+   Каждое — раз за вечер с каждым. Числа — C.TRKT, тексты — внизу (TT). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.trkCur || !C.TRK_TX || !C.CAMPS || !C.CAMPS.free) return;
+C.TRKT = Object.assign({WARM: 4, SOUR: -6, ASK_DC: 12, FLIRT_DC: 13, TREAT_P: 0.45, BIG_POT: 8, TREAT_DRUNK: 0.4, RUDE_P: 0.5}, C.TRKT || {});
+const K = () => C.TRKT;
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+const r10 = v => Math.max(10, Math.round(v / 10) * 10);
+const price = v => (R.priceText ? R.priceText(v) : v + ' мм');
+const sexT = (t, sex, L, Rr) => String(t || '').replace(new RegExp('\\' + L + '([^\\' + L + '\\' + Rr + '|]*)\\|([^\\' + L + '\\' + Rr + '|]*)\\' + Rr, 'g'), (m, a, b) => (sex === 'f' ? b : a));
+const fill = (t, o) => { let s = String(Array.isArray(t) ? pick(t) : t || '');
+  s = s.replace(/\{X\}/g, o.X || '').replace(/\{H\}/g, o.H || '').replace(/\{Y\}/g, o.Y || '').replace(/\{P\}/g, o.P != null ? price(o.P) : '');
+  return sexT(sexT(s, o.sx || 'm', '[', ']'), o.hs || 'm', '<', '>'); };
+const alive = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const lvl = g => Math.max(1, C.zoneLevel ? C.zoneLevel(g) : C.partyLevel(g));
+const cur = g => C.trkCur(g);
+const seated = (g, T) => alive(g).find(h => h.id === T.hid) || alive(g)[0] || null;
+const canTalk = T => !!(T && (T.phase === 'between' || T.phase === 'end'));
+
+/* нрав за вечер */
+C.trkMood = function (g, T, i) {
+  const s = T.seats[i]; if (!s || s.hero) return 'plain';
+  const d = (s.kosh - s.kosh0) / Math.max(1, T.ante);
+  if (s.treat || d >= K().WARM) return 'warm';
+  if (d <= K().SOUR && !s.soothed) return 'sour';
+  return 'plain';
+};
+const heroUp = (g, T) => (g.purse || 0) - (T.purse0 || 0) >= 3 * T.ante;
+const tk = s => (s.tk = s.tk || {fl: {}});
+
+/* ---------- кто сгрёб большой банк — угощает стол ---------- */
+const treatCheck = g => { const T = cur(g); if (!T || !T.seats) return; let best = -1, bv = 0;
+  T.seats.forEach((s, i) => { const was = s._k == null ? s.kosh : s._k; s._k = s.kosh; if (s.hero || s.gone || s.treat) return; const d = s.kosh - was; if (d > bv) { bv = d; best = i; } });
+  if (best < 0 || bv < K().BIG_POT * T.ante || T._treatAt === T.hands || R.rand() >= K().TREAT_P) return;
+  const s = T.seats[best]; s.treat = 1; T._treatAt = T.hands; T.log.push({k: 'n', text: fill(TT.treat, {X: s.name, sx: s.sex})});
+  if (s.drinker && R.rand() < 0.6) s.drunk = 1;
+  T.seats.forEach(x => { if (!x.hero && !x.gone && x.drinker && !x.drunk && R.rand() < 0.3) x.drunk = 1; });
+  if (!T.treated) { T.treated = 1; try { if (C.spiritAdd) C.spiritAdd(g, 1, 'угостили за карточным столом'); } catch (e) {} } };
+for (const k of ['trkAct', 'trkSit']) { const f0 = C[k]; if (f0) C[k] = function (g) { const r = f0.apply(this, arguments); try { treatCheck(g); } catch (e) {} return r; }; }
+
+/* ---------- кнопки у стола ---------- */
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (id === 'trk_table' && sc && Array.isArray(sc.choices)) { const T = cur(g);
+    if (canTalk(T)) { const base = Math.max(0, ...sc.choices.map(c => c.i)) + 1; let n = 0;
+      T.seats.forEach((s, i) => { if (s.hero || s.gone || !(s.played > 0) || s.exposed) return;
+        const c = {t: `Поговорить: ${s.name}`, trk: 'talk', v: i, do: g2 => { g2.trkTalk = i; g2.trkTalkLast = null; return 'trk_talk'; }};
+        sc.choices.push(Object.assign({}, c, {i: base + n++, label: c.t, raw: c})); }); } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc; }; }
+
+/* ---------- расспросы: что знает человек ---------- */
+const tell = (g, T, s, mood) => {
+  const FX = C.TL_FX || {}, p = s.p || {}, o = {X: s.name, sx: s.sex};
+  if (p.kind === 'own' && p.rich && (mood === 'warm' || heroUp(g, T)) && FX.job) { const j = FX.job(g); if (j) return fill(TT.askJob, Object.assign({Y: '«' + j + '»'}, o)); }
+  if (p.kind === 'trd' && R.rand() < 0.5) { try { if (C.trkRelAdd) C.trkRelAdd(g, p, 3, 'разговор за картами'); } catch (e) {} return fill(TT.askTrader, o); }
+  const site = FX.rumor ? FX.rumor(g) : null; if (site) return fill(TT.askSite, Object.assign({Y: site}, o));
+  const tale = FX.tale ? FX.tale(g) : null; if (tale) return fill(TT.askTale, Object.assign({Y: tale}, o));
+  let t = null; try { t = C.folkRumor ? C.folkRumor(g) : null; } catch (e) {}
+  if (t && !/разводит руками/.test(t)) return `${s.name} понижает голос: ${/^«/.test(t) ? t : '«' + t.replace(/^[^:]+:\s*/, '') + '»'}`;
+  try { t = C.bayka ? C.bayka(g) : null; } catch (e) {} return t ? `${s.name} машет рукой: «Вестей нет, а вот послушай-ка». ${/^«/.test(t) ? t : '«' + t + '»'}` : fill(TT.askNone, o);
+};
+const already = (g, s, h) => Object.values(g.kvLoc || {}).some(r => r && r.hid === h.id && r.n === s.name && r.camp === g.camp);
+const RANK_OF = {boyar: 'boyar', gost: 'kupec', starosta: 'starosta', hozyain: 'kupec', melnik: 'master', pisec: 'master'};
+const stOf = s => { const p = s.p || {}, role = (String(p.id || '').match(/^o:(\w+)@/) || [])[1];
+  if (s.sex === 'f' && role && RANK_OF[role] && p.rich) return {st: 'wife', rank: RANK_OF[role]};
+  const x = String(p.id || s.name).split('').reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 7) % 100;
+  return {st: x < 55 ? 'maid' : x < 80 ? 'widow' : 'wife'}; };
+
+/* ---------- окно разговора ---------- */
+const SC = {};
+SC.trk_talk = g => {
+  const T = cur(g), i = g.trkTalk, s = T && T.seats ? T.seats[i] : null;
+  if (!T || !s || s.hero) return {title: 'Тринька', bg: 'tavern', lines: [['n', 'Собеседник уже ушёл.']], choices: [{t: 'Вернуться за стол', trk: 'back', do: () => (cur(g) ? 'trk_table' : 'folk_tavern')}]};
+  const h = seated(g, T), mood = C.trkMood(g, T, i), K0 = tk(s), lines = [], ch = [], o = {X: s.name, sx: s.sex, H: h ? h.name : '', hs: h ? h.sex : 'm'};
+  const word = C.trkRelWord ? C.trkRelWord(g, s.p) : '';
+  lines.push(['n', fill(TT.look[mood], o) + (s.drunk ? ' ' + fill(TT.drunkLook, o) : '') + (word ? ` (${String(word).toLowerCase()})` : '')]);
+  if (g.trkTalkLast) lines.push(['n', g.trkTalkLast]);
+  const done = t => { g.trkTalkLast = t; try { C.note(g, t); } catch (e) {} return 'trk_talk'; };
+  if (!K0.chat) ch.push({t: 'Перекинуться словом', trk: 'tchat', do: g2 => { const T2 = cur(g2), s2 = T2.seats[i]; tk(s2).chat = 1; const m = C.trkMood(g2, T2, i);
+    let line;
+    if (m === 'sour' && heroUp(g2, T2) && s2.drunk && R.rand() < K().RUDE_P) { s2.rude = 1; line = fill(TT.rude, o); try { C.trkRelAdd(g2, s2.p, -2, 'нагрубил за картами'); } catch (e) {} }
+    else { line = fill(heroUp(g2, T2) && m !== 'sour' ? TT.respect : TT.chat[m], o); try { C.trkRelAdd(g2, s2.p, m === 'warm' ? 2 : m === 'sour' ? 0 : 1, 'разговор за картами'); } catch (e) {} }
+    return done(line); }});
+  if (s.rude && !K0.calm) ch.push({t: 'Осадить грубияна (Харизма, Убеждение)', trk: 'tcalm', do: g2 => { const T2 = cur(g2), s2 = T2.seats[i], hh = seated(g2, T2); tk(s2).calm = 1; s2.rude = 0;
+    const c = R.check(hh, 'cha', 'Убеждение', 11 + Math.floor(lvl(g2) / 3)); g2.lastCheck = Object.assign({}, c, {hero: hh});
+    if (c.ok) { s2.soothed = 1; try { C.trkRelAdd(g2, s2.p, 2, 'помирились за картами'); } catch (e) {} return done(fill(TT.calmOk, o)); }
+    try { if (C.repAdd) C.repAdd(g2, g2.loc, -1, 'перебранка за карточным столом'); } catch (e) {} return done(fill(TT.calmNo, o)); }});
+  if (!K0.ask) ch.push({t: 'Расспросить, что слышно (Мудрость, Проницательность)', trk: 'task', do: g2 => { const T2 = cur(g2), s2 = T2.seats[i], hh = seated(g2, T2), m = C.trkMood(g2, T2, i); tk(s2).ask = 1;
+    const rel = C.trkRel ? C.trkRel(g2, s2.p) : 20;
+    const dc = K().ASK_DC + Math.floor(lvl(g2) / 3) - (m === 'warm' ? 4 : 0) + (m === 'sour' ? 3 : 0) - (s2.drunk ? 2 : 0) - (heroUp(g2, T2) && m !== 'sour' ? 2 : 0) - Math.floor(rel / 25);
+    const c = R.check(hh, 'wis', 'Проницательность', dc); g2.lastCheck = Object.assign({}, c, {hero: hh});
+    if (!c.ok) return done(fill(m === 'sour' ? TT.askSour : TT.askNo, o));
+    return done(tell(g2, T2, s2, m)); }});
+  const cost = r10(T.ante);
+  if (!K0.treat) ch.push({t: `Угостить чаркой: ${price(cost)}`, trk: 'ttreat', if: g2 => (g2.purse || 0) >= cost, off: 'не хватает серебра', do: g2 => { const T2 = cur(g2), s2 = T2.seats[i], m = C.trkMood(g2, T2, i); tk(s2).treat = 1;
+    g2.purse = (g2.purse || 0) - cost; if (R.rand() < (s2.drinker ? K().TREAT_DRUNK : K().TREAT_DRUNK / 3)) s2.drunk = 1;
+    if (m === 'sour') s2.soothed = 1; s2.rude = 0; try { C.trkRelAdd(g2, s2.p, m === 'sour' ? 3 : 2, 'угостили чаркой'); } catch (e) {}
+    return done(fill(m === 'sour' ? TT.treatSour : TT.treatOk, o)); }});
+  /* заигрывать: иного пола, раз за вечер, не со своей знакомой */
+  alive(g).filter(x => x.sex !== s.sex && !K0.fl[x.id] && !already(g, s, x) && !(s.p && s.p.kind === 'kv')).forEach(x => ch.push({t: `${x.name}: заигрывать`, trk: 'tflirt', own: x.id, do: g2 => {
+    const T2 = cur(g2), s2 = T2.seats[i], hh = alive(g2).find(y => y.id === x.id); if (!hh) return 'trk_talk'; tk(s2).fl[hh.id] = 1;
+    const m = C.trkMood(g2, T2, i), so = stOf(s2), ox = {X: s2.name, sx: s2.sex, H: hh.name, hs: hh.sex};
+    const att = C.kvAttract ? C.kvAttract(g2, hh, so.st === 'maid' ? 22 : 36, {widow: so.st === 'widow', rank: s2.p && s2.p.rich ? 'merchant' : 'peasant'}) : 1;
+    const dc = K().FLIRT_DC - Math.round((att - 1) * 4) - (m === 'warm' ? 2 : 0) - (s2.drunk ? 2 : 0) + (m === 'sour' ? 3 : 0) - ((C.tnFestive && C.tnFestive(g2)) ? 2 : 0);
+    const c = R.check(hh, 'cha', 'Убеждение', dc); g2.lastCheck = Object.assign({}, c, {hero: hh});
+    if (c.ok && C.kvMakeLoc) { const rel = C.trkRel ? C.trkRel(g2, s2.p) : 20; const rec = C.kvMakeLoc(g2, {at: g2.loc, hid: hh.id, n: s2.name, sex: s2.sex, face: s2.face, ppl: s2.ppl, st: so.st, t: s2.sub || '', rank: so.rank}, 40 + Math.round(rel / 3));
+      if (rec) rec.trk = 1; try { C.trkRelAdd(g2, s2.p, 2, 'перемигнулись за картами'); } catch (e) {} return done(fill(so.st === 'wife' ? TT.flirtWife : TT.flirtOk, ox)); }
+    try { C.trkRelAdd(g2, s2.p, -1, 'неудачно заигрывали'); } catch (e) {} return done(fill(TT.flirtNo, ox)); }}));
+  if (s.p && s.p.kind === 'kv' && !K0.wink) ch.push({t: 'Перемигнуться через стол', trk: 'twink', do: g2 => { const s2 = cur(g2).seats[i]; tk(s2).wink = 1; try { C.trkRelAdd(g2, s2.p, 2, 'перемигнулись'); } catch (e) {} return done(fill(TT.wink, o)); }});
+  ch.push({t: 'Вернуться за стол', trk: 'back', do: g2 => { g2.trkTalk = null; g2.trkTalkLast = null; return 'trk_table'; }});
+  return {title: `${s.name}, ${s.sub || 'за картами'}`, bg: 'tavern', art: 'tavern', face: s.face, faceName: s.name, faceSub: s.sub, lines, choices: ch};
+};
+Object.values(C.CAMPS).forEach(c => { if (c && c.scenes) Object.assign(c.scenes, SC); });
+if (C.register) { const rg0 = C.register; C.register = function (camp) { const r = rg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+
+/* ---------- тексты: [муж|жен] — пол собеседника, <муж|жен> — пол героя ---------- */
+const TT = C.TRKT_TX = {
+  treat: ['{X} сгребает выигрыш и машет корчмарю: «Хозяин, всем по чарке — за мой счёт!» Стол одобрительно гудит.', '{X} ссыпает медь в кошель и смеётся: «Нынче мой вечер! Наливай всем, хозяин, я плачу».', 'Выигрыш у {X}. «Не жмусь, не жмусь, — [говорит он|говорит она] и стучит по стойке. — Всем по кружке!»'],
+  look: {
+    warm: ['{X} раскраснел[ся|ась] от удачи и сам[|а] подвигается ближе.', '{X} улыбается во весь рот: вечер [ему|ей] нынче удался.', '{X} подбрасывает на ладони монету и подмигивает вам.'],
+    sour: ['{X} хмуро пересчитывает остаток в кошеле и на вас не глядит.', '{X} сидит мрачнее тучи: проиграл[|а] сегодня немало.', '{X} отвечает сквозь зубы: удача [от него|от неё] нынче отвернулась.'],
+    plain: ['{X} кивает вам и отхлёбывает из кружки.', '{X} тасует в пальцах медяк и готов[|а] поговорить.', '{X} оборачивается к вам: «Ну, чего тебе?»'],
+  },
+  drunkLook: ['[Он|Она] уже изрядно навеселе.', 'Язык у [него|неё] заметно развязался от хмеля.'],
+  chat: {
+    warm: ['{X} хлопает вас по плечу: «Эх, хорошо сидим! Ещё бы так каждый вечер».', '{X}: «Карта нынче ко мне сама идёт. Ты держись рядом — авось и тебе перепадёт».', '{X} смеётся: «Давно так не везло. Пойду завтра жене платок куплю, а то заест».'],
+    sour: ['{X} буркает: «Карта — дура, а я дурак, что сел». Но всё же кивает вам.', '{X}: «Не до разговоров мне. Хотя… сиди, сиди, ты-то не виноват[|а]».', '{X} вздыхает: «Третью раздачу кряду — мусор. Сглазил кто, не иначе».'],
+    plain: ['{X}: «Давно у нас? Места тут тихие, только ночью по дорогам не шастай».', '{X} рассказывает, как в прошлую зиму медведь задрал соседскую корову, и смеётся над собственным страхом.', '{X}: «Тринька — дело тонкое. Кто много болтает, тот мало выигрывает». И тут же болтает дальше.'],
+  },
+  respect: ['{X} косится на вашу кучку монет с уважением: «Ловко играешь, <парень|девица>. У кого учил<ся|ась>?»', '{X}: «Видал я игроков, но ты — особ<ый|ая>. С тобой и проиграть не обидно».', '{X} поднимает кружку: «За удачливых! Ты, <брат|сестрица>, нынче здесь первый игрок».'],
+  rude: ['{X} вдруг багровеет: «А ты, гляжу, с нечистым играешь! Чтоб так везло — не бывает!» За столом стихают.', '{X} стучит кулаком по столу: «Обобрал[|а] меня и ещё лезешь с разговорами?» Корчмарь настороженно поднимает голову.'],
+  calmOk: ['Вы отшучиваетесь, и {X} в конце концов фыркает: «Ладно. Карта не лошадь, к утру повезёт». Мир восстановлен.', 'Пара спокойных слов — и {X} остывает: «Погорячил[ся|ась] я. Не держи зла».'],
+  calmNo: ['{X} не унимается и ругается на весь зал. Люди за соседними столами переглядываются — неловко вышло.', 'Слово за слово, и {X} ещё долго бранится вам вслед. По корчме ползут шепотки.'],
+  askJob: ['{X} понижает голос: «Есть у меня одно дело. Человек нужен надёжный. Возьмёшься?» Вы ударяете по рукам: {Y}.', '{X}, раздобрев, сам[|а] предлагает: «Слушай, раз уж так хорошо сидим, — мне помощь нужна». Так появляется дело: {Y}.'],
+  askTrader: ['{X} подмигивает: «Заходи ко мне в лавку. Для своих отложу хорошее, а цену не задеру».', '{X}: «Ты мне нравишься. Как придёшь за товаром, скажи, что от меня. Сочтёмся по-свойски».'],
+  askSite: ['{X} наклоняется ближе: «Люди говорят, неладно нынче в одном месте — {Y}. Кто туда ходил, не все вернулись». Место отмечено на карте.', '{X}, понизив голос: «Есть такое место — {Y}. Говорят, там кое-что лежит, да не всякому даётся». Место отмечено на карте.'],
+  askTale: ['{X} задумывается: «Есть у нас одна история…» — и рассказывает: {Y}', '{X}: «Старики сказывают». И дальше: {Y}'],
+  askNone: ['{X} пожимает плечами: «Тихо у нас. Ничего не слыхать».'],
+  askNo: ['{X} отмахивается: «Да что я знаю? Играю да пью».', '{X} хитро щурится и переводит разговор на погоду.', '{X}: «Слухи — что вода: набрал в горсть — и нету». Больше из [него|неё] ничего не вытянуть.'],
+  askSour: ['{X} огрызается: «Сначала обыграй, потом расспрашивай». И отворачивается.', '{X}: «Не до сплетен мне нынче». Разговора не выходит.'],
+  treatOk: ['Корчмарь ставит перед {X} полную кружку. «Вот это по-нашему!» — [он|она] сразу теплеет.', '{X} принимает чарку: «Благодарствую. Хорош[ий|ая] ты человек, я таких запоминаю».'],
+  treatSour: ['{X} долго смотрит на чарку, потом выпивает и криво улыбается: «Ладно уж. Не со зла ты меня обыграл[|а]. Мир».', 'Чарка делает своё: {X} оттаивает: «Эх… карта — она и есть карта. Твоё здоровье».'],
+  flirtOk: ['{H} ловит взгляд {X} поверх карт. {X} не отводит глаз и улыбается: «А ты <ничего себе|хороша>. Заходи как-нибудь, поговорим без колоды».', 'Пара шуток, нечаянное касание руки над банком — и {X} тихо говорит {H}: «Найдёшь меня, если захочешь». Новое знакомство.'],
+  flirtWife: ['{X} смеётся и прикрывает рот ладонью: «Тише ты, муж узнает». Но глаза говорят другое: «Заходи днём, когда его нет». Новое знакомство, опасное.'],
+  flirtNo: ['{X} фыркает: «Ты лучше за картами следи, а не за мной».', '{X} делает вид, что не понял[|а] намёка, и громко зовёт корчмаря.', '{X} пересаживается подальше. За столом кто-то хмыкает.'],
+  wink: ['{X} подмигивает вам через стол и тайком пододвигает свою кружку. Никто, кажется, не заметил.'],
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* dress_gifts.js */
 /* Колдовство — наряды ступенями и подарки жене (Ник 25.11). Без DOM. Все числа — тайна мастера (C.DG), игроку только слова.
    • НАРЯДЫ: новый слот «Наряд» (wear.js). Пять ступеней — простое (холст), крашеное, вышитое, праздничное (шёлк, тесьма),
