@@ -48094,6 +48094,15 @@ BF.housePut = function (SF, kind, at, o) {
   if (h && S && BF.touch) BF.touch(S);
   return h;
 };
+/* дописать утварь в готовый дом (свой дом героя растёт вместе с хозяйством — Ник 25.11): к стенам, не у дверей, проход не запирать */
+BF.houseFurnish = function (F, h, list) {
+  if (!F || !h || !list || !list.length) return 0; let n = 0;
+  const wallN = x => B.neigh(x.c, x.r).filter(q => { const y = F.cells[key(q.c, q.r)]; return y && y.hb === h.id && y.t === 'hwall'; }).length;
+  list.forEach((t, i) => { const fr = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(x => x && x.hin && x.t === 'hfloor' && !x.hpv && !x.hp && !(h.doors || []).some(d => B.dist(d, x) <= 1));
+    if (!fr.length) return; fr.sort((a, b) => wallN(b) - wallN(a) || ((a.c * 7 + a.r * 13 + i) % 5) - ((b.c * 7 + b.r * 13 + i) % 5));
+    for (const x of fr) { h.furn.push([x.c, x.r, t]); BF.houseBuild(F, h); if (innerOK(F, h)) { n++; break; } h.furn.pop(); BF.houseBuild(F, h); } });
+  if (h.furn.some(f => LIGHTS.includes(f[2]))) h.lit = 1;
+  return n; };
 BF.houseEnsure = function (SF, kind, at, o) { const F = SF && SF.field ? SF.field : SF; const h = BF.houses(F).find(x => x.k === kind); return h || BF.housePut(SF, kind, at, o); };
 BF._hbLib = {distMap: (...a) => distMap(...a), mark: (...a) => mark(...a), foot: h => foot(h), hc: (...a) => hc(...a), clearRing: (...a) => clearRing(...a)};
 const busyWay = (wayD, z) => (wayD[key(z.c, z.r)] == null ? 99 : wayD[key(z.c, z.r)]) < 2;
@@ -50107,7 +50116,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252140"></script><script>
+</script><script src="world.js?v=202611252148"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

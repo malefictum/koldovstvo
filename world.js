@@ -72459,15 +72459,19 @@ if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { cons
     if (!(C.isNight && C.isNight(g)) && C.folkHere && C.folkPerson) { const roles = C.folkHere(g) || [];
       const civ = (S.units || []).filter(u => u.side === 'civ' && u.civ && !u.civ.tf && !u.civ.folk && ['muzhik', 'baba', 'starik'].includes(u.civ.k));
       roles.forEach(role => { const p = C.folkPerson(g, role, g.loc); if (!p) return; const want2 = p.sex === 'f' ? ['baba'] : ['muzhik', 'starik'];
-        const u = civ.find(x => !x.civ.folk && want2.includes(x.civ.k)); if (!u) return; u.civ.folk = role; u.name = `${p.n}, ${p.t}`; if (p.face) { u.portrait = p.face; u.civ.face = p.face; } }); }
+        const u = civ.find(x => !x.civ.folk && want2.includes(x.civ.k)); if (!u) return; u.civ.folk = role; const kin = kinWord(g, role, g.loc, p); u.name = kin ? `${p.n}, ${kin}` : `${p.n}, ${p.t}`; if (p.face) { u.portrait = p.face; u.civ.face = p.face; } }); }
     (S.units || []).filter(u => u.side === 'civ' && u.civ && !u.civ.tf && !u.civ.folk && want(u.civ.k)).forEach(u => { const p = ppl.find(x => !used.has(x.id) && want(u.civ.k)(x)); if (!p) return; used.add(p.id);
       u.civ.tf = p.id; u.name = `${p.n}, ${p.t}`; if (p.face) { u.portrait = p.face; u.civ.face = p.face; } });
   } catch (e) { if (C.BF_DEBUG) console.error(e); }
   return r; }; }
 { const so1 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so1.apply(this, arguments);
   try { if (sc && id === 'tw_talk' && g.twalk && g.twalk.talk && g.twalk.talk.folk && C.FOLK && C.FOLK[g.twalk.talk.folk]) { const role = g.twalk.talk.folk, p = C.folkPerson(g, role, g.loc);
-    if (!g.twalk.talk.folkHi) { g.twalk.talk.folkHi = 1; g.twalk.talk.log.push({who: 'o', text: pickH(MASTER_HI, role + day(g))}); }
-    const add = [{t: `О деле: ${p.t} — учёба, ремесло, поручения`, do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.folkRole = role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }}];
+    const kin = kinWord(g, role, g.loc, p), r0 = (g.folkRel || {})[role + '@' + g.loc], hh = r0 && heroes(g).find(x => x.id === r0.who);
+    if (!g.twalk.talk.folkHi) { g.twalk.talk.folkHi = 1; g.twalk.talk.log.push({who: 'o', text: kin && hh ? fill(pickH(KIN_HI[r0.bond === 'kin' ? 'kin' : p.sex === 'f' ? 'wife' : 'husb'], role + day(g)), hh, p) : pickH(MASTER_HI, role + day(g))}); }
+    if (kin && g.twalk.talk.who) g.twalk.talk.who.sub = kin;
+    // своя жена (муж, мать) на улице — не «чего тебе, добрый человек», а домой (Ник 25.11)
+    const add = kin ? [{t: 'Пойти домой вместе', do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.folkRole = role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }}]
+      : [{t: `О деле: ${p.t} — учёба, ремесло, поручения`, do: g2 => { if (g2.twalk) delete g2.twalk.talk; g2.folkRole = role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }}];
     add.forEach((c, k) => { c.i = 950 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); } } catch (e) {}
   try { if (sc && id === 'tw_talk' && g.twalk && g.twalk.talk && g.twalk.talk.tf) { const T = g.twalk.talk, pid = T.tf, at = g.loc;
     const add = [{t: 'Поболтать о жизни', do: g2 => { const X = g2.twalk.talk; const t = C.tfChat(g2, at, pid); X.log.push({who: 'h', text: 'Как живёте тут?'}); if (t) X.log.push({who: 'o', text: t}); return 'tw_talk'; }}];
@@ -72476,6 +72480,14 @@ if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { cons
     add.forEach((c, k) => { c.i = 900 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); } } catch (e) {}
   return sc; }; }
 
+/* родня героя среди мастеров места: жена, муж, мать, отец */
+function kinWord(g, role, at, p) { const r = (g.folkRel || {})[role + '@' + at]; if (!r || !(r.bond === 'wed' || r.bond === 'kin') || !heroes(g).some(h => h.id === r.who)) return '';
+  return r.bond === 'wed' ? (p.sex === 'f' ? 'жена' : 'муж') : (p.sex === 'f' ? 'мать' : 'отец'); }
+const KIN_HI = {
+  wife: ['{n} всплёскивает руками: «{h}! А я смотрю — ты или не ты. Пойдём домой, щи в печи»', '«Мимо дома ходишь, {h}? — {n} прищуривается, но улыбается. — Дети заждались»', '{n} берёт {h_a} под руку: «Наконец-то. Пойдём, всё расскажешь»'],
+  husb: ['{n} откладывает работу: «{h}! Вернулась. Пойдём домой — всё как ты любишь»', '«Ну, хозяйка, — {n} улыбается в бороду, — дома тебя ждут не дождутся»'],
+  kin: ['«Дитятко моё, {h}! — {n} обнимает. — Пойдём, накормлю»', '{n} качает головой: «Кожа да кости! Домой, домой»'],
+};
 /* лицо собеседника в окне сцены: из raw (как у kv_ и he_) — для улицы, ночных случаев, постоянной */
 { const so2 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so2.apply(this, arguments); try { if (sc && /^(tf_|cl_|kv_reg)/.test(id) && sc.raw && sc.raw.face && !sc.face) Object.assign(sc, {face: sc.raw.face, faceName: sc.raw.faceName, faceSub: sc.raw.faceSub}); } catch (e) {} return sc; }; }
 
@@ -73334,11 +73346,44 @@ C.walkKnownHomes = function (S, g) {
   try { Object.values(g.homeSp || {}).forEach(s => { if (s && s.at === g.loc) who.push({k: 'sp:' + s.n, t: 'Свой дом', pri: 0}); }); } catch (e) {}
   try { Object.values(g.kvLoc || {}).forEach(r => { if (r && r.at === g.loc && (!r.camp || r.camp === g.camp) && !['gone', 'wed'].includes(r.st)) who.push({k: 'kv:' + r.id, t: `${first(r.n)} · ${r.sex === 'f' ? 'знакомая' : 'знакомый'}`, pri: 1}); }); } catch (e) {}
   try { Object.values(g.kvReg || {}).forEach(r => { if (r && r.at === g.loc && (!r.camp || r.camp === g.camp)) who.push({k: 'rg:' + r.key, t: `${first(r.n)} · ${r.sex === 'f' ? 'знакомая' : 'знакомый'}`, pri: 2}); }); } catch (e) {}
-  who.sort((a, b) => a.pri - b.pri).forEach(w => { const free = hs.filter(h => !out[h.id]); if (!free.length) return; out[free[hsh(g.loc + '|' + w.k) % free.length].id] = w.t; });
+  who.sort((a, b) => a.pri - b.pri).forEach(w => { const free = hs.filter(h => !out[h.id]); if (!free.length) return;
+    // свой дом — по хозяйству: с горницей и детьми — изба побольше, с теремом — хоромы (Ник 25.11)
+    if (w.pri === 0) { const want = ownHomeKinds(g), best = want.map(k => free.find(h => h.k === k)).find(Boolean); if (best) { out[best.id] = w.t; return; } }
+    out[free[hsh(g.loc + '|' + w.k) % free.length].id] = w.t; });
   return (S.walk.kvHomes = out); };
+/* семья героя в этом месте: ключ дома (роль@место), пристройки, утварь, дети */
+const homeKey = g => { const s = (g.heroes || []).map(h => h && h.spouse).find(x => x && x.at === g.loc && x.role && (!x.camp || x.camp === g.camp)); if (s) return s.role + '@' + s.at;
+  const hs = Object.entries(g.homeSp || {}).find(([r, x]) => x && x.at === g.loc); return hs ? hs[0] + '@' + g.loc : null; };
+const homeOf = g => { const k = homeKey(g); if (!k) return null; const ext = ((g.fhome || {})[k] || {}).ext || [], buy = ((g.w2hearth || {})[k] || {}).buy || [];
+  let kids = 0; try { kids = C.kidsOf ? C.kidsOf(g, k).length : 0; } catch (e) {} const est = (g.estate || []).filter(e => e && e.node === g.loc).map(e => e.kind); return {k, ext, buy, kids, est}; };
+C.walkHomeOf = homeOf;
+const ownHomeKinds = g => { const H = homeOf(g); if (!H) return ['izba', 'terem', 'starosta']; const x = id => H.ext.includes(id);
+  if (x('terem')) return ['boyar', 'kupec', 'terem', 'starosta', 'izba'];
+  if (x('svetlica') || x('gornitsa') || H.kids >= 2 || x('master')) return ['starosta', 'terem', 'kupec', 'izba'];
+  return ['izba', 'terem', 'starosta']; };
+/* свой дом изнутри и двор: утварь по тому, что куплено и пристроено, кровати детям; огород, баня, хлев во дворе */
+C.walkOwnHome = function (S, g) {
+  const K = (S && S.walk && S.walk.kvHomes) || {}, hid = Object.keys(K).find(id => K[id] === 'Свой дом'); if (!hid) return null;
+  const F = S.field, h = BF.houseById(F, hid), H = homeOf(g); if (!h || !H || h.own) return h || null; h.own = 1;
+  const x = id => H.ext.includes(id), b = id => H.buy.includes(id), L = ['chest'];
+  for (let i = 0; i < Math.min(4, H.kids); i++) L.push(i % 2 ? 'hbench' : 'bed');
+  if (b('perina')) L.push('bed'); if (b('lavki')) L.push('hbench', 'hbench'); if (b('pogreb')) L.push('barrels', 'barrels'); if (b('polka')) L.push('crate'); if (b('posuda')) L.push('table');
+  if (x('klet')) L.push('chest', 'crate'); if (x('master')) L.push('table', 'crate'); if (x('gornitsa')) L.push('bed', 'hbench'); if (x('svetlica')) L.push('hlamp', 'table'); if (x('terem')) L.push('chest', 'chest', 'hlamp');
+  try { if (BF.houseFurnish) BF.houseFurnish(F, h, L); } catch (e) {}
+  // двор: клетки в 2–4 шагах от стен, не дорога, не дом, без людей
+  const foot = BF.houseCells(h), busy = new Set((S.units || []).filter(u => u.c != null).map(u => u.c + ',' + u.r));
+  const yard = Object.values(F.cells).filter(c => { if (c.hb != null || c.o != null || c.river || busy.has(c.c + ',' + c.r) || !['grass', 'brush', 'mud'].includes(c.t)) return false;
+    const d = Math.min(...foot.map(p => B.dist(p, c))); return d >= 2 && d <= 4; }).sort((a, b) => Math.min(...foot.map(p => B.dist(p, a))) - Math.min(...foot.map(p => B.dist(p, b))) || ((a.c * 31 + a.r) % 7) - ((b.c * 31 + b.r) % 7));
+  const put = (n, t) => { let k = 0; for (const c of yard) { if (k >= n) break; if (c.t !== 'grass' && c.t !== 'brush' && c.t !== 'mud') continue; c.t = t; k++; } };
+  if (x('sad')) { put(6, 'rye'); put(2, 'tree'); }
+  if (H.est.includes('izba')) put(6, 'rye');
+  if (x('banya') && BF.housePut) try { const bh = (BF.housePut(S, 'banya', {c: h.c0 + h.W + 2, r: h.r0}, {n: 400}) || BF.housePut(S, 'banya', {c: h.c0, r: h.r0}, {n: 1500, face: 'any'})); if (bh) bh.own = 1; } catch (e) {}
+  if ((b('hlev') || H.est.includes('dvor')) && BF.housePut) try { const hv = (BF.housePut(S, 'hlev', {c: h.c0 - 3, r: h.r0 + h.H}, {n: 400}) || BF.housePut(S, 'hlev', {c: h.c0, r: h.r0}, {n: 1500, face: 'any'})); if (hv) hv.own = 1; } catch (e) {}
+  if (BF.touch) try { BF.touch(S); } catch (e) {}
+  return h; };
 const hs0 = BF.houseSign;
 BF.houseSign = function (S, h) { try { const K = S && S.walk && S.walk.kvHomes; if (K && h && K[h.id]) return K[h.id]; } catch (e) {} return hs0.apply(this, arguments); };
-if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */
