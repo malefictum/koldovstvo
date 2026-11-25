@@ -26064,6 +26064,42 @@ C.register(camp);
 if (C.escortRegister) C.escortRegister(camp);
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* saga_chain.js */
+/* Колдовство — одна большая история (Ник 25.11: «объединить наши сценарии как продолжение кампании… чтобы историю прожить полностью»).
+   Первая сага (шесть глав, 1–12) → «Сумерки» (шесть поздних саг, любые, в любом порядке; каждая гасит один столп старых чар)
+   → пройдя любые три «Сумерки» — «Последние чары»: «Подземье встаёт» и «Мощи» в любом порядке, «Закат» — последним, финал всего.
+   Летопись, герои, их семьи и кошель идут сквозь всё. Вход в поздние саги с титула своим героем остаётся как был.
+   Порог входа в «Сумерки» — до 15-го уровня: герои первой саги выходят из «Суда» около 12-го. Без DOM. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C || !C.CAMPS || !C.SAGA) return;
+C.CHAIN = Object.assign({DUSK_NEED: 3, DUSK_TOP: 15, LAST: 'late2_zakat'}, C.CHAIN || {});
+const late = tier => Object.values(C.CAMPS).filter(c => c.late && c.tier === tier).map(c => c.id);
+late(1).forEach(id => { const c = C.CAMPS[id]; if (c.pick) c.pick = [c.pick[0], Math.max(c.pick[1], C.CHAIN.DUSK_TOP)]; });
+const done = (ch, id) => !!(ch && ch.done && ch.done.includes(id));
+/* что дальше: main — путь истории, extra — можно ещё, но не обязательно (оставшиеся «Сумерки») */
+C.chainNext = function (ch) {
+  const out = {main: [], extra: [], stage: ''}; if (!ch) return out;
+  const saga = C.SAGA.filter(id => C.CAMPS[id]), s1 = saga.find(id => !done(ch, id));
+  if (s1) { out.main = [s1]; out.stage = 'saga'; return out; }
+  const dusk = late(1), duskLeft = dusk.filter(id => !done(ch, id)), duskN = dusk.length - duskLeft.length;
+  const last = C.CAMPS[C.CHAIN.LAST] ? C.CHAIN.LAST : null, mid = late(2).filter(id => id !== last), midLeft = mid.filter(id => !done(ch, id));
+  if (duskN < Math.min(C.CHAIN.DUSK_NEED, dusk.length)) { out.main = duskLeft; out.stage = 'dusk'; return out; }
+  if (midLeft.length) { out.main = midLeft; out.extra = duskLeft; out.stage = 'charms'; return out; }
+  if (last && !done(ch, last)) { out.main = [last]; out.extra = duskLeft; out.stage = 'end'; return out; }
+  out.extra = duskLeft; out.stage = 'after'; return out;
+};
+C.chainDusk = ch => late(1).filter(id => done(ch, id)).length;
+const nc0 = C.nextCamp;
+C.nextCamp = ch => { const n = C.chainNext(ch); return n.main[0] || n.extra[0] || (nc0 ? nc0(ch) : null); };
+/* награда за главу подтягивает героев до порога следующей части истории — и для поздних саг тоже */
+const cn0 = C.chapterNext;
+C.chapterNext = g => { const r = cn0 ? cn0(g) : null; if (r) return r; const camp = C.CAMPS[g && g.camp]; if (!camp || !(C.SAGA.includes(camp.id) || camp.late)) return null;
+  const ch = Object.assign({}, g.chron || {done: []}); ch.done = (ch.done || []).concat(ch.done && ch.done.includes(camp.id) ? [] : [camp.id]); const n = C.chainNext(ch); return n.main[0] || null; };
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* raise.js */
 /* Колдовство — возвращение павших из Нави (общий стол). Без DOM.
    Два пути. Храм Ока или волхвы на капище: срок 7 дней (отпетого), встаёт с 10 хитами, 50 зм.
@@ -49913,7 +49949,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611250641"></script><script>
+</script><script src="world.js?v=202611250656"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54759,16 +54795,21 @@ function showEnd() {
   if (g.net) { ch.heroes = ch.heroes.filter(h => g.net.own[h.id] === 'p0'); ch.purse = C.alive(g).filter(h => g.net.own[h.id] === 'p0').reduce((a, h) => a + (h.gold || 0), 0); ch.heroes.forEach(h => { h.gold = 0; }); }
   saveChron(ch);
   try { localStorage.removeItem(SAVE_KEY); } catch (e) {}
-  const next = C.nextCamp(ch), nc = next ? C.CAMPS[next] : null, done = g;
+  const CH = C.chainNext ? C.chainNext(ch) : {main: [], extra: [], stage: ''}, next = C.nextCamp(ch), nc = next ? C.CAMPS[next] : null, done = g;
+  if (!C.chainNext && nc) CH.main = [next];
   renderTop();
   $('#main').innerHTML = `<div class="screen title"><div class="box"><h1 style="font-size:clamp(36px,7vw,64px)">${esc(camp.name)}</h1>
    <p>Кампания пройдена за ${done.day} дн. Боёв: ${done.battles}. Павших: ${done.fallen.length}.</p>
    <p>${esc(C.alive(done).map(h => `${h.name} (${R.CLASSES[h.cls].name}, ${h.level}-й ур.)`).join(', '))}</p>
    <p>${esc(LEADW[C.lead(ch)])}</p>
-   <div class="row"><button class="btn" id="e-chron">Летопись края</button>${nc ? `<button class="btn primary" id="e-next">Дальше: «${esc(nc.name)}»</button>` : ''}<button class="btn ${nc ? '' : 'primary'}" id="e-title">На титул</button></div>
-   ${nc ? `<p style="font-size:14px">Герои переходят в новую кампанию; кто ниже ${nc.startLevel}-го уровня, подтянется до него.</p>` : '<p style="font-size:14px">Продолжение саги ещё впереди.</p>'}</div></div>`;
+   <div class="row"><button class="btn" id="e-chron">Летопись края</button>${CH.main.map(id => `<button class="btn primary" data-enext="${id}">Дальше: «${esc(C.CAMPS[id].name)}»</button>`).join('')}${CH.extra.map(id => `<button class="btn" data-enext="${id}">«${esc(C.CAMPS[id].name)}»</button>`).join('')}<button class="btn ${nc ? '' : 'primary'}" id="e-title">На титул</button></div>
+   ${CH.stage === 'dusk' ? `<p style="font-size:14px">Годы спустя после Веры. «Сумерки»: шесть историй в тех же краях — в каждой гаснет один столп старых чар. Выбирайте любую; пройдя три, откроете «Последние чары». Пройдено: ${C.chainDusk(ch)} из ${Object.values(C.CAMPS).filter(c => c.late && c.tier === 1).length}.</p>`
+     : CH.stage === 'charms' ? `<p style="font-size:14px">«Последние чары» открыты: «Подземье встаёт» и «Мощи» — в любом порядке, за ними — «Закат». Непройденные «Сумерки» ещё ждут, если хочется.</p>`
+     : CH.stage === 'end' ? `<p style="font-size:14px">Остался «Закат» — конец всего «Колдовства». Сколько столпов пало в «Сумерках», так и закончится.</p>`
+     : CH.stage === 'after' ? `<p style="font-size:14px">История «Колдовства» прожита до конца.${CH.extra.length ? ' Непройденные «Сумерки» ещё можно пройти.' : ''}</p>`
+     : nc ? `<p style="font-size:14px">Герои переходят в новую кампанию; кто ниже ${nc.startLevel}-го уровня, подтянется до него.</p>` : '<p style="font-size:14px">Продолжение саги ещё впереди.</p>'}</div></div>`;
   $('#e-chron').onclick = () => showChron(ch);
-  if (nc) $('#e-next').onclick = () => showInterlude(ch, next);
+  $('#main').querySelectorAll('[data-enext]').forEach(b => b.onclick = () => showInterlude(ch, b.dataset.enext));
   $('#e-title').onclick = showTitle;
 }
 
@@ -54778,7 +54819,7 @@ function showInterlude(ch, next) {
   if (!ch.heroes || !ch.heroes.length) return newGame(next, ch);
   const draw = (lines) => {
     $('#main').innerHTML = `<div class="screen title"><div class="box inter"><h1 style="font-size:clamp(30px,6vw,52px)">Привал саги</h1>
-      <p>Между делами проходит зима. У огня — ${esc(ch.heroes.map(h => h.name).join(', '))}. ${lines ? 'Вот как прошла зима.' : 'Выбери два дела на зиму.'}</p>
+      <p>${nc.late && !(CAMP_OF() || {}).late ? `Проходят годы — ${esc(typeof nc.year === 'number' ? nc.year + '-й год Веры' : (nc.year || 'годы Веры'))}. Старые чары гаснут. Последняя зима перед новым делом` : 'Между делами проходит зима'}. У огня — ${esc(ch.heroes.map(h => h.name).join(', '))}. ${lines ? 'Вот как прошла зима.' : 'Выбери два дела на зиму.'}</p>
       ${lines ? `<div class="news" style="text-align:left">${lines.map(esc).join('<br>')}</div>` : `<div class="icards">${C.INTERLUDE.map(x => `<button class="btn icard ${picks.includes(x.id) ? 'on' : ''}" data-ip="${x.id}"><b>${esc(x.name)}</b><span>${esc(C.interludeDesc ? C.interludeDesc(ch, x) : x.desc)}</span></button>`).join('')}</div>`}
       <div class="row">${lines ? `<button class="btn primary" id="i-go">В путь: «${esc(nc.name)}»</button>` : `<button class="btn primary" id="i-do" ${picks.length === 2 ? '' : 'disabled'}>Зимовать (${picks.length}/2)</button><button class="btn" id="i-skip">Сразу в путь</button>`}</div></div></div>`;
     $('#main').querySelectorAll('[data-ip]').forEach(b => b.onclick = () => { const id = b.dataset.ip; const i = picks.indexOf(id); if (i >= 0) picks.splice(i, 1); else if (picks.length < 2) picks.push(id); draw(); });
@@ -55978,7 +56019,7 @@ function coinize(root) {
 }
 new MutationObserver(ms => { ms.forEach(m => { m.addedNodes.forEach(n => { if (n.nodeType === 1 && n.querySelector && !n.closest('.dd') && (n.tagName === 'SELECT' || n.querySelector('select:not(.dd-src)'))) enhanceSelects(n.tagName === 'SELECT' ? n.parentNode : n); if (n.nodeType === 1) coinize(n); else if (n.nodeType === 3 && n.parentNode) coinize(n.parentNode); }); if (m.type === 'characterData' && m.target.parentNode) coinize(m.target.parentNode); }); }).observe(document.body, {childList: true, subtree: true, characterData: true});
 coinize(document.body);
-window.__kldv = { play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
+window.__kldv = { end: () => showEnd(), play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
   /* картинка для сайта: фигура бойца целиком и значок вещи */
   fig: (c, u) => { const x = c.getContext('2d'), W = c.width, Hc = c.height; x.clearRect(0, 0, W, Hc);
     const fit = (img, a, flip, filt) => { const k = Math.min(W * 0.94 / a[2], Hc * 0.94 / a[3]), w = a[2] * k, h = a[3] * k; x.save(); if (filt) x.filter = filt; x.translate(W / 2, Hc * 0.97); if (flip) x.scale(-1, 1); x.drawImage(img, a[0], a[1], a[2], a[3], -w / 2, -h, w, h); x.restore(); return true; };
