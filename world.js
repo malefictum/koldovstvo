@@ -71837,9 +71837,15 @@ if (!I.shuba_sobolya) I.shuba_sobolya = {_t: 'g', id: 'shuba_sobolya', category:
 C.dressTier = h => { const id = h && h.eq && h.eq.dress; if (!id) return 0; return C.DRESS_T[R.baseId ? R.baseId(id) : id] || 0; };
 C.dressRelMul = (h, rank) => { const M = K().MUL[rank] || K().MUL.peasant; return M[Math.min(5, C.dressTier(h))]; };
 const bestDressed = g => { const hs = (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc'); return hs.sort((a, b) => C.dressTier(b) - C.dressTier(a))[0] || null; };
+/* чей наряд смотрят (Ник 25.11, дыра: один щёголь «одевал» весь отряд): супругу — своего супруга; остальным — того, кто говорит за отряд,
+   то есть самого обаятельного; наряд прочих не в счёт */
+const speakerOf = (g, role, at) => { const hs = (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc'); if (!hs.length) return null;
+  try { const r = (g.folkRel || {})[role + '@' + at]; if (r && r.who && ['wed', 'kin'].includes(r.bond)) { const w = hs.find(h => h.id === r.who); if (w) return w; } } catch (e) {}
+  return hs.slice().sort((a, b) => ((b.stats || {}).cha || 0) - ((a.stats || {}).cha || 0) || String(a.id).localeCompare(String(b.id)))[0]; };
+C.dgSpeaker = speakerOf;
 const rankOfRole = role => { const b = String(role || '').replace(/^sp_/, ''); return /knyaz|boyar|noble|voevod|tiun/.test(b) ? 'noble' : ['trade', 'jewel'].includes(b) ? 'merchant' : 'peasant'; };
 /* как растут отношения: мастера, жена (hearts.relAdd) */
-if (C.relAdd) { const ra0 = C.relAdd; C.relAdd = function (g, role, at, d, why) { if (d > 0) { try { const h = bestDressed(g); if (h) { const key = role + '@' + at; const rk = C.heOrigin && /^sp_/.test(role) ? ({freed: 'poor', poor: 'poor', peasant: 'peasant', merchant: 'merchant', noble: 'noble'}[C.heOrigin(g, key)] || 'peasant') : rankOfRole(role);
+if (C.relAdd) { const ra0 = C.relAdd; C.relAdd = function (g, role, at, d, why) { if (d > 0) { try { const h = speakerOf(g, role, at); if (h) { const key = role + '@' + at; const rk = C.heOrigin && /^sp_/.test(role) ? ({freed: 'poor', poor: 'poor', peasant: 'peasant', merchant: 'merchant', noble: 'noble'}[C.heOrigin(g, key)] || 'peasant') : rankOfRole(role);
   d = Math.max(1, Math.round(d * C.dressRelMul(h, rk))); } } catch (e) {} } return ra0.call(this, g, role, at, d, why); }; }
 /* флирт и встречи: обаяние наряда — для того, кто смотрит (o.rank) */
 if (C.kvAttract) { const ka0 = C.kvAttract; C.kvAttract = function (g, h, age, o) { const v = ka0.apply(this, arguments); try { return Math.max(0, Math.round(v * C.dressRelMul(h, (o && o.rank) || 'peasant') * 100) / 100); } catch (e) { return v; } }; }
@@ -71856,9 +71862,9 @@ const wearDown = (h, d) => { const id = h && h.eq && h.eq.dress; if (!id || (C.D
 if (!I.kokoshnik) I.kokoshnik = {_t: 'g', id: 'kokoshnik', category: 'одежда', name: 'Кокошник с жемчугом', price: 60 * ZM, weight_kg: 0.5, notes: 'Бархат, речной жемчуг, цветные камушки — убор замужней знатной женщины.'};
 if (!I.shuba_sobolya) I.shuba_sobolya = {_t: 'g', id: 'shuba_sobolya', category: 'одежда', name: 'Шуба соболья', price: 300 * ZM, weight_kg: 6, notes: 'Соболь под синим сукном. Зимой — тепло, на пиру — честь.'};
 C.dressTier = h => { const t = ct0(h); if (t <= 1) return t; const c = C.dressCond(h); return c >= 50 ? t : c >= 20 ? t - 1 : 0; }; }
-{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments);
-  try { if (g && g.heroes && g.day > d0) { const wx = C.weather ? C.weather(g) : 'clear', W0 = K().WEAR, onRoad = !!g.pos && !(g.posNode && g.posNode === g.loc) || g.travelDay === g.day;
-    C.alive(g).filter(h => h.kind !== 'merc').forEach(h => { h._g = g; wearDown(h, (onRoad ? W0.road : 0) + (W0[wx] || 0)); delete h._g; }); } } catch (e) {}
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; let wx0 = 'clear'; try { wx0 = g && C.weather ? C.weather(g) : 'clear'; } catch (e) {} const r = ps0.apply(this, arguments);
+  try { if (g && g.heroes && g.day > d0) { const wx = wx0, W0 = K().WEAR, onRoad = !!g.pos && !(g.posNode && g.posNode === g.loc) || g.travelDay === g.day;
+    const nd = Math.min(30, g.day - d0); C.alive(g).filter(h => h.kind !== 'merc').forEach(h => { h._g = g; wearDown(h, ((onRoad ? W0.road : 0) + (W0[wx] || 0)) * nd); delete h._g; }); } } catch (e) {}
   return r; }; }
 if (G.B && G.B.damage) { const B = G.B, dm0 = B.damage; B.damage = function (S, t, d) { const r = dm0.apply(this, arguments); try { if (d > 0 && t && t.ref && t.ref.eq && t.ref.eq.dress && t.ref.kind !== 'merc') wearDown(t.ref, C.DG.WEAR.hit); } catch (e) {} return r; }; }
 const mendPrice = (g, h) => { const id = h.eq.dress, it = I[id] || {}; return Math.max(10, Math.round((it.price || 100) * K().WEAR.mend * (100 - C.dressCond(h)) / 100 / 10) * 10); };
@@ -72021,6 +72027,17 @@ if (C.mealText) { const mt0 = C.mealText; C.mealText = function (h, g) { const m
   if (m && C.FOOD_FX[h.meal.id]) { const f = C.mealOf ? C.mealOf(h, g) : null, t = f && C.mealFxText ? C.mealFxText(f) : ''; const n = ((R.item(m[2]) || {}).name || '').toLowerCase();
     return t ? `${m[1] === 'sup' ? 'Домашний ужин' : 'Ночь дома'}${n ? ' — ' + n : ''}: ${t}.` : ''; }
   return mt0.apply(this, arguments); }; }
+/* дыра (Ник 25.11): спасённая жена — жаркая ночь каждый вечер, «окрылён» навечно. Теперь: жаркое — от разлуки и редкости;
+   каждая жаркая ночь за последние HOT_WIN дней вдвое гасит шанс следующей (и у спасённой тоже, хоть ей и легче всех);
+   «окрылён» (опыт с прибавкой) — не чаще раза в WING_CD дней; дух всё равно поднимется до самого высокого. */
+Object.assign(C.NT, {HOT_WIN: 7, HOT_DECAY: 0.5, FREED_GAP: 2, WING_CD: 14});
+const homeOf = (g, key) => { const S = g.he = (g.he && typeof g.he === 'object') ? g.he : {}; S.home = S.home || {}; return S.home[key] = S.home[key] || {}; };
+if (C.heHotHome) { const hh0 = C.heHotHome; C.heHotHome = function (g, o, mood) { let p = hh0.apply(this, arguments); if (!p || !o) return p;
+  try { const Hm = homeOf(g, o.key), d = day(g), log = (Hm.hotLog || []).filter(x => d - x < C.NT.HOT_WIN);
+    if (C.heOrigin && C.heOrigin(g, o.key) === 'freed' && Hm.hotDay && d - Hm.hotDay < C.NT.FREED_GAP) return 0;
+    p *= Math.pow(C.NT.HOT_DECAY, log.length); } catch (e) {} return p; }; }
+if (C.heGlow) { const gl0 = C.heGlow; C.heGlow = function (g, h) { if (!h) return gl0.apply(this, arguments); const d = day(g), ws = h.ntWingAt || -999, wing0 = h.heWing;
+  const r = gl0.apply(this, arguments); if (d - ws < C.NT.WING_CD) h.heWing = wing0 && wing0 >= d ? wing0 : 0; else h.ntWingAt = d; return r; }; }
 const SUP_SAY = {cold: ['На стол собрано что осталось: {d}. Молча.', 'Ужин — {d}, разогретое, без слова.'], plain: ['На ужин — {d}.', 'На столе — {d}, горячее, из печи.'], hot: ['Стол ломится: {d} — и ещё то, чего в доме не бывало.', 'На ужин — {d}, лучшее, что было в доме.']};
 const day = g => (g && g.day) || 1;
 /* отогрелся дома: потолок духа — до самого высокого, пока сыт */
@@ -72035,11 +72052,64 @@ const tune = g => { const S = g && g.he, N = S && S.night; if (!N || N.ntDone) r
   const kind = N.hot ? 'hot' : N.mood === 'cold' ? 'cold' : 'plain', dish = C.ntTable(g, N.key, kind), dn = ((R.item(dish) || {}).name || '').toLowerCase();
   C.alive(g).forEach(x => { if (!x.meal || !/^home_/.test(x.meal.id || '')) return; x.meal.id = x === h ? `home_${kind === 'plain' ? 'love' : kind}_${dish}` : `home_${kind === 'cold' ? 'cold' : 'sup'}_${dish}`; x.mealQ = Math.max(x.mealQ || 0, (C.FOOD_FX[x.meal.id] || {}).hp || 0); });
   N.dish = dish; if (dn) { const a = SUP_SAY[kind]; N.text = (N.text || '') + ' ' + a[hsh(N.key + day(g)) % a.length].replace('{d}', dn); }
-  if (N.hot) { C.alive(g).filter(x => x !== h).forEach(x => { if (C.spiritAdd) C.spiritAdd(g, K().HOT_PARTY, '', x); }); return; }
+  if (N.hot) { try { const Hm = homeOf(g, N.key); Hm.hotLog = (Hm.hotLog || []).filter(x => day(g) - x < C.NT.HOT_WIN).concat(day(g)); } catch (e) {}
+    C.alive(g).filter(x => x !== h).forEach(x => { if (C.spiritAdd) C.spiritAdd(g, K().HOT_PARTY, '', x); }); return; }
   if (N.mood === 'cold') { if (C.spiritAdd) C.spiritAdd(g, K().COLD_SPIRIT, '', h); return; }
   if (N.mood === 'sore') return;
   h.ntWarm = Math.max(h.ntWarm || 0, day(g) + K().PLAIN_WARM); h.spirit = Math.max(h.spirit || 0, Math.min(3, C.spiritCap(h)));
   try { const [role, at] = String(N.key).split('@'); if (C.relAdd) C.relAdd(g, role, at, K().PLAIN_REL, 'ночь дома'); } catch (e) {} };
 { const ch0 = C.choose; C.choose = function (g) { const r = ch0.apply(this, arguments); try { if (r && r.scene === 'he_night') tune(g); } catch (e) {} return r; }; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* gear_wear.js */
+/* Колдовство — износ обуви и плаща (Ник 25.11: «одежда портится в непогоду и от ран»; наряд — dress_gifts.js, тут — сапоги и плащ).
+   • Обувь стаптывается в дороге и раскисает в слякоть; лапти — быстрее всех, зато копейка. Плащ мокнет и рвётся в ненастье и в бою.
+   • Сношенная вещь (меньше трети) теряет свою прибавку (+к Скрытности у мягких сапог, +к Выживанию у плаща). Вконец — разваливается.
+   • Чинить: сапоги — у кожевника, плащ — у швеи. Дешевле новой. Числа — C.GW (тайна мастера). Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, I = G.DATA && G.DATA.items;
+if (!R || !C || !I || !C.WEAR) return;
+C.GW = Object.assign({
+  FEET: {road: 2, rain: 2, downpour: 4, snow: 2, blizzard: 3}, LAPTI: 2, // лапти — вдвое быстрее
+  CLOAK: {road: 0.5, rain: 3, downpour: 5, snow: 3, blizzard: 6, fog: 0.5}, HIT: 3,
+  WORN: 33, MEND: 0.3}, C.GW || {});
+const K = () => C.GW;
+const SLOTS = ['feet', 'cloak'];
+const bid = id => (R.baseId ? R.baseId(id) : id);
+C.gearCond = (h, slot) => { const id = h && h.eq && h.eq[slot]; if (!id) return 100; h.gearCond = h.gearCond || {}; return h.gearCond[id] == null ? 100 : h.gearCond[id]; };
+C.gearWorn = (h, slot) => C.gearCond(h, slot) < K().WORN;
+C.gearWord = c => (c >= 80 ? 'крепкие' : c >= 50 ? 'ношеные' : c >= K().WORN ? 'стоптанные' : 'еле держатся');
+const nameOf = id => ((I[id] || {}).name || 'вещь').toLowerCase();
+const wearSlot = (g, h, slot, d) => { const id = h && h.eq && h.eq[slot]; if (!id || d <= 0 || (C.isMagic && C.isMagic(id))) return;
+  h.gearCond = h.gearCond || {}; const c = C.gearCond(h, slot), n = Math.max(0, Math.round((c - d) * 10) / 10); h.gearCond[id] = n;
+  if (c >= K().WORN && n < K().WORN) C.note(g, `${h.name}: ${nameOf(id)} — ${slot === 'feet' ? 'стоптаны, скоро развалятся' : 'в дырах, от дождя уже не спасает'}.`);
+  if (n <= 0) { delete h.gearCond[id]; h.eq[slot] = null; const i = h.inv.indexOf(id); if (i >= 0) h.inv.splice(i, 1);
+    C.note(g, `${h.name}: ${nameOf(id)} ${slot === 'feet' ? 'развалились прямо в дороге — дальше босиком' : 'расползся в клочья'}.`); } };
+/* прибавка сношенной вещи пропадает */
+{ const sk0 = R.skill; R.skill = function (h, skill) { let v = sk0.apply(this, arguments); try { if (h && h.eq && skill) SLOTS.forEach(sl => { const id = h.eq[sl]; if (!id || !C.gearWorn(h, sl)) return; const w = C.WEAR[bid(id)]; if (w && w.sk && w.sk[skill]) v -= w.sk[skill]; }); } catch (e) {} return v; }; }
+/* день: дорога и погода */
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; let wx0 = 'clear'; try { wx0 = g && C.weather ? C.weather(g) : 'clear'; } catch (e) {} const r = ps0.apply(this, arguments);
+  try { if (g && g.heroes && g.day > d0) { const wx = wx0, onRoad = !!g.pos && !(g.posNode && g.posNode === g.loc) || g.travelDay === g.day;
+    const nd = Math.min(30, g.day - d0); C.alive(g).filter(h => h.kind !== 'merc').forEach(h => {
+      const f = h.eq && h.eq.feet; let df = (onRoad ? K().FEET.road : 0) + (onRoad || /rain|downpour|snow|blizzard/.test(wx) ? (K().FEET[wx] || 0) * (onRoad ? 1 : 0.3) : 0); if (f && /^lapti/.test(bid(f))) df *= K().LAPTI; wearSlot(g, h, 'feet', df * nd);
+      const dc = (onRoad ? (K().CLOAK.road || 0) : 0) + (K().CLOAK[wx] || 0) * (onRoad ? 1 : 0.3); wearSlot(g, h, 'cloak', dc * nd); }); } } catch (e) {}
+  return r; }; }
+/* бой: плащ рвётся */
+if (G.B && G.B.damage) { const B = G.B, dm0 = B.damage; B.damage = function (S, t, d) { const r = dm0.apply(this, arguments); try { if (d > 0 && t && t.ref && t.ref.eq && t.ref.kind !== 'merc' && t.ref.eq.cloak) { const g = S && S.g; wearSlot(g || {heroes: []}, t.ref, 'cloak', K().HIT); } } catch (e) {} return r; }; }
+/* починка: кожевник — обувь, швея — плащ */
+const mendPrice = (h, slot) => { const id = h.eq[slot], it = I[id] || {}; return Math.max(5, Math.round((it.price || 50) * K().MEND * (100 - C.gearCond(h, slot)) / 100 / 5) * 5); };
+const mendCh = (g, slot, back, i0) => { let i = i0; const out = [];
+  (C.alive(g) || []).filter(h => h.kind !== 'merc' && h.eq && h.eq[slot] && C.gearCond(h, slot) < 90).forEach(h => { const pr = mendPrice(h, slot), id = h.eq[slot];
+    out.push({i: i++, label: `${h.name}: ${slot === 'feet' ? 'подбить и залатать' : 'залатать'} ${nameOf(id)} (${C.gearWord(C.gearCond(h, slot))}) — ${R.priceText(pr)}`, dis: (g.purse || 0) < pr ? 'в кошеле не хватает' : null,
+      do: g2 => { if ((g2.purse || 0) < pr) return back; const hh = C.alive(g2).find(x => x.id === h.id); if (!hh || !hh.eq[slot]) return back; g2.purse -= pr; hh.gearCond = hh.gearCond || {}; hh.gearCond[hh.eq[slot]] = 100;
+        C.note(g2, slot === 'feet' ? `Кожевник подбивает подмётки ${hh.name}: «Ещё сто вёрст пройдут»` : `Швея латает плащ ${hh.name}: «Как новый не будет, а дождь держать станет»`); return back; }}); });
+  return out; };
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (!sc || !sc.choices) return sc; const nx = Math.max(800, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i + 1 : 0)));
+    if (id === 'trd' && /^kozhevnik@/.test(g.trdKey || '')) { const add = mendCh(g, 'feet', 'trd', nx); if (add.length) { const b = sc.choices.findIndex(c => /^Назад|^Уйти/.test(c.label || '')); sc.choices.splice(b >= 0 ? b : sc.choices.length, 0, ...add); } }
+    if (id === 'dress_order') { const add = mendCh(g, 'cloak', 'dress_order', nx); if (add.length) sc.choices.splice(Math.max(0, sc.choices.length - 1), 0, ...add); } } catch (e) {}
+  return sc; }; }
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
