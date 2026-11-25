@@ -71922,10 +71922,14 @@ const back = g => { const n = nodeOf(g); return (n && n.scene) || 'map'; };
 SC.tf_hub = g => {
   const here = C.tfHere(g), night = C.isNight && C.isNight(g), h = heroes(g)[0];
   const lines = [['n', here.length ? (night ? 'Улица пуста, только у дальнего плетня кто-то ещё не спит.' : 'На улице люди: кто у колодца, кто у ворот, кто просто так — греется на солнышке и глазеет на проезжих.') : 'Улица пуста.']];
-  const ch = here.map(p => { const r = relOf(g, g.loc, p.id); return {t: `${p.n}, ${p.t}${r.rel >= K().REL_WARM ? ' — знакомы' : ''}`, do: g2 => { g2.tfCur = p.id; g2.tfLast = null; g2.tfBack = null; return 'tf_talk'; }}; });
+  const ch = here.map(p => { const r = relOf(g, g.loc, p.id); const kv = kvOf(g, g.loc, p.id); return {t: `${p.n}, ${p.t}${kv ? ' — ваша знакомая'.replace('ваша знакомая', p.sex === 'f' ? 'ваша знакомая' : 'ваш знакомый') : r.rel >= K().REL_WARM ? ' — знакомы' : ''}`, do: g2 => { const k2 = kvOf(g2, g2.loc, p.id); if (k2) return toKv(g2, k2); g2.tfCur = p.id; g2.tfLast = null; g2.tfBack = null; return 'tf_talk'; }}; });
   ch.push({t: 'Назад', do: g2 => { g2.tfBack = null; return back(g2); }});
   return {title: 'Улица', bg: (nodeOf(g) || {}).kind === 'город' ? 'town' : 'village', lines, choices: ch};
 };
+/* житель, с которым уже завязалось (заигрывали — стала знакомой): разговор один — тот же, что «Навестить» (Ник 25.11) */
+const kvOf = (g, at, pid) => Object.values(g.kvLoc || {}).find(r => r && r.tf === at + '|' + pid && r.camp === g.camp && !r.gone) || null;
+C.tfKv = kvOf;
+const toKv = (g2, r) => { g2.kvCur = r.id; g2.kvLast = null; delete g2.kvArt; return 'kv_local'; };
 SC.tf_talk = g => {
   const p = C.tfPeople(g, g.loc).find(x => x.id === g.tfCur), hs = heroes(g), h = (C.actorHero && C.actorHero(g)) || hs[0];
   if (!p || !h) return {title: 'Улица', bg: 'village', lines: [['n', 'Человек уже ушёл.']], choices: [{t: 'Назад', do: g2 => 'tf_hub'}]};
@@ -71933,6 +71937,7 @@ SC.tf_talk = g => {
   if (!r.met) lines.push(['n', `${p.n}, ${p.t}.`]); else if (r.rel >= K().REL_WARM) lines.push(['n', fill(pickH(WARM[p.sex], p.id + day(g)), h, p)]);
   if (g.tfLast) lines.push(['n', g.tfLast]); else lines.push([p.n, '«' + talkLine(p, p.id + day(g) + (g.time || 0)) + '»']);
   const ch = [], d = day(g);
+  { const kv = kvOf(g, g.loc, p.id); if (kv) ch.push({own: kv.hid, t: `Навестить по-свойски: ${p.n}`, do: g2 => toKv(g2, kv)}); }
   ch.push({free: 1, t: 'Поболтать о жизни', if: g2 => relOf(g2, g2.loc, p.id).talk !== d, off: 'сегодня уже говорили', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.talk = d; rr.met = rr.met || d; rr.rel = Math.min(100, rr.rel + Math.round(K().TALK * (C.dressRelMul ? C.dressRelMul(h, p.rank === 'kupec' ? 'merchant' : 'peasant') : 1)));
     if (C.passH) C.passH(g2, 0.5); g2.tfLast = fill(`{n}: «${talkLine(p, p.id + 'x' + d + R.rand())}»`, h, p); return 'tf_talk'; }});
   if (p.age !== 'kid') ch.push({free: 1, t: 'Расспросить о новостях', if: g2 => relOf(g2, g2.loc, p.id).news !== d, off: 'всё, что знал, уже рассказал', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.news = d; rr.met = rr.met || d;
@@ -72002,7 +72007,7 @@ C.tfKnown = g => { const A = (g.tf || {})[g.camp + '|' + g.loc] || {}; return C.
 { const so3 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so3.apply(this, arguments);
   try { if (sc && id === 'folk_hub' && Array.isArray(sc.choices)) { const K0 = C.tfKnown(g); if (K0.length) {
     const add = K0.map((p, k) => { const r = relOf(g, g.loc, p.id), warm = r.rel >= K().REL_WARM;
-      return {i: 970 + k, t: `${p.n}, ${p.t}`, label: `${p.n}, ${p.t}`, card: {face: p.face, n: p.n, sub: p.t + (warm ? ' · знакомы давно' : ' · знакомы')}, do: g2 => { g2.tfCur = p.id; g2.tfLast = null; g2.tfBack = 'folk_hub'; return 'tf_talk'; }}; });
+      return {i: 970 + k, t: `${p.n}, ${p.t}`, label: `${p.n}, ${p.t}`, card: {face: p.face, n: p.n, sub: p.t + (kvOf(g, g.loc, p.id) ? (p.sex === 'f' ? ' · ваша знакомая' : ' · ваш знакомый') : warm ? ' · знакомы давно' : ' · знакомы')}, do: g2 => { const k2 = kvOf(g2, g2.loc, p.id); if (k2) return toKv(g2, k2); g2.tfCur = p.id; g2.tfLast = null; g2.tfBack = 'folk_hub'; return 'tf_talk'; }}; });
     const back = sc.choices.findIndex(c => /^Назад/.test(c.label || '')); sc.choices.splice(back < 0 ? sc.choices.length : back, 0, ...add);
     if (sc.lines && sc.lines[0]) sc.lines = sc.lines.concat([['n', 'А ещё — те, с кем вы уже знакомы.']]); } } } catch (e) {}
   return sc; }; }
