@@ -70465,7 +70465,8 @@ const withTurn = (S, fn) => { const k = {m: S.moved, a: S.acted, b: S.bonus, f: 
 C.walkTick = function (S) {
   const Wk = S.walk; Wk.rnd++; Wk.min += Wk.fight ? (K().MIN_FIGHT || 0.1) : K().MIN;
   { const G0 = G_; if (G0 && G0.twalk && (G0.twalk.min || 0) + Wk.min >= 30) passMin(G0, Wk); } // набежало полчаса — часы идут
-  civs(S).forEach(u => { try { withTurn(S, () => civAct(S, u)); } catch (e) { if (C.BF_DEBUG) console.error(e); } });
+  const hs0 = heroUs(S).filter(h => B.active(h) && h.c != null);
+  civs(S).forEach(u => { if (!Wk.fight && !(u.civ && (u.civ.hostile || u.civ.k === 'tgt')) && hs0.length && !hs0.some(h => B.dist(h, u) <= 18)) return; /* далеко от своих — не считаем (Ник 25.11: «лагает») */ try { withTurn(S, () => civAct(S, u)); } catch (e) { if (C.BF_DEBUG) console.error(e); } });
   // яд: отравленный уходит
   civs(S).forEach(u => { if (u.civ.poisoned && Wk.rnd + 1 - u.civ.poisoned >= 2 && !u.gone) { u.gone = true; lg(S, fill(pick(TX.poisonAfter), {n: u}), ''); } });
   if (peace(S)) perceive(S);
@@ -70508,8 +70509,9 @@ BF.houseSign = function (S, h) {
 /* ======================= жизнь села (Ник 25.11): у каждого свой день =======================
    Утром — на работу (мастер — в свою мастерскую, мужик — в поле, баба — к колодцу и в огород), днём — дела и пересуды,
    вечером — в корчму, домой ужинать, на лавку у ворот поговорить; ночью спят. План держится несколько кругов, потом новый. */
-const LIFE_W = {утро: {work: 45, well: 20, chat: 15, wander: 10, home: 10}, день: {work: 40, chat: 20, wander: 15, well: 10, tavern: 5, home: 10},
-  вечер: {tavern: 30, home: 30, chat: 25, wander: 15}, ночь: {home: 80, tavern: 20}};
+/* больше дела, меньше шатаний (Ник 25.11: «не шариться как дебилы, а что-то делать — работать у дома, есть»): двор — хозяйство у своей избы, дом — стряпня, еда, дела в избе */
+const LIFE_W = {утро: {work: 35, yard: 25, home: 15, well: 12, chat: 10, wander: 3}, день: {work: 30, yard: 25, home: 18, chat: 15, well: 6, tavern: 3, wander: 3},
+  вечер: {home: 40, tavern: 22, chat: 18, yard: 15, wander: 5}, ночь: {home: 85, tavern: 15}};
 const WORK_K = ['kuznya', 'masterskaya', 'kupec', 'banya'];
 const lifeT = () => { try { return C.timeName(G_) || 'день'; } catch (e) { return 'день'; } };
 const houseList = S => (BF.houses ? BF.houses(S.field) : []);
@@ -70518,7 +70520,9 @@ const cellsOf = (S, t) => Object.values(S.field.cells).filter(x => x.t === t);
 const lifePick = (S, u, home) => {
   const W0 = LIFE_W[lifeT()] || LIFE_W.день, k = u.civ.k; let tot = 0; const L = Object.entries(W0).map(([n, w]) => { if (k === 'child' && (n === 'tavern' || n === 'work')) w = 0; if (k === 'starik' && n === 'work') w /= 3; tot += w; return [n, w]; });
   let x = R.rand() * tot, n = 'wander'; for (const [m, w] of L) { if (x < w) { n = m; break; } x -= w; }
-  const Wk = S.walk, plan = {n, until: Wk.rnd + 2 + Math.floor(R.rand() * 4)};
+  const Wk = S.walk, plan = {n, until: Wk.rnd + 6 + Math.floor(R.rand() * 10)};
+  if (n === 'yard') { const d = home && (home.doors || []).find(x => !x.inner); const cs = d ? Object.values(S.field.cells).filter(x => x && x.hb == null && freeCell(S, x) && B.dist(x, d) >= 1 && B.dist(x, d) <= 3) : [];
+    if (cs.length) { plan.at = pick(cs); plan.chore = 1; } else if (home) { plan.n = 'home'; } else plan.n = 'wander'; }
   if (n === 'work') { const mine = home && WORK_K.includes(home.k) ? home : null;
     if (mine) plan.h = mine.id;
     else if (k === 'muzhik') { const f = cellsOf(S, 'rye').concat(cellsOf(S, 'garden')).filter(c => freeCell(S, c)); if (f.length) plan.at = pick(f); else plan.n = 'wander'; }
@@ -70546,12 +70550,12 @@ function life(S, u, home) {
   if (!P || Wk.rnd >= P.until || (P.n === 'chat' && !B.U(S, P.mate))) P = u.civ.plan = lifePick(S, u, home);
   const g = G_;
   if (P.h != null) { const h = houseOf(S, P.h); if (h) goInto(S, u, h); return; }
-  if (P.at) { if (B.dist(u, P.at) > 1) toward(S, u, P.at); else if (R.rand() < 0.2) wander(S, u, null, 2); return; }
+  if (P.at) { if (B.dist(u, P.at) > 0 && !(B.dist(u, P.at) === 1 && B.unitAt(S, P.at.c, P.at.r))) toward(S, u, P.at); else if (R.rand() < 0.04) wander(S, u, null, 1); return; }
   if (P.n === 'chat') { const m = B.U(S, P.mate); if (!m || !B.active(m)) { u.civ.plan = null; return; }
     if (B.dist(u, m) > 1) { toward(S, u, m); return; }
     B.faceTo(u, m); if (!C.walkChat && u.id < m.id && !Wk.night && R.rand() < 0.3 && (Wk.chatR == null || Wk.rnd - Wk.chatR >= 3) && heroUs(S).some(h => B.active(h) && B.dist(h, u) <= 5)) { Wk.chatR = Wk.rnd; lg(S, `${nameOf(u)} — ${nameOf(m)}: ${pick(CHAT_T)}`, ''); }
     return; }
-  if (R.rand() < 0.55) wander(S, u, home, 10);
+  if (R.rand() < 0.25) wander(S, u, home, 6);
 }
 
 /* ======================= глаза и уши ======================= */
@@ -70745,6 +70749,8 @@ C.walkActs = function (S, u) {
   // всё, что есть в меню места, — у своего дома, у колодца, в поле (Ник 25.11: «чтобы можно было всё»)
   { const MM = menuMap(S), seen = new Set(); const add = (c, why) => { if (seen.has(c.label)) return; seen.add(c.label); out.push({v: 'menu', p: c.label, label: shortL(c.label), dis: c.dis || why || '', title: c.label, grp: 'Здесь'}); };
     doorsAround(S, u).forEach(o => (MM.house[o.h.id] || []).forEach(c => add(c, Wk.night && !['korchma', 'korchma_big', 'starosta', 'terem', 'boyar'].includes(o.h.k) ? TX.shut : '')));
+    // свой дом (табличка «Свой дом») — зайти к жене/мужу
+    try { const lb = C.svHomeLabel && C.svHomeLabel(g); if (lb) doorsAround(S, u).forEach(o => { if (Wk.kvHomes && Wk.kvHomes[o.h.id] === 'Свой дом' && !out.some(x => x.p === lb)) out.push({v: 'menu', p: lb, label: 'Зайти домой', title: lb, grp: 'Прогулка'}); }); } catch (e) {}
     const x0 = cellOf(S, u), nearT = t => [x0].concat(B.neigh(u.c, u.r).map(q => B.cell(S, q.c, q.r))).some(x => x && x.t === t);
     if (nearT('well')) MM.well.forEach(c => add(c)); if (x0 && ['rye', 'garden'].includes(x0.t)) MM.field.forEach(c => add(c, Wk.night ? TX2.why.dark : ''));
     MM.any.forEach(c => add(c)); }
@@ -72265,7 +72271,7 @@ if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { cons
 /* знакомые жители — в «мастерах и людях» рядом с мастерами (Ник 25.11) */
 C.tfKnown = g => { const A = (g.tf || {})[g.camp + '|' + g.loc] || {}; return C.tfPeople(g, g.loc).filter(p => A[p.id] && A[p.id].met); };
 { const so3 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so3.apply(this, arguments);
-  try { if (sc && id === 'folk_hub' && Array.isArray(sc.choices)) { const K0 = C.tfKnown(g); if (K0.length) {
+  try { if (sc && id === 'folk_hub' && Array.isArray(sc.choices)) { const K0 = C.tfKnown(g).filter(p => { const r = Object.values(g.kvLoc || {}).find(x => x && x.tf === g.loc + '|' + p.id && x.camp === g.camp); return !(r && r.st === 'wed'); }); /* жена — уже в списке как жена, второй раз не показываем */ if (K0.length) {
     const add = K0.map((p, k) => { const r = relOf(g, g.loc, p.id), warm = r.rel >= K().REL_WARM;
       return {i: 970 + k, t: `${p.n}, ${p.t}`, label: `${p.n}, ${p.t}`, card: {face: p.face, n: p.n, sub: p.t + (kvOf(g, g.loc, p.id) ? (p.sex === 'f' ? ' · ваша знакомая' : ' · ваш знакомый') : warm ? ' · знакомы давно' : ' · знакомы')}, do: g2 => { const k2 = kvOf(g2, g2.loc, p.id); if (k2) return toKv(g2, k2); g2.tfCur = p.id; g2.tfLast = null; g2.tfBack = 'folk_hub'; return 'tf_talk'; }}; });
     const back = sc.choices.findIndex(c => /^Назад/.test(c.label || '')); sc.choices.splice(back < 0 ? sc.choices.length : back, 0, ...add);
@@ -73072,6 +73078,8 @@ const CALL = {banya: ['Пар лёгкий, веники свежие!', 'С д�
   korchma: ['Щи горячие, квас холодный!', 'Заходи, гость, место у печи есть!', 'Пиво свежее, только с бочки!'],
   kuznya: ['Подкову, гвоздь, клинок поправить!', 'Кому ножи точить?'], masterskaya: ['Работа тонкая — гляди, да не трогай.'],
   kupec: ['Соль, ткани, бусы — подходи!', 'Дёшево отдам, только тебе!', 'Глянь, чего привезли!']};
+const CHORE_M = ['(колет дрова)', '(чинит плетень)', '(точит косу)', '(таскает воду)', '(латает упряжь)', '(стругает топорище)', '(ест хлеб с луком)'];
+const CHORE_F = ['(метёт двор)', '(развешивает бельё)', '(кормит кур)', '(полет грядки)', '(несёт вёдра)', '(сушит травы)', '(чистит репу)'];
 const heroes = S => (S.units || []).filter(u => u.side === 'party' && !u.pet && B.active(u) && u.c != null);
 const near = (S, u) => heroes(S).some(h => B.dist(h, u) <= HEAR);
 const seen = (S, u) => heroes(S).some(h => B.dist(h, u) <= 12);
@@ -73090,6 +73098,8 @@ C.walkChat = function (S) {
       const a = u.id < m.id ? u : m, b = a === u ? m : u, T = a.civ.talk || (a.civ.talk = {k: Math.floor(R.rand() * TT.length), i: 0, last: -9}); if (T.k >= TT.length) T.k = 0;
       if (rnd - T.last < 1) return; const L = TT[T.k]; if (T.i >= L.length) { if (rnd - T.last >= 3) { T.k = (T.k + 1 + Math.floor(R.rand() * (TT.length - 1))) % TT.length; T.i = 0; } else return; }
       const who = T.i % 2 ? b : a; delete (who === a ? b : a).say; say(S, who, TT[T.k][T.i]); T.i++; T.last = rnd; return; }
+    // хозяйство у двора: колет дрова, метёт, чинит — видно, чем занят
+    if (P && P.chore && P.at && B.dist(u, P.at) <= 1 && u.civ.k !== 'child') { const h0 = heroes(S).find(x => B.dist(x, u) <= HEAR + 2); if (h0 && (u.civ.choreR == null || rnd - u.civ.choreR >= 6) && R.rand() < 0.5) { u.civ.choreR = rnd; const L = u.civ.k === 'baba' ? CHORE_F : CHORE_M; u.say = {t: L[Math.floor(R.rand() * L.length)], r: rnd}; } return; }
     // зазывалы: прошёл мимо — окликнут
     const job = u.civ.job || (u.civ.k === 'trader' ? 'kupec' : null); if (!job || !CALL[job]) return;
     const h = heroes(S).find(x => B.dist(x, u) <= 3); if (!h) return; if (u.civ.called != null && rnd - u.civ.called < 5) return;
@@ -73117,7 +73127,7 @@ C.walkKnownHomes = function (S, g) {
   return (S.walk.kvHomes = out); };
 const hs0 = BF.houseSign;
 BF.houseSign = function (S, h) { try { const K = S && S.walk && S.walk.kvHomes; if (K && h && K[h.id]) return K[h.id]; } catch (e) {} return hs0.apply(this, arguments); };
-if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { C.walkKnownHomes(S, g); if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */
@@ -73240,6 +73250,39 @@ C.svDay = function (g) {
       try { if (C.repAdd) C.repAdd(g, E.at, K().MISS_REP, 'жених не пришёл на свадьбу'); } catch (e) {}
       if (C.note) C.note(g, `В свой день на свадьбу не пришли. Столы стояли накрытые, гости разошлись. ${E.n} в обиде, сговор расторгнут, по селу — худая молва.`); } }); };
 if (C.pass) { const p0 = C.pass; C.pass = function (g) { const d0 = g && g.day; const r = p0.apply(this, arguments); try { if (g && g.heroes && g.day !== d0) C.svDay(g); } catch (e) { if (C.BF_DEBUG) console.error(e); } return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---------- после свадьбы: «Свой дом» — сразу в меню села; старая «знакомая» ведёт домой, а не в пустую избу (Ник 25.11) ---------- */
+(function (G) {
+'use strict';
+const C = G.C, Q = C && C.Q;
+if (!C || !Q || !Q.inject) return;
+const homeOf = g => { const hs = (g.heroes || []).filter(h => h && h.spouse && h.spouse.at === g.loc && (!h.spouse.camp || h.spouse.camp === g.camp) && h.spouse.role && C.FOLK && C.FOLK[h.spouse.role]); return hs[0] ? hs[0].spouse : null; };
+C.svHomeLabel = g => { const s = homeOf(g); return s ? `Свой дом: ${s.n}` : null; };
+const inj0 = Q.inject;
+Q.inject = function (g, sceneId) {
+  let out = inj0.apply(this, arguments);
+  try { const n = C.CAMPS[g.camp].map.nodes[g.loc]; const place = (n && n.scene) || 'free_place'; if (sceneId !== place || g.folkAt) return out;
+    const s = homeOf(g); if (!s || out.some(c => /^Свой дом/.test(c.label || ''))) return out;
+    out = out.slice(); const i = out.length ? Math.max(...out.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1 : 0;
+    out.unshift({i, label: `Свой дом: ${s.n}`, do: g2 => { const s2 = homeOf(g2); if (!s2) return place; g2.folkRole = s2.role; g2.folkAt = null; g2.folkLast = null; return 'folk'; }});
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return out; };
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  try { if (id === 'kv_local' && g && C.kvLocOf) { const r = C.kvLocOf(g, g.kvCur); if (r && r.st === 'wed' && r.role && C.FOLK && C.FOLK[r.role]) { g.folkRole = r.role; g.folkAt = r.at === g.loc ? null : r.at; return so0.call(this, g, 'folk'); } } } catch (e) {}
+  return so0.apply(this, arguments); };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---------- у двух кнопок одной сцены один номер — жалась не та (Ник 25.11: «не могу выйти назад» из хозяйства) ---------- */
+(function (G) {
+'use strict';
+const C = G.C; if (!C || !C.sceneOf) return;
+const so0 = C.sceneOf;
+C.sceneOf = function () { const sc = so0.apply(this, arguments);
+  try { if (sc && Array.isArray(sc.choices) && sc.choices.length > 1) { const seen = new Set(); let mx = Math.max(0, ...sc.choices.map(c => (c && typeof c.i === 'number' ? c.i : 0)));
+    sc.choices.forEach((c, k) => { if (!c || typeof c.i !== 'number') return; if (seen.has(c.i)) sc.choices[k] = Object.assign({}, c, {i: ++mx}); seen.add(sc.choices[k].i); }); } } catch (e) {}
+  return sc; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* town_news.js */

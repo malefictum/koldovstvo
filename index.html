@@ -1391,7 +1391,7 @@ B.fromMonster = function (m, side, extra) {
     if (rg) alts.push(Object.assign(o, {range: [+rg / 2 | 0, +rg, +rg * 1.5 | 0]})); else atks.push(o);
   });
   const u = {
-    id: (extra && extra.id) || ('m' + Math.floor(R.rand() * 1e9).toString(36)), side, kind: 'monster', ref: m, name: (extra && extra.name) || m.name, level: m.level,
+    id: (extra && extra.id) || ('m' + Math.floor(R.rand() * 1e9).toString(36) + 'z' + (B._uidN = (B._uidN || 0) + 1).toString(36)), side, kind: 'monster', ref: m, name: (extra && extra.name) || m.name, level: m.level,
     hp: m.hp, hpMax: m.hp, power: (extra && extra.power) || 0, powerMax: (extra && extra.power) || 0, atk: m.atk, atkR: m.atk, def: m.def,
     helmSave: m.def >= 15 && !/мертв|костяк|навь|волк|зверь|упыр/i.test(m.name) ? 0.35 : 0,
     steps: Math.max(3, (m.speed || 3) + 1), attacks: atks.length ? [atks[0]] : [{name: 'удар', dmg: '1d4', bonus: 0, crit: 20}], nAtt: Math.max(1, atks.length),
@@ -49968,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251549"></script><script>
+</script><script src="world.js?v=202611251610"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53398,9 +53398,11 @@ async function playEv(S, e) {
     PLAY.actor = e.id; PLAY.mode = null; const pts = e.path.map(p => wpt(p.c, p.r));
     if (!(S.walk && !S.walk.fight && u.side !== 'party')) playFollow(end.c, end.r); // прогулка: камера не скачет за прохожими (Ник 25.11)
     PLAY.anim[e.id] = {k: 'walk', pts, t0: now(), step: STEP_MS * pk()}; PLAY.pos[e.id] = pts[0]; playKick();
+    const fin = () => { if (PLAY.anim[e.id] && PLAY.anim[e.id].k === 'walk' && PLAY.anim[e.id].pts === pts) delete PLAY.anim[e.id]; PLAY.pos[e.id] = pts[pts.length - 1]; PLAY.posK[e.id] = end.c + ',' + end.r; playKick(); };
+    // прогулка: прохожие идут все разом, не по очереди — без задержек (Ник 25.11: «лагает при перемещениях»)
+    if (S.walk && !S.walk.fight && u.side !== 'party') { setTimeout(fin, STEP_MS * pk() * (pts.length - 1)); return; }
     await pwait(STEP_MS * (pts.length - 1));
-    if (PLAY.anim[e.id] && PLAY.anim[e.id].k === 'walk') delete PLAY.anim[e.id];
-    PLAY.pos[e.id] = pts[pts.length - 1]; PLAY.posK[e.id] = end.c + ',' + end.r; playKick(); return;
+    fin(); return;
   }
   if (k === 'slash' || k === 'shot') {
     const u = pU(S, e.uid), t = pU(S, e.tid); PLAY.actor = e.uid != null ? e.uid : PLAY.actor;
