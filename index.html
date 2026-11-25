@@ -49966,7 +49966,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251419"></script><script>
+</script><script src="world.js?v=202611251424"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53392,7 +53392,7 @@ async function playEv(S, e) {
     // кого не видит отряд (туман, чаща, затаился) — без показа: и время не тянуть, и не выдавать
     if (u.side !== 'party' && !seenByParty(S, Object.assign({}, u, {c: e.path[0].c, r: e.path[0].r})) && !seenByParty(S, Object.assign({}, u, {c: end.c, r: end.r}))) { delete PLAY.pos[e.id]; PLAY.posK[e.id] = end.c + ',' + end.r; return; }
     PLAY.actor = e.id; PLAY.mode = null; const pts = e.path.map(p => wpt(p.c, p.r));
-    playFollow(end.c, end.r);
+    if (!(S.walk && !S.walk.fight && u.side !== 'party')) playFollow(end.c, end.r); // прогулка: камера не скачет за прохожими (Ник 25.11)
     PLAY.anim[e.id] = {k: 'walk', pts, t0: now(), step: STEP_MS * pk()}; PLAY.pos[e.id] = pts[0]; playKick();
     await pwait(STEP_MS * (pts.length - 1));
     if (PLAY.anim[e.id] && PLAY.anim[e.id].k === 'walk') delete PLAY.anim[e.id];

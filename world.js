@@ -70825,7 +70825,13 @@ C.walkAskers = function (S, g) {
   if (!L.length) return 0;
   // кто есть кто: имя (сказание — до запятой; «Поговорить с …» — из людей мира), по имени — один человек с одним или несколькими делами
   const who = c => { const P = c.w2ppl && C.W2_PPL ? C.W2_PPL[c.w2ppl] : null; if (P) return {n: P.n, t: P.t || '', face: P.face || '', sex: P.sex || null};
-    const lab = String(c.label).replace(/^(Поговорить|Навестить)[: с]+/, ''); const n0 = lab.split(/ — |, /)[0].trim(); let f0 = ''; try { f0 = C.faceByName ? C.faceByName(g, n0) : ''; } catch (e) {} return {n: n0, t: (lab.split(' — ')[1] || '').trim(), face: f0}; };
+    const lab = String(c.label).replace(/^(Поговорить|Навестить)[: с]+/, ''); const n0 = lab.split(/ — |, /)[0].trim(); let f0 = '', sx = null; try { f0 = C.faceByName ? C.faceByName(g, n0) : ''; } catch (e) {}
+    // пол и лицо: из сказания (кто просит) или из старых знакомых (бывшие герои)
+    try { const T = c.tale && C.TALES ? C.TALES[c.tale] : null; if (T && T.who) { sx = T.who.sex || null; f0 = f0 || T.who.face || ''; } } catch (e) {}
+    try { if (!sx && C.freeNpcsAt) { const m = C.freeNpcsAt(g, g.loc).find(x => x && x.name === n0); if (m && m.hero) { sx = m.hero.sex || null; f0 = f0 || m.hero.portrait || ''; } } } catch (e) {}
+    let role = ''; try { const T = c.tale && C.TALES ? C.TALES[c.tale] : null; role = (T && T.who && T.who.t) || ''; } catch (e) {}
+    if (!role) { const a = lab.split(' — ')[0]; role = a.includes(', ') ? a.slice(a.indexOf(', ') + 2).trim() : ''; }
+    return {n: n0, t: (lab.split(' — ')[1] || '').trim(), role, face: f0, sex: sx}; };
   const by = {}; L.forEach(c => { const w = who(c), k = w.n.toLowerCase().slice(0, 4); (by[k] = by[k] || {w, cs: []}).cs.push(c); if (!by[k].w.face && w.face) by[k].w.face = w.face; });
   const used = new Set(); let n = 0;
   const pool = civs(S).filter(u => people(u) && !u.civ.tf && !u.civ.folk && !u.civ.ask && ['muzhik', 'baba', 'starik'].includes(u.civ.k));
@@ -70837,7 +70843,7 @@ C.walkAskers = function (S, g) {
     let u = pool.find(fits) || (sx ? null : pool.find(x => !used.has(x.id)));
     if (!u) { const m0 = C.MON[sx === 'f' ? 'civ_baba' : 'civ_muzhik']; if (!m0) return; const base = civs(S).find(x => people(x)) || heroUs(S)[0]; if (!base) return; u = B.fromMonster(m0, 'civ', {}); u.id = 'ask' + (n + 1) + '_' + Math.floor(R.rand() * 1e6); u.ai = true; u.morale = false; u.init = R.d(20); u.civ = {k: sx === 'f' ? 'baba' : 'muzhik', sex: sx || 'm', home: null, plan: null, sleep: 0};
       const near = well || cellOf(S, base); const xs = Object.values(S.field.cells).filter(x => freeCell(S, x) && x.hb == null && near && B.dist(x, near) <= 5); const q = xs[Math.floor(R.rand() * xs.length)]; if (!q) return; u.c = q.c; u.r = q.r; S.units.push(u); }
-    used.add(u.id); n++; u.civ.ask = cs[0].label; u.civ.asks = cs.map(c => c.label); u.name = w.n + ' · есть дело'; if (w.face) { u.portrait = w.face; u.civ.face = w.face; }
+    used.add(u.id); n++; u.civ.ask = cs[0].label; u.civ.asks = cs.map(c => c.label); u.name = w.n + (w.role ? ', ' + w.role : ''); u.civ.n0 = w.n; if (w.face) { u.portrait = w.face; u.civ.face = w.face; }
     u.civ.plan = {n: 'wander', until: 4 + Math.floor(R.rand() * 4)}; try { if (C.civDress) { u.look = null; C.civDress(u); } } catch (e) {} });
   if (n && Wk) lg(S, TX2.askersLog, '');
   return n;
