@@ -1479,7 +1479,8 @@ B.lookFor = function (h, D) {
   const f = h.sex === 'f', cls = h.cls, body = D.body, layer = body ? body.layer : null;
   let base;
   if (['chernets'].includes(cls) && (!layer || ['стёганка', 'кожа'].includes(layer))) base = f ? 'f_oka' : 'monk';
-  else if (['volhv', 'zhrets'].includes(cls) && (!layer || ['стёганка', 'кожа'].includes(layer))) base = f ? 'vedunya' : 'volhv';
+  // у тела волхва борода нарисована на груди: молодому (до 30) — одежда книжника, без бороды (Ник 25.11: «маг-подросток и маг-дед»)
+  else if (['volhv', 'zhrets'].includes(cls) && (!layer || ['стёганка', 'кожа'].includes(layer))) base = f ? 'vedunya' : (((G.C && G.C.ageOf) ? G.C.ageOf(h) : 40) < 30 ? 'scholar' : 'volhv');
   else if (['knizhnik', 'charovnik'].includes(cls) && (!layer || layer === 'стёганка')) base = f ? 'vedunya' : cls === 'charovnik' ? 'necro' : 'scholar';
   // ярый: голый торс, кожаный наплечник или кольчуга со шкурой — свои тела (листы 60–61); стёганку он носит как кожу
   else if (cls === 'yaryi' && (!layer || ['стёганка', 'кожа', 'кольчуга'].includes(layer))) base = (f ? 'f_barb' : 'm_barb') + (layer === 'кольчуга' ? '_mail' : layer ? '_leather' : '');
@@ -49949,7 +49950,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611250738"></script><script>
+</script><script src="world.js?v=202611250753"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50553,6 +50554,8 @@ H.FACE = {
   pb01: [2, '#8a8682'], pb02: [2, '#2e2620'], pb03: [1, '#141210'], pb04: [9, '#6a4228'], pb05: [5, '#6a4228'], pb06: [13, '#5a3a22'],
   pb07: [6, '#4a3020'], pb08: [9, '#141210'], pb09: [2, '#5a3a22'], pb10: [11, '#141210'], pb11: [8, '#8a7e72'], pb12: [14, '#8a8682'],
   pb13: [1, '#6a3a22'], pb14: [2, '#9a968e'], pb15: [2, '#a8a49c'], pb16: [1, '#9a968e'],
+  // листы 80–89 (24.11), разметка 25.11: ряд по причёске и бороде, цвет — по волосам портрета
+  pc01: [9, '#c8a96a'], pc02: [9, '#1c1814'], pc03: [11, '#b0502a'], pc04: [11, '#b0502a'], pc05: [9, '#c8a96a'], pc06: [11, '#1c1814'], pc07: [9, '#c8a96a'], pc08: [13, '#c8a96a'], pc09: [11, '#c8a96a'], pc10: [11, '#1c1814'], pc11: [12, '#b0502a'], pc12: [11, '#d0ccc4'], pc13: [13, '#5a3e28'], pc14: [11, '#1c1814'], pc15: [11, '#c8a96a'], pc16: [9, '#1c1814'], pd01: [10, '#c8a96a'], pd02: [12, '#b0502a'], pd03: [9, '#5a3e28'], pd04: [11, '#1c1814'], pd05: [10, '#1c1814'], pd06: [11, '#1c1814'], pd07: [10, '#9a968e'], pd08: [11, '#1c1814'], pd09: [11, '#1c1814'], pd10: [12, '#9a968e'], pd11: [10, '#1c1814'], pd12: [11, '#1c1814'], pd13: [9, '#5a3e28'], pd14: [11, '#1c1814'], pd15: [11, '#d0ccc4'], pd16: [11, '#d0ccc4'], pe01: [11, '#1c1814'], pe02: [11, '#c8a96a'], pe03: [9, '#5a3e28'], pe04: [9, '#1c1814'], pe05: [11, '#b0502a'], pe06: [9, '#c8a96a'], pe07: [11, '#d0ccc4'], pe08: [11, '#1c1814'], pe09: [9, '#5a3e28'], pe10: [12, '#1c1814'], pe11: [13, '#c8a96a'], pe12: [9, '#1c1814'], pe13: [11, '#9a968e'], pe14: [13, '#5a3e28'], pe15: [13, '#5a3e28'], pe16: [10, '#b0502a'], pf01: [12, '#5a3e28'], pf02: [12, '#c8a96a'], pf03: [12, '#5a3e28'], pf04: [11, '#1c1814'], pf05: [12, '#1c1814'], pf06: [11, '#b0502a'], pf07: [12, '#c8a96a'], pf08: [10, '#5a3e28'], pf09: [14, '#9a968e'], pf10: [11, '#1c1814'], pf11: [12, '#5a3e28'], pf12: [12, '#5a3e28'], pf13: [12, '#1c1814'], pf14: [11, '#5a3e28'], pf15: [12, '#5a3e28'], pf16: [12, '#1c1814'], pi01: [9, '#c8a96a'], pi02: [10, '#1c1814'], pi03: [11, '#b0502a'], pi04: [10, '#5a3e28'], pi05: [9, '#b0502a'], pi06: [11, '#c8a96a'], pi07: [11, '#c8a96a'], pi08: [11, '#1c1814'], pi09: [13, '#1c1814'], pi10: [11, '#1c1814'], pi11: [10, '#b0502a'], pi12: [10, '#5a3e28'], pi13: [11, '#1c1814'], pi14: [10, '#c8a96a'], pi15: [10, '#1c1814'], pi16: [11, '#c8a96a'], pg01: [1, '#c8a96a'], pg02: [1, '#1c1814'], pg03: [1, '#b0502a'], pg04: [1, '#5a3e28'], pg05: [4, '#1c1814'], pg06: [1, '#5a3e28'], pg07: [7, '#c8a96a'], pg08: [6, '#1c1814'], pg09: [1, '#1c1814'], pg10: [4, '#c8a96a'], pg11: [1, '#1c1814'], pg12: [4, '#d0ccc4'], pg13: [1, '#5a3e28'], pg14: [4, '#1c1814'], pg15: [1, '#5a3e28'], pg16: [1, '#5a3e28'], ph01: [3, '#1c1814'], ph02: [2, '#1c1814'], ph03: [7, '#b0502a'], ph04: [6, '#1c1814'], ph05: [1, '#1c1814'], ph06: [2, '#1c1814'], ph07: [3, '#5a3e28'], ph08: [1, '#9a968e'], ph09: [3, '#5a3e28'], ph10: [5, '#5a3e28'], ph11: [2, '#5a3e28'], ph12: [3, '#1c1814'], ph13: [1, '#1c1814'], ph14: [1, '#1c1814'], ph15: [1, '#1c1814'], ph16: [1, '#9a968e'], pj01: [1, '#5a3e28'], pj02: [1, '#1c1814'], pj03: [7, '#c8a96a'], pj04: [1, '#5a3e28'], pj05: [4, '#1c1814'], pj06: [1, '#1c1814'], pj07: [1, '#b0502a'], pj08: [2, '#b0502a'], pj09: [1, '#5a3e28'], pj10: [1, '#1c1814'], pj11: [1, '#c8a96a'], pj12: [1, '#1c1814'], pj13: [1, '#5a3e28'], pj14: [1, '#1c1814'], pj15: [1, '#c8a96a'], pj16: [4, '#1c1814'],
 };
 /* без портрета (или портрет неизвестен) — по id героя: ряд своего пола и цвет из обычных */
 H.PALETTE = ['#1c1814', '#2e2620', '#3a2a1e', '#4a3220', '#5a3e28', '#6a4a2e', '#7a5a3a', '#8a6a44', '#9a7a4e', '#b8955a', '#a0482a', '#6a3a22'];
@@ -50562,15 +50565,22 @@ const BEARD_ONLY = {volhv: [3, 8, 3, 2, 5, 7]};
 function hash(s) { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; }
 /* седой цвет: светлый и почти без оттенка */
 H.gray = hex => { const n = parseInt(String(hex).slice(1), 16), r = n >> 16, g = n >> 8 & 255, b = n & 255; return Math.max(r, g, b) > 120 && Math.max(r, g, b) - Math.min(r, g, b) < 24; };
+H.mix = (a, b, t) => { const p = x => parseInt(String(x).slice(1), 16), A = p(a), Bc = p(b), ch = (s) => Math.round(((A >> s) & 255) * (1 - t) + ((Bc >> s) & 255) * t); return '#' + [16, 8, 0].map(s => ch(s).toString(16).padStart(2, '0')).join(''); };
 /* голова фигуры: {row, hair} или null (у этой фигуры голова не меняется) */
 H.pick = function (u, base) {
   if (!base || base === 'f_oka') return null;   // жрица в плате — лицо в плате и остаётся
   const fem = /^f_|^vedunya$/.test(base);
-  const f = u && u.portrait && H.FACE[u.portrait];
+  const ref = u && u.ref, f = u && ((u.portrait && H.FACE[u.portrait]) || (ref && ref.faceRoot && H.FACE[ref.faceRoot]));
   const seed = hash((u && (u.ref && u.ref.id || u.id)) || (u && u.name) || (u && u.portrait) || base);
   let row = f ? f[0] : null, hair = f ? f[1] : H.PALETTE[seed % H.PALETTE.length];
+  /* годы (Ник 25.11): голова на поле стареет вместе с героем — в 40–55 волосы с проседью, с 55 — серебро; старик без бороды
+     лысеет и обрастает бородой (ряд 8), старуха собирает волосы в узел (ряд 14). Юному — никакой седины. */
+  const age = ref && ref.cls ? (typeof ref.age === 'number' ? ref.age : (G.C && G.C.ageOf ? G.C.ageOf(ref) : null)) : null; // и наёмники: они тоже стареют
+  if (age != null && age >= 40 && !H.gray(hair)) hair = H.mix(hair, age >= 55 ? '#c8c6c0' : '#9a968e', age >= 55 ? 0.85 : 0.45);
   const rows = fem ? F_ROWS : M_ROWS;
   if (!row || !rows.includes(row)) row = rows[(seed >>> 4) % rows.length];
+  if (age != null && age >= 55) { if (!fem && [1, 4, 6].includes(row)) row = 8; if (fem && [11, 13].includes(row)) row = 14; }
+  if (age != null && age < 25 && (row === 8 || row === 14)) row = fem ? 11 : 1;
   const bo = BEARD_ONLY[base];
   if (bo && !bo.includes(row)) row = H.gray(hair) ? 8 : bo[(seed >>> 7) % bo.length];
   return {row, hair};
