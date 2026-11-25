@@ -49950,7 +49950,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251043"></script><script>
+</script><script src="world.js?v=202611251054"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51523,7 +51523,7 @@ function showTitle() {
    ${used.length ? `<h4 class="jh">Саги <span class="note">${used.length} из ${SAGA_N}</span></h4><div class="sagas">${cards.join('')}</div>` : ''}
    ${backBtn}
    ${window.Net ? `<button class="btn khall" id="t-net"><span class="khl"><b>Корчма</b><small>столы, торг и разговоры у очага</small></span><span class="khr"><i class="kdot k"></i>Онлайн <b id="t-online">${esc(onlineNum())}</b></span></button>` : ''}
-   ${C.CAMPS.free ? (() => { const fm = sagaMeta()[FREE_I], has = sagaHas(FREE_I); return `<div class="tgrid"><button class="btn ttile ${has ? 'primary' : ''}" id="t-free" data-scont-free="1"><b>Вечный мир</b><span>${has && fm ? esc(`${fm.who.join(', ')} · день ${fm.day}`) + ' — продолжить' : 'один большой мир без глав: края по уровням, поручения без конца, война Ока с навью'}</span></button></div>`; })() : ''}
+   ${C.CAMPS.free ? (() => { const fm = sagaMeta()[FREE_I], has = sagaHas(FREE_I); return `<div class="tgrid"><button class="btn ttile ${has ? 'primary' : ''}" id="t-free" data-scont-free="1"><b>Вечный мир</b><span>${has && fm ? ((fm.who || []).length ? esc(`${fm.who.join(', ')} · день ${fm.day}`) + ' — продолжить' : `отряда нет · день ${fm.day} — выбрать героя`) : 'один большой мир без глав: края по уровням, поручения без конца, война Ока с навью'}</span></button></div>`; })() : ''}
    ${free ? `<div class="tgrid">
     <button class="btn ttile ${used.length ? '' : 'primary'}" id="t-new"><b>Новая сага</b><span>«${esc(first.name)}» с начала — новым героем или своим, 1–10-й уровень</span></button>
     <button class="btn ttile" id="t-chap"><b>Сага с любой главы</b><span>шесть глав первой саги — своими героями</span></button>
@@ -51590,9 +51590,13 @@ function startChapter(campId, wipe, keepChron) {
     const x = JSON.parse(JSON.stringify(h)); delete x._at; delete x._camp; delete x._dead;
     x.hp = x.hpMax; x.power = R.powerMax ? R.powerMax(x) : x.power; x.dead = false; x.down = false; x.ails = []; x.hurts = []; x.hunger = 0; x.busy = null;
     g.pendingCreate = 1; C.addHero(g, x); g.pendingCreate = 0; save(); renderTop(); askMore(); };
-  if (!ok.length) return begin(null);
+  if (!L0.length) return begin(null);   // своих героев нет совсем — сразу новый
+  heroPick(campId, ok, L, away, lo, hi, begin);
+}
+/* кто поведёт отряд: свои герои по уровню, кто в других сагах и кто не подходит — словами (Ник 25.11: не молча «только новый») */
+function heroPick(campId, ok, L, away, lo, hi, begin) {
   openModal(`<h3 class="ttl"><span class="ui-i i-people"></span>${esc(C.CAMPS[campId].name)}</h3>
-   <p class="note">Кто поведёт отряд? Сюда годятся герои ${lo}–${hi}-го уровня. Сила врагов встанет по герою.</p>
+   <p class="note">Кто поведёт отряд? Сюда годятся герои ${lo}–${hi}-го уровня. Сила врагов встанет по герою.${ok.length ? '' : ' Из ваших героев сейчас не подходит никто — можно начать новым.'}</p>
    <div class="pool">${ok.map(h => `<div class="pcard">${faceHTML(h.portrait, '')}<div><b>${esc(h.name)}</b><div class="note">${esc(R.CLASSES[h.cls] ? R.CLASSES[h.cls].name : h.cls)}, ${h.level}-й ур.${h._camp ? ' · ' + esc(h._camp) : ''}</div></div><button class="btn small" data-cpick="${h.id}">Вести</button></div>`).join('') || '<p class="note">Подходящих героев пока нет.</p>'}</div>
    ${away.length ? `<p class="note">В других сагах: ${esc(away.map(h => h.name + ' — «' + heroSaga(h.id).name + '»').join(', '))}.</p>` : ''}
    ${L.length > ok.length ? `<p class="note">Не подходят по уровню: ${esc(L.filter(h => !ok.includes(h)).map(h => h.name + ' (' + h.level + ')').join(', '))}.</p>` : ''}
@@ -51630,10 +51634,20 @@ function showRecap(lines, tries) {
   const b = $('#recap-ok'); if (b) { b.onclick = () => closeModal(); try { b.focus(); } catch (e) {} }
 }
 let RECAP_NET = false;
+/* поход без отряда (ушли с окна создания): предложить и своих героев, а не только нового; летопись саги остаётся */
+function emptyPick() {
+  const campId = g.camp, [lo, hi] = pickRange(campId), L0 = poolLoad().filter(h => !h.dead && !h._trial), L = L0.filter(h => !heroSaga(h.id)), away = L0.filter(h => heroSaga(h.id));
+  const ok = L.filter(h => h.level >= lo && h.level <= hi);
+  if (!L0.length) return showCreate();
+  heroPick(campId, ok, L, away, lo, hi, h => { if (!h) return showCreate();
+    const x = JSON.parse(JSON.stringify(h)); delete x._at; delete x._camp; delete x._dead;
+    x.hp = x.hpMax; x.power = R.powerMax ? R.powerMax(x) : x.power; x.dead = false; x.down = false; x.ails = []; x.hurts = []; x.hunger = 0; x.busy = null;
+    g.pendingCreate = 1; C.addHero(g, x); g.pendingCreate = 0; save(); renderTop(); askMore(); });
+}
 function afterLoad() {
   if (!NET() && window.Net) setTimeout(() => korchmaEnsure('game'), 300);
   try { const rc = !NET() && !g.pendingBattle && C.recapDue && C.recapDue(g) ? C.recapLines(g) : null; if (rc && rc.length) setTimeout(() => showRecap(rc), 450); } catch (e) {}
-  if (g.pendingCreate > 0 && !C.alive(g).length && !g.net) { if (!(C.kidsWipeHeir && C.kidsWipeHeir(g))) return showCreate(); save(); }
+  if (g.pendingCreate > 0 && !C.alive(g).length && !g.net) { if (!(C.kidsWipeHeir && C.kidsWipeHeir(g))) return emptyPick(); save(); }
   if (g.pendingBattle) { const spec = rebuildSpec(g.pendingBattle); const snap = !NET() && battleSnapLoad();
     if (snap) { try { TALK_OK = false; bspec = spec; battle = unpackBattle(snap); mode = null; sel = null; renderTop(); drawBattleScreen(); runAI(); return; } catch (e) { battle = null; } }
     return startBattle(spec); }
