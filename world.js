@@ -70274,7 +70274,7 @@ if (!R || !C || !B || !B.BF || !C.CAMPS || !C.CAMPS.free || !Q || !C.TW_TX) retu
 const BF = B.BF, key = BF.key, FREE = C.CAMPS.free, TX = C.TW_TX;
 
 C.TW = Object.assign({
-  MIN: 5,                                          // минут на круг
+  MIN: 0.5, MIN_FIGHT: 0.1,                       // круг прогулки — полминуты, круг драки — 6 секунд; 60 кругов = полчаса (Ник 25.11)
   KINDS: ['село', 'город', 'подворье'],
   GUARDS: {town: [2, 3], village: [0, 1], yard: [0, 1]}, // [день, ночь]
   DOGS: {town: 2, village: 3, yard: 2},
@@ -70463,7 +70463,8 @@ B.next = function (S) {
 };
 const withTurn = (S, fn) => { const k = {m: S.moved, a: S.acted, b: S.bonus, f: S.freeHit, at: S.attacked, sd: S.sneakDone}; try { S.moved = 0; S.acted = false; S.bonus = false; S.freeHit = {}; return fn(); } finally { S.moved = k.m; S.acted = k.a; S.bonus = k.b; S.freeHit = k.f; S.attacked = k.at; S.sneakDone = k.sd; } };
 C.walkTick = function (S) {
-  const Wk = S.walk; Wk.rnd++; Wk.min += K().MIN;
+  const Wk = S.walk; Wk.rnd++; Wk.min += Wk.fight ? (K().MIN_FIGHT || 0.1) : K().MIN;
+  { const G0 = G_; if (G0 && G0.twalk && (G0.twalk.min || 0) + Wk.min >= 30) passMin(G0, Wk); } // набежало полчаса — часы идут
   civs(S).forEach(u => { try { withTurn(S, () => civAct(S, u)); } catch (e) { if (C.BF_DEBUG) console.error(e); } });
   // яд: отравленный уходит
   civs(S).forEach(u => { if (u.civ.poisoned && Wk.rnd + 1 - u.civ.poisoned >= 2 && !u.gone) { u.gone = true; lg(S, fill(pick(TX.poisonAfter), {n: u}), ''); } });
@@ -71030,7 +71031,7 @@ function tgtAct(S, u) {
 }
 
 /* ======================= конец прогулки ======================= */
-const passMin = (g, Wk, end) => { const T = g.twalk || {}, m = (T.min || 0) + (Wk ? Wk.min || 0 : 0), h = end ? (m > 0 ? Math.max(0.5, Math.round(m / 30) * 0.5) : 0) : Math.floor(m / 30) * 0.5;
+const passMin = (g, Wk, end) => { const T = g.twalk || {}, m = (T.min || 0) + (Wk ? Wk.min || 0 : 0), h = end ? Math.round(m / 30) * 0.5 : Math.floor(m / 30) * 0.5;
   if (h > 0 && C.passH) C.passH(g, h); if (g.twalk) g.twalk.min = Math.max(0, m - h * 60); if (Wk) Wk.min = 0; };
 /* вылить преступления в розыск: свидетель с лицом — приметы, «кто-то» — без примет */
 const cs0 = C.crimeSigns;
