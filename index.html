@@ -47748,9 +47748,9 @@ const FURN = {
   terem: (T, lit) => [[3, 1, 'stove'], [4, 3, 'table'], [4, 2, 'hbench'], [4, 4, 'hbench'], [5, 1, 'chest'], [5, 5, 'chest'], [1, 5, 'barrels']].concat(lit ? [[3, 5, 'hlamp']] : []),
   hram: () => [[3, 'far', 'oko_star'], [2, 3, 'hbench'], [4, 3, 'hbench'], [2, 5, 'hbench'], [4, 5, 'hbench'], [1, 'far', 'hlamp'], [5, 'd7', 'chest']], // в ризнице — сундук
   dlin: () => [[5, 2, 'fire'], [6, 2, 'fire'], [7, 2, 'fire'], [2, 1, 'hbench'], [3, 1, 'hbench'], [9, 3, 'hbench'], [10, 3, 'hbench'], [1, 3, 'barrels'], [11, 1, 'bed'], [11, 3, 'chest']],
-  banya: () => [[2, 'far', 'stove'], [1, 'far', 'hbench']],
-  ambar: () => [[1, 'far', 'crate'], [3, 'far', 'barrels']],
-  klet: () => [[2, 'far', 'chest']],
+  banya: () => [[2, 'far', 'stove'], [1, 'far', 'hbench'], [1, 'd1', 'barrels']], // каменка, полок, кадка с водой
+  ambar: () => [[1, 'far', 'crate'], [2, 'far', 'hay'], [3, 'far', 'barrels'], [1, 'd1', 'crate'], [3, 'd1', 'barrels']], // лари с зерном, бочки, сено
+  klet: () => [[2, 'far', 'chest'], [1, 'far', 'barrels'], [1, 'd1', 'crate']],
   starosta: (T, lit) => [[3, 'd4', 'stove'], [6, 'd2', 'table'], [5, 'd2', 'hbench'], [6, 'd4', 'bed'], [1, 'd4', 'barrels'], [4, 'd4', 'chest']].concat(lit ? [[3, 'd1', 'hlamp']] : []),
   kupec: () => [[1, 'd2', 'table'], [2, 'd2', 'table'], [1, 'd5', 'crate'], [2, 'd5', 'crate'], [3, 'd5', 'barrels'], [5, 'd1', 'stove'], [7, 'd2', 'table'], [6, 'd2', 'hbench'], [5, 'd4', 'chest'], [6, 'd5', 'chest'], [7, 'd5', 'crate'], [3, 'd1', 'hlamp']],
   boyar: () => [[1, 'd7', 'barrels'], [2, 'd7', 'chest'], [4, 'd7', 'stove'], [5, 'd3', 'table'], [5, 'd4', 'table'], [4, 'd3', 'hbench'], [6, 'd3', 'hbench'], [4, 'd4', 'hbench'], [6, 'd4', 'hbench'], [6, 'd7', 'hlamp'], [8, 'd1', 'bed'], [9, 'd2', 'chest'], [8, 'd6', 'chest'], [9, 'd6', 'chest'], [9, 'd7', 'chest']],
@@ -47760,7 +47760,7 @@ const FURN = {
   masterskaya: () => [[2, 'd3', 'table'], [3, 'd3', 'table'], [1, 'd1', 'crate'], [4, 'd3', 'crate'], [4, 'd1', 'hbench']],
   sklad: () => [[1, 'd1', 'barrels'], [1, 'd2', 'barrels'], [1, 'd4', 'crate'], [2, 'd4', 'crate'], [3, 'd4', 'barrels'], [4, 'd4', 'crate'], [4, 'd1', 'crate'], [6, 'd1', 'table'], [6, 'd4', 'chest'], [3, 'd2', 'crate']],
   konyushnya: () => [[1, 'd3', 'yasli'], [3, 'd3', 'yasli'], [5, 'd3', 'yasli'], [7, 'd3', 'yasli'], [7, 'd1', 'barrels']],
-  hlev: () => [[1, 'd2', 'yasli'], [4, 'd2', 'yasli']],
+  hlev: () => [[1, 'd2', 'yasli'], [4, 'd2', 'yasli'], [2, 'd2', 'hay']],
   saray: () => [[1, 'd2', 'wood'], [4, 'd2', 'cart'], [1, 'd1', 'hay']],
   melnitsa: () => [[3, 'd3', 'zhernov'], [1, 'd4', 'crate'], [4, 'd4', 'crate'], [1, 'd1', 'crate']],
 };
@@ -49968,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251539"></script><script>
+</script><script src="world.js?v=202611251547"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54706,6 +54706,9 @@ function onField(e) {
   const r = cv.getBoundingClientRect(); const h = pixToHex(e.clientX - r.left, e.clientY - r.top); if (!h) return;
   let t = B.unitAt(S, h.c, h.r) || S.units.find(x => x.c === h.c && x.r === h.r && x.down && !x.dead && !x.gone);
   if (t && !seenByParty(S, t)) t = null;
+  // прогулка: клик по жителю — что с ним сделать (Ник 25.11), ударить — последним пунктом
+  if (!mode && t && t.side === 'civ' && S.walk && !S.walk.fight && !t.dead && !t.gone) return civMenu(S, u, t);
+  if (!mode && !t) AUTO = null;
   if (mode && mode.spell) {
     const s = mode.spell, tm = B.Spells.targetMode(s);
     const op = mode.scroll ? 'scroll' : 'spell', ex = mode.scroll ? {i: mode.scroll} : {};
@@ -54747,6 +54750,18 @@ function onField(e) {
 }
 /* действие в бою: в одиночной игре сразу, в сетевой — через хозяина */
 /* мирные в бою (village.js): удар по селянину или ребёнку — только после подтверждения в окне */
+let AUTO = null; // прогулка: куда идём несколько ходов подряд
+function civMenu(S, u, t) {
+  const nm = String(t.name || '').split(/[,(]/)[0].trim() || 'житель', near = B.dist(u, t) <= 1;
+  const L = near && B.bfPanel ? (B.bfPanel(S, u) || []).filter(x => x.k === 'tw' && x.t === t.id) : [];
+  const its = L.map(x => ({label: x.label.endsWith(': ' + nm) ? x.label.slice(0, -(nm.length + 2)) : x.label, dis: x.dis, go: () => bdo('bf', {k: x.k, t: x.t, p: x.p, pa: x.a, v: x.v, s: x.s})}));
+  if (!near) its.unshift({label: 'Подойти', go: () => { const n = B.neigh(t.c, t.r).filter(q => B.passable(S, q.c, q.r) && !B.unitAt(S, q.c, q.r)).sort((a, b) => B.dist(a, u) - B.dist(b, u))[0]; if (n) bdo('move', {c: n.c, r: n.r}); }});
+  const d = document.createElement('div'); d.className = 'civask'; d.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(10,7,4,.45);display:flex;align-items:center;justify-content:center;padding:16px';
+  const sub = t.portrait ? '' : '';
+  d.innerHTML = `<div class="modal-in" style="min-width:260px;max-width:380px;background:#2a1f16;border:1px solid #8a6a3c;border-radius:8px;padding:16px 18px;color:#ecdcbc"><div style="font-family:'Alegreya SC',serif;font-size:1.15em;margin-bottom:10px;text-align:center">${esc(String(t.name || nm))}</div>${sub}<div style="display:flex;flex-direction:column;gap:8px">${its.map((x, i) => `<button class="btn small" data-cm="${i}" ${x.dis ? 'disabled' : ''} title="${esc(x.dis || '')}">${esc(x.label)}</button>`).join('')}${!its.length ? '<div style="opacity:.7;text-align:center">Слишком далеко — подойдите ближе.</div>' : ''}</div><div style="display:flex;gap:8px;justify-content:space-between;margin-top:14px;border-top:1px solid #5a442a;padding-top:10px"><button class="btn small" data-cm="x">Отойти</button><button class="btn small" data-cm="hit" style="opacity:.75">Ударить</button></div></div>`;
+  document.body.appendChild(d); d.onclick = e => { if (e.target === d) d.remove(); };
+  d.querySelectorAll('[data-cm]').forEach(b => b.onclick = () => { const k = b.dataset.cm; d.remove(); if (k === 'x') return; if (k === 'hit') return bdo('hit', {t: t.id}); const x = its[+k]; if (x && !x.dis) x.go(); });
+}
 function civConfirm(q, yes) {
   const d = document.createElement('div'); d.className = 'civask'; d.style.cssText = 'position:fixed;inset:0;z-index:9000;background:rgba(10,7,4,.62);display:flex;align-items:center;justify-content:center;padding:16px';
   d.innerHTML = `<div class="modal-in" style="max-width:420px;background:#2a1f16;border:1px solid #8a6a3c;border-radius:8px;padding:18px 20px;color:#ecdcbc;text-align:center"><p style="margin:0 0 16px;font-size:1.1em">${esc(q.text)}</p><div style="display:flex;gap:10px;justify-content:center;flex-wrap:wrap"><button class="btn" data-civ="no">${esc(q.no || 'Нет')}</button><button class="btn" data-civ="yes">${esc(q.yes || 'Да')}</button></div></div>`;
@@ -54807,11 +54822,21 @@ function bop(op, a) {
       if (B.dist(u, t) > 1) { const reach = B.reach(S, u); let best = null; for (const k in reach) { const x = reach[k]; if (B.dist(x, t) === 1 && (!best || x.cost < best.cost)) best = x; } if (!best) return 'Не дойти.'; B.move(S, u, best.c, best.r); }
       if (B.active(u) && B.dist(u, t) === 1) { B.attack(S, u, t, false); S.acted = true; } break; }
     case 'move': if (!B.move(S, u, a.c, a.r)) {
-        // прогулка: шагов нет, а игрок ткнул в клетку — ход дальше сам, и в новом ходу туда и идём (Ник 25.11)
-        if (S.walk && !S.walk.fight && !S.over && !a.again && u.steps - (S.moved || 0) <= 0) { B.endTurn(S); redraw();
-          const go = () => { if (battle === S && !S.over && B.current(S) === u && B.active(u)) bdo('move', Object.assign({}, a, {again: 1})); };
+        // прогулка: далеко — идём сами ход за ходом, пока не дойдём (Ник 25.11: «нажал идти куда угодно — идёт без остановки, считая шаги»)
+        if (S.walk && !S.walk.fight && !S.over) {
+          if (a.auto && (!AUTO || AUTO.c !== a.c || AUTO.r !== a.r)) return; // игрок передумал
+          const s0 = u.steps; let far = null; u.steps = 999; try { far = B.reach(S, u); } finally { u.steps = s0; }
+          const tgt = far && far[B.key(a.c, a.r)]; if (!tgt) { AUTO = null; return; }
+          const path = tgt.path || (() => { const pp = []; for (let x = tgt; x; x = x.prev ? far[x.prev] : null) pp.unshift(x); return pp; })();
+          const near = B.reach(S, u); let stop = null; for (let i = path.length - 1; i > 0; i--) { const q = near[B.key(path[i].c, path[i].r)]; if (q) { stop = path[i]; break; } }
+          AUTO = {c: a.c, r: a.r, uid: u.id};
+          if (stop) B.move(S, u, stop.c, stop.r);
+          if (!B.active(u) || S.over || (S.walk && S.walk.fight)) { AUTO = null; redraw(); return; }
+          B.endTurn(S); redraw();
+          const go = () => { if (AUTO && battle === S && !S.over && !(S.walk && S.walk.fight) && B.current(S) === u && B.active(u)) bdo('move', {c: a.c, r: a.r, auto: 1}); else AUTO = null; };
           if (NETG()) go(); else runAI().then(go, () => {}); }
         return; }
+      if (a.auto || (AUTO && AUTO.c === a.c && AUTO.r === a.r)) AUTO = null;
       if (!B.active(u)) end = true; break;
     case 'next': end = true; break;
     case 'bf': { const w = B.bfOp ? B.bfOp(S, u, a) : 'неизвестное действие'; if (w) return w; if (!B.active(u)) end = true; break; }
@@ -56197,7 +56222,7 @@ function coinize(root) {
 }
 new MutationObserver(ms => { ms.forEach(m => { m.addedNodes.forEach(n => { if (n.nodeType === 1 && n.querySelector && !n.closest('.dd') && (n.tagName === 'SELECT' || n.querySelector('select:not(.dd-src)'))) enhanceSelects(n.tagName === 'SELECT' ? n.parentNode : n); if (n.nodeType === 1) coinize(n); else if (n.nodeType === 3 && n.parentNode) coinize(n.parentNode); }); if (m.type === 'characterData' && m.target.parentNode) coinize(m.target.parentNode); }); }).observe(document.body, {childList: true, subtree: true, characterData: true});
 coinize(document.body);
-window.__kldv = { end: () => showEnd(), play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
+window.__kldv = { civMenu: id => civMenu(battle, B.current(battle), B.U(battle, id)), end: () => showEnd(), play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
   /* картинка для сайта: фигура бойца целиком и значок вещи */
   fig: (c, u) => { const x = c.getContext('2d'), W = c.width, Hc = c.height; x.clearRect(0, 0, W, Hc);
     const fit = (img, a, flip, filt) => { const k = Math.min(W * 0.94 / a[2], Hc * 0.94 / a[3]), w = a[2] * k, h = a[3] * k; x.save(); if (filt) x.filter = filt; x.translate(W / 2, Hc * 0.97); if (flip) x.scale(-1, 1); x.drawImage(img, a[0], a[1], a[2], a[3], -w / 2, -h, w, h); x.restore(); return true; };

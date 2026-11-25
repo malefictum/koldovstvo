@@ -73013,10 +73013,25 @@ const workersOf = function (S, g) {
       const face = sex === 'f' ? adultF(g.loc + '|' + h.id + '|' + i) : adultM(g.loc + '|' + h.id + '|' + i); if (face) { u.portrait = face; u.civ.face = face; }
       S.units.push(u); }); });
 };
+/* людно: на прогулке по селу — по два-три человека на жилой двор (Ник 25.11: «жители куда-то посбегали») */
+const DWELL = ['izba', 'terem', 'starosta', 'kupec', 'boyar', 'dlin', 'korchma', 'korchma_big'];
+const crowd = function (S, g) {
+  const Wk = S.walk; if (!Wk || Wk.night) return; const hs = (BF.houses ? BF.houses(S.field) : []).filter(h => DWELL.includes(h.k));
+  const ppl = (S.units || []).filter(u => u.side === 'civ' && u.civ && ['muzhik', 'baba', 'starik', 'child'].includes(u.civ.k) && !u.gone);
+  const want = Math.max(24, Math.min(40, Math.round(hs.length * 3))); let n = ppl.length, k = 0;
+  const free = Object.values(S.field.cells).filter(x => x && x.hb == null && B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r) && hs.some(h => doorOf(h) && B.dist(x, doorOf(h)) <= 5));
+  while (n < want && free.length && k++ < 60) { const x = free.splice(Math.floor(R.rand() * free.length), 1)[0]; const kind = R.pick(['muzhik', 'baba', 'baba', 'muzhik', 'starik', 'child']);
+    const m = C.MON[{muzhik: 'civ_muzhik', baba: 'civ_baba', starik: 'civ_starik', child: 'civ_ditya'}[kind]]; if (!m) break;
+    const u = B.fromMonster(m, 'civ', {}); u.c = x.c; u.r = x.r; u.ai = true; u.morale = false; u.init = R.d(20);
+    const home = hs.slice().sort((a, b) => B.dist(doorOf(a), x) - B.dist(doorOf(b), x))[0];
+    u.civ = {k: kind, home: home ? home.id : null, sex: kind === 'baba' ? 'f' : 'm'};
+    try { if (kind !== 'child') { const r0 = R.rand; let q = hsh('crowd|' + g.loc + '|' + n); R.rand = () => { q = Math.imul(q ^ (q >>> 15), 2246822507) >>> 0; return (q % 100000) / 100000; }; try { const p = G.Q && G.Q.person ? G.Q.person(g, u.civ.sex, null) : null; if (p && p.n) u.name = p.n; } finally { R.rand = r0; } } } catch (e) {}
+    S.units.push(u); n++; } };
 const ws0 = C.walkSetup;
 C.walkSetup = function (S, g) {
   const r = ws0.apply(this, arguments);
   try { workersOf(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  try { crowd(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); }
   try { (S.units || []).forEach(u => { if (u.side === 'civ') C.civDress(u); }); } catch (e) {}
   return r; };
 /* в обычном бою на селе мирные тоже без топоров наперевес */
@@ -73081,6 +73096,27 @@ C.walkChat = function (S) {
 };
 const wt0 = C.walkTick;
 C.walkTick = function (S) { const r = wt0.apply(this, arguments); try { C.walkChat(S); } catch (e) { if (C.BF_DEBUG) console.error(e); } return r; };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---------- таблички: где живут твои знакомые (Ник 25.11) ---------- */
+(function (G) {
+'use strict';
+const B = G.B, C = G.C;
+if (!B || !C || !B.BF || !B.BF.houseSign) return;
+const BF = B.BF, HOMES = ['izba', 'terem', 'starosta', 'kupec', 'boyar', 'dlin'];
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const first = n => String(n || '').split(/[,(]/)[0].trim();
+C.walkKnownHomes = function (S, g) {
+  if (!S || !S.walk || !g) return {}; const out = {}, hs = (BF.houses(S.field) || []).filter(h => HOMES.includes(h.k)); if (!hs.length) return (S.walk.kvHomes = out);
+  const who = [];
+  try { Object.values(g.homeSp || {}).forEach(s => { if (s && s.at === g.loc) who.push({k: 'sp:' + s.n, t: 'Свой дом', pri: 0}); }); } catch (e) {}
+  try { Object.values(g.kvLoc || {}).forEach(r => { if (r && r.at === g.loc && (!r.camp || r.camp === g.camp) && !['gone', 'wed'].includes(r.st)) who.push({k: 'kv:' + r.id, t: `${first(r.n)} · ${r.sex === 'f' ? 'знакомая' : 'знакомый'}`, pri: 1}); }); } catch (e) {}
+  try { Object.values(g.kvReg || {}).forEach(r => { if (r && r.at === g.loc && (!r.camp || r.camp === g.camp)) who.push({k: 'rg:' + r.key, t: `${first(r.n)} · ${r.sex === 'f' ? 'знакомая' : 'знакомый'}`, pri: 2}); }); } catch (e) {}
+  who.sort((a, b) => a.pri - b.pri).forEach(w => { const free = hs.filter(h => !out[h.id]); if (!free.length) return; out[free[hsh(g.loc + '|' + w.k) % free.length].id] = w.t; });
+  return (S.walk.kvHomes = out); };
+const hs0 = BF.houseSign;
+BF.houseSign = function (S, h) { try { const K = S && S.walk && S.walk.kvHomes; if (K && h && K[h.id]) return K[h.id]; } catch (e) {} return hs0.apply(this, arguments); };
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { C.walkKnownHomes(S, g); if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */
