@@ -71544,8 +71544,8 @@ const back = g => { const n = nodeOf(g); return (n && n.scene) || 'map'; };
 SC.tf_hub = g => {
   const here = C.tfHere(g), night = C.isNight && C.isNight(g), h = heroes(g)[0];
   const lines = [['n', here.length ? (night ? 'Улица пуста, только у дальнего плетня кто-то ещё не спит.' : 'На улице люди: кто у колодца, кто у ворот, кто просто так — греется на солнышке и глазеет на проезжих.') : 'Улица пуста.']];
-  const ch = here.map(p => { const r = relOf(g, g.loc, p.id); return {t: `${p.n}, ${p.t}${r.rel >= K().REL_WARM ? ' — знакомы' : ''}`, do: g2 => { g2.tfCur = p.id; g2.tfLast = null; return 'tf_talk'; }}; });
-  ch.push({t: 'Назад', do: back});
+  const ch = here.map(p => { const r = relOf(g, g.loc, p.id); return {t: `${p.n}, ${p.t}${r.rel >= K().REL_WARM ? ' — знакомы' : ''}`, do: g2 => { g2.tfCur = p.id; g2.tfLast = null; g2.tfBack = null; return 'tf_talk'; }}; });
+  ch.push({t: 'Назад', do: g2 => { g2.tfBack = null; return back(g2); }});
   return {title: 'Улица', bg: (nodeOf(g) || {}).kind === 'город' ? 'town' : 'village', lines, choices: ch};
 };
 SC.tf_talk = g => {
@@ -71576,7 +71576,7 @@ SC.tf_talk = g => {
       else { rr.rel = Math.max(0, rr.rel - 3); g2.tfLast = fill(FLIRT.no[p.sex], hh, p); }
       C.note(g2, g2.tfLast); return 'tf_talk'; }});
   });
-  ch.push({t: 'Отойти', do: g2 => { g2.tfLast = null; const rr = relOf(g2, g2.loc, p.id); rr.met = rr.met || d; return 'tf_hub'; }});
+  ch.push({t: 'Отойти', do: g2 => { g2.tfLast = null; const rr = relOf(g2, g2.loc, p.id); rr.met = rr.met || d; const b = g2.tfBack || 'tf_hub'; g2.tfBack = null; return b; }});
   return {title: `${p.n}, ${p.t}`, bg: (nodeOf(g) || {}).kind === 'город' ? 'town' : 'village', face: p.face, faceName: p.n, faceSub: p.t, lines, choices: ch};
 };
 Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
@@ -71618,6 +71618,16 @@ if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { cons
 
 /* лицо собеседника в окне сцены: из raw (как у kv_ и he_) — для улицы, ночных случаев, постоянной */
 { const so2 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so2.apply(this, arguments); try { if (sc && /^(tf_|cl_|kv_reg)/.test(id) && sc.raw && sc.raw.face && !sc.face) Object.assign(sc, {face: sc.raw.face, faceName: sc.raw.faceName, faceSub: sc.raw.faceSub}); } catch (e) {} return sc; }; }
+
+/* знакомые жители — в «мастерах и людях» рядом с мастерами (Ник 25.11) */
+C.tfKnown = g => { const A = (g.tf || {})[g.camp + '|' + g.loc] || {}; return C.tfPeople(g, g.loc).filter(p => A[p.id] && A[p.id].met); };
+{ const so3 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so3.apply(this, arguments);
+  try { if (sc && id === 'folk_hub' && Array.isArray(sc.choices)) { const K0 = C.tfKnown(g); if (K0.length) {
+    const add = K0.map((p, k) => { const r = relOf(g, g.loc, p.id), warm = r.rel >= K().REL_WARM;
+      return {i: 970 + k, t: `${p.n}, ${p.t}`, label: `${p.n}, ${p.t}`, card: {face: p.face, n: p.n, sub: p.t + (warm ? ' · знакомы давно' : ' · знакомы')}, do: g2 => { g2.tfCur = p.id; g2.tfLast = null; g2.tfBack = 'folk_hub'; return 'tf_talk'; }}; });
+    const back = sc.choices.findIndex(c => /^Назад/.test(c.label || '')); sc.choices.splice(back < 0 ? sc.choices.length : back, 0, ...add);
+    if (sc.lines && sc.lines[0]) sc.lines = sc.lines.concat([['n', 'А ещё — те, с кем вы уже знакомы.']]); } } } catch (e) {}
+  return sc; }; }
 
 /* плитка в месте */
 const inj0 = Q.inject;
