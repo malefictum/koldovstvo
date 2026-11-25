@@ -73075,6 +73075,128 @@ const wt0 = C.walkTick;
 C.walkTick = function (S) { const r = wt0.apply(this, arguments); try { C.walkChat(S); } catch (e) { if (C.BF_DEBUG) console.error(e); } return r; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* svatba.js */
+/* Колдовство — сватовство, сговор и свадьба по-старинному (Ник 25.11: «посвататься — это сразу свадьба? лучше так:
+   сваты, сговор, свадьба в назначенный день»; «если родни у неё нет — сразу свадьба предлагается»).
+   1. Сватовство: засылаешь сватов с гостинцами (скромные / добрые / богатые). Ответ — через 2–4 дня, может быть и «нет»:
+      мало гостинцев, дурная слава в селе, нечистый вид жениха. Отказали — снова свататься не раньше чем через две недели.
+   2. Сговор: родня согласна — договариваются о выкупе (по достатку её дома) и назначают день: через неделю или две.
+   3. Свадьба в назначенный день, в её селе: скромно (свои), всем селом (молва в селе лучше), пир горой (молва и дух отряда).
+      Не пришёл в свой день — позор: молва в селе падает, невеста в обиде, сговор расторгнут.
+   Без родни (вдова-сирота, бывшая банщица, мастер сам себе голова) — сватов слать не к кому: сразу к свадьбе.
+   Работает для знакомых (kv_local, vesely.js) и для мастеров (folk, hearts.js): сама свадьба — их же кнопкой. Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.sceneOf || !C.CAMPS || !C.CAMPS.free) return;
+const FREE = C.CAMPS.free;
+const K = () => C.SVATBA;
+C.SVATBA = Object.assign({GIFTS: [100, 300, 800], GIFT_ADD: [0, 0.15, 0.3], ANS: [2, 4], RETRY: 14, DAYS: [7, 14], VYKUP: 200, FEAST: [0, 400, 1200], FEAST_REP: [0, 1, 2], FEAST_SPIRIT: [0, 1, 2], MISS_REP: -2, MISS_REL: 30}, C.SVATBA || {});
+const day = g => g.day || 1;
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const heroById = (g, id) => (g.heroes || []).find(h => h.id === id) || null;
+const nodeName = (g, at) => { try { return C.CAMPS[g.camp].map.nodes[at].name; } catch (e) { return 'селе'; } };
+const atKey = g => g.folkAt || g.loc;
+const SV = g => (g.svat = g.svat || {});
+const WED_RX = {kv_local: /^(Посвататься|Взять в жёны)/, folk: /: (сделать предложение|ответить «да»)$/};
+/* есть ли у человека родня, к которой шлют сватов */
+C.svKin = function (g, src) {
+  if (src.kind === 'kv') { const r = C.kvLocOf(g, src.id); if (!r) return false; if (r.st === 'freed') return false; if (r.st === 'maid') return true;
+    if (r.kin != null) return !!r.kin; return hsh('kin|' + r.id + '|' + r.n) % 100 < (r.st === 'left' ? 75 : 45); }
+  return hsh('kin|' + src.id) % 100 < 40; };
+const srcOf = (g, id) => {
+  if (id === 'kv_local') { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur); return r ? {kind: 'kv', id: r.id, key: 'kv:' + r.id, n: r.n, sex: r.sex, at: r.at, hid: r.hid, rank: r.rank, scene: 'kv_local'} : null; }
+  if (id === 'folk' && g.folkRole) { const role = g.folkRole, at = atKey(g); let p = null, r = null; try { p = C.folkPerson(g, role, at); r = C.relOf(g, role, at); } catch (e) {}
+    return p ? {kind: 'folk', id: role + '@' + at, role, at, key: 'f:' + role + '@' + at, n: p.n, sex: p.sex, hid: r && r.who, rank: 'master', scene: 'folk'} : null; }
+  return null; };
+const relDown = (g, E, d) => { try { if (E.kind === 'kv') { const r = C.kvLocOf(g, E.id); if (r) r.rel = Math.max(0, r.rel - d); } else if (C.relAdd) C.relAdd(g, E.role, E.at, -d); } catch (e) {} };
+const rankM = E => ((C.KV_RANK || {})[E.rank || 'muzhik'] || {m: 1}).m || 1;
+const vykupOf = E => Math.round(K().VYKUP * rankM(E) / 10) * 10;
+const hero = (g, E) => heroById(g, E.hid) || (C.alive ? C.alive(g)[0] : null);
+const ona = E => (E.sex === 'f' ? 'её' : 'его');
+
+/* ---------- кнопки в разговоре с ней (с ним) ---------- */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  if (!sc || !g || g._svRaw || !WED_RX[id]) return sc;
+  try {
+    const src = srcOf(g, id); if (!src) return sc;
+    const i = (sc.choices || []).findIndex(c => c && WED_RX[id].test(c.label || '')); const c = i >= 0 ? sc.choices[i] : null;
+    const E = SV(g)[src.key], d = day(g), lines = Array.isArray(sc.lines) ? sc.lines : (sc.lines = []);
+    const put = x => { if (i >= 0) sc.choices.splice(i, 1, Object.assign({}, c, x)); else sc.choices.splice(Math.max(0, sc.choices.length - 1), 0, Object.assign({i: 900}, x)); };
+    if (!E) { if (!c || c.dis) return sc;
+      // родни нет — или дитя уже на подходе (родня сама требует венца): сразу к свадьбе
+      let preg = false; try { preg = src.kind === 'kv' && C.kvPregOf && !!C.kvPregOf(g, 'loc:' + src.id); } catch (e) {}
+      if (preg || !C.svKin(g, src)) { put({label: c.label, t: c.label, do: g2 => { g2.svCur = Object.assign({}, src, {now: 1}); return 'sv_wed'; }}); return sc; }
+      // он сам просит руки героини — сваты от него, остаётся сговор
+      if (/ответить «да»/.test(c.label || '')) { put({label: c.label, t: c.label, do: g2 => { SV(g2)[src.key] = Object.assign({}, src, {stage: 'agreed', sent: day(g2)}); if (C.note) C.note(g2, `${src.n} рад${src.sex === 'f' ? 'а' : ''} без памяти. Завтра же — сговор с роднёй: о выкупе и дне свадьбы.`); return src.scene; }}); return sc; }
+      put({label: 'Заслать сватов', t: 'Заслать сватов', do: g2 => { g2.svCur = src; return 'sv_send'; }}); return sc; }
+    if (E.stage === 'sent') { if (i >= 0) sc.choices.splice(i, 1); lines.push(['n', `Сваты у ${ona(E)} родни побывали. Ответ обещали дать к ${E.ans}-му дню.`]); return sc; }
+    if (E.stage === 'refused') { if (d < E.retry) { if (i >= 0) sc.choices.splice(i, 1); lines.push(['n', `Родня сватам отказала. Свататься снова — не раньше ${E.retry}-го дня.`]); return sc; } delete SV(g)[src.key]; return C.sceneOf(g, id); }
+    if (E.stage === 'agreed') { put({label: 'Сговор: о выкупе и дне свадьбы', t: 'Сговор', dis: null, do: g2 => { g2.svCur = Object.assign({}, src); return 'sv_sgovor'; }}); return sc; }
+    if (E.stage === 'set') {
+      if (d === E.wedDay) { put({label: 'Сыграть свадьбу — сегодня ваш день', t: 'Свадьба', dis: c && c.dis ? c.dis : null, do: g2 => { g2.svCur = Object.assign({}, src); return 'sv_wed'; }}); }
+      else { if (i >= 0) sc.choices.splice(i, 1); lines.push(['n', `Свадьба назначена на ${E.wedDay}-й день${d < E.wedDay ? ` — через ${E.wedDay - d} дн.` : ''}. Играть — здесь, в ${nodeName(g, E.at)}.`]); }
+      return sc; }
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc; };
+
+/* ---------- сцены ---------- */
+const SC = {};
+const backTo = g => { const E = g.svCur; delete g.svCur; return (E && E.scene) || 'free_place'; };
+SC.sv_send = g => { const E = g.svCur; if (!E) return {title: 'Сваты', bg: 'village', lines: [['n', 'Некого сватать.']], choices: [{t: 'Назад', do: backTo}]};
+  const h = hero(g, E), W = ['Скромные гостинцы', 'Добрые гостинцы', 'Богатые гостинцы'], S = ['каравай да полотенце', 'каравай, платки и мёд', 'каравай, сукно, серебро и бусы'];
+  return {title: 'Сватовство', bg: 'village', art: 'village', lines: [['n', `К ${ona(E)} родне идут сваты — с караваем, с прибаутками: «У вас товар, у нас купец». ${h ? h.name + ' ждёт' + (h.sex === 'f' ? 'ла' : '') : 'Жених ждёт'} в стороне, как положено. С чем идти?`], ['n', 'Чем щедрее гостинцы, тем охотнее родня скажет «да». Ответ дадут через несколько дней.']],
+    choices: K().GIFTS.map((p, k) => ({t: `${W[k]}: ${S[k]} — ${R.priceText(p)}`, if: g2 => (g2.purse || 0) >= p, off: 'не хватает денег', do: g2 => { const X = g2.svCur; if (!X || (g2.purse || 0) < p) return 'sv_send'; g2.purse -= p;
+      const a = K().ANS; SV(g2)[X.key] = Object.assign({}, X, {stage: 'sent', gifts: k, sent: day(g2), ans: day(g2) + a[0] + (hsh(X.key + day(g2)) % (a[1] - a[0] + 1))});
+      if (C.note) C.note(g2, `Сваты ушли к ${ona(X)} родне. Ответ — к ${SV(g2)[X.key].ans}-му дню.`); return backTo(g2); }})).concat([{t: 'Не сейчас', do: backTo}])}; };
+SC.sv_sgovor = g => { const E0 = g.svCur, E = E0 && SV(g)[E0.key]; if (!E) return {title: 'Сговор', bg: 'village', lines: [['n', 'Сговора нет.']], choices: [{t: 'Назад', do: backTo}]};
+  const v = vykupOf(E);
+  return {title: 'Сговор', bg: 'village', art: 'village', lines: [['n', `Родня ${ona(E)} сажает за стол, режут каравай. Говорят о выкупе — ${R.priceText(v)}, «как у людей заведено» — и о дне свадьбы.`]],
+    choices: K().DAYS.map(n => ({t: `Ударить по рукам: свадьба через ${n === 7 ? 'неделю' : 'две недели'} (выкуп ${R.priceText(v)})`, if: g2 => (g2.purse || 0) >= v, off: 'не хватает на выкуп', do: g2 => { const X = SV(g2)[E.key]; if (!X || (g2.purse || 0) < v) return 'sv_sgovor';
+      g2.purse -= v; X.stage = 'set'; X.wedDay = day(g2) + n; X.vykup = v; if (C.note) C.note(g2, `Сговорились: свадьба с ${X.n} — на ${X.wedDay}-й день, в ${nodeName(g2, X.at)}. Не опоздать бы.`); return backTo(g2); }}))
+      .concat([{t: 'Подумать ещё', do: backTo}])}; };
+SC.sv_wed = g => { const E0 = g.svCur; if (!E0) return {title: 'Свадьба', bg: 'village', lines: [['n', 'Свадьбы нет.']], choices: [{t: 'Назад', do: backTo}]};
+  const W = ['Скромно: свои да родня', 'Всем селом: столы на улице', 'Пир горой: гусли, медовуха, три дня гулять'];
+  return {title: 'Свадьба', bg: 'village', art: 'village', lines: [['n', E0.now ? `Сватов слать не к кому — ${E0.n} сам${E0.sex === 'f' ? 'а' : ''} себе голова. Остаётся решить, как гулять.` : `Сегодня ваш день. ${E0.n} в праздничном, во дворе уже ставят столы. Как гулять будем?`], ['n', 'Громкая свадьба — добрая молва в селе надолго.']],
+    choices: K().FEAST.map((p, k) => ({t: `${W[k]}${p ? ' — ' + R.priceText(p) : ''}`, if: g2 => (g2.purse || 0) >= p, off: 'не хватает денег', do: g2 => wedNow(g2, k) })).concat([{t: E0.now ? 'Не сейчас' : 'Назад', do: backTo}])}; };
+const wedNow = (g, k) => {
+  const E = g.svCur; if (!E) return 'free_place'; const p = K().FEAST[k]; if ((g.purse || 0) < p) return 'sv_wed';
+  // сама свадьба — прежней кнопкой (vesely / hearts): там всё о доме, супруге и роде
+  if (E.kind === 'kv') g.kvCur = E.id; else { g.folkRole = E.role; g.folkAt = E.at === g.loc ? null : E.at; }
+  let sc = null; g._svRaw = 1; try { sc = C.sceneOf(g, E.scene); } finally { delete g._svRaw; }
+  const c = sc && (sc.choices || []).find(x => WED_RX[E.scene].test(x.label || ''));
+  if (!c || c.dis) { delete g.svCur; if (C.note) C.note(g, c && c.dis ? `Свадьбе не бывать сейчас: ${c.dis}.` : 'Свадьбе сейчас не бывать.'); return E.scene; }
+  g.purse -= p; let res = null; try { res = c.do(g, C.ctx(g)); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  delete SV(g)[E.key]; delete g.svCur;
+  const F = ['Гуляли тихо, по-семейному.', 'Столы стояли на улице, гуляло всё село.', 'Пир шёл три дня: гусли, медовуха, пляски до упаду — о такой свадьбе будут рассказывать внукам.'][k];
+  try { if (K().FEAST_REP[k] && C.repAdd) C.repAdd(g, E.at, K().FEAST_REP[k], 'свадьба'); } catch (e) {}
+  try { if (K().FEAST_SPIRIT[k] && C.spiritAdd) C.spiritAdd(g, K().FEAST_SPIRIT[k], F); } catch (e) {}
+  if (E.kind === 'kv') g.kvWedSay = (g.kvWedSay ? g.kvWedSay + ' ' : '') + F; else g.folkLast = (g.folkLast ? g.folkLast + ' ' : '') + F;
+  return res || E.scene; };
+Object.assign(FREE.scenes, SC);
+Object.values(C.CAMPS || {}).forEach(c => { if (c && c.scenes && c !== FREE) Object.keys(SC).forEach(k => { if (!c.scenes[k]) c.scenes[k] = SC[k]; }); });
+
+/* ---------- дни: ответ сватам, утро свадьбы, пропущенная свадьба ---------- */
+C.svDay = function (g) {
+  const d = day(g); Object.values(SV(g)).forEach(E => {
+    if (E.stage === 'sent' && d >= E.ans) {
+      let p = 0.55 + K().GIFT_ADD[E.gifts || 0];
+      try { if (E.kind === 'kv') { const r = C.kvLocOf(g, E.id); if (r) p += (r.rel - 80) / 100; } } catch (e) {}
+      try { if (C.repOf) p += 0.06 * (C.repOf(g, E.at) || 0); } catch (e) {}
+      try { const h = hero(g, E); if (h && C.grimeStage && C.grimeStage(h) >= 1) p -= 0.15; } catch (e) {}
+      p -= 0.05 * (rankM(E) - 1);
+      const yes = (hsh(E.key + '|ans|' + E.sent) % 1000) / 1000 < Math.max(0.15, Math.min(0.95, p));
+      if (yes) { E.stage = 'agreed'; if (C.note) C.note(g, `Сваты вернулись от родни ${E.n}: согласны! Теперь — сговор: о выкупе и дне свадьбы, в ${nodeName(g, E.at)}.`); }
+      else { E.stage = 'refused'; E.retry = d + K().RETRY; relDown(g, E, 10); if (C.note) C.note(g, `Сваты вернулись ни с чем: родня ${E.n} отказала. «Не ко двору», — сказали.`); } }
+    if (E.stage === 'set' && d === E.wedDay && E.toldDay !== d) { E.toldDay = d; if (C.note) C.note(g, `Сегодня свадьба с ${E.n} — в ${nodeName(g, E.at)}. Гости ждут.`); }
+    if (E.stage === 'set' && d > E.wedDay) { delete SV(g)[E.key]; relDown(g, E, K().MISS_REL);
+      try { if (C.repAdd) C.repAdd(g, E.at, K().MISS_REP, 'жених не пришёл на свадьбу'); } catch (e) {}
+      if (C.note) C.note(g, `В свой день на свадьбу не пришли. Столы стояли накрытые, гости разошлись. ${E.n} в обиде, сговор расторгнут, по селу — худая молва.`); } }); };
+if (C.pass) { const p0 = C.pass; C.pass = function (g) { const d0 = g && g.day; const r = p0.apply(this, arguments); try { if (g && g.heroes && g.day !== d0) C.svDay(g); } catch (e) { if (C.BF_DEBUG) console.error(e); } return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* town_news.js */
 /* Колдовство — вести города: у места своя судьба (Ник 25.11: «с каким-то интервалом в городах интересные события —
    кто-то женился, кто-то приехал»). Без DOM.
