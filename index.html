@@ -50107,7 +50107,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252123"></script><script>
+</script><script src="world.js?v=202611252130"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -55193,8 +55193,10 @@ function splitBar() {
     const where = pv.ready ? (pv.ready.kind === 'sleep' ? 'лёг спать' : 'ждёт у ворот') : (p.pid === me ? 'здесь' : C.splitWhere(g, pv.id, pv.busy || (CAMP_OF().map.nodes[g.loc] || {}).name));
     const busy = pv.clk > 0 ? ` · занят ещё ${C.splitUntil(g, pv.clk)}` : ''; const lock = pv.lock ? ` · ${pv.lock.label} до ${pv.lock.until}-го дня` : '';
     return `<div class="note"><b>${esc(p.pid === me ? 'Вы' : p.name)}</b> (${esc(hn)}) — ${esc(where + busy + lock)}</div>`; };
-  const w = splitWaiting(me);
-  return `<div class="splitbar check">${ps.map(row).join('')}${w ? `<div class="note" style="color:var(--blood)">${esc(cap1(w))}. Можно писать в чат.</div>` : ''}</div>`;
+  const w = splitWaiting(me), mine = C.splitPv(g, me), ahead = Math.max(0, ...ps.filter(p => p.pid !== me).map(p => C.splitPv(g, p.pid).clk || 0)) - (mine.clk || 0);
+  // Ник 25.11: «просто кнопочку — подождать других»: время этого игрока догоняет занятых, он ничего не делает
+  const wb = !w && !mine.ready && ahead > 0.01 ? `<div><button class="btn" id="sp-wait" data-spwait="1">Подождать остальных — ${esc(C.splitUntil(g, ahead))}</button></div>` : '';
+  return `<div class="splitbar check">${ps.map(row).join('')}${w ? `<div class="note" style="color:var(--blood)">${esc(cap1(w))}. Можно писать в чат.</div>` : ''}${wb}</div>`;
 }
 const cap1 = t => (t ? t[0].toUpperCase() + t.slice(1) : t);
 function splitChoose(pid, c) {
@@ -55228,6 +55230,7 @@ function splitChoose(pid, c) {
   splitCatchUp();
   save(); splitHostView(); return null;
 }
+document.addEventListener('click', e => { const b = e.target && e.target.closest && e.target.closest('[data-spwait]'); if (b) { e.preventDefault(); b.disabled = true; act({a: 'swait'}); } });
 function splitHostView() { const id = C.splitPv(g, 'p0').id || SCR.id; showScene(id, TALK && TALK.scene === id ? TALK.who : null); trkInvite(); }
 /* тринька за общим столом: кто-то сел за карты — остальным приглашение: сесть, посмотреть или нет (Ник 25.11) */
 const TRK_INV = {};
@@ -55559,6 +55562,8 @@ function doCmd1(c, pid) {
   if (a === 'lpick' || a === 'lcamp' || a === 'start') return lobbyCmd(c, pid);
   if (!g) return 'игра ещё не началась';
   switch (a) {
+    case 'swait': { if (!(g.net && C.splitOn && C.splitOn(g))) return 'все и так вместе'; const pv = C.splitPv(g, pid), ps = splitPids(), mx = Math.max(0, ...ps.filter(p => p !== pid).map(p => C.splitPv(g, p).clk || 0));
+      if (!(mx > (pv.clk || 0))) return 'ждать некого'; pv.clk = mx; Net.sysChat(`${pname(pid)}: ждёт остальных.`); splitCatchUp(); save(); splitHostView(); return null; }
     case 'choose': if (g && g.net && C.splitOn && C.splitOn(g)) return splitChoose(pid, c); if (SCR.k !== 'scene' || SCR.id !== c.id) return 'это уже прошло'; return castVote(pid, c);
     case 'talk': if (SCR.k !== 'scene' || SCR.id !== c.id) return 'это уже прошло'; if (pid !== leader()) return 'к кому подойти, решает вожатый — ' + pname(leader()); if (VOTE) { clearTimeout(VOTE.timer); VOTE = null; } showScene(c.id, c.who || null); return;
     case 'mark': MARKS = MARKS.filter(m => m.pid !== pid).concat({pid, c: c.c, r: c.r, t: Date.now()}); if (WM && $('#wmap')) drawWorld(); return;
