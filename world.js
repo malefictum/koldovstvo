@@ -44621,8 +44621,11 @@ const eqCount = (h, id) => Object.values(h.eq || {}).filter(x => x === id).lengt
 const groups = list => { const m = new Map(); list.forEach(id => m.set(id, (m.get(id) || 0) + 1)); return [...m.entries()]; };
 const freeGroups = h => groups((h.inv || []).filter(id => R.item(id))).map(([id, n]) => [id, n - eqCount(h, id)]).filter(([, n]) => n > 0);
 /* положить: не больше, чем есть свободного (надетое не трогаем), и не сверх места в сундуке */
+/* сколько влезает в домашний сундук. Клеть-кладовая при доме или свой надел, скотный двор в этом месте (амбар, гумно) — без предела (Ник 25.11) */
+C.famChestBarn = (g, key) => { const at = String(key || '').split('@')[1]; return !!((C.fhHas && C.fhHas(g, key, 'klet')) || (g.estate || []).some(e => e && e.node === at && ['izba', 'dvor'].includes(e.kind))); };
+C.famChestCap = (g, key) => (C.famChestBarn(g, key) ? Infinity : K().CHEST);
 C.famChestPut = function (g, key, h, id, n) {
-  const H = C.famHome(g, key), room = Math.max(0, K().CHEST - H.chest.length), free = ((h.inv || []).filter(x => x === id).length) - eqCount(h, id);
+  const H = C.famHome(g, key), room = Math.max(0, C.famChestCap(g, key) - H.chest.length), free = ((h.inv || []).filter(x => x === id).length) - eqCount(h, id);
   const k = Math.min(n == null ? free : n, free, room); for (let i = 0; i < k; i++) { h.inv.splice(h.inv.indexOf(id), 1); H.chest.push(id); }
   return k;
 };
@@ -44639,11 +44642,11 @@ SC.w2_chest = g => {
   const p = C.folkPerson(g, role, at), H = C.famHome(g, key), st = g.w2chest || {mode: 'put'}, hs = C.alive(g);
   const lines = [['n', st.mode === 'take' ? `${p.n} откидывает крышку сундука: «Всё твоё лежит, как положили. Бери, что нужно»` : `${p.n} отпирает сундук в углу: «Клади, что в дорогу не надо. Я пригляжу — моль не тронет, вор не найдёт»`]];
   if (g.w2chestLast) lines.push(['n', g.w2chestLast]);
-  const left = K().CHEST - H.chest.length;
-  lines.push(['n', !H.chest.length ? 'Сундук пока пуст.' : left <= 0 ? 'Сундук полон до самой крышки: больше не влезет.' : left <= 10 ? 'В сундуке почти не осталось места.' : H.chest.length <= 10 ? 'В сундуке лежит немного добра.' : 'Сундук уже порядком набит.']);
+  const barn = C.famChestBarn(g, key), left = barn ? 1e9 : K().CHEST - H.chest.length;
+  lines.push(['n', barn ? (H.chest.length ? `Своё добро лежит в амбаре и клети — места хватит на всё: ${H.chest.length} шт.` : 'При доме амбар да клеть — клади сколько угодно.') : !H.chest.length ? 'Сундук пока пуст.' : left <= 0 ? 'Сундук полон до самой крышки: больше не влезет.' : left <= 10 ? 'В сундуке почти не осталось места.' : H.chest.length <= 10 ? 'В сундуке лежит немного добра.' : 'Сундук уже порядком набит.']);
   const ch = [], back = {t: 'Назад', free: 1, do: g2 => { g2.w2chest = null; g2.w2chestLast = null; return 'folk'; }};
   if (st.mode === 'take') {
-    groups(H.chest).sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0]))).slice(0, 24).forEach(([id, n]) => ch.push({t: `${nameOf(id)}${n > 1 ? ' ×' + n : ''}`, do: g2 => {
+    groups(H.chest).sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0]))).slice(0, 60).forEach(([id, n]) => ch.push({t: `${nameOf(id)}${n > 1 ? ' ×' + n : ''}`, do: g2 => {
       const k2 = homeKey(g2), got = C.famChestTake(g2, k2, id); g2.w2chestLast = got ? `Из сундука: ${nameOf(id).toLowerCase()}${got > 1 ? ' ×' + got : ''}.` : null; return 'w2_chest'; }}));
     ch.push(back); return {title: 'Сундук дома', bg: C.FOLK[role].bg || 'hut', art: C.FOLK[role].art || 'hut', lines, choices: ch};
   }
@@ -44652,7 +44655,7 @@ SC.w2_chest = g => {
     return {title: 'Сундук дома', bg: C.FOLK[role].bg || 'hut', art: C.FOLK[role].art || 'hut', lines, choices: ch}; }
   const gs = freeGroups(h).sort((a, b) => nameOf(a[0]).localeCompare(nameOf(b[0])));
   if (!gs.length) lines.push(['n', `У ${decl(h.name, h.sex).g} в суме нет ничего, что можно оставить: всё надето и при деле.`]);
-  gs.slice(0, 24).forEach(([id, n]) => ch.push({t: `${nameOf(id)}${n > 1 ? ' ×' + n : ''}`, own: h.id, dis: left <= 0 ? 'сундук полон' : null, do: g2 => {
+  gs.slice(0, 60).forEach(([id, n]) => ch.push({t: `${nameOf(id)}${n > 1 ? ' ×' + n : ''}`, own: h.id, dis: left <= 0 ? 'сундук полон' : null, do: g2 => {
     const hh = C.alive(g2).find(y => y.id === h.id); if (!hh) return 'w2_chest'; const put = C.famChestPut(g2, homeKey(g2), hh, id);
     g2.w2chestLast = put ? `В сундук: ${nameOf(id).toLowerCase()}${put > 1 ? ' ×' + put : ''}.` : 'Не влезает.'; return 'w2_chest'; }}));
   if (hs.length > 1) ch.push({t: 'Другой герой', free: 1, do: g2 => { g2.w2chest = {mode: 'put'}; return 'w2_chest'; }});
@@ -44761,7 +44764,7 @@ C.sceneOf = function (g, id) {
     let i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1; // номера — после всех, вместе с «Назад»
     ch.forEach((c, k) => { if (CRAFT_RE.test(c.label || '')) ch[k] = Object.assign({}, c, {label: 'Мастерская дома: улучшить вещь самому', t: 'Мастерская дома: улучшить вещь самому'}); });
     if (baseOf(role) === 'jewel' && !ch.some(c => c.go === 'jeweler')) ch.push({i: i++, label: 'Кольца и обереги — дома, своими руками', go: 'jeweler'});
-    const left = K().CHEST - H.chest.length;
+    const left = C.famChestBarn(g, key) ? 1e9 : K().CHEST - H.chest.length;
     ch.push({i: i++, label: 'Оставить в сундуке…', dis: left <= 0 ? 'сундук полон' : null, do: g2 => { g2.w2chest = {mode: 'put'}; g2.w2chestLast = null; return 'w2_chest'; }});
     { const L0 = C.partyLoad ? C.partyLoad(g) : null; if (L0 && L0.tier > 0 && C.stashExcess) ch.push({i: i++, label: 'Сгрузить лишнее в сундук — налегке', dis: left <= 0 ? 'сундук полон' : null, do: g2 => {
       const k2 = homeKey(g2), r = C.stashExcess(g2, (hh, id) => C.famChestPut(g2, k2, hh, id, 1) > 0, 0);
@@ -70406,7 +70409,8 @@ if (!R || !C || !B || !B.BF || !C.CAMPS || !C.CAMPS.free || !Q || !C.TW_TX) retu
 const BF = B.BF, key = BF.key, FREE = C.CAMPS.free, TX = C.TW_TX;
 
 C.TW = Object.assign({
-  MIN: 0.5, MIN_FIGHT: 0.1,                       // круг прогулки — полминуты, круг драки — 6 секунд; 60 кругов = полчаса (Ник 25.11)
+  MIN: 0.5, MIN_FIGHT: 0.1, CIV_EVERY: 20, CIV_GUARD_EVERY: 2, // селяне шагают раз в 10 минут, стража раз в минуту
+                        // круг прогулки — полминуты, круг драки — 6 секунд; 60 кругов = полчаса (Ник 25.11)
   KINDS: ['село', 'город', 'подворье'],
   GUARDS: {town: [2, 3], village: [0, 1], yard: [0, 1]}, // [день, ночь]
   DOGS: {town: 2, village: 3, yard: 2},
@@ -70550,6 +70554,10 @@ C.walkSetup = function (S, g) {
   for (let i = 0; i < gN && route.length; i++) { const i0 = Math.floor(i * route.length / Math.max(1, gN)) % route.length, at = route[i0], x = [B.cell(S, at.c, at.r)].concat(B.neigh(at.c, at.r).map(p => B.cell(S, p.c, p.r))).find(y => freeCell(S, y));
     const u = mk('strazhnik', 'guard', x, {}); if (!u) continue; nameIt(u, 'm', kind === 'town' ? 'стражник' : 'сторож', 'g' + i); u.civ.route = i % 2 ? route.slice().reverse() : route; u.civ.wp = i % 2 ? (route.length - i0) % route.length : (i0 + 1) % route.length; if (night) u.torch = true; }
   if (kind === 'town') { const gate = Object.values(F.cells).find(x => x.vy === 'gate' && freeCell(S, x)); if (gate) { const u = mk('strazhnik', 'guard', gate, {}); if (u) { nameIt(u, 'm', 'стражник у ворот', 'gate'); u.civ.post = {c: gate.c, r: gate.r}; if (night) u.torch = true; } } }
+  // ночные прохожие с факелами: кто из корчмы домой, кто по нужде — в городе двое, в селе через раз один (Ник 25.11)
+  if (night && route.length) { const nW = kind === 'town' ? 2 : (hsh(g.loc + '|' + g.day + 'nw') % 2); const inn0 = hs.find(h => h.k === 'korchma_big' || h.k === 'korchma');
+    for (let i = 0; i < nW; i++) { const at = inn0 && i === 0 ? inn0.doors[0] : route[(i * 2 + 1) % route.length], x = [B.cell(S, at.c, at.r)].concat(B.neigh(at.c, at.r).map(p => B.cell(S, p.c, p.r))).find(y => freeCell(S, y) && y.hb == null);
+      const u = mk('civ_muzhik', 'muzhik', x, {}); if (!u) continue; u.civ.sex = 'm'; nameIt(u, 'm', 'прохожий', 'nw' + i + g.day); u.torch = true; u.civ.walker = 1; u.civ.route = i % 2 ? route.slice().reverse() : route; u.civ.wp = (i * 2 + 2) % route.length; } }
   // псы ночью — во дворах
   if (night) { const yards = hs.filter(h => ['izba', 'starosta', 'kupec', 'dlin', 'boyar'].includes(h.k)).map(h => ({h, cs: outside(S, h, 2)})).filter(a => a.cs.length);
     for (let i = 0; i < (K().DOGS[kind] || 2) && yards.length; i++) { const a = yards[(i * 3 + hsh(g.loc)) % yards.length]; const x = a.cs[(i * 7) % a.cs.length]; const u = mk('civ_pyos', 'dog', freeCell(S, x) ? x : a.cs.find(y => freeCell(S, y)), {}); if (u) { u.civ.home = a.h.id; u.civ.at = {c: u.c, r: u.r}; } } }
@@ -70598,7 +70606,7 @@ C.walkTick = function (S) {
   const Wk = S.walk; Wk.rnd++; Wk.min += Wk.fight ? (K().MIN_FIGHT || 0.1) : K().MIN;
   { const G0 = G_; if (G0 && G0.twalk && (G0.twalk.min || 0) + Wk.min >= 30) passMin(G0, Wk); } // набежало полчаса — часы идут
   const hs0 = heroUs(S).filter(h => B.active(h) && h.c != null);
-  civs(S).forEach(u => { if (!Wk.fight && !(u.civ && (u.civ.hostile || u.civ.k === 'tgt')) && hs0.length && !hs0.some(h => B.dist(h, u) <= 18)) return; /* далеко от своих — не считаем (Ник 25.11: «лагает») */ try { withTurn(S, () => civAct(S, u)); } catch (e) { if (C.BF_DEBUG) console.error(e); } });
+  civs(S).forEach(u => { if (!Wk.fight && !(u.civ && (u.civ.hostile || u.civ.k === 'tgt')) && hs0.length && !hs0.some(h => B.dist(h, u) <= 18)) return; /* далеко от своих — не считаем (Ник 25.11: «лагает») */ if (!civDue(S, u)) return; try { withTurn(S, () => civAct(S, u)); } catch (e) { if (C.BF_DEBUG) console.error(e); } });
   // яд: отравленный уходит
   civs(S).forEach(u => { if (u.civ.poisoned && Wk.rnd + 1 - u.civ.poisoned >= 2 && !u.gone) { u.gone = true; lg(S, fill(pick(TX.poisonAfter), {n: u}), ''); } });
   if (peace(S)) perceive(S);
@@ -70609,6 +70617,13 @@ const wander = (S, u, home, far) => {
   const reach = B.reach(S, u), ks = Object.keys(reach).filter(k => { const x = B.cell(S, reach[k].c, reach[k].r); return x && !B.unitAt(S, x.c, x.r) && (x.hb == null || (home && x.hb === home.id)) && (!home || B.dist(x, home.doors[0]) <= (far || 12)); });
   const q = ks.length ? reach[ks[Math.floor(R.rand() * ks.length)]] : null; if (q && (q.c !== u.c || q.r !== u.r)) B.move(S, u, q.c, q.r);
 };
+/* мирно — люди ходят не каждый круг: селяне раз в 10 минут (20 кругов по полминуты), стража раз в минуту; тревога, драка, раненые — каждый круг (Ник 25.11) */
+function civDue(S, u) {
+  const Wk = S.walk, c = u.civ || {};
+  if (Wk.fight || Wk.hot || c.hostile || c.hurt || c.k === 'tgt' || c.poisoned) return true;
+  if (c.k === 'guard' || c.walker) { if (Wk.inv && Wk.inv.until >= Wk.rnd) return true; return (Wk.rnd + hsh(u.id || u.name || '')) % (K().CIV_GUARD_EVERY || 2) === 0; }
+  return (Wk.rnd + hsh(u.id || u.name || '')) % (K().CIV_EVERY || 20) === 0;
+}
 function civAct(S, u) {
   const Wk = S.walk, k = u.civ.k, home = u.civ.home ? houseOf(S, u.civ.home) : null;
   if (u.civ.sleep || u.civ.poisoned) return;
@@ -70625,6 +70640,7 @@ function civAct(S, u) {
   if (k === 'pig') { if (R.rand() < 0.4) wander(S, u, null); return; }
   if (k === 'trader') return;
   if (k === 'tgt') return tgtAct(S, u);
+  if (u.civ.walker) { const R0 = u.civ.route || []; if (!R0.length) return; let wp = R0[u.civ.wp % R0.length]; if (B.dist(u, wp) <= 2) { u.civ.wp = (u.civ.wp + 1) % R0.length; wp = R0[u.civ.wp]; } toward(S, u, wp); return; } // ночной прохожий бредёт по улице
   if (Wk.night) return; // проснувшиеся ночью — стоят, слушают
   if (Wk.hot) { if (home && BF.inHouse(S, u) !== home.id) toward(S, u, home.doors[0]); return; }
   life(S, u, home);
@@ -70874,6 +70890,10 @@ C.walkActs = function (S, u) {
   if (Wk.fight) return out;
   const usedA = S.acted ? TX.why.acted : '';
   out.push({v: 'back', label: Wk.all ? TX.back.all : TX.back.day, title: TX.tips.back, grp: 'Прогулка'});
+  { const G0 = G_, tt = G0 ? G0.time % 4 : 1, busyW = Wk.hot || Wk.fight || (Wk.inv && Wk.inv.until >= Wk.rnd) ? 'Сейчас не до того: всполошились' : ''; /* переждать до нужного часа — вору под ночное дело (Ник 25.11) */
+    if (tt < 2) out.push({v: 'wait', p: 'eve', label: 'Дождаться вечера', dis: busyW, title: 'Отсидеться в тихом углу до сумерек — улица станет другой.', grp: 'Прогулка'});
+    if (tt !== 3) out.push({v: 'wait', p: 'night', label: 'Дождаться ночи', dis: busyW, title: 'Переждать до темноты: люди разойдутся по избам, на улице останутся сторожа да псы.', grp: 'Прогулка'});
+    else out.push({v: 'wait', p: 'morn', label: 'Дождаться утра', dis: busyW, title: 'Переждать ночь в тихом углу — к рассвету село проснётся.', grp: 'Прогулка'}); }
   // войти
   doorsAround(S, u).forEach(o => { const ek = enterKey(o.h.k); if (!TX.enter[ek] || out.some(x => x.v === 'enter' && x.p === o.h.id)) return;
     const night = Wk.night && !['korchma', 'korchma_big'].includes(o.h.k);
@@ -71049,6 +71069,7 @@ C.walkDo = function (S, u, a) {
   const act = C.walkActs(S, u).find(x => x.v === a.v && (a.t == null || x.t === a.t) && (a.p == null || x.p === a.p)); if (!act) return 'Так нельзя.'; if (act.dis) return act.dis;
   const hid = u.ref ? u.ref.id : u.id, t = a.t ? B.U(S, a.t) : null;
   if (a.v === 'back') { Wk.end = {k: 'back'}; S.over = 'walk'; return ''; }
+  if (a.v === 'wait') { Wk.end = {k: 'wait', to: a.p}; S.over = 'walk'; return ''; }
   if (a.v === 'gait') { if (!['walk', 'sneak', 'run'].includes(a.p) || gaitOf(u) === a.p) return ''; setGait(u, a.p); if (a.p !== 'walk' && u.conds && a.p === 'run') delete u.conds.hidden;
     lg(S, fill(pick(TX2.gaitLog[a.p]), {h: u}), ''); Wk._roll = {}; perceive(S, u); return ''; }
   if (a.v === 'crouch') { u.crouch = !u.crouch; if (u.steps0 == null) u.steps0 = u.steps; u.steps = u.crouch ? Math.max(1, Math.ceil(u.steps0 / 2)) : u.steps0; if (u.look) u.look = Object.assign({}, u.look, {crouch: !!u.crouch});
@@ -71204,6 +71225,10 @@ C.walkClose = function (g, S, o) {
 /* из ui.js: прогулка кончилась (S.over === 'walk') — куда дальше */
 C.walkFinish = function (g, S) {
   G_ = g; const Wk = S.walk, E = (Wk && Wk.end) || {k: 'back'};
+  if (E.k === 'wait') { const who = g.twalk && g.twalk.who, r = C.walkClose(g, S) || {}; if (r.scene && r.scene !== back(g)) return r;
+    const t = g.time % 4, k = E.to === 'night' ? (3 - t + 4) % 4 : E.to === 'eve' ? (2 - t + 4) % 4 : (4 - t) % 4; if (k) C.pass(g, k);
+    try { C.note(g, E.to === 'night' ? 'Переждали в тихом углу до темноты. Село засыпает.' : E.to === 'eve' ? 'Скоротали время до сумерек.' : 'Пересидели ночь; светает, село просыпается.'); } catch (e) {}
+    const b = C.walkBegin(g); if (b && g.twalk) g.twalk.who = who || null; return b || {scene: back(g)}; }
   if (E.k === 'pause' && g.twalk) {
     passMin(g, Wk); S.over = null; Wk.end = null; Wk._roll = {}; try { if (C.SFX && C.SFX.calm) C.SFX.calm(g); } catch (e) {}
     g.twalk.snap = pack(S); g.twalk.ret = E.go.k === 'scene' ? 0 : 1; // поговорил / сходил по делу — назад на улицу, а не в меню места (Ник 25.11)
