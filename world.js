@@ -70543,7 +70543,7 @@ function life(S, u, home) {
   if (P.at) { if (B.dist(u, P.at) > 1) toward(S, u, P.at); else if (R.rand() < 0.2) wander(S, u, null, 2); return; }
   if (P.n === 'chat') { const m = B.U(S, P.mate); if (!m || !B.active(m)) { u.civ.plan = null; return; }
     if (B.dist(u, m) > 1) { toward(S, u, m); return; }
-    B.faceTo(u, m); if (u.id < m.id && !Wk.night && R.rand() < 0.3 && (Wk.chatR == null || Wk.rnd - Wk.chatR >= 3) && heroUs(S).some(h => B.active(h) && B.dist(h, u) <= 5)) { Wk.chatR = Wk.rnd; lg(S, `${nameOf(u)} — ${nameOf(m)}: ${pick(CHAT_T)}`, ''); }
+    B.faceTo(u, m); if (!C.walkChat && u.id < m.id && !Wk.night && R.rand() < 0.3 && (Wk.chatR == null || Wk.rnd - Wk.chatR >= 3) && heroUs(S).some(h => B.active(h) && B.dist(h, u) <= 5)) { Wk.chatR = Wk.rnd; lg(S, `${nameOf(u)} — ${nameOf(m)}: ${pick(CHAT_T)}`, ''); }
     return; }
   if (R.rand() < 0.55) wander(S, u, home, 10);
 }
@@ -73013,6 +73013,66 @@ C.walkSetup = function (S, g) {
   return r; };
 /* в обычном бою на селе мирные тоже без топоров наперевес */
 if (BF.civSpawn) { const cs0 = BF.civSpawn; BF.civSpawn = function (S) { const r = cs0.apply(this, arguments); try { (S.units || []).forEach(u => { if (u.side === 'civ') C.civDress(u); }); } catch (e) {} return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* ---------- разговоры на улице, как в комиксах (Ник 25.11: «жители болтают между собой? их слышно, когда подойти») ----------
+   Двое стоят рядом — переговариваются по очереди, облачко над говорящим. Подошёл ближе четырёх шагов — слышно слова
+   (и строка в летописи), дальше — только «…». Банщица, корчмарь, торговка — зазывают, когда идёшь мимо. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!R || !B || !C || !C.walkTick) return;
+const HEAR = 4, SAY_R = 2;
+const TALKS = [
+  ['Слыхала? У мельника опять жернов треснул.', 'Да он его сам и треснул — с похмелья.', 'Тише ты, он вон идёт.'],
+  ['Дождь бы, а то всё пожжёт.', 'Старики говорят — к Купале польёт.', 'Старики каждый год так говорят.'],
+  ['Чужие-то в корчме — видал?', 'Видал. С мечами.', 'Не к добру это.', 'А может, и к добру — платят серебром.'],
+  ['Сватов к Малуше ждут, говорят.', 'К Малуше? Да кто ж её возьмёт, языкатую.', 'Кузнецов сын, вот кто.'],
+  ['Корова у кумы третий день не доится.', 'Сглазили, не иначе.', 'Или волк пугнул. Ты зря на людей не греши.'],
+  ['Опять подати поднимут, помяни моё слово.', 'Куда уж выше? Последнюю рубаху снимут.', 'Снимут — и спасибо скажешь.'],
+  ['Сынок-то твой как, с ярмарки вернулся?', 'Вернулся. Без коня, зато с серьгой в ухе.', 'Ох, молодёжь…'],
+  ['Ночью собаки выли.', 'К покойнику, верно.', 'К дождю. Ты всё к покойнику сводишь.'],
+  ['Хлеб нынче уродился.', 'Тьфу-тьфу, не сглазь, пока в амбаре не лежит.'],
+  ['В Таррене, слыхал, опять стражу удвоили.', 'Это Око кого-то ищет.', 'Лишь бы не нас.'],
+  ['Почём нынче соль у купца?', 'Грабёж, а не соль. Втридорога.', 'А куда денешься — без соли и щи не щи.'],
+  ['Ты мне долг когда вернёшь?', 'После жатвы.', 'Ты и в прошлый раз так говорил.', 'Так и жатва была в прошлый раз!'],
+  ['Гляди, какой платок купила.', 'Красный! Мужик-то что сказал?', 'А мужик пока не знает, почём.'],
+  ['В лесу, говорят, огонёк блуждает.', 'Не ходи туда по ночам — заведёт.', 'Я и днём не пойду.'],
+  ['Банька нынче жаркая, сходил бы.', 'Схожу. Только веник свой возьму, ихние — голые прутья.'],
+  ['Слышь, а кто это там ходит — с оружием?', 'Нездешние. Не пялься, а то и к нам подойдут.'],
+  ['Дед-то твой опять на завалинке байки травит?', 'Про то, как он змея голыми руками душил.', 'Вчера был змей, позавчера — медведь.'],
+  ['Кузнец-то нынче злой, к нему не суйся.', 'А что так?', 'Подкову ковал — себе по пальцу.']];
+const KIDS = [['Догони!', 'Не догонишь!', 'Догоню-у!'], ['А я жука поймал!', 'Покажи!', 'Не покажу!'], ['Мамка зовёт!', 'Не слышу, не слышу!'],
+  ['Глянь — чужие, с мечами!', 'Я тоже вырасту — меч куплю.'], ['Чур, я водой!', 'Нет, я!']];
+const CALL = {banya: ['Пар лёгкий, веники свежие!', 'С дороги? Заходи — всё смоем!', 'Банька истоплена!'],
+  korchma: ['Щи горячие, квас холодный!', 'Заходи, гость, место у печи есть!', 'Пиво свежее, только с бочки!'],
+  kuznya: ['Подкову, гвоздь, клинок поправить!', 'Кому ножи точить?'], masterskaya: ['Работа тонкая — гляди, да не трогай.'],
+  kupec: ['Соль, ткани, бусы — подходи!', 'Дёшево отдам, только тебе!', 'Глянь, чего привезли!']};
+const heroes = S => (S.units || []).filter(u => u.side === 'party' && !u.pet && B.active(u) && u.c != null);
+const near = (S, u) => heroes(S).some(h => B.dist(h, u) <= HEAR);
+const seen = (S, u) => heroes(S).some(h => B.dist(h, u) <= 12);
+const nm = u => String(u.name || '').split(/[,(]/)[0].trim();
+const say = (S, u, text) => { const Wk = S.walk, heard = near(S, u); u.say = {t: heard ? text : '…', r: Wk.rnd}; if (heard && B.log) B.log(S, `${nm(u)}: «${text}»`, ''); };
+C.walkChat = function (S) {
+  const Wk = S.walk; if (!Wk || Wk.fight || Wk.night) return; const rnd = Wk.rnd;
+  (S.units || []).forEach(u => { if (u.say && rnd - u.say.r > SAY_R) delete u.say; });
+  const done = new Set();
+  (S.units || []).forEach(u => {
+    if (u.side !== 'civ' || !u.civ || done.has(u.id) || !B.active(u) || u.civ.sleep || u.gone) return;
+    const P = u.civ.plan; const m = P && P.n === 'chat' && B.U ? B.U(S, P.mate) : null;
+    if (m && B.active(m) && B.dist(u, m) <= 1 && !m.gone) { done.add(u.id); done.add(m.id);
+      if (!seen(S, u)) return;
+      const kid = x => x.civ.k === 'child'; if (kid(u) !== kid(m)) return; const TT = kid(u) ? KIDS : TALKS;
+      const a = u.id < m.id ? u : m, b = a === u ? m : u, T = a.civ.talk || (a.civ.talk = {k: Math.floor(R.rand() * TT.length), i: 0, last: -9}); if (T.k >= TT.length) T.k = 0;
+      if (rnd - T.last < 1) return; const L = TT[T.k]; if (T.i >= L.length) { if (rnd - T.last >= 3) { T.k = (T.k + 1 + Math.floor(R.rand() * (TT.length - 1))) % TT.length; T.i = 0; } else return; }
+      const who = T.i % 2 ? b : a; delete (who === a ? b : a).say; say(S, who, TT[T.k][T.i]); T.i++; T.last = rnd; return; }
+    // зазывалы: прошёл мимо — окликнут
+    const job = u.civ.job || (u.civ.k === 'trader' ? 'kupec' : null); if (!job || !CALL[job]) return;
+    const h = heroes(S).find(x => B.dist(x, u) <= 3); if (!h) return; if (u.civ.called != null && rnd - u.civ.called < 5) return;
+    u.civ.called = rnd; say(S, u, CALL[job][Math.floor(R.rand() * CALL[job].length)]); });
+};
+const wt0 = C.walkTick;
+C.walkTick = function (S) { const r = wt0.apply(this, arguments); try { C.walkChat(S); } catch (e) { if (C.BF_DEBUG) console.error(e); } return r; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* town_news.js */
