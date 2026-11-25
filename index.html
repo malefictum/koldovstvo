@@ -49968,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251610"></script><script>
+</script><script src="world.js?v=202611251613"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54827,8 +54827,10 @@ function bop(op, a) {
         // прогулка: далеко — идём сами ход за ходом, пока не дойдём (Ник 25.11: «нажал идти куда угодно — идёт без остановки, считая шаги»)
         if (S.walk && !S.walk.fight && !S.over) {
           if (a.auto && (!AUTO || AUTO.c !== a.c || AUTO.r !== a.r)) return; // игрок передумал
+          if (B.dist(u, a) <= 1 && B.unitAt(S, a.c, a.r)) { AUTO = null; return; } // дошли до занятой клетки — стоим рядом
           const s0 = u.steps; let far = null; u.steps = 999; try { far = B.reach(S, u); } finally { u.steps = s0; }
-          const tgt = far && far[B.key(a.c, a.r)]; if (!tgt) { AUTO = null; return; }
+          let tgt = far && far[B.key(a.c, a.r)]; if (!tgt && far) tgt = Object.values(far).filter(x => B.dist(x, a) <= 2 && x.cost > 0).sort((p, q) => B.dist(p, a) - B.dist(q, a) || p.cost - q.cost)[0]; // занято — встать рядом
+          if (!tgt) { AUTO = null; return; }
           const path = tgt.path || (() => { const pp = []; for (let x = tgt; x; x = x.prev ? far[x.prev] : null) pp.unshift(x); return pp; })();
           const near = B.reach(S, u); let stop = null; for (let i = path.length - 1; i > 0; i--) { const q = near[B.key(path[i].c, path[i].r)]; if (q) { stop = path[i]; break; } }
           AUTO = {c: a.c, r: a.r, uid: u.id};
