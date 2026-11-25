@@ -73290,6 +73290,52 @@ C.sceneOf = function () { const sc = so0.apply(this, arguments);
   return sc; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* shared_map.js */
+/* Колдовство — кампании на общей карте Вечного мира (Ник 25.11: «почему кампании на малых картах, а не на единой карте? она же одна и та же»).
+   Карта Вечного мира и так собрана из карт кампаний: край «Ольшанский» — это карта «Мёртвой воды», сдвинутая на своё место.
+   Здесь кампания из списка C.SHARED_CAMPS берёт большую карту: свои места — на тех же клетках, что в Вечном мире,
+   прочие края видны, но закрыты рубежом (клетки shut) — пока глава не пройдена, за пределы своего края не уйти.
+   Старые сохранения: позиция отряда и разведанное (g.pos, g.seen) сдвигаются с малой карты на большую один раз (g.shV).
+   Без DOM. */
+(function (G) {
+'use strict';
+const C = G.C, W = G.W;
+if (!C || !W || !W.build || !C.CAMPS || !C.CAMPS.free) return;
+C.SHARED_CAMPS = C.SHARED_CAMPS || ['dead_water'];
+const campId = camp => Object.keys(C.CAMPS).find(k => C.CAMPS[k] === camp) || null;
+const regOf = id => (C.FREE_REGIONS || []).find(r => r.camp === id) || null;
+const shared = camp => { const id = campId(camp); return !!(id && C.SHARED_CAMPS.includes(id) && regOf(id) && camp.map && camp.map.hex && !camp.map.hex.free); };
+C.campShared = g => !!(g && C.CAMPS[g.camp] && shared(C.CAMPS[g.camp]));
+const base = W.build;
+W.buildBase = camp => { const b = W._baseOnly; W._baseOnly = 1; try { return base(camp); } finally { W._baseOnly = b; } };
+const buildShared = function (camp) {
+  if (camp._worldShared) return camp._worldShared;
+  const id = campId(camp), X = regOf(id), FR = C.CAMPS.free;
+  const small = W.buildBase(camp), fw = W.buildBase(FR);
+  // места кампании ↔ места мира: по названию внутри своего края
+  const fN = FR.map.nodes, cN = camp.map.nodes, toCamp = {};
+  Object.keys(cN).forEach(cid => { const fid = Object.keys(fN).find(k => fw.nodeAt[k] && fw.nodeAt[k].reg === X.id && fN[k].name === cN[cid].name); if (fid) toCamp[fid] = cid; });
+  // сдвиг малой карты в большой: по совпавшему месту
+  const off = (() => { const any = Object.keys(toCamp)[0]; if (!any) return {dc: 0, dr: 0}; const a = small.nodeAt[toCamp[any]], b = fw.nodeAt[any]; return a && b ? {dc: b.c - a.c, dr: b.r - a.r} : {dc: 0, dr: 0}; })();
+  const cells = {}, nodeAt = {};
+  // чужие края — видны, но за рубежом; свой край — клетки самой кампании (с её местами, приметами, святилищами), со сдвигом
+  Object.values(fw.cells).forEach(s => { const n = Object.assign({}, s); delete n.node; delete n.poi; delete n.poiId; delete n.folk;
+    if (s.reg !== X.id) n.shut = 1; cells[W.key(n.c, n.r)] = n; });
+  Object.values(small.cells).forEach(s => { const k = W.key(s.c + off.dc, s.r + off.dr); if (!cells[k]) return; const n = Object.assign({}, s, {c: s.c + off.dc, r: s.r + off.dr, reg: X.id}); delete n.shut; cells[k] = n; if (n.node) nodeAt[n.node] = n; });
+  const world = {cols: fw.cols, rows: fw.rows, cells, nodeAt, camp, shared: X.id, off};
+  return (camp._worldShared = world); };
+W.build = function (camp) { if (!W._baseOnly && camp && shared(camp)) return buildShared(camp); return base.apply(this, arguments); };
+/* старые сохранения кампании: с малой карты на большую */
+const migrate = g => { if (!g || g.shV === 1 || !C.campShared(g)) return; const w = W.build(C.CAMPS[g.camp]), o = w.off || {dc: 0, dr: 0};
+  const cur = g.pos && w.cells[W.key(g.pos.c, g.pos.r)];
+  if (g.pos && (!cur || cur.shut)) {
+    g.pos = {c: g.pos.c + o.dc, r: g.pos.r + o.dr};
+    const s2 = {}; Object.keys(g.seen || {}).forEach(k => { const [c, r] = k.split(',').map(Number); s2[W.key(c + o.dc, r + o.dr)] = 1; }); g.seen = s2; }
+  g.shV = 1; };
+const wo0 = W.world;
+W.world = function (g) { try { migrate(g); } catch (e) {} return wo0.apply(this, arguments); };
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* town_news.js */
 /* Колдовство — вести города: у места своя судьба (Ник 25.11: «с каким-то интервалом в городах интересные события —
    кто-то женился, кто-то приехал»). Без DOM.

@@ -3562,7 +3562,7 @@ const POI_T = {ruins: ['hills', 'meadow', 'wasteland', 'mountains'], camp: ['for
   trail: ['forest', 'hills', 'marsh'], spring: ['forest', 'meadow', 'marsh', 'hills'], hermit: ['forest', 'hills', 'marsh', 'mountains']};
 
 /* цена шага по клетке */
-W.cost = (cell, opt) => { if (!cell) return Infinity; if (cell.t === 'water') return cell.ford ? W.FORD_COST : Infinity; if (cell.wall && !cell.road && !cell.node) return Infinity; if (cell.road) return W.ROAD_COST; return (W.T[cell.t] || W.T.meadow).cost + (opt && opt.road ? 1 : 0); };
+W.cost = (cell, opt) => { if (!cell || cell.shut) return Infinity; if (cell.t === 'water') return cell.ford ? W.FORD_COST : Infinity; if (cell.wall && !cell.road && !cell.node) return Infinity; if (cell.road) return W.ROAD_COST; return (W.T[cell.t] || W.T.meadow).cost + (opt && opt.road ? 1 : 0); };
 /* кратчайший путь (A*), без стартовой клетки */
 W.path = function (world, from, to, opt) {
   const K = x => W.key(x.c, x.r), start = K(from), goal = K(to);
@@ -3571,7 +3571,7 @@ W.path = function (world, from, to, opt) {
     open.sort((a, b) => a.f - b.f); const cur = open.shift(); if (cur.k === goal) break;
     const cc = world.cells[cur.k];
     W.neigh(cc.c, cc.r).forEach(p => {
-      const nk = W.key(p.c, p.r), cell = world.cells[nk]; if (!cell) return;
+      const nk = W.key(p.c, p.r), cell = world.cells[nk]; if (!cell || cell.shut) return; // рубеж: кампания на общей карте — только свой край
       let step = opt && opt.road ? (cell.t === 'water' ? 6 : cell.wall && !cell.node ? 40 : cell.road ? 1 : (W.T[cell.t] || W.T.meadow).cost + 1) : W.cost(cell);
       // в город — только когда отряд уже внутри (сюжет открывает ворота)
       if (opt && opt.g && cell.town && world.camp.map.hex.townFlag && !opt.g.flags[world.camp.map.hex.townFlag]) return;
@@ -40343,7 +40343,7 @@ W.buildFree = function (cm) {
   const nodeAt = {};
   C.FREE_REGIONS.forEach(x => {
     if (!x.camp) return;
-    const w = W.build(C.CAMPS[x.camp]), ox = x.gx * SLOT.w + Math.floor((SLOT.w - w.cols) / 2), oy = x.gy * SLOT.h; // oy чётный — шестиугольники не сбиваются
+    const w = (W.buildBase || W.build)(C.CAMPS[x.camp]), ox = x.gx * SLOT.w + Math.floor((SLOT.w - w.cols) / 2), oy = x.gy * SLOT.h; // oy чётный — шестиугольники не сбиваются
     Object.values(w.cells).forEach(s => {
       const k = W.key(s.c + ox, s.r + oy); if (!cells[k]) return;
       const n = Object.assign({}, s, {c: s.c + ox, r: s.r + oy, reg: x.id}); delete n.node; delete n.road;
@@ -49968,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251839"></script><script>
+</script><script src="world.js?v=202611251907"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50844,7 +50844,7 @@ function renderTopBtns() {
   const btns = $('#topbtns'); if (!btns) return;
   if (!g && !NET()) { btns.innerHTML = ''; return; }
   const nb = (act, ic, t, badge) => `<button class="btn small nav" data-act="${act}" title="${t}"><span class="ui-i i-${ic}"></span><span class="lbl">${t}</span>${badge ? `<i class="badge">${badge}</i>` : ''}</button>`;
-  btns.innerHTML = (NET() ? nb('table', 'keep', 'Стол') : '') + (g ? nb('party', 'people', 'Отряд') + nb('journal', 'write', 'Журнал') + (C.isFree && C.isFree(g) ? nb('pmap', 'minimap', 'Карта') : '') + (g.net ? '' : nb('chron', 'minimap', 'Край')) : '') + (g && !NETG() ? nb('call', 'recruit', 'Позвать') : '') + (NET() ? nb('chat', 'chat', 'Чат', unread || '') : '') + (FS_OK() ? `<button class="btn small nav fsb" data-act="fs" title="${FS_ON() ? 'Обычный экран' : 'Во весь экран'}"><span class="fsi">${FS_ON() ? '⤡' : '⤢'}</span><span class="lbl">${FS_ON() ? 'Окно' : 'Экран'}</span></button>` : '') + nb('menu', 'settings', 'Меню');
+  btns.innerHTML = (NET() ? nb('table', 'keep', 'Стол') : '') + (g ? nb('party', 'people', 'Отряд') + nb('journal', 'write', 'Журнал') + ((C.isFree && C.isFree(g)) || (C.campShared && C.campShared(g)) ? nb('pmap', 'minimap', 'Карта') : '') + (g.net ? '' : nb('chron', 'minimap', 'Край')) : '') + (g && !NETG() ? nb('call', 'recruit', 'Позвать') : '') + (NET() ? nb('chat', 'chat', 'Чат', unread || '') : '') + (FS_OK() ? `<button class="btn small nav fsb" data-act="fs" title="${FS_ON() ? 'Обычный экран' : 'Во весь экран'}"><span class="fsi">${FS_ON() ? '⤡' : '⤢'}</span><span class="lbl">${FS_ON() ? 'Окно' : 'Экран'}</span></button>` : '') + nb('menu', 'settings', 'Меню');
 }
 document.addEventListener('click', e => {
   const a = e.target.closest('[data-act]'); if (!a) return;
@@ -52595,7 +52595,7 @@ function wprop(x2, name, x, y, h) { const a = ATLAS.props && ATLAS.props[name]; 
 function wxy(c, r) { const s = WM.s, k = Math.sqrt(3) * s; return {x: WM.ox + k * (c + 0.5 * (r & 1)) + k / 2, y: WM.oy + 1.5 * s * r + s}; }
 /* Вечный мир велик: рисуем и щупаем только окно вокруг отряда */
 const VIEW_R = {c: 16, r: 11};
-function wview() { const w = W.world(g); if (!(C.isFree && C.isFree(g)) || !g.pos) { WM.view = null; return null; }
+function wview() { const w = W.world(g); if (!((C.isFree && C.isFree(g)) || (C.campShared && C.campShared(g))) || !g.pos) { WM.view = null; return null; }
   const c0 = Math.max(0, g.pos.c - VIEW_R.c), c1 = Math.min(w.cols - 1, g.pos.c + VIEW_R.c), r0 = Math.max(0, g.pos.r - VIEW_R.r) & ~1, r1 = Math.min(w.rows - 1, g.pos.r + VIEW_R.r);
   const cells = []; for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) { const x = w.cells[W.key(c, r)]; if (x) cells.push(x); }
   WM.view = {c0, c1, r0, r1, cols: c1 - c0 + 1, rows: r1 - r0 + 1, cells}; return WM.view; }
