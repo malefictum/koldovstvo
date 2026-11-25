@@ -49968,7 +49968,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251613"></script><script>
+</script><script src="world.js?v=202611251818"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51548,6 +51548,7 @@ function showTitle() {
     ${lateN ? `<button class="btn ttile" id="t-late"><b>Поздние саги</b><span>годы после Веры: «Сумерки» с 5-го уровня, «Последние чары» с 10-го</span></button>` : ''}
    </div>` : `<p class="note" style="text-align:center">Все пять саг в пути. Чтобы начать новую, оставьте одну из них — герои останутся с вами.</p>`}
    <nav class="tlinks">${FS_OK() ? `<button id="t-fs" data-act="fs">${FS_ON() ? 'Обычный экран' : 'Во весь экран'}</button>` : ''}<button id="t-pool">Мои герои${(() => { const n = poolLoad().filter(h => !h.dead && !h._retired).length; return n ? ` <span class="kcount">${n}</span>` : ''; })()}</button>${window.Cloud ? `<button id="t-cloud" title="Вход и сохранения в облаке">${esc(cloudLabel())}</button>` : ''}<button id="t-xfer" title="Играть с другого браузера или устройства: перенести героев и саги">Перенос</button></nav>
+   <div class="tver" style="text-align:center;opacity:.55;font-size:.8em;margin-top:10px">${esc(verText())}</div>
   </div></div>`;
   const root = $('#main');
   $('#t-pool').onclick = () => showPool();
@@ -52404,6 +52405,9 @@ function news(a) {
 }
 /* лавка за столом — дело каждого: открывается только у того, кто нажал, без голосования; остальные заняты своим */
 const isShopping = c => !!(c && c.do && /shop:\s*true/.test(String(c.do)));
+/* номер версии на главной (Ник 25.11): из адреса world.js?v=ГГГГММДДЧЧММ */
+function verText() { try { const sc = document.querySelector('script[src*="world.js?v="]'), v = sc ? (sc.getAttribute('src').split('v=')[1] || '') : ''; const m = v.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/);
+  return m ? `версия ${m[3]}.${m[2]}.${m[1]} · ${m[4]}:${m[5]}` : v ? `версия ${v}` : ''; } catch (e) { return ''; } }
 function choose(id, i) {
   if (NET() && g && g.net && C.splitOn && C.splitOn(g)) { const w = splitWaiting(myPid()); if (w) return toast(w); }
   if (NET()) { const sc = C.sceneOf(g, id), c = sc && sc.choices.find(x => x.i === i);
