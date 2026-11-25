@@ -65537,7 +65537,7 @@ local: {
       ['сотник стражи', 'Сотник здешней стражи, усатый, ладный, весь вечер подкручивает ус. У дверей он берёт {h_a} под локоть: «Жена моя у сестры гостит. Караул до утра мой. Пройдёмся?»']]},
 },
 guestYes: ['Свечу задувают. Ночь проходит…', 'Дверь горницы закрывается за ними. Ночь проходит…', 'Лучина гаснет, и в корчме внизу понемногу стихает. Ночь проходит…'],
-guestMorning: {
+guestMorning: {   // tr, vd, bo: [гостья, гость]
   tr: ['Наутро обоз уходит по первой росе. Торговка на прощанье целует {h_a} в щёку и смеётся: «Не забывай — а забудешь, так я напомню»', 'Наутро купец, уже в седле, кидает {h_d} кошель: «Не за ночь — за песни. За ночь я тебе по гроб должен»'],
   vd: ['Утром вдова сама наливает {h_d} горячего сбитня и говорит, глядя в окно: «Спасибо тебе. Я будто три года проспала — и проснулась»', 'Утром вдовец провожает {h_a} до ворот и долго молчит. Потом говорит: «Спасибо. Дальше я как-нибудь сам»'],
   bo: ['Утром служанка выносит {h_d} шитый кошелёк и шепчет: «Госпожа велела передать, что такие песни не забываются. И что вас здесь никогда не было»', 'Утром слуга боярина выводит {h_a} чёрным ходом. Перстень остаётся у вас — как и было сказано.'],
@@ -66272,7 +66272,7 @@ SC.kv_guest = g => {
       const X = g2.kvGuest, hh = X && heroById(g2, X.hid); if (!X || !hh) return 'kv_guest';
       const local = X.type === 'local', place = placeName(g2, X.at), pp = guestP(X);
       X.night = day(g2); freeNight(g2, local ? 'peasant' : 'merchant', place);
-      const morn = local ? pick(T.guestMorning.local) : pick(T.guestMorning[X.type] || T.guestMorning.tr);
+      const mL = T.guestMorning[X.type] || T.guestMorning.tr, morn = local ? pick(T.guestMorning.local) : (mL.length === 2 ? mL[X.sex === 'm' ? 1 : 0] : pick(mL));   // утро — по полу гостя: [гостья, гость] (вдова — не вдовец)
       const caught = local && X.st === 'wife' && R.rand() < K().HUSB;
       let txt = caught ? pick(T.guestYes) : [pick(T.guestYes), fill(morn, {h: hh, p: pp})].join(' ');
       if (X.type === 'bo') { if (X.sex === 'm') { const ring = ['persten_pechatka', 'koltso_zolotoe', 'tr_serebryanoe_koltso'].find(i => R.item(i)); if (ring) hh.inv.push(ring); } else g2.purse = (g2.purse || 0) + 300; }
@@ -70324,6 +70324,15 @@ C.walkOk = function (g) {
   if (C.cursedHero && C.cursedHero(g)) return false;
   return C.alive(g).length > 0;
 };
+/* почему нельзя пройтись — словами, чтобы кнопка не пропадала молча (Ник 25.11) */
+C.walkWhy = function (g) {
+  const n = nodeHere(g); if (!n || !K().KINDS.includes(n.kind)) return '';
+  if (g.dungeon) return 'вы в подземелье';
+  if (g.waCapt) return 'вы в плену';
+  const cu = C.cursedHero && C.cursedHero(g); if (cu) return `на ${cu.name} клеймо «${(cu.curse && cu.curse.name) || 'проклятие'}» — по улицам с таким не пройти`;
+  if (!C.alive(g).length) return 'некому идти';
+  return '';
+};
 C.walkLabel = function (g) { const n = nodeHere(g) || {}; if (C.isNight(g)) return 'Осмотреться'; return n.kind === 'город' ? 'Пройтись по городу' : n.kind === 'подворье' ? 'Пройтись по подворью' : 'Пройтись по селу'; };
 
 /* ---------- спецификация боя-прогулки ---------- */
@@ -70883,6 +70892,7 @@ if (Q.inject) { const inj0 = Q.inject; Q.inject = function (g, sceneId) {
     if (g.twalk && g.twalk.snap) { out.unshift({i: i++, label: TX.go.resume, do: g2 => ({battle: C.walkSpec(g2)})});
       out.push({i: i++, label: TX.go.close, do: g2 => { C.walkDrop(g2); return back(g2); }}); }
     else if (C.walkOk(g)) out.push({i: i++, label: C.walkLabel(g), go: 'tw_go'});
+    else { const why = C.walkWhy(g); if (why) out.push({i: i++, label: C.walkLabel(g), dis: why, go: 'tw_go'}); }
   } catch (e) { if (C.BF_DEBUG) console.error(e); }
   return out; }; }
 
