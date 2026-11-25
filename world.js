@@ -70811,7 +70811,7 @@ C.walkAskers = function (S, g) {
   if (!L.length) return 0;
   // кто есть кто: имя (сказание — до запятой; «Поговорить с …» — из людей мира), по имени — один человек с одним или несколькими делами
   const who = c => { const P = c.w2ppl && C.W2_PPL ? C.W2_PPL[c.w2ppl] : null; if (P) return {n: P.n, t: P.t || '', face: P.face || ''};
-    const lab = String(c.label).replace(/^(Поговорить|Навестить)[: с]+/, ''); return {n: lab.split(/ — |, /)[0].trim(), t: (lab.split(' — ')[1] || '').trim(), face: ''}; };
+    const lab = String(c.label).replace(/^(Поговорить|Навестить)[: с]+/, ''); const n0 = lab.split(/ — |, /)[0].trim(); let f0 = ''; try { f0 = C.faceByName ? C.faceByName(g, n0) : ''; } catch (e) {} return {n: n0, t: (lab.split(' — ')[1] || '').trim(), face: f0}; };
   const by = {}; L.forEach(c => { const w = who(c), k = w.n.toLowerCase().slice(0, 4); (by[k] = by[k] || {w, cs: []}).cs.push(c); if (!by[k].w.face && w.face) by[k].w.face = w.face; });
   const used = new Set(); let n = 0;
   const pool = civs(S).filter(u => people(u) && !u.civ.tf && !u.civ.folk && !u.civ.ask && ['muzhik', 'baba', 'starik'].includes(u.civ.k));
@@ -72872,6 +72872,46 @@ C.faceSet = function (g, h, id) { if (!h) return; if (id) { h.faceRoot = null; h
 if (C.ageBirthday) { const ab0 = C.ageBirthday; C.ageBirthday = function (g, h) { const r = ab0.apply(this, arguments); try { C.faceAgeCheck(g, h); } catch (e) {} return r; }; }
 if (C.ageEnter) { const ae0 = C.ageEnter; C.ageEnter = function (g, h) { const r = ae0.apply(this, arguments); try { C.faceAgeCheck(g, h); } catch (e) {} return r; }; }
 G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* face_pin.js */
+/* Колдовство — у мастера одно лицо (Ник 25.11: «в некоторых диалогах она то монашка, то рыжая — портреты гуляют»).
+   • Лицо мастера (C.folkPerson) считалось заново по списку портретов; список рос от сборки к сборке — и лицо съезжало.
+     А там, где человек был записан раньше (знакомая, жена, игрок за триньку), осталось прежнее лицо.
+   • Теперь лицо запоминается в сохранении: g.folkFace['камп|место|ремесло|пол|имя'] — с первого раза и навсегда.
+   • Старые сохранения: если человек уже где-то записан (жена героя, знакомая), берём то лицо, под которым его узнали,
+     и всем записям этого человека ставим одно лицо. Без DOM. */
+(function (G) {
+'use strict';
+const C = G.C;
+if (!C || !C.folkPerson) return;
+const keyOf = (g, role, at, p) => [g.camp, at, role, p.sex, p.n].join('|');
+/* где этот человек уже записан: жена/муж героя, знакомые (kvLoc), постоянные (kvReg) */
+const known = (g, role, at, p) => {
+  const out = [];
+  try { (g.heroes || []).forEach(h => { const s = h && h.spouse; if (s && s.face && s.n === p.n && (s.at === at || !s.at) && (!s.camp || s.camp === g.camp)) out.push(s); }); } catch (e) {}
+  try { Object.values(g.kvLoc || {}).forEach(r => { if (r && r.face && r.n === p.n && r.at === at && (!r.camp || r.camp === g.camp)) out.push(r); }); } catch (e) {}
+  try { Object.values(g.kvReg || {}).forEach(r => { if (r && r.face && r.n === p.n && r.at === at && (!r.camp || r.camp === g.camp)) out.push(r); }); } catch (e) {}
+  return out; };
+const fp0 = C.folkPerson;
+C.folkPerson = function (g, role, at) {
+  const p = fp0.apply(this, arguments);
+  if (!p || !g || typeof g !== 'object' || !p.n || /^sp_/.test(role)) return p;
+  try {
+    const k = keyOf(g, role, at, p); g.folkFace = g.folkFace || {};
+    let f = g.folkFace[k];
+    if (!f) { const ks = known(g, role, at, p); f = (ks[0] && ks[0].face) || p.face; if (f) g.folkFace[k] = f; }
+    if (f) { p.face = f; known(g, role, at, p).forEach(r => { if (r.face !== f) r.face = f; }); }
+  } catch (e) {}
+  return p; };
+/* лицо по имени среди мастеров и знакомых этого места (для людей «с делом» на прогулке) */
+C.faceByName = function (g, name) {
+  if (!g || !name) return ''; const n = String(name).trim().toLowerCase(); if (!n) return '';
+  const hit = x => x && x.n && String(x.n).toLowerCase() === n;
+  try { for (const role of (C.folkHere ? C.folkHere(g) : [])) { const p = C.folkPerson(g, role, g.loc); if (hit(p) && p.face) return p.face; } } catch (e) {}
+  try { const r = Object.values(g.kvLoc || {}).find(x => x && x.at === g.loc && (!x.camp || x.camp === g.camp) && hit(x)); if (r && r.face) return r.face; } catch (e) {}
+  try { const t = (C.tfPeople ? C.tfPeople(g, g.loc) : []).find(hit); if (t && t.face) return t.face; } catch (e) {}
+  return ''; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* town_news.js */
