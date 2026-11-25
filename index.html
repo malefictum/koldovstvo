@@ -49950,7 +49950,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611250812"></script><script>
+</script><script src="world.js?v=202611250846"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50810,7 +50810,7 @@ let RAISE_BY = null;
 C.raiseHook = (g2, h, b) => {
   if (g2 !== g || !g.net) { if (g2 === g && C.alive(g).some(x => x.kind !== 'merc')) { poolPut(h); C.note(g, `${h.name} уходит отлежаться. Теперь ${h.sex === 'f' ? 'она' : 'он'} ждёт среди ваших героев — сменить героя можно в корчме.`); } else g2.heroes.push(h); return; }
   const ow = b.owner, seated = players().some(p => p.pid === ow && p.online) && !heroesOf(ow).length && C.alive(g).length < 4;
-  if (seated) { g.heroes.push(h); g.net.own[h.id] = ow; } else g.net.parked = (g.net.parked || []).filter(x => x.hero.id !== h.id).concat({owner: ow, hero: h});
+  if (seated) { g.heroes.push(h); g.net.own[h.id] = ow; if (C.worldEnter) C.worldEnter(g, h, ow); } else g.net.parked = (g.net.parked || []).filter(x => x.hero.id !== h.id).concat({owner: ow, hero: h});
   if (NETH()) Net.sysChat(`${RAISE_BY ? RAISE_BY.place + ': ' + pname(RAISE_BY.pid) + ' платит ' + R.priceText(RAISE_BY.price) + ' — ' : ''}${h.name} возвращ${h.sex === 'f' ? 'ена' : 'ён'} из Нави.${seated ? '' : ' Теперь ' + (h.sex === 'f' ? 'она' : 'он') + ' в списке героев игрока ' + pname(ow) + '.'}`);
 };
 function dockChat() { chatInit(); const c = $('#chat'), box = $('#side-chat'); if (!c || !box) return; if (c.parentNode !== box) { box.appendChild(c); c.classList.add('docked'); c.hidden = false; paintChat(); } if (unread) { unread = 0; renderTopBtns(); } }
@@ -50854,7 +50854,7 @@ document.addEventListener('click', e => { const t = e.target.closest('[data-face
   openModal(`<h3 class="ttl"><span class="ui-i i-people"></span>${esc(h.name)}: облик</h3><p class="note">Годы берут своё. Выберите, каким ${h.sex === 'f' ? 'её' : 'его'} видят теперь, — или оставьте прежнее лицо.</p>
    <div class="faces">${[h.portrait].concat(L).map((p, i) => `<canvas data-face="${p}" data-fpick="${i ? p : ''}" class="${i ? '' : 'on'}" width="96" height="96" title="${i ? 'Выбрать' : 'Прежнее лицо'}"></canvas>`).join('')}</div>
    <div class="row" style="margin-top:10px"><button class="btn" data-fpick="">Оставить прежнее</button></div>`);
-  $('#modal').querySelectorAll('[data-fpick]').forEach(b => b.onclick = () => { C.faceSet(g, h, b.dataset.fpick || null); save(); closeModal(); renderTop(); });
+  $('#modal').querySelectorAll('[data-fpick]').forEach(b => b.onclick = () => { if (NET()) { act({a: 'faceAge', hero: h.id, face: b.dataset.fpick || null}); closeModal(); return; } C.faceSet(g, h, b.dataset.fpick || null); save(); closeModal(); renderTop(); });
 }, true);
 document.addEventListener('click', e => { const t = e.target.closest('[data-mtalk]'); if (t && !e.target.closest('#modal')) { e.stopPropagation(); mercTalkGo(t.dataset.mtalk); return; }
   const c = e.target.closest('[data-hero]'); if (c && !e.target.closest('#modal')) showParty(c.dataset.hero); });
@@ -55204,6 +55204,7 @@ function doCmd1(c, pid) {
     case 'buy': { const h = C.alive(g).find(x => x.id === c.hero), it = R.item(c.item); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; if (!it || !it.price) return 'такого товара нет'; if (C.shopGone && C.shopGone(g, it.id)) return 'это уже раскупили'; if (C.PACK_ANIMALS && C.PACK_ANIMALS[it.id] && C.beastRoom && C.beastRoom(g) < 1) return 'скотины не больше, чем людей в отряде'; const tk = c.tr && C.trdPerson && C.trdPerson(g, c.tr) ? [g.shopMode, g.trdKey] : null; if (tk) { g.shopMode = 'trader'; g.trdKey = c.tr; } try { if (tk && C.trdSells && !C.trdSells(g, c.tr, it.id)) return 'у этого торговца такого нет'; const bp = buyPrice(it, h); if ((h.gold || 0) < bp) return 'не хватает денег'; h.gold -= bp; h.inv.push(it.id); if (C.shopTake) C.shopTake(g, it.id); if (C.onShopBuy) C.onShopBuy(g, h, it.id, bp, 1); } finally { if (tk) { g.shopMode = tk[0]; g.trdKey = tk[1]; } } save(); return; }
     case 'ident': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; if (!h.inv.includes(c.item) || !/^m\?:/.test(c.item)) return 'нечего распознавать'; const ip = C.identPrice(); if ((h.gold || 0) < ip) return 'не хватает денег'; h.gold -= ip; const k = C.identify(h, c.item); C.note(g, `Распознано у ${h.name}: ${(R.item(k) || {name: k}).name}.`); save(); return; }
     case 'sell': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; const tk = c.tr && C.trdPerson && C.trdPerson(g, c.tr) ? [g.shopMode, g.trdKey] : null; if (tk) { g.shopMode = 'trader'; g.trdKey = c.tr; } let e; try { if (tk && C.trdBuys && !C.trdBuys(g, c.tr, c.item)) return 'этот торговец такого не берёт'; e = sellItem(h, c.item); } finally { if (tk) { g.shopMode = tk[0]; g.trdKey = tk[1]; } } if (e) return e; save(); return; }
+    case 'faceAge': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; if (!h.faceAsk) return 'облик уже выбран'; if (c.face && !(C.facesOlder ? C.facesOlder(h, 6) : []).includes(c.face)) return 'такого облика нет'; C.faceSet(g, h, c.face || null); save(); rerender(); return null; }
     case 'belt': { const h = C.alive(g).find(x => x.id === c.hero); if (!h || ownerOf(h.id) !== pid) return 'это не ваш герой'; const e = C.beltSet(h, c.i | 0, c.val || null); if (e) return e; save(); rerender(); return; }
     case 'eq': { const h = C.alive(g).concat(g.mercs).find(x => x.id === c.hero); if (!h || (h.kind !== 'merc' && ownerOf(h.id) !== pid)) return 'это не ваш герой'; if (h.kind === 'merc' && pid !== leader()) return 'наёмников снаряжает вожатый'; if (c.val && !h.inv.includes(c.val)) return 'такой вещи нет'; if (h.kind === 'merc' && !c.val && h.eq[c.slot] && c.slot !== 'mount') return 'наёмник своё не снимает'; if (C.stuck && C.stuck(h, c.slot)) return 'проклятую вещь не снять'; if (c.val && C.canEquip && C.canEquip(h, R.item(c.val))) return C.canEquip(h, R.item(c.val)); equip(h, c.slot, c.val || null); save(); return; }
     case 'addHero': return addNetHero(c.hero, pid);
@@ -55281,7 +55282,7 @@ function addNetHero(h, pid) {
   if (heroesOf(pid).length) return 'У вас уже есть герой за столом: один игрок — один герой.';
   h = JSON.parse(JSON.stringify(h)); delete h._at; delete h._camp; delete h._dead;
   h.hp = h.hpMax; h.power = R.powerMax(h); h.dead = false;
-  C.addHero(g, h); g.net.own[h.id] = pid; g.pendingCreate = 0;
+  C.addHero(g, h); g.net.own[h.id] = pid; if (C.worldEnter) C.worldEnter(g, h, pid); g.pendingCreate = 0;
   Net.sysChat(`${pname(pid)}: ${h.name}, ${R.CLASSES[h.cls].name.toLowerCase()} ${h.level}-го уровня, садится к огню.`);
   try { if (Net.Hall.on()) { if (C.alive(g).length >= 4) Net.Hall.uninvite(Net.S.code); else Net.Hall.invite(inviteText()); } } catch (e) {}
   save(); rerender();
@@ -55474,7 +55475,7 @@ function startNetGame() {
   const L = LOBBY; LOBBY = null;
   g = C.newGame(C.CAMPS[L.camp], undefined, null);
   g.net = {leader: 'p0', own: {}, offers: []};
-  Object.entries(L.picks).forEach(([pid, hs]) => hs.forEach(h0 => { const h = JSON.parse(JSON.stringify(h0)); delete h._at; delete h._camp; h.hp = h.hpMax; h.power = R.powerMax(h); h.dead = false; C.addHero(g, h); g.net.own[h.id] = pid; }));
+  Object.entries(L.picks).forEach(([pid, hs]) => hs.forEach(h0 => { const h = JSON.parse(JSON.stringify(h0)); delete h._at; delete h._camp; h.hp = h.hpMax; h.power = R.powerMax(h); h.dead = false; C.addHero(g, h); g.net.own[h.id] = pid; if (C.worldEnter) C.worldEnter(g, h, pid); }));
   g.pendingCreate = 0;
   Net.sysChat(`Стол собран. «${CAMP_OF().name}» начинается.`);
   save(); renderTop(); showScene(startScene());
