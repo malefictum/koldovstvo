@@ -71959,3 +71959,52 @@ if (C.register) { const reg0 = C.register; C.register = function (camp) { const 
 if (C.wearFx) { const wf0 = C.wearFx; C.wearFx = function (x) { const t = wf0.apply(this, arguments); try { if (x && C.DRESS_T[R.baseId ? R.baseId(x.id) : x.id] > 1) return t + '; в непогоду и в бою изнашивается — в дорогу лучше простое'; } catch (e) {} return t; }; }
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* night_tune.js */
+/* Колдовство — настройка ночей дома и молвы (Ник 25.11: «холодную урежь чуток, обычную семейную и жаркую подними по бенефитам;
+   шансы, что узнают свои и что дойдёт до жены по слухам, — пониже»). Без DOM. Числа — тайна мастера (C.NT).
+   • Обычная ночь дома: ужин сытнее; герой отогрелся — дух может держаться до самого высокого ещё PLAIN_WARM дня, пока сыт;
+     отношение супруга(и) чуть теплее.
+   • Жаркая: «окрылён» держится дольше и учит быстрее; ужин — лучший в году; весь отряд, глядя на героя, бодрее.
+   • Холодная: ужин скромнее, герою дух на ступень ниже. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.HE || !C.FOOD_FX) return;
+C.NT = Object.assign({PLAIN_WARM: 2, PLAIN_REL: 1, COLD_SPIRIT: -1, HOT_PARTY: 1, GLOW_DAYS: 6, WING_DAYS: 4, WING_XP: 1.35,
+  KNOW: {bansh: 0.15, vesely: 0.2, guest: 0.3, local: 0.2, camp: 0.6}, SPOUSE: {bansh: 0.06, vesely: 0.08, guest: 0.12, local: 0.15, camp: 0.45},
+  HIDE_PER: 0.07, HIDE_MIN: 0.3, HIDE_MAX: 1.3, HIDE_DRUNK: 0.15}, C.NT || {});
+const K = () => C.NT;
+Object.assign(C.HE, {GLOW_DAYS: K().GLOW_DAYS, WING_DAYS: K().WING_DAYS, WING_XP: K().WING_XP});
+if (C.KV) { C.KV.KNOW = Object.assign({}, C.KV.KNOW, K().KNOW); C.KV.SPOUSE = Object.assign({}, C.KV.SPOUSE, K().SPOUSE); }
+Object.assign(C.FOOD_FX, {
+  home_love: {hp: 14, pw: 5, rg: 3, tmp: 14, chk: 2, will: 1},
+  home_supper: {hp: 11, pw: 3, rg: 2, tmp: 10, chk: 1},
+  home_hot: {hp: 18, pw: 6, rg: 4, tmp: 18, chk: 3, will: 2},
+  home_cold: {hp: 8, pw: 2, rg: 1, tmp: 6}});
+/* скрытность героя (Ник 25.11): умеет таиться или заговорить зубы — молва реже; неуклюж и простодушен — чаще; хмель болтлив */
+C.ntHide = function (h) { if (!h) return 0; const st = h.stats || {}, sk = (n, a) => (R.skill ? R.skill(h, n) : 0) + (R.mod ? R.mod(st[a] || 10) : 0);
+  return Math.max(sk('Скрытность', 'dex'), sk('Обман', 'cha'), R.mod ? R.mod(st.wis || 10) : 0); };
+C.ntHideMul = function (h) { const k = K(); let m = 1 - k.HIDE_PER * C.ntHide(h); try { if (h && h.drunk) m += 2 * k.HIDE_DRUNK * Math.min(1, h.drunk / (C.drunkLimit ? C.drunkLimit(h) : 4)); } catch (e) {}
+  return Math.max(k.HIDE_MIN, Math.min(k.HIDE_MAX, m)); };
+if (C.kvAfter && C.KV) { const ka0 = C.kvAfter; C.kvAfter = function (g, h, o) { const m = C.ntHideMul(h), K0 = C.KV.KNOW, S0 = C.KV.SPOUSE, sc = x => { const y = {}; Object.keys(x).forEach(k => { y[k] = Math.min(1, x[k] * m); }); return y; };
+  C.KV.KNOW = sc(K0); C.KV.SPOUSE = sc(S0); const o2 = o && o.know != null ? Object.assign({}, o, {know: Math.min(1, o.know * m)}) : o;
+  try { return ka0.call(this, g, h, o2); } finally { C.KV.KNOW = K0; C.KV.SPOUSE = S0; } }; }
+const day = g => (g && g.day) || 1;
+/* отогрелся дома: потолок духа — до самого высокого, пока сыт */
+{ const cap0 = C.spiritCap; if (cap0) C.spiritCap = function (h) { const c = cap0.apply(this, arguments); return h && h.ntWarm && !(h.hunger > 0) && C._ntDay && C._ntDay <= h.ntWarm ? Math.max(c, 3) : c; }; }
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { if (g) C._ntDay = day(g); const r = ps0.apply(this, arguments); if (g) C._ntDay = day(g); return r; }; }
+if (C.heroStatus) { const hs0 = C.heroStatus; C.heroStatus = function (g, h) { const out = hs0.apply(this, arguments) || [];
+  try { if (h && h.ntWarm && day(g) <= h.ntWarm && !(C.heWinged && C.heWinged(g, h))) out.push({t: 'Отогрелся дома', cls: 'ok', why: 'после ночи дома: дух держится высоко, пока сыт'}); } catch (e) {}
+  return out; }; }
+/* после того как ночь началась — поправить по её настрою */
+const tune = g => { const S = g && g.he, N = S && S.night; if (!N || N.ntDone) return; N.ntDone = 1; C._ntDay = day(g);
+  const h = C.alive(g).find(x => x.id === N.hero); if (!h) return;
+  if (N.hot) { if (h.meal) h.meal.id = 'home_hot'; C.alive(g).filter(x => x !== h).forEach(x => { if (C.spiritAdd) C.spiritAdd(g, K().HOT_PARTY, '', x); }); return; }
+  if (N.mood === 'cold') { if (h.meal) h.meal.id = 'home_cold'; if (C.spiritAdd) C.spiritAdd(g, K().COLD_SPIRIT, '', h); return; }
+  if (N.mood === 'sore') return;
+  h.ntWarm = Math.max(h.ntWarm || 0, day(g) + K().PLAIN_WARM); h.spirit = Math.max(h.spirit || 0, Math.min(3, C.spiritCap(h)));
+  try { const [role, at] = String(N.key).split('@'); if (C.relAdd) C.relAdd(g, role, at, K().PLAIN_REL, 'ночь дома'); } catch (e) {} };
+{ const ch0 = C.choose; C.choose = function (g) { const r = ch0.apply(this, arguments); try { if (r && r.scene === 'he_night') tune(g); } catch (e) {} return r; }; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);

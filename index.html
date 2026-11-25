@@ -41711,7 +41711,7 @@ C.sceneOf = function (g, id) {
 C.FOOD_FX.home_love = {hp: 12, pw: 4, rg: 3, tmp: 12, chk: 2, will: 1};
 C.FOOD_FX.home_supper = {hp: 10, pw: 2, rg: 2, tmp: 9, chk: 1};
 if (C.mealText) { const mt0 = C.mealText; C.mealText = function (h, g) { const f = C.mealOf && C.mealOf(h, g);
-  if (f && h.meal && /^home_/.test(h.meal.id)) { const t = C.mealFxText ? C.mealFxText(f) : ''; return t ? `${h.meal.id === 'home_love' ? 'Ночь дома' : 'Домашний ужин'}: ${t}.` : ''; }
+  if (f && h.meal && /^home_/.test(h.meal.id)) { const t = C.mealFxText ? C.mealFxText(f) : ''; return t ? `${/^home_(love|hot|cold)$/.test(h.meal.id) ? 'Ночь дома' : 'Домашний ужин'}: ${t}.` : ''; }
   return mt0.apply(this, arguments); }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -49913,7 +49913,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611250521"></script><script>
+</script><script src="world.js?v=202611250531"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
