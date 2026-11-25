@@ -70377,7 +70377,7 @@ C.battleStart = function (g, spec, auto) {
   BF._twNow = 1; let S;
   try { S = bs0.apply(this, arguments); } finally { BF._twNow = 0; }
   g.battles = Math.max(0, (g.battles || 1) - 1); // прогулка — не бой
-  try { BF.ownRng(g, spec, () => C.walkSetup(S, g)); } catch (e) { if (C.BF_DEBUG) console.error(e); if (!S.walk) S.walk = {node: g.loc, night: g.twalk.night, kind: 'village', rnd: 0, min: 0, sus: {}, crimes: [], seen: [], opened: {}, said: {}}; }
+  try { BF.ownRng(g, spec, () => C.walkSetup(S, g)); if (S.walk && !S.walk.night) C.walkAskers(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); if (!S.walk) S.walk = {node: g.loc, night: g.twalk.night, kind: 'village', rnd: 0, min: 0, sus: {}, crimes: [], seen: [], opened: {}, said: {}}; }
   mood(g, S);
   return S;
 };
@@ -70714,9 +70714,16 @@ C.walkActs = function (S, u) {
   doorsAround(S, u).forEach(o => { const ek = enterKey(o.h.k); if (!TX.enter[ek] || out.some(x => x.v === 'enter' && x.p === o.h.id)) return;
     const night = Wk.night && !['korchma', 'korchma_big'].includes(o.h.k);
     out.push({v: 'enter', p: o.h.id, label: TX.enter[ek], dis: night ? TX.shut : '', title: TX.tips.enter, grp: 'Прогулка'}); });
+  // всё, что есть в меню места, — у своего дома, у колодца, в поле (Ник 25.11: «чтобы можно было всё»)
+  { const MM = menuMap(S), seen = new Set(); const add = (c, why) => { if (seen.has(c.label)) return; seen.add(c.label); out.push({v: 'menu', p: c.label, label: shortL(c.label), dis: c.dis || why || '', title: c.label, grp: 'Здесь'}); };
+    doorsAround(S, u).forEach(o => (MM.house[o.h.id] || []).forEach(c => add(c, Wk.night && !['korchma', 'korchma_big', 'starosta', 'terem', 'boyar'].includes(o.h.k) ? TX.shut : '')));
+    const x0 = cellOf(S, u), nearT = t => [x0].concat(B.neigh(u.c, u.r).map(q => B.cell(S, q.c, q.r))).some(x => x && x.t === t);
+    if (nearT('well')) MM.well.forEach(c => add(c)); if (x0 && ['rye', 'garden'].includes(x0.t)) MM.field.forEach(c => add(c, Wk.night ? TX2.why.dark : ''));
+    MM.any.forEach(c => add(c)); }
   // люди рядом
   S.units.filter(t => t.side === 'civ' && t.civ && B.active(t) && t.c != null && B.dist(t, u) === 1 && people(t) && !t.horseOnly).forEach(t => {
-    if (awake(t) && t.civ.k !== 'child' && !t.civ.poisoned) out.push({v: 'talk', t: t.id, label: fill(TX.talkBtn, {n: t}), dis: Wk.night && t.civ.k !== 'guard' && !BF.inHouse(S, u) ? TX.why.night : '', title: TX.tips.talk, grp: 'Люди'});
+    if (awake(t) && t.civ.ask) (t.civ.asks || [t.civ.ask]).forEach((q, k) => out.push({v: 'ask', t: t.id, p: q, label: k ? shortL(q) : fill(TX2.askBtn, {n: t}), dis: Wk.night && !BF.inHouse(S, u) ? TX.why.night : '', title: q, grp: 'Люди'}));
+    if (awake(t) && t.civ.k !== 'child' && !t.civ.poisoned && !t.civ.ask) out.push({v: 'talk', t: t.id, label: fill(TX.talkBtn, {n: t}), dis: Wk.night && t.civ.k !== 'guard' && !BF.inHouse(S, u) ? TX.why.night : '', title: TX.tips.talk, grp: 'Люди'});
     if (awake(t) && !Wk.night && t.civ.k !== 'child' && !Wk.picked[t.id]) out.push({v: 'pick', t: t.id, label: fill(TX.pick, {n: t}), dis: usedA, title: TX.tips.pick, grp: 'Тёмное дело'});
     if (t.civ.sleep && t.civ.k !== 'child') out.push({v: 'kill', t: t.id, label: fill(TX.kill, {n: t}), dis: usedA, title: TX.tips.kill, grp: 'Тёмное дело'});
     if (t.civ.k === 'tgt' && awake(t) && poisonOf(u)) { const inn = BF.inHouse(S, t), hh = inn != null ? houseOf(S, inn) : null; if (hh && /korchma/.test(hh.k)) out.push({v: 'poison', t: t.id, label: fill(TX.poison, {n: t}), dis: usedA, title: TX.tips.poison, grp: 'Тёмное дело'}); } });
@@ -70728,6 +70735,14 @@ C.walkActs = function (S, u) {
   out.push({v: 'crouch', label: u.crouch ? TX2.crouchOff : TX2.crouchOn, title: TX2.tips.crouch, grp: 'Скрытность'});
   if (!(u.conds && u.conds.hidden)) out.push({v: 'hide', label: TX2.hide, dis: usedA || (B.canHide(S, u) || (Wk.night && !litAt(S, cellOf(S, u))) ? '' : TX2.why.hide), title: TX2.tips.hide, grp: 'Скрытность'});
   out.push({v: 'dash', label: TX2.dash, dis: usedA, title: TX2.tips.dash, grp: 'Скрытность'});
+  // рядом с вещами: окно, плетень, стог, колодец (Ник 25.11: действия по месту)
+  { const nb = B.neigh(u.c, u.r).map(q => B.cell(S, q.c, q.r)).filter(Boolean), inH = BF.inHouse(S, u) != null;
+    if (!inH) nb.filter(x => x.t === 'hwin' && x.hb != null).slice(0, 1).forEach(x => { const k = key(x.c, x.r);
+      out.push({v: 'peek', p: k, label: TX2.peek, dis: (Wk.peeked || {})[k] === Wk.rnd ? TX2.why.peeked : '', title: TX2.tips.peek, grp: 'Рядом'});
+      out.push({v: 'climb', p: k, label: TX2.climb, dis: usedA || (!winIn(S, x) ? TX2.why.noRoom : ''), title: TX2.tips.climb, grp: 'Рядом'}); });
+    const fz = nb.find(x => x.t === 'fence' && overFence(S, u, x)); if (fz) out.push({v: 'vault', p: key(fz.c, fz.r), label: TX2.vault, dis: u.steps - (S.moved || 0) < 2 ? TX2.why.steps : '', title: TX2.tips.vault, grp: 'Рядом'});
+    if (nb.some(x => x.t === 'hay') && !(u.conds && u.conds.hidden)) out.push({v: 'hay', label: TX2.hay, dis: usedA, title: TX2.tips.hay, grp: 'Рядом'});
+    if (nb.some(x => x.t === 'well')) out.push({v: 'drink', label: TX2.drink, dis: Wk.drank ? TX2.why.drank : '', title: TX2.tips.drink, grp: 'Рядом'}); }
   // постучать в запертую или затворённую дверь дома, где живут
   doorsAround(S, u).forEach(o => { if (o.d.st !== 'shut' || out.some(x => x.v === 'knock' && x.p === o.h.id) || BF.inHouse(S, u) === o.h.id) return; if (!civs(S).some(f => f.civ.home === o.h.id && people(f))) return;
     out.push({v: 'knock', p: o.h.id, d: o.id, label: TX2.knock, dis: S.bonus ? TX2.why.bonus : '', title: TX2.tips.knock, grp: 'Люди'}); });
@@ -70745,6 +70760,66 @@ const bo0 = B.bfOp;
 B.bfOp = function (S, u, a) { if (a && a.k === 'tw') { const r = C.walkDo(S, u, a); syncSleep(S); return r; } const r = bo0 ? bo0.apply(this, arguments) : 'Так нельзя.'; if (S && S.walk) syncSleep(S); return r; };
 const roll = (u, stat, skill, dc, adv) => { const r1 = R.d(20), r = adv ? Math.max(r1, R.d(20)) : r1, b = BF.ckBonus ? BF.ckBonus(u, stat, skill) : 0, tot = r + b + (['tat', 'dushegub'].includes(u.cls || (u.ref && u.ref.cls)) ? 2 : 0); return {r, tot, ok: r === 20 || (r !== 1 && tot >= dc), miss: dc - tot}; };
 const thiefTool = u => !!(u.ref && C.heroTool && C.heroTool(u.ref, 'thief'));
+/* ======================= меню места — по улице (Ник 25.11) =======================
+   Каждый выбор полной сцены места находит своё место в селе: дом (корчма, лавка, баня, конюшня, староста, терем), колодец (праздник),
+   поле (помочь с севом), человека (сказания, «поговорить», просьбы — ходят по селу с делом). Что не нашло места — у старосты или в корчме. */
+const SKIP = /^(Уйти на карту|Улица: поболтать|Пройтись по|Осмотреться|Вернуться на улицу|Закончить прогулку|Продолжить прогулку)/;
+const isPerson = c => c.tale || /^(Поговорить|Навестить)[: ]/.test(c.label || '') || (c.w2 === 'ppl') || / — (ищет|просит|просится|не может|вписан|не спит|зовёт|ждёт)/.test(c.label || '');
+const kindOfChoice = c => { const t = c.label || '';
+  if (isPerson(c)) return 'person';
+  if (c.go === 'folk_tavern' || /^Корчма/.test(t) || c.inn || /^Заночевать/.test(t) || /^Весёлый дом/.test(t) || c.go === 'dt_hub' || /^Между делами/.test(t)) return 'korchma';
+  if (/^(Торг|Лавка)$/.test(t)) return 'kupec';
+  if (/храм/i.test(t) && !/кружк/.test(t)) return 'hram';
+  if (/мастера и люди/.test(t)) return 'kuznya';
+  if (c.go === 'kv_banya' || /^(Баня|Мыльня)/.test(t)) return 'banya';
+  if (c.go === 'stable' || /^Конюшня/.test(t)) return 'konyushnya';
+  if (/^Праздник/.test(t)) return 'well';
+  if (/^Помочь с /.test(t)) return 'field';
+  if (/^Приём у тиуна|^Терем/.test(t)) return 'terem';
+  return 'starosta'; };
+const shortL = t => { t = String(t || ''); return t.length > 46 ? t.slice(0, 44).replace(/[ ,:—-]+$/, '') + '…' : t; };
+const HOUSE_FALL = {korchma: ['korchma', 'korchma_big'], kupec: ['kupec', 'korchma', 'korchma_big'], hram: ['hram'], kuznya: ['kuznya', 'masterskaya'], banya: ['banya'], konyushnya: ['konyushnya', 'korchma', 'korchma_big'],
+  terem: ['terem', 'boyar', 'starosta', 'korchma', 'korchma_big'], starosta: ['starosta', 'terem', 'boyar', 'korchma', 'korchma_big']};
+function menuMap(S) {
+  const Wk = S.walk, g = G_; if (Wk._mm && Wk._mm.r === Wk.rnd) return Wk._mm.m;
+  const m = {house: {}, well: [], field: [], any: [], person: []}; let L = [];
+  try { L = (C.placeFull(g).choices || []).filter(c => c && c.label && !SKIP.test(c.label) && !ENTER_OF(c)); } catch (e) {}
+  if (L.some(c => c.inn)) { const at = L.findIndex(c => c.inn); L = L.filter(c => !c.inn); L.splice(at, 0, {label: 'Заночевать…', inn: 1, goScene: 'place_inn'}); }
+  const hs = houseList(S), wellX = cellsOf(S, 'well').length, fieldX = cellsOf(S, 'rye').length + cellsOf(S, 'garden').length;
+  L.forEach(c => { const k = kindOfChoice(c);
+    if (k === 'person') { m.person.push(c); return; }
+    if (k === 'well') { if (wellX) m.well.push(c); else m.any.push(c); return; }
+    if (k === 'field') { if (fieldX) m.field.push(c); else k2(c); return; }
+    k2(c, k); });
+  function k2(c, k) { const want = HOUSE_FALL[k || 'starosta'] || HOUSE_FALL.starosta; let h = null; for (const hk of want) { h = hs.find(x => x.k === hk && (x.doors || []).some(d => !d.inner)); if (h) break; }
+    if (h) (m.house[h.id] = m.house[h.id] || []).push(c); else m.any.push(c); }
+  Wk._mm = {r: Wk.rnd, m}; return m;
+}
+/* то, что уже входит через «Войти в корчму / лавку / кузню…», не повторяем */
+const ENTER_OF = c => Object.values(ENTER).some(f => { try { return f(c); } catch (e) { return false; } });
+/* люди с делом ходят по селу: сказания, «поговорить с …», просьбы */
+C.walkAskers = function (S, g) {
+  const Wk = S.walk; let L = []; try { L = (C.placeFull(g).choices || []).filter(c => c && c.label && !c.dis && isPerson(c)); } catch (e) {}
+  if (!L.length) return 0;
+  // кто есть кто: имя (сказание — до запятой; «Поговорить с …» — из людей мира), по имени — один человек с одним или несколькими делами
+  const who = c => { const P = c.w2ppl && C.W2_PPL ? C.W2_PPL[c.w2ppl] : null; if (P) return {n: P.n, t: P.t || '', face: P.face || ''};
+    const lab = String(c.label).replace(/^(Поговорить|Навестить)[: с]+/, ''); return {n: lab.split(/ — |, /)[0].trim(), t: (lab.split(' — ')[1] || '').trim(), face: ''}; };
+  const by = {}; L.forEach(c => { const w = who(c), k = w.n.toLowerCase().slice(0, 4); (by[k] = by[k] || {w, cs: []}).cs.push(c); if (!by[k].w.face && w.face) by[k].w.face = w.face; });
+  const used = new Set(); let n = 0;
+  const pool = civs(S).filter(u => people(u) && !u.civ.tf && !u.civ.folk && !u.civ.ask && ['muzhik', 'baba', 'starik'].includes(u.civ.k));
+  const well = cellsOf(S, 'well')[0];
+  Object.values(by).forEach(({w, cs}) => {
+    let u = pool.find(x => !used.has(x.id));
+    if (!u) { const base = civs(S).find(x => people(x)); if (!base) return; u = JSON.parse(JSON.stringify(base)); u.id = 'ask' + (n + 1) + '_' + Math.floor(R.rand() * 1e6); u.civ = Object.assign({}, base.civ, {home: null, plan: null, sleep: 0});
+      const near = well || cellOf(S, base); const xs = Object.values(S.field.cells).filter(x => freeCell(S, x) && x.hb == null && near && B.dist(x, near) <= 5); const q = xs[Math.floor(R.rand() * xs.length)]; if (!q) return; u.c = q.c; u.r = q.r; S.units.push(u); }
+    used.add(u.id); n++; u.civ.ask = cs[0].label; u.civ.asks = cs.map(c => c.label); u.name = w.n + ' · есть дело'; if (w.face) { u.portrait = w.face; u.civ.face = w.face; }
+    u.civ.plan = {n: 'wander', until: 4 + Math.floor(R.rand() * 4)}; });
+  if (n && Wk) lg(S, TX2.askersLog, '');
+  return n;
+};
+/* куда влезть через окно и куда спрыгнуть через плетень */
+const winIn = (S, x) => B.neigh(x.c, x.r).map(q => B.cell(S, q.c, q.r)).find(y => y && y.hin && y.hb === x.hb && freeCell(S, y)) || null;
+const overFence = (S, u, f) => B.neigh(f.c, f.r).map(q => B.cell(S, q.c, q.r)).filter(y => y && freeCell(S, y) && B.dist(y, u) >= 2).sort((a, b) => B.dist(b, u) - B.dist(a, u))[0] || null;
 /* постучать: дома кто-то есть — выходит к двери (днём отворяет, ночью — только своим); спят — будишь; нет никого — тишина */
 const knock = (S, u, hid, did) => {
   const Wk = S.walk, g = G_, h = houseOf(S, hid), o = BF.doorOf(S, did); if (!h || !o) return TX.why.none; S.bonus = true; B.faceTo(u, o.d);
@@ -70762,11 +70837,20 @@ const knock = (S, u, hid, did) => {
   return '';
 };
 const TX2 = C.TW_TX2 = {
+  peek: 'Заглянуть в окно', climb: 'Влезть в окно', vault: 'Перелезть через плетень', hay: 'Зарыться в стог', drink: 'Напиться у колодца',
+  peekWho: 'В окне видно: {t}.', peekEmpty: 'Заглянули в окно — в избе пусто.', peekDark: 'В окне темно, ничего не разглядеть.',
+  peekSeen: ['{n} замечает лицо в окне и вскрикивает!', '{n} оборачивается к окну: «А ну, кто там зыркает?»'],
+  climbOk: ['{h} подтягивается и бесшумно переваливается через подоконник.', '{h} ныряет в окно, как в омут.'], climbNo: ['{h} срывается с подоконника и с грохотом падает в лопухи.', 'Рама трещит — {h} отступает, пока не услышали.'],
+  vaultLog: ['{h} одним махом перелезает через плетень.', '{h} перемахивает через плетень, только прутья скрипнули.'],
+  hayLog: ['{h} зарывается в стог — торчит одна макушка, да и ту не видно.'], drinkLog: ['{h} пьёт студёную воду из колодезного ведра — на душе светлее.', '{h} умывается у колодца и пьёт вдоволь.'],
+  askBtn: 'Выслушать: {n}', askersLog: 'Кто-то в селе ищет помощи — у таких людей дело к вам.',
   crouchOn: 'Пригнуться', crouchOff: 'Выпрямиться', hide: 'Затаиться', dash: 'Рывок', knock: 'Постучать',
-  why: {hide: 'Нужно укрытие рядом: плетень, кусты, стог, угол дома — или темнота.', bonus: 'Малое действие уже потрачено.'},
+  why: {hide: 'Нужно укрытие рядом: плетень, кусты, стог, угол дома — или темнота.', bonus: 'Малое действие уже потрачено.', dark: 'Ночью в поле не работают.', peeked: 'Только что заглядывали.', noRoom: 'Некуда: за окном тесно.', steps: 'Нужно два шага.', drank: 'Уже напились.'},
   tips: {crouch: 'Без действия: идёшь вдвое медленнее, зато тише и незаметнее. Нажми ещё раз — выпрямиться.',
     hide: 'Основное действие: Ловкость (Скрытность) у укрытия или в темноте. Затаившегося не видят издали, пока не двинется с места.',
     dash: 'Основное действие: ещё столько же шагов. Бегущий бросается в глаза — заметить его легче.',
+    peek: 'Без действия: кто в избе и спит ли. Могут заметить.', climb: 'Основное действие: Ловкость (Атлетика). Влезть в дом — чужой дом, худое дело, если увидят.',
+    vault: 'Два шага: перелезть на ту сторону.', hay: 'Основное действие: спрятаться в стогу наверняка — пока не вылезешь.', drink: 'Без действия: раз в день поднимает дух.',
     knock: 'Малое действие: кто дома — выйдет к двери. Днём отворят и заговорят; ночью — только своим, остальные из-за двери ругнутся.'},
   crouchLogOn: ['{h} пригибается и идёт тише, держась теней.', '{h} пригибается пониже, ступает мягко.'],
   crouchLogOff: ['{h} выпрямляется во весь рост.'],
@@ -70794,8 +70878,23 @@ C.walkDo = function (S, u, a) {
     if (ok) { u.conds.hidden = 1; lg(S, fill(pick(TX2.hideOk), {h: u}), 'buff'); } else { lg(S, fill(pick(TX2.hideNo), {h: u}), ''); perceive(S, u); } return ''; }
   if (a.v === 'dash') { S.acted = true; const add = u.steps; S.moved -= add; u.dashR = Wk.rnd; if (u.conds) delete u.conds.hidden; lg(S, fill(pick(TX2.dashLog), {h: u}), ''); Wk._roll = {}; perceive(S, u); return ''; }
   if (a.v === 'knock') return knock(S, u, a.p, act.d);
+  if (a.v === 'peek') { const [c, r0] = a.p.split(',').map(Number), x = B.cell(S, c, r0), h = houseOf(S, x.hb); (Wk.peeked = Wk.peeked || {})[a.p] = Wk.rnd; B.faceTo(u, x);
+    const inn = civs(S).filter(f => BF.inHouse(S, f) === x.hb && people(f)), dark = Wk.night && !(h && BF.houseLit && BF.houseLit(S, h));
+    if (BF.revealHouse) try { BF.revealHouse(S, h); } catch (e) {}
+    lg(S, dark ? TX2.peekDark : !inn.length ? TX2.peekEmpty : fill(TX2.peekWho, {t: inn.map(f => nameOf(f) + (f.civ.sleep ? ' (спит)' : '')).join(', ')}), '');
+    if (inn.some(f => awake(f) && B.dist(f, u) <= 3 && R.rand() < 0.35)) { const f = inn.find(awake); lg(S, fill(pick(TX2.peekSeen), {n: f}), 'bad'); sight(S, f, u); Wk.sus[hid] = Wk.rnd; }
+    return ''; }
+  if (a.v === 'climb') { const [c, r0] = a.p.split(',').map(Number), x = B.cell(S, c, r0), to = winIn(S, x); if (!to) return TX2.why.noRoom; S.acted = true;
+    const r = roll(u, 'dex', 'Атлетика', 12); if (!r.ok) { lg(S, fill(pick(TX2.climbNo), {h: u}), ''); C.walkNoise(S, x, r.miss >= 5 ? 1 : 0); return ''; }
+    u.c = to.c; u.r = to.r; Wk.sus[hid] = Wk.rnd; lg(S, fill(pick(TX2.climbOk), {h: u}), ''); if (BF.touch) BF.touch(S); perceive(S, u); return ''; }
+  if (a.v === 'vault') { const [c, r0] = a.p.split(',').map(Number), x = B.cell(S, c, r0), to = overFence(S, u, x); if (!to) return TX2.why.noRoom; S.moved = (S.moved || 0) + 2; u.c = to.c; u.r = to.r;
+    lg(S, fill(pick(TX2.vaultLog), {h: u}), ''); Wk._roll = {}; perceive(S, u); return ''; }
+  if (a.v === 'hay') { S.acted = true; u.conds.hidden = 1; lg(S, fill(pick(TX2.hayLog), {h: u}), 'buff'); return ''; }
+  if (a.v === 'drink') { Wk.drank = 1; lg(S, fill(pick(TX2.drinkLog), {h: u}), ''); try { if (g && C.spiritAdd && (g.twWell || 0) !== g.day) { g.twWell = g.day; C.spiritAdd(g, 1, 'студёная вода из колодца'); } } catch (e) {} return ''; }
   if (a.v === 'light') { u.torch = !u.torch; if (u.look) u.look = Object.assign({}, u.look, {torch: !!u.torch && !((u.ref && u.ref.inv) || []).includes('fonar_slyudyanoy')}); if (BF.touch) BF.touch(S); lg(S, fill(u.torch ? TX.light.onLog : TX.light.offLog, {h: u}), ''); S.walk._roll = {}; perceive(S, u); return ''; }
   if (a.v === 'enter') { const h = houseOf(S, a.p); Wk.end = {k: 'pause', go: {k: 'place', hk: h ? h.k : ''}}; S.over = 'walk'; return ''; }
+  if (a.v === 'menu' && act.p === 'Заночевать…') { Wk.end = {k: 'pause', go: {k: 'scene', id: 'place_inn'}}; S.over = 'walk'; return ''; }
+  if (a.v === 'menu' || a.v === 'ask') { Wk.end = {k: 'pause', go: {k: 'choice', label: act.p}}; S.over = 'walk'; return ''; }
   if (a.v === 'talk') { const j = tgtJob(g, t); let face = t.portrait || t.civ.face || ''; if (!face) { try { const fs = C.foeFaces(t.civ.k === 'guard' ? 'guard' : 'wander', sexOf(t)); face = fs.length ? fs[hsh(t.name || t.id) % fs.length] : ''; t.civ.face = face; } catch (e) {} }
     Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null, folk: t.civ.folk || null}}}; S.over = 'walk'; return ''; }
   if (a.v === 'pick') {
@@ -70930,6 +71029,9 @@ C.walkFinish = function (g, S) {
     passMin(g, Wk); S.over = null; Wk.end = null; Wk._roll = {}; try { if (C.SFX && C.SFX.calm) C.SFX.calm(g); } catch (e) {}
     g.twalk.snap = pack(S);
     if (E.go.k === 'talk') { g.twalk.talk = Object.assign({log: []}, E.go.who); return {scene: 'tw_talk'}; }
+    if (E.go.k === 'scene') { g.innBack = null; return {scene: E.go.id}; }
+    if (E.go.k === 'choice') { let ch = null; try { ch = (C.placeFull(g).choices || []).find(c => c.label === E.go.label && !c.dis); } catch (e) {} if (!ch) return {scene: back(g)};
+      try { return runChoice(g, ch); } catch (e) { if (C.BF_DEBUG) console.error(e); return {scene: back(g)}; } }
     const ch = placeChoice(g, E.go.hk);
     if (!ch) return {scene: back(g)};
     try { return runChoice(g, ch); } catch (e) { if (C.BF_DEBUG) console.error(e); return {scene: back(g)}; }
