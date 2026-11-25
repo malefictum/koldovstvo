@@ -72580,3 +72580,65 @@ const FAM_RX = /посвататься|Посвататься|Взять в жё
   return sc; }; }
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* net_split.js */
+/* Колдовство — город за общим столом: каждый сам по себе (Ник 25.11). Движок, без DOM; окна — ui.js.
+   • В селе или городе у каждого игрока своё меню и свои часы (g.net.pv[pid]): кто куда пошёл, до которого часа, что у него
+     на руках (сцена и её состояние — ctx).
+   • Лавки, торг, разговоры с торговцами — без времени. Дело со временем (учёба, ремесло, помочь соседу, пир) двигает часы только
+     этого игрока; кто ушёл вперёд — ждёт (чат можно, действовать нельзя), пока остальные не дойдут до его часа.
+     Мир (погода, вести, голод) идёт по самому отстающему; когда все сошлись — у всех окно «все освободились».
+   • Долгое (дольше CAP часов, как учёба на два дня) — не ждут: «запущено», герой не может уйти из места, пока не кончится,
+     а сам делает что хочет. Любовные утехи — полчаса (сон — только общий).
+   • Уйти из места и ночлег — общие: нажал — «ждёт у ворот»; когда нажали все — идут.
+   Числа — C.SPLIT. */
+(function (G) {
+'use strict';
+const C = G.C, R = G.R;
+if (!C || !R) return;
+C.SPLIT = Object.assign({CAP: 4, LOVE: 0.5, UNIT: 6,
+  CTX: ['folkLast', 'crLast', 'trdLast', 'kvLast', 'cusLast', 'folkAt', 'folkRole', 'shopMode', 'tnLast', 'estLast', 'jobOffer', 'jobFrom', 'trdKey', 'tfLast', 'rogueLast', 'jobPending',
+    'w2hearthLast', 'shopBack', 'kvArt', 'hireLast', 'drinkLast', 'w2chestLast', 'tavLast', 'stableLast', 'w2huntLast', 'w2gateLast', 'w2facSel', 'tfBack', 'profLast', 'kvRegLast',
+    'jewelLast', 'innBack', 'tnCur', 'svLast', 'studyLast', 'kvAskGo', 'kvAgeLast', 'dgLast', 'ailLast', 'taleCur', 'perfLast', 'kvRegCur', 'kvCur', 'homeVisitKey', 'estForgeLast',
+    'compLast', 'w2pplCur', 'w2nmLast', 'w2facBack', 'trdBack', 'trdAt', 'tnVis', 'tnRole', 'tavBack', 'profHero', 'forgeLast', 'drinkWho', 'trdSolo', 'tfCur', 'kvWedSay', 'kvTempleLast',
+    'lastCheck', 'lastNews', 'heCur', 'templeLast', 'okoLast', 'okoLast2', 'curJob', 'scene'],
+  TOWN: ['город', 'село', 'подворье', 'торг'],
+  PRIVATE: /^(kv_|cl_|tryst|he_|dg_|banya|vesely|kv_reg|tf_flirt)/}, C.SPLIT || {});
+const K = () => C.SPLIT;
+const nodes = g => ((C.CAMPS[g.camp] || {}).map || {}).nodes || {};
+C.splitOn = g => !!(g && g.net && g.net.split);
+C.splitTownOk = g => { const n = g && nodes(g)[g.loc]; return !!(n && K().TOWN.includes(n.kind) && !g.dungeon); };
+C.splitPv = (g, pid) => { g.net.pv = g.net.pv || {}; return g.net.pv[pid] = g.net.pv[pid] || {clk: 0, ctx: {}, id: null, busy: '', ready: null, lock: null}; };
+const pick = g => { const o = {}; K().CTX.forEach(k => { if (g[k] !== undefined) o[k] = g[k]; }); return JSON.parse(JSON.stringify(o)); };
+const put = (g, o) => { K().CTX.forEach(k => { if (o && k in o) g[k] = o[k]; else delete g[k]; }); };
+C.splitPick = pick; C.splitPut = put;
+/* начать: у всех — та же сцена места и пустые часы */
+C.splitStart = function (g, pids, sceneId) {
+  g.net.split = 1; g.net.splitN = (g.net.splitN || 0) + 1; const base = pick(g);
+  pids.forEach(pid => { const pv = C.splitPv(g, pid); pv.clk = 0; pv.id = sceneId; pv.ctx = JSON.parse(JSON.stringify(base)); pv.busy = ''; pv.ready = null; });
+};
+C.splitStop = g => { if (!g || !g.net) return; g.net.split = 0; Object.values(g.net.pv || {}).forEach(pv => { pv.clk = 0; pv.ready = null; }); };
+/* время: в действии игрока — его часы, не мира */
+const charge = (g, hrs, why) => { const pid = g._splitPid, pv = C.splitPv(g, pid); if (!(hrs > 0)) return;
+  if (g._splitLove) hrs = Math.min(hrs, K().LOVE);
+  if (hrs > K().CAP) { const days = Math.max(1, Math.round(hrs / 24)); pv.lock = {label: why || 'долгое дело', until: (g.day || 1) + days}; pv.clk += 0.5; return; }
+  pv.clk += hrs; };
+{ const ps0 = C.pass; if (ps0) C.pass = function (g, n) { if (g && g._splitPid && C.splitOn(g)) { charge(g, (n == null ? 1 : n) * K().UNIT); return {}; } return ps0.apply(this, arguments); }; }
+{ const ph0 = C.passH; if (ph0) C.passH = function (g, h) { if (g && g._splitPid && C.splitOn(g)) { charge(g, h == null ? 1 : h); return {}; } return ph0.apply(this, arguments); }; }
+/* сон — только общий: одному в городе — не спать, а полчаса */
+{ const rs0 = C.rest; if (rs0) C.rest = function (g) { if (g && g._splitPid && C.splitOn(g)) { g._splitLove = 1; try { charge(g, K().LOVE); } finally { g._splitLove = 0; } return {}; } return rs0.apply(this, arguments); }; }
+/* мир догоняет самого отстающего; возвращает, сколько часов прошло */
+C.splitAdvance = function (g, pids) {
+  if (!C.splitOn(g) || !pids.length) return 0; const PV = pids.map(p => C.splitPv(g, p)), m = Math.min(...PV.map(pv => pv.clk));
+  if (!(m > 0)) return 0; const keep = g._splitPid; g._splitPid = null;
+  try { if (C.passH) C.passH(g, m); else C.pass(g, m / K().UNIT); } finally { g._splitPid = keep; }
+  PV.forEach(pv => { pv.clk = Math.round((pv.clk - m) * 100) / 100; if (pv.clk < 0.01) pv.clk = 0; });
+  pids.forEach(p => { const pv = C.splitPv(g, p); if (pv.lock && (g.day || 1) >= pv.lock.until) pv.lock = null; });
+  return m;
+};
+/* что видят другие: куда ушёл; тайное — «по своим делам» */
+C.splitWhere = (g, id, title) => (K().PRIVATE.test(id || '') ? 'по своим делам' : (title || 'в городе'));
+/* часы для глаз: «до полудня», «до вечера» */
+C.splitUntil = (g, clk) => { if (!(clk > 0)) return ''; const t = C.timeName ? null : null; const h = clk < 1 ? 'с полчаса' : clk < 2 ? 'около часа' : clk < 5 ? `часа ${Math.round(clk)}` : 'до вечера'; return h; };
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);

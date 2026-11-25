@@ -49950,7 +49950,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611250846"></script><script>
+</script><script src="world.js?v=202611250918"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52278,6 +52278,8 @@ function showScene(id, talk) {
   const myOwn = id => myHeroes().some(h => h.id === id) || (amLeader() && (g.mercs || []).some(m => m.id === id));
   if (NET() && g.net) sc.choices = sc.choices.filter(c => !c.own || myOwn(c.own));
   if (NET() && g.net) sc.choices.forEach(c => { const oh = personalOf(sc, c); if (oh && !myOwn(oh)) c.dis = c.dis || `это решает игрок героя ${(heroById(oh) || {}).name || ''}`.trim(); });
+  const SPL = NET() && g.net && C.splitOn && C.splitOn(g), SPW = SPL && splitWaiting(myPid());
+  if (SPW) sc.choices.forEach(c => { c.dis = c.dis || SPW; });
   const bg = BG[sc.bg] || 'cover';
   const chk = view ? SCR_IN.chk : g.lastCheck; if (!view) g.lastCheck = null;
   const ups = view ? SCR_IN.ups || [] : g.lastUps || []; if (!view) g.lastUps = []; if (ups.length) setTimeout(() => tip1('level'), 700);
@@ -52289,6 +52291,7 @@ function showScene(id, talk) {
   let who = hub ? (talk !== undefined ? talk : (TALK && TALK.scene === id ? TALK.who : null)) : null;
   if (who && !sc.people.includes(who)) who = null;
   TALK = hub ? {scene: id, who} : null;
+  if (NETH() && g.net && C.splitOn) { if (C.splitOn(g)) { const pv0 = C.splitPv(g, 'p0'); pv0.id = id; pv0.busy = sc.title || ''; } else splitMaybeStart(id); }
   if (NETH()) { if (VOTE && (VOTE.sid !== id)) { clearTimeout(VOTE.timer); VOTE = null; } SCR = {k: 'scene', id, who, chk: chk && {hero: {name: chk.hero ? chk.hero.name : ''}, roll: chk.roll, total: chk.total, dc: chk.dc, ok: chk.ok, adv: chk.adv || 0, rolls: chk.rolls || null, advWhy: chk.advWhy || '', say: chk.say || '', helpSay: chk.helpSay || '', groupLine: chk.groupLine || ''}, ups, nws, voice: vce, shop: 0}; }
   save();
   let lines = sc.lines, choices = sc.choices, people = '';
@@ -52309,7 +52312,7 @@ function showScene(id, talk) {
   const lbox = !dmap && C.LEARN_SET && C.LEARN_SET[id] ? learnBox(id, sc) : '';
   if (lbox) lines = lines.filter(l => !/: очков профессий — |учится \(«/.test(l[1]));
   $('#main').innerHTML = `<div class="screen scene"><div class="bg${dmap ? ' dg' : ''}" style="background-image:${sceneBg(sc, bg)}">${dmap ? '<canvas class="dmap"></canvas>' : ''}<h2>${esc(sc.title)}</h2>${sface ? `<div class="sface">${faceHTML(sface.id, 'bigface').replace('width="96" height="96"', 'width="192" height="192"')}<div class="sfn"><b>${esc(sface.n || '')}</b>${sface.sub ? `<small>${esc(sface.sub)}</small>` : ''}</div></div>` : ''}</div>
-   <div class="body${lbox ? ' haslearn' : ''}"><div class="lines">${voiceHTML(vce)}${newsHTML(nws, lines, chk)}${lines.map(lineHTML).join('')}${people}
+   <div class="body${lbox ? ' haslearn' : ''}"><div class="lines">${SPL ? splitBar() : ''}${voiceHTML(vce)}${newsHTML(nws, lines, chk)}${lines.map(lineHTML).join('')}${people}
    ${chk ? checkHTML(chk) : ''}
    ${ups.map(u => `<div class="check">${esc(u.hero)} достигает ${u.level}-го уровня (+${u.hp} хитов${u.profPts ? `, +${u.profPts} очк. профессий` : ''})${u.lesson ? `. Можно выучить новое заклинание — ${esc(C.teacherWhere ? C.teacherWhere(u.cls) : 'у наставника')}` : ''}.</div>`).join('')}
    ${SAYS.filter(x => x.sid === id).slice(-8).map(x => x.html).join('')}</div>${lbox}<div class="choices${lbox ? ' lchoices' : ''}">${NET() ? `<div class="votebar" id="votebar"></div>${myHeroes().length ? `<label class="claim note">Проверку бросает: <select id="claimSel"><option value="">лучший в отряде</option>${myHeroes().map(h => `<option value="${h.id}" ${CLAIM === h.id ? 'selected' : ''}>${esc(h.name)} — беру на себя</option>`).join('')}</select></label>` : `<div class="hint">${C.alive(g).length ? 'У вас нет героя за этим столом — можно смотреть и говорить.' : 'Отряд пал. Посадите нового героя.'}</div>`}` : ''}${hub && !who ? sc.people.map(p => `<button class="btn ch" data-talk="${p}"><span class="ui-i i-chat"></span><span class="ct">Подойти: ${esc(shortName(p))}</span></button>`).join('') : ''}${choices.filter(c => c.who).map(c => choiceBtn(id, c)).join('')}${hub && who ? `<button class="btn ch" data-talk=""><span class="ui-i i-steps"></span><span class="ct">Отойти</span></button>` : ''}${menuHTML(id, choices.filter(c => !c.who && !(lbox && c.learn)))}</div></div></div>`;
@@ -52367,6 +52370,7 @@ function news(a) {
 /* лавка за столом — дело каждого: открывается только у того, кто нажал, без голосования; остальные заняты своим */
 const isShopping = c => !!(c && c.do && /shop:\s*true/.test(String(c.do)));
 function choose(id, i) {
+  if (NET() && g && g.net && C.splitOn && C.splitOn(g)) { const w = splitWaiting(myPid()); if (w) return toast(w); }
   if (NET()) { const sc = C.sceneOf(g, id), c = sc && sc.choices.find(x => x.i === i);
     if (c && c.swap && !c.dis) return showSwap(id);
     if (isShopping(c) && !c.dis) { let r = null; try { r = c.do(g, C.ctx(g)); } catch (e) {} if (C.trdTakes && C.trdTakes(g, r, id)) return act({a: 'choose', id, i, claim: CLAIM || null}); return showShop((r && r.back) || id, true); }
@@ -53152,6 +53156,7 @@ function startBattle(spec) {
   g.pendingBattle = {title: spec.title, foes: spec.foes, allies: spec.allies, setupKey: spec.setupKey, field: spec.field, ambush: spec.ambush, prep: spec.prep, hunt: spec.hunt, xpBonus: spec.xpBonus, win: spec.win, lose: spec.lose, place: spec.place};
   save(); battleSnapClear();
   battle = C.battleStart(g, spec, false);
+  if (spec._splitBy && g.net) splitSpread(battle, spec._splitBy);
   mode = null; sel = null;
   if (NETH()) { SCR = {k: 'battle', title: spec.title}; publish(); }
   renderTop(); drawBattleScreen();
@@ -54886,6 +54891,70 @@ const act = c => { Net.cmd(c, r => { if (r && !r.ok && r.error) toast(r.error); 
 const heroById = id => g && (g.heroes.concat(g.mercs).find(h => h.id === id));
 const levelNew = () => { const [lo, hi] = C.levelsOf(g.camp); const a = C.alive(g); const l = a.length ? Math.floor(a.reduce((s, h) => s + h.level, 0) / a.length) : g.startLevel; return Math.max(lo, Math.min(hi, l)); };
 
+/* ---------- город за общим столом: каждый сам по себе (net_split.js, Ник 25.11) ----------
+   В селе и городе у каждого игрока своё меню и свои часы. Лавки и разговоры с торговцами — без времени; дело со временем двигает
+   часы только своего героя, ушедший вперёд ждёт. Мир идёт по отстающему; сошлись — «все освободились». Уйти и ночлег — общие. */
+let SPLIT_SEEN = null;
+const splitPids = () => players().filter(p => p.online && heroesOf(p.pid).length).map(p => p.pid);
+const SPLIT_LEAVE = /^(Уйти на карту|Выйти на дорогу|На дорогу|Уйти с |Уйти$|В путь|Выйти из|Покинуть)/, SPLIT_SLEEP = /Заночевать|Переночевать|Ночлег|^Лечь спать|^Спать/;
+function splitMaybeStart(id) {
+  if (!NETH() || !g || !g.net || battle || !C.splitStart || C.splitOn(g) || !C.splitTownOk(g)) return; const n = CAMP_OF().map.nodes[g.loc]; if (!n || id !== n.scene) return;
+  if (g.net.noSplit) return; const ps = splitPids(); if (ps.length < 2) return; C.splitStart(g, ps, id); ps.forEach(p => { C.splitPv(g, p).busy = n.name || ''; }); Net.sysChat('В селе каждый может пойти по своим делам. Лавки и разговоры — без времени; уйти отсюда и ночлег — когда решат все.');
+}
+function splitWaiting(pid) { if (!g || !g.net || !C.splitOn(g)) return ''; const pv = C.splitPv(g, pid);
+  if (pv.ready) return pv.ready.kind === 'sleep' ? 'вы уже легли — ждём остальных' : 'вы у ворот — ждём остальных';
+  if (pv.clk > 0) { const lag = splitPids().filter(p => p !== pid && C.splitPv(g, p).clk < pv.clk).map(pname); return `вы впереди по времени — ждём: ${lag.join(', ') || 'остальных'}`; }
+  return ''; }
+function splitScr(pid) { const pv = C.splitPv(g, pid); if (!pv.id) pv.id = SCR.id; return {k: 'scene', id: pv.id, who: null, split: g.net.splitN || 1, n: (g.net.splitTick || 0) + '|' + Math.round(pv.clk * 100)}; }
+function splitBar() {
+  const me = myPid(), ps = players().filter(p => p.online && heroesOf(p.pid).length);
+  const row = p => { const pv = C.splitPv(g, p.pid), hn = heroesOf(p.pid).map(h => h.name).join(', ');
+    const where = pv.ready ? (pv.ready.kind === 'sleep' ? 'лёг спать' : 'ждёт у ворот') : (p.pid === me ? 'здесь' : C.splitWhere(g, pv.id, pv.busy || (CAMP_OF().map.nodes[g.loc] || {}).name));
+    const busy = pv.clk > 0 ? ` · занят ещё ${C.splitUntil(g, pv.clk)}` : ''; const lock = pv.lock ? ` · ${pv.lock.label} до ${pv.lock.until}-го дня` : '';
+    return `<div class="note"><b>${esc(p.pid === me ? 'Вы' : p.name)}</b> (${esc(hn)}) — ${esc(where + busy + lock)}</div>`; };
+  const w = splitWaiting(me);
+  return `<div class="splitbar check">${ps.map(row).join('')}${w ? `<div class="note" style="color:var(--blood)">${esc(cap1(w))}. Можно писать в чат.</div>` : ''}</div>`;
+}
+const cap1 = t => (t ? t[0].toUpperCase() + t.slice(1) : t);
+function splitChoose(pid, c) {
+  const w = splitWaiting(pid); if (w) return w;
+  const pv = C.splitPv(g, pid); if (!pv.id) pv.id = SCR.id; if (c.id !== pv.id) return 'это уже прошло';
+  const hostCtx = C.splitPick(g); if (pid !== 'p0') C.splitPut(g, pv.ctx);
+  const back = () => { pv.ctx = C.splitPick(g); if (pid !== 'p0') C.splitPut(g, hostCtx); };
+  let sc = null; try { sc = withPurse(pid, () => C.sceneOf(g, c.id)); } catch (e) {} const ch = sc && sc.choices.find(x => x.i === c.i); if (!ch) { back(); return 'такого выбора нет'; }
+  if (ch.dis) { back(); return ch.dis; }
+  const oh = personalOf(sc, ch); if (oh && g.net.own[oh] && g.net.own[oh] !== pid) { back(); return 'Это решает игрок того героя.'; }
+  /* уйти и ночлег — общие: отметка «готов» */
+  const lab = ch.label || '';
+  if (SPLIT_LEAVE.test(lab) || ch.go === 'map' || SPLIT_SLEEP.test(lab)) {
+    if (pv.lock && !SPLIT_SLEEP.test(lab)) { back(); return `${pv.lock.label} ещё идёт — до ${pv.lock.until}-го дня уйти нельзя`; }
+    pv.ready = {kind: SPLIT_SLEEP.test(lab) ? 'sleep' : 'leave', id: c.id, i: c.i, at: Date.now()}; back();
+    Net.sysChat(`${pname(pid)}: ${pv.ready.kind === 'sleep' ? 'ложится спать' : 'ждёт у ворот'}.`);
+    const ps = splitPids(), all = ps.every(p => C.splitPv(g, p).ready && C.splitPv(g, p).ready.kind === pv.ready.kind);
+    if (all) { const go = pv.ready, mineCtx = pv.ctx; ps.forEach(p => { const x = C.splitPv(g, p); if (x.lock && go.kind === 'leave') x.lock = null; }); C.splitStop(g); C.splitPut(g, mineCtx); g.claimHero = null; runChoose(go.id, go.i, pid); return null; }
+    save(); splitHostView(); return null;
+  }
+  g.claimHero = oh || (heroesOf(pid).length === 1 ? heroesOf(pid)[0].id : null);
+  let res = null, nw = [];
+  g._splitPid = pid;
+  try { res = withPurse(pid, () => { const a = snap(), r = C.choose(g, c.id, c.i); nw = news(a); return r; }); } finally { g._splitPid = null; g.claimHero = null; }
+  if (res && res.battle) { back(); C.splitStop(g); res.battle._splitBy = pid; save(); startBattle(res.battle); return null; }
+  if (res && (res.end || res.create || res.swap || res.map)) { back(); C.splitStop(g); save(); if (res.map) return showMap(); if (res.end) return showEnd(); return showScene(SCR.id); }
+  if (res && res.scene) pv.id = res.scene;
+  try { const sc2 = C.sceneOf(g, pv.id); pv.busy = sc2 ? sc2.title : ''; } catch (e) {}
+  if (nw.length) g.lastNews = nw;
+  back();
+  const m = C.splitAdvance(g, splitPids());
+  if (m > 0 && splitPids().every(p => !(C.splitPv(g, p).clk > 0))) { g.net.splitTick = (g.net.splitTick || 0) + 1; g.net.splitTickT = `Все освободились — ${C.timeName ? C.timeName(g) : 'время дальше'}. Делайте следующее.`; if (myPid() === 'p0') toast(g.net.splitTickT); }
+  save(); splitHostView(); return null;
+}
+function splitHostView() { const id = C.splitPv(g, 'p0').id || SCR.id; showScene(id, TALK && TALK.scene === id ? TALK.who : null); }
+/* бой в городе: напали на одного — остальные далеко, на своих делах; добегут, когда дойдёт их ход */
+function splitSpread(S, byPid) { try { const mine = S.units.filter(u => u.side === 'party' && u.ref && g.net.own[u.ref.id] === byPid && !u.ref.kind); if (!mine.length) return;
+  const others = S.units.filter(u => u.side === 'party' && u.ref && g.net.own[u.ref.id] && g.net.own[u.ref.id] !== byPid);
+  const cells = Object.values(S.field.cells).filter(x => B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r));
+  const far = x => Math.min(...mine.map(u => B.dist(u, x))) - 0.01 * Math.min(...S.units.filter(u => u.side === 'foe').map(f => B.dist(f, x)).concat([99]));
+  others.forEach(u => { const best = cells.filter(x => !B.unitAt(S, x.c, x.r)).sort((a, b) => far(b) - far(a))[Math.floor(Math.random() * 3)]; if (best) { u.c = best.c; u.r = best.r; } }); } catch (e) {} }
 /* кошель: на время действия плательщик — тот, кто начал. Траты — с него, доход — поровну на всех живых */
 function withPurse(pid, fn, all) {
   if (!g || !g.net) return fn();
@@ -55139,12 +55208,14 @@ function doPublish(force, pid) {
   if (gs && (force || pid || gs !== lastPub)) s.g = gs;
   if (!pid && gs !== lastPub) { lastPub = gs; poolSync(); }
   if (battle) s.b = packBattle(battle);
+  if (g && g.net && C.splitOn && C.splitOn(g) && SCR.k === 'scene') { players().filter(p => p.pid !== 'p0' && (!pid || p.pid === pid)).forEach(p => Net.sync(Object.assign({}, s, {g: s.g || gs, scr: splitScr(p.pid)}), p.pid)); return; }
   Net.sync(s, pid);
 }
 const scrKey = s => s ? [s.k, s.id, s.who, s.n].join('|') : '';
 function onSync(s) {
   const prev = scrKey(SCR_IN), gNew = !!s.g;
   if (s.g) g = C.load(s.g);
+  if (g && g.net && C.splitOn && C.splitOn(g)) { C.splitPut(g, C.splitPv(g, myPid()).ctx); const tk = g.net.splitTick || 0; if (SPLIT_SEEN != null && tk !== SPLIT_SEEN && g.net.splitTickT) toast(g.net.splitTickT); SPLIT_SEEN = tk; }
   SCR_IN = s.scr || {k: 'wait'}; META = s.meta || {};
   VOTE_IN = META.vote ? Object.assign({}, META.vote, {deadline: Date.now() + (META.vote.left || 0)}) : null;
   MARKS_IN = (META.marks || []).map(x => Object.assign({}, x, {t: Date.now() - (15000 - x.left)}));
@@ -55193,7 +55264,7 @@ function doCmd1(c, pid) {
   if (a === 'lpick' || a === 'lcamp' || a === 'start') return lobbyCmd(c, pid);
   if (!g) return 'игра ещё не началась';
   switch (a) {
-    case 'choose': if (SCR.k !== 'scene' || SCR.id !== c.id) return 'это уже прошло'; return castVote(pid, c);
+    case 'choose': if (g && g.net && C.splitOn && C.splitOn(g)) return splitChoose(pid, c); if (SCR.k !== 'scene' || SCR.id !== c.id) return 'это уже прошло'; return castVote(pid, c);
     case 'talk': if (SCR.k !== 'scene' || SCR.id !== c.id) return 'это уже прошло'; if (pid !== leader()) return 'к кому подойти, решает вожатый — ' + pname(leader()); if (VOTE) { clearTimeout(VOTE.timer); VOTE = null; } showScene(c.id, c.who || null); return;
     case 'mark': MARKS = MARKS.filter(m => m.pid !== pid).concat({pid, c: c.c, r: c.r, t: Date.now()}); if (WM && $('#wmap')) drawWorld(); return;
     case 'walk': case 'goto': case 'jgo': case 'march': case 'morder': case 'wact': case 'enter': case 'mgo': case 'mcamp':
@@ -56015,7 +56086,7 @@ if (Net) Net.setHooks({
   cmd: (pid, c) => doCmd(c, pid), toast: t => toast(t), presence: onPresence, pushTo: pid => publish(true, pid), players: onPlayers,
   sync: onSync, chat: onChat, typing: onTyping, lost: onLost, bye: onBye,
 });
-window.__net = {toMap: () => showMap(), cur: () => { const S = battle, u = S && !S.over && B.current(S); return u ? {side: u.side, ai: !!u.ai, owner: u.ref && ownerOf(u.ref.id) || null} : null; }, Net, state: () => ({SCR, SCR_IN, META, g, battle, LOBBY, VOTE, CHAT}), act, doCmd, publish, showNetMenu, showTable, showTrade, sendChat, poolLoad, poolSave, showPool, myHeroes, leader, joinHero};
+window.__net = {rerender: () => { if (g && g.net && C.splitOn(g)) splitHostView(); else rerender(); publish(true); }, toMap: () => showMap(), cur: () => { const S = battle, u = S && !S.over && B.current(S); return u ? {side: u.side, ai: !!u.ai, owner: u.ref && ownerOf(u.ref.id) || null} : null; }, Net, state: () => ({SCR, SCR_IN, META, g, battle, LOBBY, VOTE, CHAT}), act, doCmd, publish, showNetMenu, showTable, showTrade, sendChat, poolLoad, poolSave, showPool, myHeroes, leader, joinHero};
 
 /* отладка */
 /* деньги: «3 зм 2 см» → цифра и монетка своего металла */
