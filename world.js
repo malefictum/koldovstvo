@@ -66352,6 +66352,7 @@ SC.kv_local = g => {
   ch.push({own: h.id, t: 'Поговорить', if: g2 => (C.kvLocOf(g2, r.id) || {}).talkDay !== day(g2), off: 'сегодня уже говорили', do: g2 => { const x = C.kvLocOf(g2, r.id), hh = heroById(g2, r.hid); if (!x || !hh) return 'kv_local';
     x.talkDay = day(g2); delete g2.kvArt; const dirty = C.grimeStage && C.grimeStage(hh) >= 2;
     let add = K().REL_TALK + 2 * R.mod((hh.stats || {}).cha || 10) + Math.floor(R.rand() * 5) + Math.round(2 * (C.kvAgeMod ? C.kvAgeMod(hh, x.st === 'maid' ? 19 : x.st === 'widow' ? 40 : 28, {widow: x.st === 'widow'}) : 0)); if (dirty) add = Math.floor(add / 2);
+    if (C.dressRelMul && C.kvRankWho) add = Math.round(add * C.dressRelMul(hh, C.kvRankWho(x))); // наряд — по сословию того, кто смотрит
     x.rel = Math.min(100, x.rel + Math.max(1, add)); if (C.passH) C.passH(g2, 1);
     const rkv = x.st === 'wife' && C.KV_RANK && C.KV_RANK[x.rank] ? (C.KV_RANK[x.rank].power ? 'power' : x.rank === 'kupec' ? 'kupec' : null) : null;
     const vv = C.kvVoice ? ((rkv && R.rand() < 0.5 && C.kvVoice('talkRank', rkv, x.sex)) || (R.rand() < 0.65 && C.kvVoice('talk', x.st, x.sex))) : null;
@@ -70717,7 +70718,7 @@ C.TL_EV.kv_flirt = {id: 'kv_flirt', grp: ['torg', 'ulica', 'korchma'], safe: 1,
   ok: x => !x.night,
   w: x => { const g = x.g, hs = heroes(g); if (!hs.length) return 0; return K().W * Math.max(...hs.map(h => C.kvAttract(g, h, 28))) - (x.grime >= 3 ? 1 : 0); },
   who: (g, E, x) => {
-    const st = pickSt(E), hs = heroes(g).map(h => ({h, w: C.kvAttract(g, h, AGE[st], {widow: st === 'widow'})})).sort((a, b) => b.w - a.w || String(a.h.id).localeCompare(String(b.h.id)));
+    const st = pickSt(E), hs = heroes(g).map(h => ({h, w: C.kvAttract(g, h, AGE[st], {widow: st === 'widow', rank: x && x.spot === 'torg' ? 'merchant' : 'peasant'})})).sort((a, b) => b.w - a.w || String(a.h.id).localeCompare(String(b.h.id)));
     const h = hs[0] && hs[0].h; if (!h) return null;
     const sex = h.sex === 'f' ? 'm' : 'f', spot = TX.role[x.spot] ? x.spot : 'ulica', t = pickH(TX.role[spot][sex], E.seed + 't');
     E.data.hid = h.id; E.data.st = st; E.data.t = t; E.hid = h.id; if (st === 'wife' && C.kvRankRoll) { E.data.rank = C.kvRankRoll(g, g.loc); const RK = C.KV_RANK && C.KV_RANK[E.data.rank]; if (RK && RK.power) E.data.t = sex === 'f' ? RK.t[1] : 'знатный господин'; else if (E.data.rank === 'kupec') E.data.t = sex === 'f' ? 'купчиха' : 'купец'; }
@@ -71693,7 +71694,7 @@ SC.tf_talk = g => {
   if (!r.met) lines.push(['n', `${p.n}, ${p.t}.`]); else if (r.rel >= K().REL_WARM) lines.push(['n', fill(pickH(WARM[p.sex], p.id + day(g)), h, p)]);
   if (g.tfLast) lines.push(['n', g.tfLast]); else lines.push([p.n, '«' + talkLine(p, p.id + day(g) + (g.time || 0)) + '»']);
   const ch = [], d = day(g);
-  ch.push({t: 'Поболтать о жизни', if: g2 => relOf(g2, g2.loc, p.id).talk !== d, off: 'сегодня уже говорили', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.talk = d; rr.met = rr.met || d; rr.rel = Math.min(100, rr.rel + K().TALK);
+  ch.push({t: 'Поболтать о жизни', if: g2 => relOf(g2, g2.loc, p.id).talk !== d, off: 'сегодня уже говорили', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.talk = d; rr.met = rr.met || d; rr.rel = Math.min(100, rr.rel + Math.round(K().TALK * (C.dressRelMul ? C.dressRelMul(h, p.rank === 'kupec' ? 'merchant' : 'peasant') : 1)));
     if (C.passH) C.passH(g2, 0.5); g2.tfLast = fill(`{n}: «${talkLine(p, p.id + 'x' + d + R.rand())}»`, h, p); return 'tf_talk'; }});
   if (p.age !== 'kid') ch.push({t: 'Расспросить о новостях', if: g2 => relOf(g2, g2.loc, p.id).news !== d, off: 'всё, что знал, уже рассказал', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.news = d; rr.met = rr.met || d;
     let t = null; try { t = (C.folkRumor && R.rand() < 0.6) ? C.folkRumor(g2) : null; } catch (e) {} if (!t || /разводит руками/.test(t)) { try { t = C.bayka ? `«${C.bayka(g2)}»` : null; } catch (e) {} }
@@ -71706,7 +71707,7 @@ SC.tf_talk = g => {
     if (known) return;
     ch.push({own: x.id, t: `${x.name}: заигрывать`, if: g2 => relOf(g2, g2.loc, p.id).fl !== d, off: 'сегодня уже пробовали', do: g2 => { const rr = relOf(g2, g2.loc, p.id); rr.fl = d; rr.met = rr.met || d;
       const hh = heroes(g2).find(y => y.id === x.id); if (!hh) return 'tf_talk';
-      const att = C.kvAttract ? C.kvAttract(g2, hh, AGE_OF[p.age], {widow: p.st === 'widow'}) : 1, bonus = Math.round((att - 1) * 4 + rr.rel / 20);
+      const att = C.kvAttract ? C.kvAttract(g2, hh, AGE_OF[p.age], {widow: p.st === 'widow', rank: p.rank === 'kupec' ? 'merchant' : 'peasant'}) : 1, bonus = Math.round((att - 1) * 4 + rr.rel / 20);
       const c = R.check(hh, 'cha', 'Убеждение', K().FLIRT_DC - bonus); g2.lastCheck = Object.assign({}, c, {hero: hh});
       if (c.ok) { const st = p.st === 'single' ? 'maid' : p.st === 'widow' ? 'widow' : p.st === 'wife' ? 'wife' : 'maid';
         const rec = C.kvMakeLoc(g2, {at: g2.loc, hid: hh.id, n: p.n, sex: p.sex, face: p.face, ppl: p.ppl, st, t: p.t, rank: p.rank}, 40 + Math.round(rr.rel / 3)); rec.tf = g2.loc + '|' + p.id;
@@ -71721,10 +71722,10 @@ Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(
 if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
 /* ---------- на прогулке по месту: встречные — те же люди места (town_walk) ---------- */
 C.tfChat = function (g, at, pid) { const p = C.tfPeople(g, at).find(x => x.id === pid); if (!p) return null; const r = relOf(g, at, p.id), d = day(g);
-  if (r.talk !== d) { r.talk = d; r.rel = Math.min(100, r.rel + K().TALK); } r.met = r.met || d; return talkLine(p, p.id + 'w' + d + R.rand()); };
+  if (r.talk !== d) { r.talk = d; const hb = (g.heroes ? C.alive(g) : [])[0]; r.rel = Math.min(100, r.rel + Math.round(K().TALK * (C.dressRelMul && hb ? C.dressRelMul(hb, p.rank === 'kupec' ? 'merchant' : 'peasant') : 1))); } r.met = r.met || d; return talkLine(p, p.id + 'w' + d + R.rand()); };
 C.tfFlirt = function (g, hh, at, pid) { const p = C.tfPeople(g, at).find(x => x.id === pid); if (!p || !hh || hh.sex === p.sex || p.age === 'kid' || p.st === 'old' || !C.kvMakeLoc) return null;
   const rr = relOf(g, at, p.id), d = day(g); if (rr.fl === d) return {ok: false, text: `${p.n} смеётся: «Ты уж сегодня пробовал. Хватит»`}; rr.fl = d; rr.met = rr.met || d;
-  const att = C.kvAttract ? C.kvAttract(g, hh, AGE_OF[p.age], {widow: p.st === 'widow'}) : 1, bonus = Math.round((att - 1) * 4 + rr.rel / 20);
+  const att = C.kvAttract ? C.kvAttract(g, hh, AGE_OF[p.age], {widow: p.st === 'widow', rank: p.rank === 'kupec' ? 'merchant' : 'peasant'}) : 1, bonus = Math.round((att - 1) * 4 + rr.rel / 20);
   const c = R.check(hh, 'cha', 'Убеждение', K().FLIRT_DC - bonus); g.lastCheck = Object.assign({}, c, {hero: hh});
   if (c.ok) { const st = p.st === 'single' ? 'maid' : p.st === 'widow' ? 'widow' : p.st === 'wife' ? 'wife' : 'maid';
     const rec = C.kvMakeLoc(g, {at, hid: hh.id, n: p.n, sex: p.sex, face: p.face, ppl: p.ppl, st, t: p.t, rank: p.rank}, 40 + Math.round(rr.rel / 3)); rec.tf = at + '|' + p.id;
@@ -71778,5 +71779,183 @@ if (inj0) Q.inject = function (g, sceneId, choices) {
   } catch (e) {}
   return out;
 };
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* dress_gifts.js */
+/* Колдовство — наряды ступенями и подарки жене (Ник 25.11). Без DOM. Все числа — тайна мастера (C.DG), игроку только слова.
+   • НАРЯДЫ: новый слот «Наряд» (wear.js). Пять ступеней — простое (холст), крашеное, вышитое, праздничное (шёлк, тесьма),
+     боярское (парча, жемчужное шитьё) — мужские и женские. Старые вещи встают на ступени: рубаха простая, платье с понёвой — 1,
+     рубаха вышитая — 3 (шёлковый кафтан остаётся плащом).
+   • ШВЕЯ ШЬЁТ: «Сшить наряд» у швеи (мастера и люди): в селе — до вышитого, в городе — до праздничного; боярское — только
+     городская мастерица, которая к вам расположена. Заказ шьётся несколько дней, забирают у неё же. Цена — по ступени и месту.
+   • НАРЯД И СОСЛОВИЕ: как растут отношения (разговор, дела, встречи, жена, мастера) и как смотрят при флирте — от наряда
+     и от того, кто смотрит. Простым людям мил вышитый, богатый — «не наш»; купцы ценят шёлк; знать — только праздничное
+     и боярское, на холщовом — смотрят сквозь.
+   • ПОДАРКИ ЖЕНЕ: «Подарить…» в «Хозяйстве» — камни, украшения, наряды, ткани, утварь, шкуры, всякий добрый хлам из мешков.
+     Ответ по её прежнему положению (спасённая, бедная, крестьянка, купчиха, знатная) и цене. У каждой — свой любимый камень
+     (не говорится; узнаётся по её словам). Одно и то же подряд радует меньше. Хороший подарок — тепло, обиды отливаются,
+     и ночь жарче; дешёвка знатной — обида. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !G.DATA || !C.WEAR) return;
+const ZM = 100, I = G.DATA.items;
+C.DG = Object.assign({
+  TIERS: {1: 'простой', 2: 'крашеный', 3: 'вышитый', 4: 'праздничный', 5: 'боярский'},
+  PRICE: {1: 1, 2: 5, 3: 20, 4: 80, 5: 400}, DAYS: {1: 1, 2: 2, 3: 3, 4: 5, 5: 8}, TOWN_K: 1.2,
+  MUL: {poor: [0.9, 1, 1.1, 1.2, 1.1, 0.95], peasant: [0.9, 1, 1.1, 1.2, 1.15, 1], merchant: [0.75, 0.85, 1, 1.1, 1.25, 1.2], noble: [0.5, 0.6, 0.75, 0.9, 1.1, 1.3]},
+  WANT: {freed: {gem: 1.5, jewel: 1.6, dress: 1.4, cloth: 1.3, util: 1.3, trophy: 1.2, other: 1.1},
+    poor: {gem: 1.2, jewel: 1.5, dress: 1.3, cloth: 1.3, util: 1.4, trophy: 1.2, other: 0.9},
+    peasant: {gem: 1.1, jewel: 1.4, dress: 1.2, cloth: 1.2, util: 1.2, trophy: 1.1, other: 0.4},
+    merchant: {gem: 1.3, jewel: 1.4, dress: 1.3, dressLow: 0.4, cloth: 1, clothLow: 0.3, util: 0.2, trophy: 0.3, other: 0.2},
+    noble: {gem: 1.3, jewel: 1.5, dress: 1.5, dressMid: 1, cloth: 0.5, util: 0, trophy: 0, other: 0, MIN: 50}},
+  REPEAT: 30, CUP: 4, HOT: 0.2,
+}, C.DG || {});
+const K = () => C.DG;
+const day = g => (g && g.day) || 1;
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
+
+/* ---------- наряды ---------- */
+const NAR = {
+  m: {1: ['nar_m1', 'Рубаха холщовая с портами', 'Небелёный холст, верёвочный пояс.'], 2: ['nar_m2', 'Рубаха крашеная, синяя', 'Крашена вайдой, пояс тканый.'], 3: ['nar_m3', 'Рубаха вышитая с наборным поясом', 'Обереги по вороту и подолу, пояс с бляхами.'],
+    4: ['nar_m4', 'Кафтан праздничный с тесьмой', 'Сукно, шёлковая тесьма, пуговицы-гирьки.'], 5: ['nar_m5', 'Кафтан парчовый и шуба', 'Парча, соболья опушка — так ходят бояре.']},
+  f: {1: ['nar_f1', 'Платье холщовое', 'Рубаха да понёва — просто и чисто.'], 2: ['nar_f2', 'Сарафан крашеный', 'Червлёный, с тканой лентой.'], 3: ['nar_f3', 'Рубаха вышитая с понёвой и лентой', 'Шитьё по рукавам, лента в косу.'],
+    4: ['nar_f4', 'Сарафан шёлковый с тесьмой', 'Шёлк, тесьма, серебряные пуговки.'], 5: ['nar_f5', 'Летник парчовый с жемчужным шитьём', 'Парча, жемчуг по вороту, кокошник — боярыне впору.']},
+};
+const FX = {1: 'простой наряд', 2: 'добрый наряд', 3: 'нарядно — по-праздничному у простых людей', 4: 'богатый наряд — купцы и знать смотрят приветливее', 5: 'боярский наряд — знать признаёт за своего'};
+C.WEAR_SLOTS = C.WEAR_SLOTS || []; if (!C.WEAR_SLOTS.some(s => s[0] === 'dress')) C.WEAR_SLOTS.unshift(['dress', 'Наряд']);
+C.DRESS_T = {rubaha_prostaya: 1, plate_rubaha_s_ponevoy: 1, rubaha_vyshitaya: 3};
+['m', 'f'].forEach(sx => Object.entries(NAR[sx]).forEach(([t, [id, n, notes]]) => {
+  if (!I[id]) I[id] = {_t: 'g', id, category: 'одежда', name: n, price: K().PRICE[t] * ZM, weight_kg: t >= 5 ? 3 : 1, notes, dressSex: sx};
+  C.DRESS_T[id] = +t; C.WEAR[id] = {slot: 'dress', fx: FX[t]}; }));
+['rubaha_prostaya', 'plate_rubaha_s_ponevoy', 'rubaha_vyshitaya'].forEach(id => { if (I[id] && !C.WEAR[id]) C.WEAR[id] = {slot: 'dress', fx: FX[C.DRESS_T[id]]}; });
+C.dressTier = h => { const id = h && h.eq && h.eq.dress; if (!id) return 0; return C.DRESS_T[R.baseId ? R.baseId(id) : id] || 0; };
+C.dressRelMul = (h, rank) => { const M = K().MUL[rank] || K().MUL.peasant; return M[Math.min(5, C.dressTier(h))]; };
+const bestDressed = g => { const hs = (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc'); return hs.sort((a, b) => C.dressTier(b) - C.dressTier(a))[0] || null; };
+const rankOfRole = role => { const b = String(role || '').replace(/^sp_/, ''); return /knyaz|boyar|noble|voevod|tiun/.test(b) ? 'noble' : ['trade', 'jewel'].includes(b) ? 'merchant' : 'peasant'; };
+/* как растут отношения: мастера, жена (hearts.relAdd) */
+if (C.relAdd) { const ra0 = C.relAdd; C.relAdd = function (g, role, at, d, why) { if (d > 0) { try { const h = bestDressed(g); if (h) { const key = role + '@' + at; const rk = C.heOrigin && /^sp_/.test(role) ? ({freed: 'poor', poor: 'poor', peasant: 'peasant', merchant: 'merchant', noble: 'noble'}[C.heOrigin(g, key)] || 'peasant') : rankOfRole(role);
+  d = Math.max(1, Math.round(d * C.dressRelMul(h, rk))); } } catch (e) {} } return ra0.call(this, g, role, at, d, why); }; }
+/* флирт и встречи: обаяние наряда — для того, кто смотрит (o.rank) */
+if (C.kvAttract) { const ka0 = C.kvAttract; C.kvAttract = function (g, h, age, o) { const v = ka0.apply(this, arguments); try { return Math.max(0, Math.round(v * C.dressRelMul(h, (o && o.rank) || 'peasant') * 100) / 100); } catch (e) { return v; } }; }
+C.kvRankWho = r => { if (!r) return 'peasant'; const RK = C.KV_RANK && C.KV_RANK[r.rank]; return RK && RK.power ? 'noble' : r.rank === 'kupec' ? 'merchant' : r.freed ? 'poor' : 'peasant'; };
+
+/* ---------- наряд изнашивается (Ник 25.11): непогода и раны портят; дорожная (простая, холщовая) — ей всё равно.
+   Чинить — у швеи (дешевле новой), или купить новую. Значит, в дорогу — переодеваться. ---------- */
+C.DG.WEAR = {road: 3, rain: 5, downpour: 9, snow: 6, blizzard: 10, fog: 1, heat: 2, hit: 6, mend: 0.25};
+C.dressCond = h => { const id = h && h.eq && h.eq.dress; if (!id) return 100; h.dressCond = h.dressCond || {}; return h.dressCond[id] == null ? 100 : h.dressCond[id]; };
+C.dressCondWord = c => (c >= 80 ? 'как новый' : c >= 50 ? 'поношенный' : c >= 20 ? 'потрёпанный' : 'в лохмотьях');
+const wearDown = (h, d) => { const id = h && h.eq && h.eq.dress; if (!id || (C.DRESS_T[R.baseId ? R.baseId(id) : id] || 0) <= 1) return; h.dressCond = h.dressCond || {}; const c = C.dressCond(h), n = Math.max(0, c - d); h.dressCond[id] = n;
+  if (c >= 20 && n < 20 && h._g) C.note(h._g, `${h.name}: ${((I[id] || {}).name || 'наряд').toLowerCase()} в лохмотьях — в таком только огород пугать.`); };
+{ const ct0 = C.dressTier; C.dressTier = h => { const t = ct0(h); if (t <= 1) return t; const c = C.dressCond(h); return c >= 50 ? t : c >= 20 ? t - 1 : 0; }; }
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments);
+  try { if (g && g.heroes && g.day > d0) { const wx = C.weather ? C.weather(g) : 'clear', W0 = K().WEAR, onRoad = !!g.pos && !(g.posNode && g.posNode === g.loc) || g.travelDay === g.day;
+    C.alive(g).filter(h => h.kind !== 'merc').forEach(h => { h._g = g; wearDown(h, (onRoad ? W0.road : 0) + (W0[wx] || 0)); delete h._g; }); } } catch (e) {}
+  return r; }; }
+if (G.B && G.B.damage) { const B = G.B, dm0 = B.damage; B.damage = function (S, t, d) { const r = dm0.apply(this, arguments); try { if (d > 0 && t && t.ref && t.ref.eq && t.ref.eq.dress && t.ref.kind !== 'merc') wearDown(t.ref, C.DG.WEAR.hit); } catch (e) {} return r; }; }
+const mendPrice = (g, h) => { const id = h.eq.dress, it = I[id] || {}; return Math.max(10, Math.round((it.price || 100) * K().WEAR.mend * (100 - C.dressCond(h)) / 100 / 10) * 10); };
+
+/* ---------- швея шьёт ---------- */
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const priceOf = (g, t) => Math.round(K().PRICE[t] * ZM * ((nodes(g)[g.loc] || {}).kind === 'город' ? K().TOWN_K : 1) / 10) * 10;
+const maxTier = g => { const n = nodes(g)[g.loc] || {}, town = n.kind === 'город'; let m = town ? 4 : 3; try { const r = C.relOf(g, 'weave', g.loc); if (town && r && r.rep >= 60) m = 5; } catch (e) {} return m; };
+const ords = g => (g.dressOrd = g.dressOrd || []);
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (sc && id === 'folk' && g.folkRole === 'weave' && !g.folkAt) { const ch = (sc.choices || []).slice(), back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || '') ? ch.pop() : null; let i = Math.max(0, ...ch.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+    const mine = ords(g).filter(o => o.camp === g.camp && o.at === g.loc), ready = mine.filter(o => day(g) >= o.ready);
+    if (ready.length) ch.unshift({i: i++, label: `Забрать готовое: ${ready.map(o => (I[o.id] || {}).name).join(', ').toLowerCase()}`, do: g2 => { const L = ords(g2).filter(o => o.camp === g2.camp && o.at === g2.loc && day(g2) >= o.ready);
+      L.forEach(o => { const h = (g2.heroes || []).find(x => x.id === o.hid) || C.alive(g2)[0]; if (h) h.inv.push(o.id); }); g2.dressOrd = ords(g2).filter(o => !L.includes(o)); g2.folkLast = `Швея встряхивает обнову и держит на вытянутых руках: «Носите на здоровье — и чтоб в пир, а не в бой»`; return 'folk'; }});
+    ch.push({i: i++, label: 'Сшить наряд…', do: () => 'dress_order'});
+    if (mine.length && !ready.length) sc.lines = (sc.lines || []).concat([['n', `Швея кивает на угол, где лежит раскроенное: «${mine.length > 1 ? 'Ваши' : 'Ваше'} — шью. Не торопите»`]]);
+    if (back) ch.push(back); return Object.assign({}, sc, {choices: ch}); } } catch (e) {}
+  return sc; }; }
+const SC = {};
+SC.dress_order = g => {
+  const hs = (g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc'), mx = maxTier(g), town = (nodes(g)[g.loc] || {}).kind === 'город', lines = [];
+  lines.push(['n', town ? (mx >= 5 ? '«Для вас — и боярское сошью. Парчу достану, жемчуг найдём»' : '«Праздничное сошью — шёлк есть, тесьма есть. Боярское — это не всякому, сперва поглядим, что вы за люди»') : '«Я сельская швея: вышить — вышью, а шелка у нас не водится»']);
+  const ch = [];
+  hs.forEach(h => { const sx = h.sex === 'f' ? 'f' : 'm', cur = C.dressTier(h); for (let t = 1; t <= mx; t++) { if (t <= cur - 1) continue; const [id, n] = NAR[sx][t], pr = priceOf(g, t);
+    ch.push({t: `${h.name}: ${n.toLowerCase()} — ${R.priceText(pr)}`, dis: (g.purse || 0) < pr ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < pr) return 'dress_order'; g2.purse -= pr; ords(g2).push({camp: g2.camp, at: g2.loc, id, hid: h.id, ready: day(g2) + K().DAYS[t]});
+      g2.folkLast = `Швея снимает мерку с ${h.name}, шепчет что-то над лентой: «${K().DAYS[t] <= 1 ? 'Завтра заберёте' : `Через ${K().DAYS[t]} ${K().DAYS[t] < 5 ? 'дня' : 'дней'} приходите`}»`; return 'folk'; }}); } });
+  hs.forEach(h => { if (!h.eq || !h.eq.dress || C.dressCond(h) >= 95 || (C.DRESS_T[R.baseId ? R.baseId(h.eq.dress) : h.eq.dress] || 0) <= 1) return; const pr = mendPrice(g, h);
+    ch.unshift({t: `${h.name}: починить ${((I[h.eq.dress] || {}).name || 'наряд').toLowerCase()} (${C.dressCondWord(C.dressCond(h))}) — ${R.priceText(pr)}`, dis: (g.purse || 0) < pr ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < pr) return 'dress_order'; g2.purse -= pr; h.dressCond[h.eq.dress] = 100;
+      g2.folkLast = 'Швея цокает языком над прорехами, но к вечеру наряд как новый: «В дорогу в таком не ходят. Для дороги — холст»'; return 'folk'; }}); });
+  ch.push({t: 'Назад', do: () => 'folk'});
+  return {title: 'Наряд на заказ', bg: 'market', art: 'market', lines, choices: ch};
+};
+
+/* ---------- подарки жене ---------- */
+const STONES = [['yantar', /янтар/i, 'янтарь'], ['biryuza', /бирюз/i, 'бирюза'], ['lunnyy_kamen', /лунн/i, 'лунный камень'], ['granat', /гранат/i, 'гранат'], ['ametist', /аметист/i, 'аметист'],
+  ['zhemchug_rechnoy', /жемчуг|жемчуж/i, 'жемчуг'], ['rubin_yahont_chervlenyy', /червл|рубин/i, 'червлёный яхонт'], ['sapfir_yahont_lazorevyy', /лазор|сапфир/i, 'лазоревый яхонт'], ['almaz', /алмаз/i, 'алмаз']];
+const JEWEL = /kolco|koltso|persten|grivna|busy|braslet|serg|ozherel|obruch|kolt|ryasn/;
+const catOf = id => { const b = R.baseId ? R.baseId(id) : id, it = R.item(id) || {}; if (C.DRESS_T[b]) return 'dress'; if (JEWEL.test(b) || (C.isMagic && C.isMagic(id) && /кольц|перстен|гривн|бус|браслет|серьг|ожерел|обруч/i.test(it.name || ''))) return 'jewel';
+  if (it.category === 'самоцветы' && !/tochil|tesan|opoznat|izgotov/.test(b)) return 'gem'; if (/^tkan_|holst/.test(b)) return 'cloth'; if (/^tr_/.test(b) && /шкур|мех|кож/i.test(it.name || '')) return 'trophy';
+  if (/kovsh|kuvshin|kotel|zerkal|greben|posud|chash|gorsh|lozhk|skater|polotn|ubrus|platok/.test(b) || it.category === 'снаряжение') return 'util'; return 'other'; };
+C.giftable = (g, id) => { const it = R.item(id); if (!it || it._t === 'w' || it._t === 'a') return false; if (/еда|зелья|припасы|ночлег|услуги|обучение|транспорт|сбруя|книги/.test(it.category || '') || /^(dish_|rcp_|kon_|pes_)/.test(id)) return false; return (it.price || 0) >= 10; };
+const favOf = key => STONES[hsh(key + 'fav') % STONES.length];
+const stoneOf = id => { const it = R.item(id) || {}, s = (it.name || '') + ' ' + (it.notes || '') + ' ' + id; return STONES.find(x => x[1].test(s) || id.includes(x[0])) || null; };
+C.giftScore = function (g, key, id) {
+  const o = C.heOrigin ? C.heOrigin(g, key) : 'peasant', W = K().WANT[o] || K().WANT.peasant, it = R.item(id) || {}, v = (it.price || 0) / ZM, c = catOf(id), b = R.baseId ? R.baseId(id) : id, dt = C.DRESS_T[b] || 0;
+  let m = W[c] != null ? W[c] : W.other;
+  if (c === 'dress' && o === 'merchant' && dt < 4) m = W.dressLow; if (c === 'dress' && o === 'noble') m = dt >= 5 ? W.dress : dt === 4 ? W.dressMid : 0;
+  if (c === 'cloth' && o === 'merchant' && /prost/.test(b)) m = W.clothLow;
+  if (it.dressSex && it.dressSex !== 'f' && C.alive(g).length) m *= 0.3; // мужское платье — жене ни к чему
+  const offend = o === 'noble' && (m === 0 || v < W.MIN);
+  const fav = favOf(key), st = stoneOf(id), love = st && st[0] === fav[0];
+  const F = (g.dgGift = g.dgGift || {})[key] = (g.dgGift || {})[key] || {}; const rep = (F[c] || []).filter(d => day(g) - d < K().REPEAT).length;
+  let gain = m * (2 + 3 * Math.log10(Math.max(1, v))) * (love ? 2 : 1) / (1 + 0.5 * rep);
+  return {o, c, gain: offend ? -3 : Math.round(gain), love, offend, rep, st};
+};
+const SAY = {
+  great: {freed: ['Она долго держит подарок в ладонях и не может ничего сказать — только плачет и смеётся.', '«Мне? Это мне?.. Мне за всю жизнь никто… Иди сюда»'],
+    poor: ['«Да ты что… Это ж целое богатство! Спрячу, на праздник надену — пусть соседки ахнут»'], peasant: ['«Вот это подарок! Как у старостихи — нет, лучше»', '«Ох… Надену на Купалу — все девки обзавидуются, хоть я уже и не девка»'],
+    merchant: ['«Вот это по-купечески. Знаешь, чем меня порадовать»', '«Красота-то какая… Матушке покажу — пусть знает, за кого я пошла»'], noble: ['«Достойно. — И тише, совсем по-девичьи: — Очень красиво. Спасибо»', '«Такое и при дворе не стыдно надеть. Ты меня удивляешь — приятно»']},
+  good: {freed: ['«Спасибо… Я берегу всё, что ты даришь, — каждую мелочь»'], poor: ['«В хозяйстве пригодится. Спасибо, что думаешь о доме»'], peasant: ['«Нужная вещь. Хозяйственный ты у меня»', '«Спасибо. Вот это дело»'],
+    merchant: ['«Мило. Спасибо»', '«Хороший выбор. Учишься»'], noble: ['«Благодарю». Она кивает — сдержанно, но глаза теплеют.']},
+  meh: {freed: ['«Спасибо…» — и всё равно улыбается.'], poor: ['«Ну… сгодится. Спасибо»'], peasant: ['«Куда мне это? Лучше бы соли купил»', '«Это что ж — в хозяйство? Ну, положу в сундук»'],
+    merchant: ['«Это приказчику подари, а не жене»', '«Ты меня с ключницей не путаешь?»'], noble: ['«Хм». Она отдаёт подарок служанке, даже не глянув.']},
+  offend: {noble: ['«Ты за кого меня держишь? Это — дочери боярской? Унеси. И не позорь меня перед челядью»', '«Такое на торгу за медяк продают. Мне — не нужно»']},
+  hint: ['«А знаешь, что я люблю больше всего? {s}. Бабка говорила — мой камень»', 'Она вертит подарок и вздыхает: «Вот бы ещё {s}… Ну да это я так, к слову»'],
+};
+C.giftGive = function (g, key, hid, id) {
+  const h = (g.heroes || []).find(x => x.id === hid); if (!h) return null; const k = h.inv.indexOf(id); if (k < 0) return null;
+  const S = C.giftScore(g, key, id); h.inv.splice(k, 1);
+  const F = (g.dgGift = g.dgGift || {})[key] = (g.dgGift || {})[key] || {}; F[S.c] = (F[S.c] || []).concat(day(g)).slice(-6);
+  const r = (g.folkRel || {})[key]; const [role, at] = key.split('@');
+  const kind = S.offend ? 'offend' : S.gain >= 9 ? 'great' : S.gain >= 4 ? 'good' : 'meh';
+  if (r) { if (S.gain > 0 && C.relAdd) C.relAdd(g, role, at, S.gain, 'подарок'); else if (S.gain < 0) r.rep = Math.max(0, (r.rep || 0) + S.gain); }
+  if (C.heCupAdd) { if (S.offend) C.heCupAdd(g, key, 0.5, 'дешёвый подарок'); else if (S.gain >= 4) C.heCupAdd(g, key, -S.gain / K().CUP, 'подарок'); }
+  if (S.gain >= 4) { const H = (g.w2hearth = g.w2hearth || {})[key] = (g.w2hearth || {})[key] || {care: 0, coin: 0, buy: [], pack: 0, seen: 0}; H.giftDay = day(g); }
+  let t = pick((SAY[kind] || SAY.good)[S.o] || (SAY[kind] || SAY.good).peasant || SAY.good.peasant);
+  if (S.love) t += ' — Это мой камень. Ты знал? Ты знал…';
+  else if (kind !== 'offend' && R.rand() < 0.35) t += ' ' + pick(SAY.hint).replace('{s}', favOf(key)[2]);
+  return {kind, text: t, gain: S.gain};
+};
+/* хороший подарок — ночь жарче */
+if (C.heHotHome) { const hh0 = C.heHotHome; C.heHotHome = function (g, o, mood) { const p = hh0.apply(this, arguments); try { const H = (g.w2hearth || {})[o.key]; if (p > 0 && H && H.giftDay && day(g) - H.giftDay <= 2) return Math.min(1, p + K().HOT); } catch (e) {} return p; }; }
+const curKey = g => g.folkRole ? g.folkRole + '@' + (g.folkAt || g.loc) : null;
+const wedRel = (g, key) => { const r = (g.folkRel || {})[key]; return r && r.bond === 'wed' ? r : null; };
+SC.dg_gift = g => {
+  const key = curKey(g), r = key && wedRel(g, key); if (!r) return {title: 'Подарок', bg: 'hut', lines: [['n', 'Дарить некому.']], choices: [{t: 'Назад', do: () => 'w2_hearth'}]};
+  const [role, at] = key.split('@'), p = C.folkPerson(g, role, at), hs = (g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+  const lines = [['n', `Что подарить ${p.sex === 'f' ? 'ей' : 'ему'}? В мешках у отряда — всякое.`]]; if (g.dgLast) lines.push(['n', g.dgLast]);
+  const seen = new Set(), items = [];
+  hs.forEach(h => [...new Set(h.inv)].forEach(id => { if (seen.has(id) || !C.giftable(g, id)) return; const eqd = Object.values(h.eq || {}).includes(id) && h.inv.filter(x => x === id).length < 2; if (eqd) return; seen.add(id); items.push({h, id, v: (R.item(id) || {}).price || 0}); }));
+  items.sort((a, b) => b.v - a.v);
+  const ch = items.slice(0, 14).map(x => ({t: `Подарить: ${(R.item(x.id) || {}).name} — из мешка ${x.h.name}`, do: g2 => { const res = C.giftGive(g2, key, x.h.id, x.id); g2.dgLast = res ? `${p.n}: ${res.text}` : null; if (res) C.note(g2, g2.dgLast); return 'dg_gift'; }}));
+  if (!ch.length) lines.push(['n', 'Дарить пока нечего: ни камня, ни ленты, ни путной утвари.']);
+  ch.push({t: 'Назад', do: g2 => { g2.dgLast = null; return 'w2_hearth'; }});
+  return {title: 'Подарок', bg: (C.FOLK[role] || {}).bg || 'hut', art: (C.FOLK[role] || {}).art || 'hut', face: p.face, faceName: p.n, faceSub: p.t, lines, choices: ch};
+};
+Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+{ const so1 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so1.apply(this, arguments);
+  try { if (sc && id === 'w2_hearth') { const key = curKey(g); if (key && wedRel(g, key)) { const ch = (sc.choices || []).slice(), back = ch.length && /^Назад/.test(ch[ch.length - 1].label || '') ? ch.pop() : null;
+    ch.unshift({i: Math.max(0, ...ch.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1, label: 'Подарить…', do: g2 => { g2.dgLast = null; return 'dg_gift'; }}); if (back) ch.push(back); return Object.assign({}, sc, {choices: ch}); } }
+    if (sc && /^dg_|^dress_/.test(id) && sc.raw && sc.raw.face && !sc.face) Object.assign(sc, {face: sc.raw.face, faceName: sc.raw.faceName, faceSub: sc.raw.faceSub}); } catch (e) {}
+  return sc; }; }
+if (C.wearFx) { const wf0 = C.wearFx; C.wearFx = function (x) { const t = wf0.apply(this, arguments); try { if (x && C.DRESS_T[R.baseId ? R.baseId(x.id) : x.id] > 1) return t + '; в непогоду и в бою изнашивается — в дорогу лучше простое'; } catch (e) {} return t; }; }
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);

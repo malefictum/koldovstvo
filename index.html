@@ -49913,7 +49913,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611250502"></script><script>
+</script><script src="world.js?v=202611250521"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50951,14 +50951,14 @@ function confirmBox(id, text) { if (confirmed[id]) { delete confirmed[id]; retur
 const ICON_ID = {skramasaks: 'sword2', sablya: 'sword2', tsep: 'flail', kisten: 'flail', luk_ohot: 'bow', sulitsa: 'arrows', drotik: 'arrows', kozhanyi_blyahi: 'lamellar', kolchuga_korot: 'mail', kolchuga_dolgaya: 'mail'};
 const ICON_GROUP = {'меч': 'sword', 'секира': 'axe', 'топор': 'axe', 'двуручное': 'axe', 'булава': 'mace', 'копьё': 'spear', 'лук': 'longbow', 'самострел': 'crossbow', 'щит': 'shield_round', 'голова': 'helm_aventail'};
 const SLOT_ICON = {weapon: 'sword', ranged: 'bow', body: 'mail', shield: 'shield_round', head: 'helm_aventail'};
-const ICON_ALIAS = {znak_zvezdy: 'obereg_znak_boga', gusli_zvonchatye_masterskie: 'gusli', gudok_ili_dudka: 'gusli', pes_storozhevoy: 'pes_boevoy', kon_boevoy: 'kon_boevoy_legkiy', kon_boevoy_tyazhelyy: 'kon_boevoy_legkiy', kon_lomovoy: 'kon_ezdovoy', ponozhi_kovan: 'ponozhi_kozh', sapogi_tyazh: 'sapogi_sred', rukavitsy: 'rukavitsy_kolch', shater_bolshoy: 'shater_malyy', shater_knyazheskiy: 'shater_malyy', rubaha_prostaya: 'rubaha_vyshitaya', mantiya_grubaya_votola: 'mantiya_rasshitaya_oblachenie', med_stavlenyy_kovsh: 'krepkiy_med_charka', maslo_dlya_svetilnika_flyaga: 'maslo_goryuchee_grecheskiy_ogon', koren_mandragory_adamova_golova: 'koren_paporotnika', koshka: 'koshka_kryuk', kryuk_skalnyy: 'koshka_kryuk'};
+const ICON_ALIAS = {nar_m1: 'rubaha_vyshitaya', nar_m2: 'rubaha_vyshitaya', nar_m3: 'rubaha_vyshitaya', nar_m4: 'kaftan_shelkovyy', nar_m5: 'kaftan_shelkovyy', znak_zvezdy: 'obereg_znak_boga', gusli_zvonchatye_masterskie: 'gusli', gudok_ili_dudka: 'gusli', pes_storozhevoy: 'pes_boevoy', kon_boevoy: 'kon_boevoy_legkiy', kon_boevoy_tyazhelyy: 'kon_boevoy_legkiy', kon_lomovoy: 'kon_ezdovoy', ponozhi_kovan: 'ponozhi_kozh', sapogi_tyazh: 'sapogi_sred', rukavitsy: 'rukavitsy_kolch', shater_bolshoy: 'shater_malyy', shater_knyazheskiy: 'shater_malyy', rubaha_prostaya: 'rubaha_vyshitaya', mantiya_grubaya_votola: 'mantiya_rasshitaya_oblachenie', med_stavlenyy_kovsh: 'krepkiy_med_charka', maslo_dlya_svetilnika_flyaga: 'maslo_goryuchee_grecheskiy_ogon', koren_mandragory_adamova_golova: 'koren_paporotnika', koshka: 'koshka_kryuk', kryuk_skalnyy: 'koshka_kryuk'};
 /* второй лист вещей (items2): еда, снасти, одежда, руда, травы */
 /* кони, сбруя, повозки, корм — набор 7: эти значки главнее старых */
 const ICON_HORSE = {kon_ezdovoy: 'h_kon', kon_boevoy_legkiy: 'h_kon', kon_boevoy: 'h_kon', kon_boevoy_tyazhelyy: 'h_lomovoy', loshadka_maloroslaya: 'h_loshadka', kon_lomovoy: 'h_lomovoy', osel_ili_mul: 'h_mul',
   vol: 'h_vol', byk: 'h_vol', sedlo_verhovoe: 'h_sedlo', uzda_s_udilami: 'h_uzda', povod: 'h_uzda', peremetnye_sumy_malye: 'h_sumy_m', peremetnye_sumy_bolshie: 'h_sumy_b', sedlo_vyuchnoe: 'h_sedlo_v',
   upryazh: 'h_upryazh', homut_konskiy: 'h_homut', yarmo_volove: 'h_upryazh', podkovy_s_podkovkoy: 'h_podkovy', popona: 'h_popona', telega: 'h_telega', koleso_dlya_telegi: 'h_telega', sani: 'h_sani',
   vozok_krytyy: 'h_vozok', oves_mera: 'h_oves', shpory: 'h_podkovy'};
-const ICON2 = {hleb_karavay: 'hleb2', syr_golovka: 'syr', solonina_funt: 'solonina', kopchenoe_myaso: 'myaso_kopch', myaso_1_funt: 'myaso_kopch', myaso_na_odnogo: 'myaso_kopch', kopchenaya_ryba: 'ryba_kopch', ryba_solenaya_funt: 'ryba_kopch', ryba_solenaya_10_kg: 'bochka',
+const ICON2 = {nar_f1: 'plate', nar_f2: 'plate', nar_f3: 'plate', nar_f4: 'plate', nar_f5: 'plate', rubaha_prostaya: 'svita', hleb_karavay: 'hleb2', syr_golovka: 'syr', solonina_funt: 'solonina', kopchenoe_myaso: 'myaso_kopch', myaso_1_funt: 'myaso_kopch', myaso_na_odnogo: 'myaso_kopch', kopchenaya_ryba: 'ryba_kopch', ryba_solenaya_funt: 'ryba_kopch', ryba_solenaya_10_kg: 'bochka',
   ryba_svezhaya_1_funt: 'ryba', sol_1_funt: 'sol', gorkaya_sol: 'sol', muka_1_funt: 'muka', zerno_1_funt: 'zerno', repa_1_funt: 'repa', ovoshchi_ili_yaytsa_gorst: 'repa', griby_1_funt: 'griby', orehi_1_funt: 'orehi', lesnoy_oreh: 'orehi', maslo_korove_1_funt: 'maslo', lesnoy_pripas: 'lesnoy',
   eda_na_den_skudnaya: 'lepeshki', eda_na_den_obychnaya: 'pohlebka', eda_na_den_horoshaya: 'pirog', harch_v_dorogu_na_den_suhari_vyalenoe_myaso: 'harch', prostoe_blyudo: 'kasha', pohlebka: 'pohlebka', sytnoe_blyudo: 'pohlebka', otmennoe_blyudo: 'pirog', pir_na_odnogo_bratchina: 'pirog',
   dish_pohl: 'pohlebka', dish_kasha: 'kasha', dish_zharkoe: 'pohlebka', dish_uha: 'pohlebka', dish_lepeshki: 'lepeshki', dish_gribnaya: 'pohlebka', dish_pirog: 'pirog', dish_shchi: 'pohlebka', dish_kulesh: 'kasha',
