@@ -66161,7 +66161,7 @@ const T = C.KVT, fill = C.kvFill;
 Object.assign(C.KV, Object.assign({
   GUEST_CH: [0.1, 0.25, 0.45], GUEST_GAP: 3, LOCAL_V: 0.55, LOCAL_T: 0.35, LOCAL_ST: {widow: 0.35, maid: 0.35, wife: 0.3},
   LATER: 0.6, LATER_DAYS: [6, 25], REL_GUEST: 40, REL_NO: 20, REL_TALK: 6, REL_GIFT: 8, REL_NIGHT: 5, NIGHT_MIN: 35,
-  SVAT_REL: 80, SVAT_PREG: 50, SVAT_DAYS: 7, RUN_REL: 85, GIFT_P: 50, HUSB: 0.12, HUSB_N: 0.06, HUSB_KNOWS: 0.3, HUSB_MAX: 0.45, VIRA: 150, FIGHT_DC: 13,
+  SVAT_REL: 80, SVAT_PREG: 50, SVAT_DAYS: 21, SVAT_MEETS: 6, REL_SLOW: 120, REL_CAP0: 55, REL_CAP_MEET: 5, RUN_REL: 85, GIFT_P: 50, HUSB: 0.12, HUSB_N: 0.06, HUSB_KNOWS: 0.3, HUSB_MAX: 0.45, VIRA: 150, FIGHT_DC: 13,
 }, C.KV.VES || {}));
 const K = () => C.KV;
 const decl = (n, sex) => (Q && Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
@@ -66307,6 +66307,11 @@ const stWord = r => {
   return w;
 };
 const pregWith = (g, r) => (C.kvPregOf ? C.kvPregOf(g, 'loc:' + r.id) : null);
+/* близость растёт встречами: ночи и подарки без разговоров дальше «по сердцу» не пускают */
+/* старые знакомства (до счёта встреч): встречи — по ночам и близости */
+const meetsOf = x => { if (x.meets == null) x.meets = Math.max(x.nights || 0, Math.floor(((x.rel || 0) - 40) / 6)); return x.meets; };
+const relCap = x => Math.max(x.rel || 0, Math.min(100, K().REL_CAP0 + K().REL_CAP_MEET * meetsOf(x) + (x.st === 'freed' ? 40 : 0)));
+C.kvRelCap = relCap;
 C.kvLocalWhy = function (g, r, what) {
   const h = heroById(g, r.hid); if (!h) return 'нет героя';
   if (what === 'night') { if (r.nightDay === day(g)) return 'сегодня уже'; if (r.rel < K().NIGHT_MIN) return `${r.sex === 'f' ? 'она' : 'он'} пока не зовёт остаться`; return ''; }
@@ -66318,6 +66323,7 @@ C.kvLocalWhy = function (g, r, what) {
     if (r.st === 'freed') return ''; // признал дитя — она согласна сразу (Ник 25.11)
     if (r.rel < (pr ? K().SVAT_PREG : K().SVAT_REL)) return 'рано: ещё не время для такого слова';
     if (!pr && day(g) - (r.met || 0) < K().SVAT_DAYS) return 'рано: слишком мало знакомы';
+    if (!pr && meetsOf(r) < K().SVAT_MEETS) return 'рано: виделись всего ничего — приходите ещё';
     return '';
   }
   if (what === 'run') { if (r.st !== 'wife') return 'нельзя'; if (r.rel < K().RUN_REL) return 'на такое ещё не решится'; return ''; }
@@ -66353,18 +66359,20 @@ SC.kv_local = g => {
     x.talkDay = day(g2); delete g2.kvArt; const dirty = C.grimeStage && C.grimeStage(hh) >= 2;
     let add = K().REL_TALK + 2 * R.mod((hh.stats || {}).cha || 10) + Math.floor(R.rand() * 5) + Math.round(2 * (C.kvAgeMod ? C.kvAgeMod(hh, x.st === 'maid' ? 19 : x.st === 'widow' ? 40 : 28, {widow: x.st === 'widow'}) : 0)); if (dirty) add = Math.floor(add / 2);
     if (C.dressRelMul && C.kvRankWho) add = Math.round(add * C.dressRelMul(hh, C.kvRankWho(x))); // наряд — по сословию того, кто смотрит
-    x.rel = Math.min(100, x.rel + Math.max(1, add)); if (C.passH) C.passH(g2, 1);
+    if (x.meetDay !== day(g2)) { x.meetDay = day(g2); x.meets = meetsOf(x) + 1; }
+    add = Math.round(add * Math.max(0.25, 1 - x.rel / K().REL_SLOW));   // чем ближе, тем медленнее (Ник 25.11: не влюбляются за неделю)
+    x.rel = Math.min(relCap(x), x.rel + Math.max(1, add)); if (C.passH) C.passH(g2, 1);
     const rkv = x.st === 'wife' && C.KV_RANK && C.KV_RANK[x.rank] ? (C.KV_RANK[x.rank].power ? 'power' : x.rank === 'kupec' ? 'kupec' : null) : null;
     const vv = C.kvVoice ? ((rkv && R.rand() < 0.5 && C.kvVoice('talkRank', rkv, x.sex)) || (R.rand() < 0.65 && C.kvVoice('talk', x.st, x.sex))) : null;
     g2.kvLast = fill(vv || pick(T.talk[x.sex === 'f' ? 'f' : 'm']), {h: hh, p}) + (dirty ? ` Только морщится украдкой: от ${decl(hh.name, hh.sex).g} несёт дорогой.` : ''); return 'kv_local'; }});
   ch.push({own: h.id, t: `Принести гостинец — ${R.priceText(K().GIFT_P)}`, if: g2 => (C.kvLocOf(g2, r.id) || {}).giftDay !== day(g2) && canPay(g2, K().GIFT_P), off: g2 => ((C.kvLocOf(g2, r.id) || {}).giftDay === day(g2) ? 'сегодня уже дарили' : 'не хватает денег'), do: g2 => {
-    const x = C.kvLocOf(g2, r.id); if (!x || !canPay(g2, K().GIFT_P)) return 'kv_local'; g2.purse -= K().GIFT_P; x.giftDay = day(g2); delete g2.kvArt; x.rel = Math.min(100, x.rel + K().REL_GIFT);
+    const x = C.kvLocOf(g2, r.id); if (!x || !canPay(g2, K().GIFT_P)) return 'kv_local'; g2.purse -= K().GIFT_P; x.giftDay = day(g2); delete g2.kvArt; x.rel = Math.min(relCap(x), x.rel + Math.max(1, Math.round(K().REL_GIFT * Math.max(0.25, 1 - x.rel / K().REL_SLOW))));
     g2.kvLast = x.sex === 'f' ? `Платок с вышитыми птицами, медовый пряник, бусы из речного жемчуга. ${x.n} прячет улыбку, но гостинец прибирает в сундук, бережно.` : `Новый нож с костяной рукоятью, кисет, хмельной мёд в жбане. ${x.n} крутит нож в руках и смеётся: «Угадала ведь»`;
     return 'kv_local'; }});
   const nw = C.kvLocalWhy(g, r, 'night');
   ch.push({own: h.id, t: 'Остаться на ночь', if: g2 => !C.kvLocalWhy(g2, C.kvLocOf(g2, r.id), 'night'), off: nw || 'нельзя', do: g2 => {
     const x = C.kvLocOf(g2, r.id), hh = heroById(g2, r.hid); if (!x || !hh || C.kvLocalWhy(g2, x, 'night')) return 'kv_local';
-    x.nightDay = day(g2); x.nights = (x.nights || 0) + 1; x.rel = Math.min(100, x.rel + K().REL_NIGHT);
+    x.nightDay = day(g2); x.nights = (x.nights || 0) + 1; x.rel = Math.min(relCap(x), x.rel + K().REL_NIGHT);
     freeNight(g2, 'peasant', placeName(g2, x.at));
     const caught = !!(x.hb && x.st === 'wife' && R.rand() < Math.min(K().HUSB_MAX, K().HUSB + K().HUSB_N * (x.nights - 1) + (x.hb.knows ? K().HUSB_KNOWS : 0))); // ушла от мужа — муж больше не ходит (Ник 25.11); и при живом муже не каждую ночь
     const say = T.nightSay && T.nightSay[x.st] && T.nightSay[x.st][x.sex === 'f' ? 'f' : 'm']; // у каждой — свои слова ночью (Ник 25.11)
