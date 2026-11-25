@@ -71183,6 +71183,144 @@ if (C.BANTER && C.BANTER_TALKS) {
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* family_home.js */
+/* Колдовство — дом семьи растёт пристройками (Ник 25.11: «избу можно расширять достройками, что стоит денег; цепочка
+   поручений — что жене надо для того или иного; доходы хозяйства за седмицу должны покрывать расходы; умная жена советует,
+   куда вложиться»). Без DOM. Только для дома супруга(и) (folkRel bond 'wed', ключ role@место).
+   • ПРИСТРОЙКИ (C.FH.EXT): сени, клеть, сад, своя баня, горница, мастерская жены, светлица, терем. «Затеять» → жена говорит,
+     чего не хватает (лес у лесника, слюда у купцов, камни для каменки, артель плотников…) — это место на карте; там кнопка
+     «…для дома — купить/нанять». Привёз — «Строить» за деньги, стройка идёт сколько-то дней, потом — её слова и польза.
+   • ПОЛЬЗА: горница и терем — место детям (больше трёх — только с горницей), светлица — дом купеческий, терем — знатный;
+     своя баня — дома моешься; клеть — сундук больше; сад — дешевле жить; мастерская — жена сама зарабатывает.
+   • РАСХОДЫ ПО ЧИНУ: седмичный расход семьи (w2_hearth: C.hearthWeek) — по ступени дома; знатный дом дорог.
+     Жена из купцов или знати в простой избе — «не по чину живём»: капает в чашу обид. Спасённой — всё хорошо.
+   • СОВЕТ: «Посоветоваться о хозяйстве» — сводит доходы владений и расходы дома за седмицу и говорит, куда вложиться:
+     какое владение поднять, что купить, какую пристройку. Умная (из купцов, ювелирша, книжница, знатная) считает точно;
+     простая — по-житейски, коротко.
+   Состояние: g.fhome[key] = {ext: [id], task: {ext, step, at, done}, build: {ext, ready}}. Числа — C.FH. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !C.folkPerson || !C.HEARTH) return;
+const ZM = 100;
+C.FH = Object.assign({
+  EXT: {
+    seni: {n: 'Сени и крыльцо', price: 40 * ZM, days: 3, req: [], task: null, d: 'Тепло не выдувает, обувь есть где оставить — дом становится домом.', say: 'Крыльцо-то какое! Теперь и гостей не стыдно встретить'},
+    klet: {n: 'Клеть-кладовая', price: 60 * ZM, days: 4, req: [], task: null, chest: 30, d: 'Сундук в доме вмещает больше.', say: 'Наконец-то есть куда всё сложить, а не под лавку'},
+    sad: {n: 'Сад и огород', price: 50 * ZM, days: 5, req: [], task: null, cost: 0.9, d: 'Своя репа, капуста, яблоки — жить дешевле.', say: 'Яблоньки посадила — через три лета будем с яблоками'},
+    banya: {n: 'Своя баня', price: 80 * ZM, days: 6, req: ['seni'], task: [{k: 'kamni', kinds: ['река', 'брод', 'мельница', 'село'], pay: 20 * ZM, t: 'камни для каменки', at: 'с речного порога', who: 'Рыбаки', say: 'Для бани нужны камни для каменки — не всякий годится, треснет. Хорошие берут с речного порога, у {place}. Рыбаки знают где'}], wash: 1, d: 'Дома моешься в своей бане — грязь не копится.', say: 'Своя баня! Попаримся — и никакой банщицы не надо, слышишь?'},
+    gornitsa: {n: 'Горница через сени', price: 150 * ZM, days: 10, req: ['seni'], task: [{k: 'les', kinds: ['лес', 'село', 'хутор'], pay: 30 * ZM, t: 'строевой лес', at: 'у лесника', who: 'Лесник', say: 'Горницу ставить — нужен строевой лес, сосна прямая, без сучка. Такая растёт у {place}; лесник продаст, если не жадничать'}], kids: 3, rank: 1, d: 'Вторая изба через сени: детям есть где жить — и не тесно.', say: 'Две избы, как у людей! Детям — своя горница, нам — своя'},
+    master: {n: 'Мастерская жены', price: 200 * ZM, days: 8, req: ['seni'], task: [{k: 'instr', kinds: ['город', 'село'], pay: 40 * ZM, t: 'инструмент и снасть', at: 'у мастеров', who: 'Мастер', say: 'Для мастерской нужен инструмент — свой, хороший, не одолженный. Лучший делают у {place}'}], earn: 120, d: 'Жена работает дома своим ремеслом — сама зарабатывает на хозяйство.', say: 'Своя мастерская… Я ведь всегда хотела — чтобы своим трудом'},
+    svetlica: {n: 'Светлица наверху', price: 400 * ZM, days: 15, req: ['gornitsa'], task: [{k: 'sluda', kinds: ['город'], pay: 60 * ZM, t: 'слюда для окон', at: 'у купцов', who: 'Купцы', say: 'Светлица — это окна. А окна — это слюда, её везут из-за гор. Только у купцов в {place} и купишь'}], rank: 2, d: 'Второй ярус с окнами — дом купеческий, есть где принять гостя.', say: 'Светло-то как! Будто и не в избе живём. Теперь и купчихе не стыдно в гости позвать'},
+    terem: {n: 'Терем с переходами', price: 1500 * ZM, days: 30, req: ['svetlica'], task: [{k: 'artel', kinds: ['город'], pay: 150 * ZM, t: 'артель плотников', at: 'на торгу', who: 'Старшина артели', say: 'Терем строить — не избу рубить. Нужна артель, что кремли ставит. Такая сидит в {place}, на торгу'}, {k: 'rez', kinds: ['город', 'село'], pay: 80 * ZM, t: 'резчик по дереву', at: 'у резчика', who: 'Резчик', say: 'И резчик нужен — наличники, конёк, крыльцо. Лучший живёт у {place}'}], kids: 4, rank: 3, d: 'Терем с переходами и резьбой — дом знатный, людям на загляденье.', say: 'Терем… Мой терем. Отец бы не поверил. Мать бы заплакала'},
+  },
+  ORDER: ['seni', 'klet', 'sad', 'banya', 'gornitsa', 'master', 'svetlica', 'terem'],
+  KIDS0: 3, COST: {poor: 0.7, peasant: 1, merchant: 1.6, noble: 2.5}, NOCHIN: 0.5,
+}, C.FH || {});
+const K = () => C.FH, X = () => K().EXT;
+const day = g => (g && g.day) || 1;
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const hsh = s => { let x = 2166136261; for (const ch of String(s)) x = Math.imul(x ^ ch.charCodeAt(0), 16777619); return x >>> 0; };
+const curKey = g => g.folkRole ? g.folkRole + '@' + (g.folkAt || g.loc) : null;
+const wedRel = (g, key) => { const r = (g.folkRel || {})[key]; return r && r.bond === 'wed' && (C.alive(g) || []).some(h => h.id === r.who) ? r : null; };
+C.fhOf = (g, key) => { g.fhome = g.fhome || {}; const F = g.fhome[key] = g.fhome[key] || {ext: []}; F.ext = F.ext || []; return F; };
+C.fhHas = (g, key, id) => !!(g.fhome && g.fhome[key] && (g.fhome[key].ext || []).includes(id));
+const place = (g, at) => (nodes(g)[at] || {}).name || 'того места';
+const pickPlace = (g, home, kinds, salt) => { const L = Object.entries(nodes(g)).filter(([id, n]) => id !== home && kinds.includes(n.kind)); if (!L.length) return null; return L[hsh(salt) % L.length][0]; };
+
+/* ---------- ступень дома, дети, расходы ---------- */
+const TIERS = ['poor', 'peasant', 'merchant', 'noble'];
+{ const th0 = C.heTierHook; C.heTierHook = function (g, key) { const t0 = th0 ? th0.apply(this, arguments) : null;
+  try { if (g._fhBase) return t0; const F = g.fhome && g.fhome[key]; if (!F || !F.ext.length) return t0; let r = 0; F.ext.forEach(id => { r = Math.max(r, (X()[id] || {}).rank || 0); }); if (!r) return t0;
+    let base = t0; if (!base) { g._fhBase = 1; try { base = C.heTier(g, key); } finally { g._fhBase = 0; } }
+    return TIERS[Math.max(TIERS.indexOf(base), r)]; } catch (e) { g._fhBase = 0; return t0; } }; }
+C.fhKidsCap = (g, key) => K().KIDS0 + (g.fhome && g.fhome[key] ? g.fhome[key].ext.reduce((a, id) => a + ((X()[id] || {}).kids || 0), 0) : 0);
+if (C.kidsNight && C.KIDS) { const kn0 = C.kidsNight; C.kidsNight = function (g, key) { const K0 = C.KIDS, keep = K0.MAX;
+  try { K0.MAX = Math.min(K0.MAX, C.fhKidsCap(g, key)); return kn0.apply(this, arguments); } finally { K0.MAX = keep; } }; }
+if (C.hearthWeek) { const hw0 = C.hearthWeek; C.hearthWeek = function (g, key) { let v = hw0.apply(this, arguments);
+  try { const t = C.heTier ? C.heTier(g, key) : 'peasant'; v *= K().COST[t] || 1; if (C.fhHas(g, key, 'sad')) v *= X().sad.cost; } catch (e) {}
+  return Math.round(v / 10) * 10; }; }
+/* мастерская: жена зарабатывает каждую седмицу; «не по чину» — богатой в простом доме */
+if (C.hearthUpkeep) { const hu0 = C.hearthUpkeep; C.hearthUpkeep = function (g) {
+  try { Object.keys(g.fhome || {}).forEach(key => { const F = g.fhome[key]; if (!wedRel(g, key)) return; const H = (g.w2hearth || {})[key]; if (!H || H.week == null || day(g) - H.week < 7) return;
+    if (F.ext.includes('master')) H.coin = (H.coin || 0) + X().master.earn * ZM / 100; }); } catch (e) {}
+  try { Object.keys(g.folkRel || {}).forEach(key => { if (!wedRel(g, key) || !C.heOrigin || !C.heCupAdd) return; const H = (g.w2hearth || {})[key]; if (!H || H.week == null || day(g) - H.week < 7) return;
+    const o = C.heOrigin(g, key), need = o === 'noble' ? 3 : o === 'merchant' ? 2 : 0, have = TIERS.indexOf(C.heTier(g, key));
+    if (need && have < need) C.heCupAdd(g, key, K().NOCHIN, 'не по чину'); }); } catch (e) {}
+  return hu0.apply(this, arguments); }; }
+/* своя баня: ночь дома — и чисто */
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (sc && id === 'folk' && g.folkRole) { const key = curKey(g); if (key && wedRel(g, key) && C.fhHas(g, key, 'banya')) sc.choices = (sc.choices || []).map(c => /^Остаться дома на ночь/.test(c.label || '') && c.do && !c.fhWash ? Object.assign({}, c, {fhWash: 1, do: function (g2) { const out = c.do.apply(this, arguments); try { C.alive(g2).forEach(h => { h.grime = 0; }); } catch (e) {} return out; }}) : c); } } catch (e) {}
+  return sc; }; }
+
+/* ---------- затеять, поручение, стройка ---------- */
+C.fhStart = function (g, key, id) { const E = X()[id], F = C.fhOf(g, key); if (!E || F.ext.includes(id) || F.task || F.build) return null;
+  if (E.req.some(r => !F.ext.includes(r))) return null;
+  F.task = {ext: id, step: 0, done: []};
+  if (E.task) E.task.forEach((T, k) => { F.task.done[k] = 0; F.task['at' + k] = pickPlace(g, key.split('@')[1], T.kinds, key + id + k + day(g)); });
+  return F.task; };
+C.fhTaskText = function (g, key) { const F = C.fhOf(g, key), T0 = F.task; if (!T0) return null; const E = X()[T0.ext]; if (!E.task) return null;
+  return E.task.map((T, k) => T0.done[k] ? `${T.t} — уже есть` : T.say.replace('{place}', place(g, T0['at' + k]))).join(' '); };
+C.fhReady = (g, key) => { const F = C.fhOf(g, key), T0 = F.task; if (!T0) return false; const E = X()[T0.ext]; return !E.task || E.task.every((T, k) => T0.done[k]); };
+C.fhBuild = function (g, key) { const F = C.fhOf(g, key), T0 = F.task; if (!T0 || !C.fhReady(g, key)) return null; const E = X()[T0.ext];
+  if ((g.purse || 0) < E.price) return null; g.purse -= E.price; F.build = {ext: T0.ext, ready: day(g) + E.days}; F.task = null; return F.build; };
+C.fhTick = function (g) { Object.entries(g.fhome || {}).forEach(([key, F]) => { if (F.build && day(g) >= F.build.ready) { const id = F.build.ext, E = X()[id]; F.ext.push(id); F.build = null;
+  let p = null; try { const [role, at] = key.split('@'); p = C.folkPerson(g, role, at); } catch (e) {}
+  if (C.W2FAM && E.chest) C.W2FAM.CHEST = Math.max(C.W2FAM.CHEST, 60 + F.ext.reduce((a, x) => a + ((X()[x] || {}).chest || 0), 0));
+  C.note(g, `Дома достроили: ${E.n.toLowerCase()}. ${p ? p.n + ': ' : ''}«${E.say}»`); } }); };
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments); try { if (g && g.fhome && g.day !== d0) C.fhTick(g); } catch (e) {} return r; }; }
+/* в месте поручения — кнопка */
+if (Q && Q.inject) { const inj0 = Q.inject; Q.inject = function (g, sceneId, choices) {
+  let out = inj0.apply(this, arguments);
+  try { const n = nodes(g)[g.loc]; if (!n || n.scene !== sceneId || !g.fhome) return out;
+    Object.entries(g.fhome).forEach(([key, F]) => { const T0 = F.task; if (!T0 || !wedRel(g, key)) return; const E = X()[T0.ext]; (E.task || []).forEach((T, k) => {
+      if (T0.done[k] || T0['at' + k] !== g.loc) return; out = out.slice(); const i = (out.length ? Math.max(...out.map(c => (typeof c.i === 'number' ? c.i : 0))) : 0) + 1;
+      out.unshift({i, label: `${T.who}: ${T.t} для дома — ${R.priceText(T.pay)}`, dis: (g.purse || 0) < T.pay ? 'в кошеле не хватает' : null, do: g2 => { const F2 = g2.fhome[key]; if (!F2 || !F2.task || (g2.purse || 0) < T.pay) return n.scene;
+        g2.purse -= T.pay; F2.task.done[k] = 1; C.note(g2, `${cap(T.t)} для дома — есть (затея: ${E.n.toLowerCase()}). ${C.fhReady(g2, key) ? 'Можно возвращаться домой и строить.' : 'Осталось ещё кое-что.'}`); return n.scene; }}); }); });
+  } catch (e) {}
+  return out; }; }
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/* ---------- совет умной жены ---------- */
+const SMART = o => ['merchant', 'noble'].includes(o);
+C.fhAdvice = function (g, key) {
+  const [role] = key.split('@'), base = String(role).replace(/^sp_/, ''), o = C.heOrigin ? C.heOrigin(g, key) : 'peasant', smart = SMART(o) || ['book', 'trade', 'jewel', 'charm'].includes(base);
+  const E = C.ESTATE || {}, ES = g.estate || [], inc = Math.round(ES.reduce((a, e) => a + (C.estateWeek ? C.estateWeek(g, e) || 0 : 0), 0) / 10) * 10, cost = C.hearthWeek ? C.hearthWeek(g, key) : 0;
+  const out = [];
+  if (!smart) { out.push(inc >= cost ? '«Я в этих ваших наделах не смыслю. Только вижу: хлеб в доме есть, и слава Оку»' : '«В долг живём — это я вижу. А куда деньги класть — ты уж сам решай, ты у нас голова»');
+    const F = C.fhOf(g, key), next = K().ORDER.find(id => !F.ext.includes(id) && !X()[id].req.some(r => !F.ext.includes(r)));
+    if (next) out.push(`«А дому бы ${X()[next].n.toLowerCase()} — вот это бы да»`); return out; }
+  out.push(`«Давай посчитаем. Дом в седмицу ест ${R.priceText(cost)}. Хозяйство даёт ${inc ? R.priceText(inc) : 'ничего'}. ${inc >= cost ? `Сходится, и ещё ${R.priceText(inc - cost)} лишку` : `Не сходится — каждую седмицу ${R.priceText(cost - inc)} из кошеля`}»`);
+  const up = ES.filter(e => e.level < 3 && E[e.kind] && E[e.kind].week).map(e => { const pr = C.estatePrice(e.kind, e.level + 1), now = C.estateWeek(g, e); const nx = Object.assign({}, e, {level: e.level + 1}); let then = now; try { then = C.estateWeek(g, nx); } catch (x) {} return {e, pr, gain: then - now, k: (then - now) / Math.max(1, pr)}; }).filter(x => x.gain > 0).sort((a, b) => b.k - a.k)[0];
+  const own = new Set(ES.map(e => e.kind)), skills = C.estateSkill ? Object.keys(E).filter(k => !own.has(k) && E[k].week && !E[k].mobile).map(k => ({k, r: (E[k].week * C.estateSkill(g, k)) / E[k].price})).sort((a, b) => b.r - a.r) : [];
+  if (up) out.push(`«Выгоднее всего — поднять ${C.estateName(g, up.e).toLowerCase()}: ${R.priceText(up.pr)}, и в седмицу будет больше на ${R.priceText(Math.round(up.gain / 10) * 10)}. Окупится — сама считала — за ${Math.max(1, Math.ceil(up.pr / up.gain))} седмиц${Math.ceil(up.pr / up.gain) % 10 === 1 && Math.ceil(up.pr / up.gain) !== 11 ? 'у' : ''}»`);
+  if (skills[0]) { const k = skills[0].k; out.push(`«А купить я бы — ${E[k].name.toLowerCase()}: у вас в отряде руки к этому делу лежат. Ищи ${E[k].where.join(' или ')}»`); }
+  if (!up && !skills[0]) out.push('«Деньги пусть лежат. Лучше лишний мешок соли в погребе, чем лишний надел без хозяина»');
+  const F = C.fhOf(g, key), kids = C.kidsOf ? C.kidsOf(g, key).length : 0;
+  if (kids >= C.fhKidsCap(g, key) - 1 && !F.ext.includes('gornitsa')) out.push('«И горницу бы. Дети растут — скоро на голове друг у друга спать будут»');
+  else if (SMART(o) && TIERS.indexOf(C.heTier(g, key)) < (o === 'noble' ? 3 : 2)) out.push(`«И не по чину нам так жить. ${o === 'noble' ? 'Терем' : 'Светлица'} — не прихоть, а честь твоя»`);
+  return out;
+};
+
+/* ---------- в сцене «Хозяйство» (w2_hearth) ---------- */
+{ const so1 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so1.apply(this, arguments);
+  try { if (sc && id === 'w2_hearth') { const key = curKey(g); if (!key || !wedRel(g, key)) return sc; const F = C.fhOf(g, key), [role, at] = key.split('@'), p = C.folkPerson(g, role, at);
+    const lines = (sc.lines || []).slice(), ch = (sc.choices || []).slice(), back = ch.length && /^Назад/.test(ch[ch.length - 1].label || '') ? ch.pop() : null;
+    let i = Math.max(0, ...ch.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+    if (F.ext.length) lines.push(['n', `Пристроено: ${F.ext.map(x => X()[x].n.toLowerCase()).join(', ')}.`]);
+    if (F.build) lines.push(['n', `Идёт стройка: ${X()[F.build.ext].n.toLowerCase()}. ${F.build.ready - day(g) <= 1 ? 'Вот-вот закончат.' : 'Плотники стучат с утра до ночи.'}`]);
+    if (F.task) { const E = X()[F.task.ext]; lines.push(['n', C.fhReady(g, key) ? `Для «${E.n.toLowerCase()}» всё припасено — можно строить.` : `${p.n}: «${C.fhTaskText(g, key)}»`]);
+      if (C.fhReady(g, key)) ch.push({i: i++, label: `Строить: ${E.n.toLowerCase()} — ${R.priceText(E.price)}`, dis: (g.purse || 0) < E.price ? 'в кошеле не хватает' : null, why: E.d, do: g2 => { const k2 = curKey(g2); const b = C.fhBuild(g2, k2); if (b) g2.w2hearthLast = `Плотники пришли с утра. «${E.n} будет через ${E.days} ${E.days < 5 ? 'дня' : 'дней'}», — говорит старший.`; return 'w2_hearth'; }});
+      ch.push({i: i++, label: 'Отложить затею', do: g2 => { const F2 = C.fhOf(g2, curKey(g2)); F2.task = null; g2.w2hearthLast = `${p.n} вздыхает: «Ну что ж. Потом — так потом»`; return 'w2_hearth'; }}); }
+    else if (!F.build) K().ORDER.forEach(x => { const E = X()[x]; if (F.ext.includes(x) || E.req.some(r => !F.ext.includes(r))) return;
+      ch.push({i: i++, label: `Затеять: ${E.n.toLowerCase()}`, why: E.d, do: g2 => { const k2 = curKey(g2); C.fhStart(g2, k2, x); g2.w2hearthLast = E.task ? `${p.n}: «${C.fhTaskText(g2, k2)}»` : `${p.n}: «Затеем. Плотников я сама найду — только денег дай, когда скажу»`; return 'w2_hearth'; }}); });
+    ch.push({i: i++, label: 'Посоветоваться о хозяйстве', do: g2 => { g2.w2hearthLast = `${p.n} садится к столу, ${SMART(C.heOrigin ? C.heOrigin(g2, key) : '') ? 'раскладывает счётные палочки' : 'подпирает щёку рукой'}: ` + C.fhAdvice(g2, key).join(' '); return 'w2_hearth'; }});
+    if (back) ch.push(back);
+    return Object.assign({}, sc, {lines, choices: ch}); } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc; }; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* kv_regular.js */
 /* Колдовство — постоянная банщица (весёлая девица) и признанное дитя (Ник 25.11). Без DOM.
    • ПОСТОЯННАЯ: ходишь в одну баню (один весёлый дом) — с третьего раза она уже не безымянная: имя, лицо, «ты у неё свой».
