@@ -1860,7 +1860,7 @@ B.reach = function (S, u) {
       const cell = B.cell(S, n.c, n.r); if (!cell) continue;
       // полёт: над деревьями, камнями, водой и оградами — можно, сквозь стены и крыши — нет; встать на преграду нельзя (Ник 25.11)
       const blk = B.TERRAIN[cell.t].block, over = blk && fly && !B.FLY_NO.has(cell.t) && cell.hb == null; if (blk && !over) continue;
-      const occ = B.unitAt(S, n.c, n.r), meek = occ && S.walk && !S.walk.fight && occ.side === 'civ' && u.side === 'party'; // на прогулке мирные расступаются: сквозь них идти можно, вставать на них — нет
+      const occ = B.unitAt(S, n.c, n.r), meek = occ && S.walk && occ.side === 'civ' && u.side === 'party'; /* и в драке: мирные (дети, бабы) не держат проход — Ник 25.11 */ // на прогулке мирные расступаются: сквозь них идти можно, вставать на них — нет
       if (occ && occ.side !== u.side && !occ.down && !meek) continue;
       const cost = x.cost + (fly ? 1 : (B.TERRAIN[cell.t].cost || 1));
       if (cost > left) continue;
@@ -50178,7 +50178,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611252246"></script><script>
+</script><script src="world.js?v=202611252253"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

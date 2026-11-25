@@ -70743,7 +70743,7 @@ C.walkWitness = function (S, h, not) {
   return out;
 };
 const witWord = ws => (ws.some(w => w.face) ? 'face' : ws.length ? 'someone' : null);
-const foreignIn = (S, h) => { const hid = BF.inHouse(S, h); if (hid == null) return false; const hs = houseOf(S, hid); return !!(hs && !['korchma', 'korchma_big', 'hram', 'kuznya'].includes(hs.k)); };
+const foreignIn = (S, h) => { const hid = BF.inHouse(S, h); if (hid == null) return false; const hs = houseOf(S, hid); return !!(hs && !hs.own && !['korchma', 'korchma_big', 'hram', 'kuznya'].includes(hs.k)); }; // свой дом — не чужой (Ник 25.11)
 const sameRoom = (S, a, b) => { const ca = cellOf(S, a), cb = cellOf(S, b); if (!ca || !cb) return false; return !!ca.hin === !!cb.hin && (!ca.hin || ca.hb === cb.hb); };
 const susNow = (S, h) => S.walk.night && ((S.walk.sus[h.ref ? h.ref.id : h.id] != null) || foreignIn(S, h));
 function perceive(S, only) {
@@ -70887,7 +70887,10 @@ const tgtJob = (g, u) => (u && u.civ && u.civ.jid ? (g.jobs || []).find(j => j.i
 const poisonOf = h => ((h.ref && h.ref.inv) || []).find(id => K().POISON.test(String(id))) || null;
 C.walkActs = function (S, u) {
   const out = [], Wk = S.walk, g = G_; if (!Wk || !u || u.side !== 'party' || u.ai || !B.active(u)) return out;
-  if (Wk.fight) return out;
+  if (Wk.fight) { /* в драке — только сдаться (Ник 25.11) */
+    if (civs(S).concat(S.units.filter(f => f.side === 'foe')).some(f => f.side === 'foe' && B.active(f) && f.civ && ['guard', 'muzhik', 'starik', 'trader'].includes(f.civ.k)))
+    out.push({v: 'yield', label: 'Сдаться', title: 'Бросить оружие и поднять руки: бить перестанут, поведут к судьям, если есть за что.', grp: 'Прогулка'});
+    return out; }
   const usedA = S.acted ? TX.why.acted : '';
   out.push({v: 'back', label: Wk.all ? TX.back.all : TX.back.day, title: TX.tips.back, grp: 'Прогулка'});
   { const G0 = G_, tt = G0 ? G0.time % 4 : 1, busyW = Wk.hot || Wk.fight || (Wk.inv && Wk.inv.until >= Wk.rnd) ? 'Сейчас не до того: всполошились' : ''; /* переждать до нужного часа — вору под ночное дело (Ник 25.11) */
@@ -70939,7 +70942,7 @@ C.walkActs = function (S, u) {
 const bp0 = B.bfPanel;
 B.bfPanel = function (S, u, mode) {
   const out = bp0 ? bp0.apply(this, arguments) : [];
-  try { if (S && S.walk && !S.walk.fight) C.walkActs(S, u).forEach(a => out.push({k: 'tw', v: a.v, t: a.t, p: a.p, label: a.label, dis: a.dis || '', title: a.title, grp: a.grp, on: a.on || 0})); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  try { if (S && S.walk) C.walkActs(S, u).forEach(a => out.push({k: 'tw', v: a.v, t: a.t, p: a.p, label: a.label, dis: a.dis || '', title: a.title, grp: a.grp, on: a.on || 0})); } catch (e) { if (C.BF_DEBUG) console.error(e); }
   return out;
 };
 const bo0 = B.bfOp;
@@ -71065,10 +71068,12 @@ const TX2 = C.TW_TX2 = {
 { const mv0 = B.move; if (mv0) B.move = function (S, u) { const was = !!(S && S.walk && !S.walk.fight && u && u.conds && u.conds.hidden); const r = mv0.apply(this, arguments);
   try { if (was && r) { const x = cellOf(S, u); if (!x || BF.cellHide(S, u, x) < 4) delete u.conds.hidden; } } catch (e) {} return r; }; }
 C.walkDo = function (S, u, a) {
-  const Wk = S.walk, g = G_; if (!Wk || Wk.fight) return TX.why.fight;
+  const Wk = S.walk, g = G_; if (!Wk || (Wk.fight && a.v !== 'yield')) return TX.why.fight;
   const act = C.walkActs(S, u).find(x => x.v === a.v && (a.t == null || x.t === a.t) && (a.p == null || x.p === a.p)); if (!act) return 'Так нельзя.'; if (act.dis) return act.dis;
   const hid = u.ref ? u.ref.id : u.id, t = a.t ? B.U(S, a.t) : null;
   if (a.v === 'back') { Wk.end = {k: 'back'}; S.over = 'walk'; return ''; }
+  if (a.v === 'yield') { Wk.yielded = 1; Wk.fight = 0; Wk.hot = 0; S.units.forEach(f => { if (f.side === 'foe' && f.civ) { f.side = 'civ'; f.civ.hostile = 0; } });
+    lg(S, `${nameOf(u)} бросает оружие и поднимает руки. Бить перестают, хватают под локти.`, 'bad'); Wk.end = {k: 'yield'}; S.over = 'walk'; return ''; }
   if (a.v === 'wait') { Wk.end = {k: 'wait', to: a.p}; S.over = 'walk'; return ''; }
   if (a.v === 'gait') { if (!['walk', 'sneak', 'run'].includes(a.p) || gaitOf(u) === a.p) return ''; setGait(u, a.p); if (a.p !== 'walk' && u.conds && a.p === 'run') delete u.conds.hidden;
     lg(S, fill(pick(TX2.gaitLog[a.p]), {h: u}), ''); Wk._roll = {}; perceive(S, u); return ''; }
@@ -71204,7 +71209,7 @@ C.walkClose = function (g, S, o) {
   const out = [], place = Wk.kind === 'town' ? 'town' : 'village', heroes = C.alive(g), lost = !!o.lost;
   let court = null;
   (Wk.crimes || []).forEach(c => { const h = heroes.find(x => x.id === c.hid); if (!h || !C.crimeAdd) return;
-    const wit = witAfter(Wk, c), caught = !!c.caught || (lost && Wk.fight);
+    const wit = witAfter(Wk, c), caught = !!c.caught || (lost && (Wk.fight || Wk.yielded));
     g._twFaceless = wit === 'someone' && !caught ? 1 : 0;
     try { const rec = C.crimeAdd(g, h, c.kind, {seen: !!wit || caught, caught, noWit: true, quiet: 1, val: c.val || 0, why: c.why, place, oko: c.oko || 0}); out.push({c, wit, rec}); if (caught && rec && rec.cus && !court) court = {rec, h}; } catch (e) { if (C.BF_DEBUG) console.error(e); }
     finally { delete g._twFaceless; } });
@@ -71225,6 +71230,7 @@ C.walkClose = function (g, S, o) {
 /* из ui.js: прогулка кончилась (S.over === 'walk') — куда дальше */
 C.walkFinish = function (g, S) {
   G_ = g; const Wk = S.walk, E = (Wk && Wk.end) || {k: 'back'};
+  if (E.k === 'yield') { const r = C.walkClose(g, S, {lost: true}) || {}; if (!(Wk.crimes || []).length) try { C.note(g, 'Разобрались, кто таков, — помяли бока да отпустили.'); } catch (e) {} return r; }
   if (E.k === 'wait') { const who = g.twalk && g.twalk.who, r = C.walkClose(g, S) || {}; if (r.scene && r.scene !== back(g)) return r;
     const t = g.time % 4, k = E.to === 'night' ? (3 - t + 4) % 4 : E.to === 'eve' ? (2 - t + 4) % 4 : (4 - t) % 4; if (k) C.pass(g, k);
     try { C.note(g, E.to === 'night' ? 'Переждали в тихом углу до темноты. Село засыпает.' : E.to === 'eve' ? 'Скоротали время до сумерек.' : 'Пересидели ночь; светает, село просыпается.'); } catch (e) {}
@@ -73454,6 +73460,18 @@ C.walkPeople = function (S, g) {
   try { const H = homeOf(g), hid = Object.keys(K).find(id => K[id] === 'Свой дом'), h = hid && BF.houseById(F, hid);
     if (H && h) (C.kidsOf ? C.kidsOf(g, H.k) : []).slice(0, 4).forEach((kd, i) => { const L = freeIn(S, h).concat(night ? [] : freeNear(S, h, 1, 3)); const x = pickX(L, kd.id + i); if (!x) return;
       const sx = kd.sex === 'f' ? 'f' : 'm', u = spawn(S, 'child', x, {home: h.id, kid: kd.id, sex: sx, sub: sx === 'f' ? 'дочь' : 'сын'}, `${kd.n || 'дитя'}, ${sx === 'f' ? 'дочь' : 'сын'}`); if (u) C.civDress(u); }); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  // свой дом: чужих жильцов в нём нет — только свои; ночью жена (муж) спит дома (Ник 25.11: «зашёл ночью — а там другая женщина»)
+  try { const hid = Object.keys(K).find(id => K[id] === 'Свой дом'), h = hid && BF.houseById(F, hid);
+    if (h) { h.own = 1; (h.doors || []).forEach(d => { d.lock = false; });
+      const sp = (g.heroes || []).map(x => x && x.spouse).find(x => x && x.at === g.loc && (!x.camp || x.camp === g.camp));
+      const mine = u => u.civ && (u.civ.kid || (sp && u.civ.folk === sp.role));
+      const gone = new Set((S.units || []).filter(u => u.side === 'civ' && u.civ && u.civ.home === h.id && !mine(u) && !u.horseOnly && u.civ.k !== 'dog').map(u => u.id));
+      const drop = new Set(); (S.units || []).forEach(u => { if (gone.has(u.id)) { const inH = BF.inHouse && BF.inHouse(S, u) === h.id; if (inH || night) drop.add(u.id); else u.civ.home = null; } });
+      if (drop.size) { S.units = S.units.filter(u => !drop.has(u.id)); S.order = (S.order || []).filter(id => !drop.has(id)); }
+      if (sp && night) { let w = (S.units || []).find(u => u.side === 'civ' && u.civ && u.civ.folk === sp.role && !u.gone);
+        const x = pickX(freeIn(S, h), 'sp' + g.day);
+        if (w && x) { w.c = x.c; w.r = x.r; } else if (!w && x) w = spawn(S, sp.sex === 'm' ? 'muzhik' : 'baba', x, {folk: sp.role, sex: sp.sex === 'm' ? 'm' : 'f'}, `${sp.n}, ${sp.sex === 'm' ? 'муж' : 'жена'}`, sp.face || null);
+        if (w) { w.civ.home = h.id; w.civ.sleep = 1; w.civ.kin = 1; } } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
   if (night) return;
   const regs = Object.values(g.kvReg || {}).filter(r => r && r.at === g.loc && (!r.camp || r.camp === g.camp) && !r.done);
   // банщицы уже при каждой бане (workersOf); постоянная банщица героя — одна из них, под своим именем и лицом
