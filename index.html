@@ -49962,7 +49962,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251345"></script><script>
+</script><script src="world.js?v=202611251401"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -50587,7 +50587,7 @@ H.pick = function (u, base) {
   let row = f ? f[0] : null, hair = f ? f[1] : H.PALETTE[seed % H.PALETTE.length];
   /* годы (Ник 25.11): голова на поле стареет вместе с героем — в 40–55 волосы с проседью, с 55 — серебро; старик без бороды
      лысеет и обрастает бородой (ряд 8), старуха собирает волосы в узел (ряд 14). Юному — никакой седины. */
-  const age = ref && ref.cls ? (typeof ref.age === 'number' ? ref.age : (G.C && G.C.ageOf ? G.C.ageOf(ref) : null)) : null; // и наёмники: они тоже стареют
+  const age = ref && ref.cls ? (typeof ref.age === 'number' ? ref.age : (G.C && G.C.ageOf ? G.C.ageOf(ref) : null)) : (u && typeof u.civAge === 'number' ? u.civAge : null); // и наёмники: они тоже стареют
   if (age != null && age >= 40 && !H.gray(hair)) hair = H.mix(hair, age >= 55 ? '#c8c6c0' : '#9a968e', age >= 55 ? 0.85 : 0.45);
   const rows = fem ? F_ROWS : M_ROWS;
   if (!row || !rows.includes(row)) row = rows[(seed >>> 4) % rows.length];
@@ -54444,9 +54444,9 @@ document.addEventListener('click', e => { const c = battle && e.target.closest('
 const BMORE = {open: false}; // «Ещё приёмы» в бою: раскрыто ли (помнится до перезагрузки)
 const BMORE2 = {open: false}; // «Ещё на поле» — группы приёмов модулей (B.bfPanel)
 /* порядок групп B.bfPanel в панели боя — одним местом (меньше — выше); неизвестные группы — внизу */
-const BF_GRP_W = {'Прогулка': 1, 'Люди': 2, 'Тёмное дело': 3, 'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
+const BF_GRP_W = {'Прогулка': 1, 'Походка': 1.5, 'Люди': 2, 'Тёмное дело': 3, 'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
 const BF_GRP_WAR = new Set(['Приёмы', 'Бегущие', 'Побег', 'Бой', 'Удаль']); // на прогулке без боя этих групп нет
-const BF_GRP_TOP = new Set(['Прогулка', 'Люди', 'Тёмное дело', 'Скрытно', 'Бегущие', 'Побег']);
+const BF_GRP_TOP = new Set(['Прогулка', 'Походка', 'Люди', 'Тёмное дело', 'Скрытно', 'Бегущие', 'Побег']);
 /* лента очерёдности (waveA): лица в порядке хода от текущего; текущий выделен, следующий подписан, невидимый враг — пустой силуэт */
 let TL_KEY = '';
 function drawTurnLine() {
@@ -54797,7 +54797,7 @@ function bop(op, a) {
   }
   // прогулка: шаги кончились и делать рядом нечего — ход дальше сам (Ник 25.11)
   if (!end && S.walk && !S.walk.fight && !S.over && B.active(u) && B.current(S) === u && (op === 'move' || op === 'bf') && u.steps - (S.moved || 0) <= 0) {
-    try { const busy = (B.bfPanel ? B.bfPanel(S, u) : []).some(x => !x.dis && !(x.k === 'tw' && ['back', 'light', 'crouch', 'dash', 'hide'].includes(x.v)) && !(x.k === 'hdoor' && ['close', 'lock', 'prop'].includes(x.v)));
+    try { const busy = (B.bfPanel ? B.bfPanel(S, u) : []).some(x => !x.dis && !(x.k === 'tw' && ['back', 'light', 'crouch', 'dash', 'hide', 'gait'].includes(x.v)) && !(x.k === 'hdoor' && ['close', 'lock', 'prop'].includes(x.v)));
       if (!busy) end = true; } catch (e) {} }
   if (end) { B.endTurn(S); redraw(); runAI(); } else redraw();
 }
