@@ -1846,23 +1846,27 @@ B.reachDir = function (S, u, left, tc) {
     const path = []; for (let y = x; y; y = y.prev) path.unshift({c: y.c, r: y.r}); res[k] = {c: x.c, r: x.r, cost: x.cost, prev: null, path}; });
   return res;
 };
+B.FLY_NO = new Set(['wall', 'house', 'hwall', 'hwin', 'hwin_o', 'hdoor_c', 'door_shut', 'beam']);
 B.reach = function (S, u) {
   // доступные клетки за оставшиеся Шаги: Дейкстра
   const left = u.steps - S.moved - (u.conds.slow ? Math.ceil(u.steps / 2) : 0);
   { const tc = B.turnCost(S, u); if (tc) return B.reachDir(S, u, left, tc); }
   const res = {}; const start = B.key(u.c, u.r); res[start] = {c: u.c, r: u.r, cost: 0, prev: null};
+  const fly = !!(u.fx && u.fx.flying);
   const q = [res[start]];
   while (q.length) {
     q.sort((a, b) => a.cost - b.cost); const x = q.shift();
     for (const n of B.neigh(x.c, x.r)) {
-      const cell = B.cell(S, n.c, n.r); if (!cell || B.TERRAIN[cell.t].block) continue;
+      const cell = B.cell(S, n.c, n.r); if (!cell) continue;
+      // полёт: над деревьями, камнями, водой и оградами — можно, сквозь стены и крыши — нет; встать на преграду нельзя (Ник 25.11)
+      const blk = B.TERRAIN[cell.t].block, over = blk && fly && !B.FLY_NO.has(cell.t) && cell.hb == null; if (blk && !over) continue;
       const occ = B.unitAt(S, n.c, n.r); if (occ && occ.side !== u.side && !occ.down) continue;
-      const cost = x.cost + (B.TERRAIN[cell.t].cost || 1);
+      const cost = x.cost + (fly ? 1 : (B.TERRAIN[cell.t].cost || 1));
       if (cost > left) continue;
       const k = B.key(n.c, n.r);
       // зона боя: шагнул к врагу вплотную — дальше не идёшь (мимо бойца не проскочить)
       const zoc = !occ && B.enemiesOf(S, u).some(e => B.dist(e, n) === 1 && B.holdsZone(e));
-      if (!res[k] || res[k].cost > cost) { res[k] = {c: n.c, r: n.r, cost, prev: B.key(x.c, x.r), occ: !!occ}; if (!zoc) q.push(res[k]); }
+      if (!res[k] || res[k].cost > cost) { res[k] = {c: n.c, r: n.r, cost, prev: B.key(x.c, x.r), occ: !!occ || !!over}; if (!zoc) q.push(res[k]); }
     }
   }
   // путь сквозь своих: клетки, занятые своими, вставать нельзя, но идти через них можно — путь собираем до удаления
@@ -49962,7 +49966,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251401"></script><script>
+</script><script src="world.js?v=202611251419"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
