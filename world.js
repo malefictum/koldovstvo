@@ -71990,6 +71990,29 @@ C.ntHideMul = function (h) { const k = K(); let m = 1 - k.HIDE_PER * C.ntHide(h)
 if (C.kvAfter && C.KV) { const ka0 = C.kvAfter; C.kvAfter = function (g, h, o) { const m = C.ntHideMul(h), K0 = C.KV.KNOW, S0 = C.KV.SPOUSE, sc = x => { const y = {}; Object.keys(x).forEach(k => { y[k] = Math.min(1, x[k] * m); }); return y; };
   C.KV.KNOW = sc(K0); C.KV.SPOUSE = sc(S0); const o2 = o && o.know != null ? Object.assign({}, o, {know: Math.min(1, o.know * m)}) : o;
   try { return ka0.call(this, g, h, o2); } finally { C.KV.KNOW = K0; C.KV.SPOUSE = S0; } }; }
+/* ---------- ужин дома — от достатка и обустройства дома (Ник 25.11: «ужины будут зависеть от твоего дома и его статуса») ----------
+   ступень стола: бедный 0, крестьянский 1, купеческий 2, знатный 3; печь, посуда, погреб, хлев, клеть, сад — по полступени (не больше двух);
+   хорошо заботятся о доме — ещё полступени; долги — ступень вниз. Жаркая ночь — на ступень богаче, холодная — на полторы беднее.
+   Блюдо — из игры, сверху — домашнее тепло; герою (супругу) — ещё прибавка, в жаркую — ещё. */
+C.NT.MENU = [['dish_kasha', 'dish_pohl', 'dish_lepeshki'], ['dish_shchi', 'dish_kulesh', 'dish_gribnaya'], ['dish_pirog', 'dish_uha', 'sytnoe_blyudo'], ['dish_zharkoe', 'dish_pirog', 'dish_uha'], ['otmennoe_blyudo'], ['pir_na_odnogo_bratchina']];
+C.NT.TIER = {poor: 0, peasant: 1, merchant: 2, noble: 3};
+C.NT.HOME = {hp: 6, pw: 2, rg: 1.5, tmp: 6, chk: 1}; C.NT.LOVE = {pw: 1, chk: 1, will: 1}; C.NT.HOT = {pw: 1, chk: 1, will: 1, tmp: 4}; C.NT.COLD = {hp: 2}; C.NT.CHK_MAX = 4;
+const addFx = (...a) => { const o = {}; a.forEach(x => Object.keys(x || {}).forEach(k => { o[k] = Math.round(((o[k] || 0) + x[k]) * 10) / 10; })); if (o.chk > C.NT.CHK_MAX) o.chk = C.NT.CHK_MAX; return o; };
+const DISHES = [...new Set([].concat(...C.NT.MENU))].filter(id => C.FOOD_FX[id]);
+DISHES.forEach(id => { const f = C.FOOD_FX[id], N = C.NT;
+  C.FOOD_FX['home_sup_' + id] = addFx(f, N.HOME); C.FOOD_FX['home_love_' + id] = addFx(f, N.HOME, N.LOVE); C.FOOD_FX['home_hot_' + id] = addFx(f, N.HOME, N.LOVE, N.HOT); C.FOOD_FX['home_cold_' + id] = addFx(f, N.COLD); });
+const hsh = s => { let x = 7; for (const ch of String(s)) x = (x * 31 + ch.charCodeAt(0)) >>> 0; return x; };
+C.ntTable = function (g, key, kind) { const N = C.NT; let lv = 1;
+  try { const t = C.heTier ? C.heTier(g, key) : 'peasant'; lv = N.TIER[t] != null ? N.TIER[t] : 1;
+    const H = (g.w2hearth || {})[key] || {}, b = H.buy || []; let up = ['pech', 'posuda', 'pogreb', 'hlev'].filter(x => b.includes(x)).length * 0.5;
+    if (C.fhHas) up += ['klet', 'sad'].filter(x => C.fhHas(g, key, x)).length * 0.5; lv += Math.min(2, up); if ((H.care || 0) >= 3) lv += 0.5; if ((H.coin || 0) < 0) lv -= 1; } catch (e) {}
+  if (kind === 'hot') lv += 1; if (kind === 'cold') lv -= 1.5;
+  const row = N.MENU[Math.max(0, Math.min(N.MENU.length - 1, Math.floor(lv)))].filter(id => C.FOOD_FX[id]); return row[hsh(key + '|' + day(g)) % row.length] || 'dish_kasha'; };
+if (C.mealText) { const mt0 = C.mealText; C.mealText = function (h, g) { const m = h && h.meal && /^home_(sup|love|hot|cold)_(.+)$/.exec(h.meal.id || '');
+  if (m && C.FOOD_FX[h.meal.id]) { const f = C.mealOf ? C.mealOf(h, g) : null, t = f && C.mealFxText ? C.mealFxText(f) : ''; const n = ((R.item(m[2]) || {}).name || '').toLowerCase();
+    return t ? `${m[1] === 'sup' ? 'Домашний ужин' : 'Ночь дома'}${n ? ' — ' + n : ''}: ${t}.` : ''; }
+  return mt0.apply(this, arguments); }; }
+const SUP_SAY = {cold: ['На стол собрано что осталось: {d}. Молча.', 'Ужин — {d}, разогретое, без слова.'], plain: ['На ужин — {d}.', 'На столе — {d}, горячее, из печи.'], hot: ['Стол ломится: {d} — и ещё то, чего в доме не бывало.', 'На ужин — {d}, лучшее, что было в доме.']};
 const day = g => (g && g.day) || 1;
 /* отогрелся дома: потолок духа — до самого высокого, пока сыт */
 { const cap0 = C.spiritCap; if (cap0) C.spiritCap = function (h) { const c = cap0.apply(this, arguments); return h && h.ntWarm && !(h.hunger > 0) && C._ntDay && C._ntDay <= h.ntWarm ? Math.max(c, 3) : c; }; }
@@ -72000,8 +72023,11 @@ if (C.heroStatus) { const hs0 = C.heroStatus; C.heroStatus = function (g, h) { c
 /* после того как ночь началась — поправить по её настрою */
 const tune = g => { const S = g && g.he, N = S && S.night; if (!N || N.ntDone) return; N.ntDone = 1; C._ntDay = day(g);
   const h = C.alive(g).find(x => x.id === N.hero); if (!h) return;
-  if (N.hot) { if (h.meal) h.meal.id = 'home_hot'; C.alive(g).filter(x => x !== h).forEach(x => { if (C.spiritAdd) C.spiritAdd(g, K().HOT_PARTY, '', x); }); return; }
-  if (N.mood === 'cold') { if (h.meal) h.meal.id = 'home_cold'; if (C.spiritAdd) C.spiritAdd(g, K().COLD_SPIRIT, '', h); return; }
+  const kind = N.hot ? 'hot' : N.mood === 'cold' ? 'cold' : 'plain', dish = C.ntTable(g, N.key, kind), dn = ((R.item(dish) || {}).name || '').toLowerCase();
+  C.alive(g).forEach(x => { if (!x.meal || !/^home_/.test(x.meal.id || '')) return; x.meal.id = x === h ? `home_${kind === 'plain' ? 'love' : kind}_${dish}` : `home_${kind === 'cold' ? 'cold' : 'sup'}_${dish}`; x.mealQ = Math.max(x.mealQ || 0, (C.FOOD_FX[x.meal.id] || {}).hp || 0); });
+  N.dish = dish; if (dn) { const a = SUP_SAY[kind]; N.text = (N.text || '') + ' ' + a[hsh(N.key + day(g)) % a.length].replace('{d}', dn); }
+  if (N.hot) { C.alive(g).filter(x => x !== h).forEach(x => { if (C.spiritAdd) C.spiritAdd(g, K().HOT_PARTY, '', x); }); return; }
+  if (N.mood === 'cold') { if (C.spiritAdd) C.spiritAdd(g, K().COLD_SPIRIT, '', h); return; }
   if (N.mood === 'sore') return;
   h.ntWarm = Math.max(h.ntWarm || 0, day(g) + K().PLAIN_WARM); h.spirit = Math.max(h.spirit || 0, Math.min(3, C.spiritCap(h)));
   try { const [role, at] = String(N.key).split('@'); if (C.relAdd) C.relAdd(g, role, at, K().PLAIN_REL, 'ночь дома'); } catch (e) {} };
