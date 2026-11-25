@@ -72245,3 +72245,256 @@ if (C.ageBirthday) { const ab0 = C.ageBirthday; C.ageBirthday = function (g, h) 
 if (C.ageEnter) { const ae0 = C.ageEnter; C.ageEnter = function (g, h) { const r = ae0.apply(this, arguments); try { C.faceAgeCheck(g, h); } catch (e) {} return r; }; }
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* town_news.js */
+/* Колдовство — вести города: у места своя судьба (Ник 25.11: «с каким-то интервалом в городах интересные события —
+   кто-то женился, кто-то приехал»). Без DOM.
+   • Раз в несколько дней (город чаще, село реже) в каждом селе и городе что-то случается — и остаётся надолго:
+     СВАДЬБА (выходит замуж дочь мельника… или та, с кем герой заигрывал: теперь она замужем — с мужем и его чином),
+     ПРИЕЗД (купец с редкой вещью, бродячий гусляр, заезжая знатная вдова, знахарь из чужого края — на неделю-другую),
+     ОТЪЕЗД мастера (лавка закрыта, пока не вернётся), ПОХОРОНЫ (старик умер — его больше нет на улице), РОЖДЕНИЕ (кумой/кумом
+     зовут, если знакомы), ПОЖАР (мастерская сгорела — пока не отстроят, мастера нет; можно помочь), НЕУРОЖАЙ (еда дороже),
+     ЯРМАРКА (всё дешевле), ССОРА мастеров (встанешь за одного — другой обидится).
+   • Пока героя нет, вести копятся. Пришёл — «Пока вас не было…»: в сцене места и в журнале. Люди на улице рассказывают
+     свежие вести в первую очередь.
+   • Если герой в месте в день события или пару дней после — можно прийти: гостем на свадьбу, на поминки, на крестины, помочь
+     на пожарище. Числа — C.TN (тайна мастера). Состояние — g.tn[камп|место]. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !C.CAMPS || !Q || !C.tfPeople) return;
+C.TN = Object.assign({TOWN: [5, 10], VILLAGE: [8, 16], NEAR: 2, STAY: [6, 12], AWAY: [4, 9], FIRE: [8, 14], DEAR: [10, 16], DEAR_K: 1.3, FAIR: [4, 6], FAIR_K: 0.88,
+  FEUD: 10, GIFT: 500, FIRE_GOLD: 1000, ZNAHAR: 200, KEEP: 12,
+  W: {wed: 3, arrive: 3, away: 2, funeral: 1, birth: 2, fire: 1, dear: 1, fair: 1, feud: 1, settle: 1}}, C.TN || {});
+const K = () => C.TN;
+const KINDS = ['город', 'село', 'подворье'];
+const day = g => (g && g.day) || 1;
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : null);
+const rint = ([a, b]) => a + Math.floor(R.rand() * (b - a + 1));
+const decl = (n, sex) => (Q.decl ? Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
+const key = (g, at) => g.camp + '|' + at;
+const st = (g, at) => { g.tn = g.tn || {}; const k = key(g, at); return g.tn[k] = g.tn[k] || {next: 0, log: [], vis: [], away: {}, fire: {}, price: null, feud: null, ev: [], seen: 0}; };
+const peek = (g, at) => (g && g.tn && g.tn[key(g, at)]) || null;
+const placeName = (g, at) => (nodes(g)[at] || {}).name || 'место';
+const alive = (g, at) => C.tfPeople(g, at).filter(p => !p.gone);
+const tfRel = (g, at, id) => (((g.tf || {})[key(g, at)] || {})[id]) || {rel: 0};
+const tfRelW = (g, at, id) => { g.tf = g.tf || {}; const A = g.tf[key(g, at)] = g.tf[key(g, at)] || {}; return A[id] = A[id] || {rel: 0}; };
+/* мастера места (без своей семьи героя и без тех, с кем узы) */
+const masters = (g, at) => { if (!C.folkHere || !C.folkPerson) return []; const keep = g.loc, kf = g.folkAt; let out = [];
+  try { g.loc = at; g.folkAt = null; out = (C.folkHereRaw || C.folkHere)(g) || []; } catch (e) { out = []; } finally { g.loc = keep; g.folkAt = kf; }
+  return out.filter(role => !/^sp_|thief|charm/.test(role) && !((g.homeSp || {})[role]) && !(((g.folkRel || {})[role + '@' + at] || {}).bond)); };
+const mName = (g, role, at) => { try { const p = C.folkPerson(g, role, at); return p ? `${p.n}, ${p.t}` : role; } catch (e) { return role; } };
+
+/* ---------- кто приезжает ---------- */
+const VIS = {
+  kupec: {t: 'заезжий купец', sex: 'm', say: ['Товар у меня с того берега, такого здесь не сыщешь. Бери, пока не уехал.', 'Я тут проездом. Что не продам — увезу дальше.']},
+  guslyar: {t: 'бродячий гусляр', sex: 'm', say: ['Спою про что хочешь — хоть про старые чары, хоть про новых князей.', 'Я по всему краю хожу. Где был — там и песня осталась.']},
+  vdova: {t: 'заезжая знатная вдова', sex: 'f', say: ['Еду к родне, да дорога размыта. Скучно здесь… пока вы не пришли.', 'Мужа я схоронила прошлой зимой. А жить, говорят, надо.']},
+  znahar: {t: 'знахарь из чужого края', sex: 'm', say: ['Хвори лечу, что ваши бабки не берут. Недорого.', 'Травы у меня свои, с гор. Есть и от лихорадки, и от сглаза.']},
+  palomnik: {t: 'странник с вестями', sex: 'm', say: ['Иду издалека. Много чего видел — расскажу, коли накормишь.', 'Слыхал я в дороге такое, что и сказать страшно.']},
+};
+const VIS_F = {kupec: 'заезжая купчиха', guslyar: 'бродячая певунья', znahar: 'знахарка из чужого края', palomnik: 'странница с вестями'};
+const ITEM_OK = it => it && it._t && (it.price || 0) >= 2000 && (it.price || 0) <= 40000 && !/^(sv_|svitok_|rcp_|dish_|kon_|pes_|tr_)/.test(it.id) && /самоцветы|снаряжение|украшения|одежда|инструменты|оружие|доспех|материалы/.test(it.category || (it._t === 'w' ? 'оружие' : it._t === 'a' ? 'доспех' : ''));
+let ITEMS = null; const items = () => ITEMS || (ITEMS = Object.values((G.DATA && G.DATA.items) || {}).filter(ITEM_OK).map(it => it.id));
+
+/* ---------- события ---------- */
+const GEN = {
+  wed: (g, at, S) => { const P = alive(g, at).filter(p => p.sex === 'f' && (p.st === 'maid' || p.st === 'widow') && p.age !== 'kid'); const p = pick(P); if (!p) return null;
+    let groom = null; try { groom = Q.person(g, 'm', p.ppl); } catch (e) {} const gn = (groom && groom.n) || 'Ждан', was = p.st; p.st = 'wife'; p.rank = p.rank || 'muzhik'; p.husb = gn;
+    let lost = null; try { const rec = Object.values(g.kvLoc || {}).find(k => k.tf === at + '|' + p.id && k.st !== 'wife' && k.st !== 'freed' && !k.bond); if (rec) { rec.st = 'wife'; rec.rank = rec.rank || 'muzhik'; rec.husbN = gn; lost = rec; } } catch (e) {}
+    const text = `${placeName(g, at)}: свадьба — ${p.n}, ${p.t}, ${was === 'widow' ? 'вдова, снова' : ''} выходит за ${decl(gn, 'm').a}.` + (lost ? ` Та самая ${p.n}. Не дождалась.` : '');
+    return {kind: 'wed', text: text.replace(/,\s+выходит/, ' выходит').replace(/\s+/g, ' '), who: p.id, groom: gn, lost: !!lost}; },
+  arrive: (g, at, S) => { const town = (nodes(g)[at] || {}).kind === 'город', ks = Object.keys(VIS).filter(k => town || k !== 'vdova'), k = pick(ks); const sex = k === 'vdova' ? 'f' : (R.rand() < 0.3 && VIS_F[k] ? 'f' : 'm');
+    let p = null; try { p = Q.person(g, sex, C.kvPpl ? C.kvPpl(g) : null); } catch (e) {} const n = (p && p.n) || (sex === 'f' ? 'Велена' : 'Будимир');
+    const L = sex === 'f' ? (C.PORTRAITS_F || []) : (C.PORTRAITS_M || []), face = L.length ? L[Math.floor(R.rand() * L.length)] : '';
+    const v = {id: 'tv' + day(g) + '_' + Math.floor(R.rand() * 1e4), k, n, sex, t: sex === 'f' && VIS_F[k] ? VIS_F[k] : VIS[k].t, face, ppl: (p && p.ppl) || 'nolgrim', until: day(g) + rint(K().STAY)};
+    if (k === 'kupec') { const id = pick(items()); if (!id) return null; v.item = id; v.price = Math.round(((G.DATA.items[id] || {}).price || 1000) * (0.8 + R.rand() * 0.3) / 10) * 10; }
+    S.vis.push(v); return {kind: 'arrive', text: `${placeName(g, at)}: приехал${sex === 'f' ? 'а' : ''} ${v.t} — ${n}${k === 'kupec' ? `, с товаром, какого здесь не видали (${((G.DATA.items[v.item] || {}).name || '').toLowerCase()})` : ''}. Пробудет недолго.`, vis: v.id}; },
+  away: (g, at, S) => { const M = masters(g, at).filter(r => !S.away[r] && !S.fire[r]); const role = pick(M); if (!role) return null; const n = rint(K().AWAY); S.away[role] = day(g) + n;
+    const far = pick(Object.keys(nodes(g)).filter(x => x !== at && KINDS.includes(nodes(g)[x].kind))) || at;
+    return {kind: 'away', text: `${placeName(g, at)}: ${mName(g, role, at)} уехал${(C.folkPerson(g, role, at) || {}).sex === 'f' ? 'а' : ''} — в ${placeName(g, far)}, на ярмарку. Мастерская закрыта ${n < 7 ? 'несколько дней' : 'с неделю'}.`, role}; },
+  funeral: (g, at, S) => { const p = pick(alive(g, at).filter(x => x.age === 'old')); if (!p) return null; p.gone = day(g);
+    return {kind: 'funeral', text: `${placeName(g, at)}: похоронили ${decl(p.n, p.sex).a}, ${p.t}${p.sex === 'f' ? 'у' : 'а'}. Тихо ушл${p.sex === 'f' ? 'а' : 'ёл'}, во сне.`.replace(/(\S+?)уу\./, '$1у.'), who: p.id}; },
+  birth: (g, at, S) => { const p = pick(alive(g, at).filter(x => x.sex === 'f' && x.st === 'wife' && x.age !== 'old')); if (!p) return null; p.kids = (p.kids || 0) + 1; const boy = R.rand() < 0.5;
+    return {kind: 'birth', text: `${placeName(g, at)}: у ${decl(p.n, 'f').g}, ${p.t}, родил${boy ? 'ся сын' : 'ась дочь'}.`, who: p.id, boy}; },
+  fire: (g, at, S) => { const M = masters(g, at).filter(r => !S.away[r] && !S.fire[r]); const role = pick(M); if (!role) return null; S.fire[role] = day(g) + rint(K().FIRE);
+    return {kind: 'fire', text: `${placeName(g, at)}: ночью сгорела мастерская — ${mName(g, role, at)}. Пока не отстроят, работы не будет.`, role}; },
+  dear: (g, at, S) => { if (S.price && S.price.until > day(g)) return null; S.price = {k: K().DEAR_K, food: 1, until: day(g) + rint(K().DEAR)};
+    return {kind: 'dear', text: `${placeName(g, at)}: ${(nodes(g)[at] || {}).kind === 'город' ? 'обозы с хлебом не пришли' : 'недород и падёж скота'} — еда вздорожала.`}; },
+  fair: (g, at, S) => { if ((nodes(g)[at] || {}).kind !== 'город' || (S.price && S.price.until > day(g))) return null; S.price = {k: K().FAIR_K, food: 0, until: day(g) + rint(K().FAIR)};
+    return {kind: 'fair', text: `${placeName(g, at)}: съехались купцы — ярмарка! Пока она идёт, всё дешевле.`}; },
+  /* новые люди: село не пустеет — переезжает семья, подрастает молодёжь */
+  settle: (g, at, S) => { const A = C.tfPeople(g, at); let n0 = 0; const mk = (sex, age, st0, t) => { let p = null; try { p = Q.person(g, sex, C.kvPpl ? C.kvPpl(g) : null); } catch (e) {}
+      const L = sex === 'f' ? (C.PORTRAITS_F || []) : (C.PORTRAITS_M || []), L2 = C.facesFor ? C.facesFor(sex, age === 'young' ? 19 : 34) : L; const face = L2.length ? L2[Math.floor(R.rand() * L2.length)] : '';
+      const x = {id: 'tn' + day(g) + '_' + (n0++) + '_' + Math.floor(R.rand() * 1e3), n: (p && p.n) || (sex === 'f' ? 'Добрава' : 'Ратша'), sex, age, st: st0, rank: 'muzhik', t, talk: age === 'young' ? 'pod' : 'kuma', face, ppl: (p && p.ppl) || 'nolgrim', nrav: ['laska', 'shutnik', 'tihiy', 'hozyain'][Math.floor(R.rand() * 4)]}; A.push(x); return x; };
+    const grand = R.rand() < 0.35 ? mk(R.rand() < 0.5 ? 'f' : 'm', 'old', 'old', 'старики при новой семье') : null;
+    const fam = R.rand() < 0.5, a = mk(fam ? 'm' : 'f', 'adult', fam ? 'single' : 'widow', fam ? 'новосёл-плотник' : 'новосёлка, вдова'), b = mk('f', 'young', 'maid', fam ? `дочь новосёла ${decl(a.n, 'm').g}` : `дочь новосёлки`), c2 = R.rand() < 0.5 ? mk('m', 'young', 'single', 'парень-новосёл') : null;
+    return {kind: 'settle', text: `${placeName(g, at)}: поселилась новая семья — ${a.n} с дочерью ${b.n}${c2 ? ', с ними и ' + c2.n : ''}${grand ? `, да ${grand.sex === 'f' ? 'старая мать' : 'старый отец'} ${grand.n}` : ''}. Ставят избу у околицы.`}; },
+  feud: (g, at, S) => { if (S.feud && S.feud.until > day(g)) return null; const M = masters(g, at); if (M.length < 2) return null; const a = pick(M), b = pick(M.filter(x => x !== a));
+    S.feud = {a, b, until: day(g) + K().FEUD, side: null}; return {kind: 'feud', text: `${placeName(g, at)}: рассорились ${mName(g, a, at)} и ${mName(g, b, at)} — из-за межи, слово за слово. Город разделился.`}; },
+};
+C.tnEvent = function (g, at, kind) {
+  const S = st(g, at); S.vis = S.vis.filter(v => v.until > day(g));
+  Object.keys(S.away).forEach(r => { if (S.away[r] <= day(g)) delete S.away[r]; }); Object.keys(S.fire).forEach(r => { if (S.fire[r] <= day(g)) delete S.fire[r]; });
+  const W = Object.assign({}, K().W), ks = kind ? [kind] : Object.keys(W); let e = null;
+  if (!kind) { const A = alive(g, at), maids = A.filter(p => p.st === 'maid').length, base = (nodes(g)[at] || {}).kind === 'город' ? (C.TF || {}).TOWN || 12 : (C.TF || {}).VILLAGE || 7;
+    if (A.length > base * 2.5) W.settle = 0; else if (maids < 2) { W.settle = 5; W.wed = 0.3; } if (!A.some(p => p.age === 'old')) W.funeral = 0; }
+  for (let tries = 0; tries < 6 && !e; tries++) { let k = ks[0]; if (!kind) { const tot = ks.reduce((a, x) => a + W[x], 0); let r = R.rand() * tot; for (const x of ks) { r -= W[x]; if (r < 0) { k = x; break; } } }
+    try { e = GEN[k](g, at, S); } catch (err) { e = null; } if (kind) break; }
+  if (!e) return null; e.day = day(g); e.at = at; S.ev.push(e); S.ev = S.ev.slice(-K().KEEP); S.log.push({day: e.day, text: e.text}); S.log = S.log.slice(-K().KEEP);
+  if (g.loc === at) { C.note(g, e.text); S.seen = day(g); }
+  return e;
+};
+/* ход времени: в каждом месте своё «следующее событие» */
+C.tnTick = function (g) {
+  if (!g || !g.camp) return; const N = nodes(g);
+  Object.keys(N).forEach(at => { const n = N[at]; if (!KINDS.includes(n.kind)) return; const S = st(g, at);
+    if (!S.next) { S.next = day(g) + rint(n.kind === 'город' ? K().TOWN : K().VILLAGE); return; }
+    if (day(g) >= S.next) { C.tnEvent(g, at); S.next = day(g) + rint(n.kind === 'город' ? K().TOWN : K().VILLAGE); } });
+};
+{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const d0 = g && g.day; const r = ps0.apply(this, arguments); try { if (g && g.day !== d0 && !g.net) C.tnTick(g); } catch (e) {} return r; }; }
+
+/* ---------- мастер в отъезде или погорелец — его нет в месте ---------- */
+if (C.folkHere) { const fh0 = C.folkHere; C.folkHereRaw = fh0; C.folkHere = function (g) { const out = fh0.apply(this, arguments);
+  try { const S = peek(g, g.loc); if (S) return out.filter(r => !(S.away[r] > day(g)) && !(S.fire[r] > day(g))); } catch (e) {} return out; }; }
+/* ушедшие из жизни — не на улице */
+if (C.tfHere) { const th0 = C.tfHere; C.tfHere = function (g) { return (th0.apply(this, arguments) || []).filter(p => !p.gone); }; }
+if (C.tfKnown) { const tk0 = C.tfKnown; C.tfKnown = function (g) { return (tk0.apply(this, arguments) || []).filter(p => !p.gone); }; }
+/* цены: неурожай — еда дороже; ярмарка — всё дешевле */
+if (C.buyPrice) { const bp0 = C.buyPrice; C.buyPrice = function (g, h, x) { const p = bp0.apply(this, arguments);
+  try { const S = peek(g, g.loc), P = S && S.price; if (P && P.until > day(g) && (!P.food || /еда|припасы/.test((x && x.category) || ''))) return Math.max(1, Math.round(p * P.k)); } catch (e) {} return p; }; }
+/* на улице свежие вести — первыми */
+C.tnFresh = (g, at, days) => { const S = peek(g, at || g.loc); return S ? S.log.filter(x => day(g) - x.day <= (days || 20)) : []; };
+
+/* ---------- «пока вас не было» и что можно сделать ---------- */
+const placeId = g => { const n = nodes(g)[g.loc]; return n ? n.scene : null; };
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (sc && id && id === placeId(g) && !g.folkAt && KINDS.includes((nodes(g)[g.loc] || {}).kind)) { const S = peek(g, g.loc);
+    if (S && S.log.some(x => x.day > S.seen)) { const L = S.log.filter(x => x.day > S.seen).slice(-3); S.seen = day(g);
+      const lines = [['n', S.seenOnce ? 'Пока вас не было, тут кое-что случилось:' : 'Что здесь нового:']].concat(L.map(x => ['n', x.text.replace(/^[^:]+:\s*/, '— ')]));
+      S.seenOnce = 1; C.note(g, `${placeName(g, g.loc)}: ${L.map(x => x.text.replace(/^[^:]+:\s*/, '')).join(' ')}`);
+      sc.lines = (sc.lines || []).concat(lines); } } } catch (e) {}
+  return sc; }; }
+const near = (g, e) => e && e.at === g.loc && day(g) - e.day <= K().NEAR && !e.done;
+const inj0 = Q.inject;
+if (inj0) Q.inject = function (g, sceneId, choices) {
+  let out = inj0.apply(this, arguments);
+  try { const n = nodes(g)[g.loc]; if (!n || n.scene !== sceneId || g.folkAt || !KINDS.includes(n.kind)) return out; const S = peek(g, g.loc); if (!S) return out;
+    const add = [];
+    S.ev.filter(e => near(g, e)).forEach(e => {
+      if (e.kind === 'wed') { const p = C.tfPeople(g, g.loc).find(x => x.id === e.who); if (p) add.push({label: `Свадьба: ${p.n} и ${e.groom} — пойти гостем`, do: g2 => { g2.tnCur = e.day + '|' + e.kind; return 'tn_wed'; }}); }
+      if (e.kind === 'funeral') { const p = C.tfPeople(g, g.loc).find(x => x.id === e.who); if (p) add.push({label: `Поминки по ${decl(p.n, p.sex).d}`, do: g2 => { g2.tnCur = e.day + '|' + e.kind; return 'tn_wake'; }}); }
+      if (e.kind === 'birth') { const p = C.tfPeople(g, g.loc).find(x => x.id === e.who); if (p && tfRel(g, g.loc, p.id).rel >= 30) add.push({label: `Крестины у ${decl(p.n, 'f').g} — зовут в кумовья`, do: g2 => { g2.tnCur = e.day + '|' + e.kind; return 'tn_kin'; }}); }
+    });
+    Object.keys(S.fire).filter(r => S.fire[r] > day(g)).forEach(role => add.push({label: `Пожарище: ${mName(g, role, g.loc)} — помочь отстроиться`, do: g2 => { g2.tnRole = role; return 'tn_fire'; }}));
+    if (S.feud && S.feud.until > day(g) && !S.feud.side) add.push({label: 'Ссора мастеров: чью сторону взять…', do: () => 'tn_feud'});
+    S.vis.filter(v => v.until > day(g)).forEach(v => add.push({label: `${cap(v.t)}: ${v.n}`, card: {face: v.face, n: v.n, sub: v.t}, do: g2 => { g2.tnVis = v.id; g2.tnLast = null; return 'tn_vis'; }}));
+    if (!add.length) return out;
+    out = out.slice(); let i = out.length ? Math.max(...out.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1 : 0; add.forEach(c => { c.i = i++; });
+    const leave = out.findIndex(c => /^Уйти на карту|^Уйти$/.test(c.label || '')); out.splice(leave < 0 ? out.length : leave, 0, ...add);
+  } catch (e) {}
+  return out;
+};
+
+/* ---------- сцены ---------- */
+const SC = {};
+const evOf = g => { const S = peek(g, g.loc); if (!S || !g.tnCur) return null; const [d, k] = String(g.tnCur).split('|'); return S.ev.find(e => e.day === +d && e.kind === k) || null; };
+const bgOf = g => ((nodes(g)[g.loc] || {}).kind === 'город' ? 'town' : 'village');
+const back = g => placeId(g) || 'map';
+const spirit = (g, d) => { if (C.spiritAdd) try { C.spiritAdd(g, d, ''); } catch (e) {} };
+SC.tn_wed = g => { const e = evOf(g), p = e && C.tfPeople(g, g.loc).find(x => x.id === e.who), h = heroes(g)[0];
+  if (!e || !p || !h) return {title: 'Свадьба', bg: bgOf(g), lines: [['n', 'Гости уже разошлись.']], choices: [{t: 'Назад', do: back}]};
+  const lines = [['n', `Столы во дворе, гусли, пляска. ${p.n} в венке, ${e.groom} — красный от браги и от счастья.`]];
+  if (e.lost) lines.push(['n', `${p.n} замечает ${decl(h.name, h.sex).a} и на миг опускает глаза. Потом поднимает — и улыбается. Уже не так, как прежде.`]);
+  if (g.tnLast) lines.push(['n', g.tnLast]);
+  const ch = [];
+  if (!e.feast) ch.push({t: 'Погулять на пиру — полдня', do: g2 => { const E = evOf(g2); if (E) E.feast = 1; if (C.passH) C.passH(g2, 4); spirit(g2, 1); if (C.repAdd) try { C.repAdd(g2, g2.loc, 1, 'гуляли на свадьбе'); } catch (x) {}
+    const r = tfRelW(g2, g2.loc, p.id); r.rel = Math.min(100, (r.rel || 0) + 8); r.met = r.met || day(g2); g2.tnLast = 'Пели, плясали, кричали «горько». Половина села теперь знает вас в лицо — и вспоминает добром.'; return 'tn_wed'; }});
+  if (!e.gift) ch.push({t: `Подарить молодым — ${R.priceText(K().GIFT)}`, dis: (g.purse || 0) < K().GIFT ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < K().GIFT) return 'tn_wed'; g2.purse -= K().GIFT; const E = evOf(g2); if (E) E.gift = 1;
+    if (C.repAdd) try { C.repAdd(g2, g2.loc, 1, 'щедрый подарок на свадьбу'); } catch (x) {} const r = tfRelW(g2, g2.loc, p.id); r.rel = Math.min(100, (r.rel || 0) + 15); r.met = r.met || day(g2);
+    g2.tnLast = `${e.groom} кланяется в пояс: «Век не забудем». ${p.n} целует подарок и прячет за пазуху.`; return 'tn_wed'; }});
+  ch.push({t: 'Уйти', do: g2 => { g2.tnLast = null; const E = evOf(g2); if (E && (E.feast || E.gift)) E.done = 1; return back(g2); }});
+  return {title: 'Свадьба', bg: bgOf(g), art: 'tavern', face: p.face, faceName: p.n, faceSub: 'невеста', lines, choices: ch}; };
+SC.tn_wake = g => { const e = evOf(g), p = e && C.tfPeople(g, g.loc).find(x => x.id === e.who);
+  if (!e || !p) return {title: 'Поминки', bg: bgOf(g), lines: [['n', 'Помянули без вас.']], choices: [{t: 'Назад', do: back}]};
+  const lines = [['n', `В избе тесно, пахнет кутьёй и воском. Поминают ${decl(p.n, p.sex).a}: ${p.sex === 'f' ? 'скольких она приняла на свет' : 'каким он был в молодости'}.`]]; if (g.tnLast) lines.push(['n', g.tnLast]);
+  const ch = [];
+  if (!e.feast) ch.push({t: 'Помянуть — сказать доброе слово', do: g2 => { const E = evOf(g2); if (E) { E.feast = 1; E.done = 1; } if (C.passH) C.passH(g2, 2); if (C.repAdd) try { C.repAdd(g2, g2.loc, 1, 'пришли на поминки'); } catch (x) {}
+    g2.tnLast = 'Сказали своё, выпили не чокаясь. Старухи у печи переглянулись: «Чужие, а пришли. Добрые люди». Такое в селе помнят.'; return 'tn_wake'; }});
+  ch.push({t: 'Уйти', do: g2 => { g2.tnLast = null; return back(g2); }});
+  return {title: 'Поминки', bg: bgOf(g), lines, choices: ch}; };
+SC.tn_kin = g => { const e = evOf(g), p = e && C.tfPeople(g, g.loc).find(x => x.id === e.who), h = heroes(g)[0];
+  if (!e || !p || !h) return {title: 'Крестины', bg: bgOf(g), lines: [['n', 'Уже окрестили.']], choices: [{t: 'Назад', do: back}]};
+  const lines = [['n', `${p.n} держит на руках ${e.boy ? 'сына' : 'дочку'}: «Будьте ${h.sex === 'f' ? 'кумой' : 'кумом'}. Больше некого и просить — вы своим стали»`]]; if (g.tnLast) lines.push(['n', g.tnLast]);
+  const ch = [];
+  if (!e.feast) ch.push({t: `Стать ${h.sex === 'f' ? 'кумой' : 'кумом'} — подарок на зубок, ${R.priceText(100)}`, dis: (g.purse || 0) < 100 ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < 100) return 'tn_kin'; g2.purse -= 100; const E = evOf(g2); if (E) { E.feast = 1; E.done = 1; }
+    if (C.repAdd) try { C.repAdd(g2, g2.loc, 1, 'стали кумом'); } catch (x) {} const r = tfRelW(g2, g2.loc, p.id); r.rel = Math.min(100, (r.rel || 0) + 20); r.kum = h.id; spirit(g2, 1);
+    g2.tnLast = 'Теперь вы кумовья — а это родня, хоть и не по крови. Здесь вас всегда накормят и спрячут, если что.'; return 'tn_kin'; }});
+  ch.push({t: 'Отказаться — не время', do: g2 => { g2.tnLast = null; const E = evOf(g2); if (E && !E.feast) { E.done = 1; const r = tfRelW(g2, g2.loc, p.id); r.rel = Math.max(0, (r.rel || 0) - 5); } return back(g2); }});
+  return {title: 'Крестины', bg: bgOf(g), face: p.face, faceName: p.n, faceSub: p.t, lines, choices: ch}; };
+SC.tn_fire = g => { const role = g.tnRole, S = peek(g, g.loc), until = S && S.fire[role];
+  if (!role || !until || until <= day(g)) return {title: 'Пожарище', bg: bgOf(g), lines: [['n', 'Мастерскую уже отстроили.']], choices: [{t: 'Назад', do: back}]};
+  const lines = [['n', `${cap(mName(g, role, g.loc))} стоит над чёрными брёвнами: «Всё, что нажил… Ну ничего. Руки целы — отстрою»`]];
+  const ch = [{t: 'Помочь — день топором и пилой', do: g2 => { const S2 = peek(g2, g2.loc); if (C.passH) C.passH(g2, 8); S2.fire[role] = Math.max(day(g2) + 1, day(g2) + Math.ceil((S2.fire[role] - day(g2)) / 2));
+      if (C.relAdd) try { C.relAdd(g2, role, g2.loc, 15, 'помогли отстроиться'); } catch (x) {} if (C.repAdd) try { C.repAdd(g2, g2.loc, 1, 'помогли погорельцу'); } catch (x) {}
+      C.note(g2, `${cap(mName(g2, role, g2.loc))}: «Такое не забывается. Приходи — для тебя всегда найдётся»`); return back(g2); }},
+    {t: `Дать на отстройку — ${R.priceText(K().FIRE_GOLD)}`, dis: (g.purse || 0) < K().FIRE_GOLD ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < K().FIRE_GOLD) return 'tn_fire'; g2.purse -= K().FIRE_GOLD; const S2 = peek(g2, g2.loc); S2.fire[role] = day(g2) + 1;
+      if (C.relAdd) try { C.relAdd(g2, role, g2.loc, 12, 'дали на отстройку'); } catch (x) {} C.note(g2, `${cap(mName(g2, role, g2.loc))} пересчитывает монеты дрожащими руками: «Завтра же лес привезут»`); return back(g2); }},
+    {t: 'Назад', do: back}];
+  return {title: 'Пожарище', bg: bgOf(g), lines, choices: ch}; };
+SC.tn_feud = g => { const S = peek(g, g.loc), F = S && S.feud;
+  if (!F || F.until <= day(g) || F.side) return {title: 'Ссора', bg: bgOf(g), lines: [['n', 'Помирились — или забыли.']], choices: [{t: 'Назад', do: back}]};
+  const a = mName(g, F.a, g.loc), b = mName(g, F.b, g.loc);
+  const side = (x, y, nx) => ({t: `Встать за ${nx.split(',')[0]}`, do: g2 => { const F2 = peek(g2, g2.loc).feud; F2.side = x; if (C.relAdd) try { C.relAdd(g2, x, g2.loc, 12, 'встали на сторону'); C.relAdd(g2, y, g2.loc, -10, 'встали против'); } catch (e) {}
+    C.note(g2, `${placeName(g2, g2.loc)}: вы встали за ${nx.split(',')[0]}. Другой этого не забудет.`); return back(g2); }});
+  return {title: 'Ссора мастеров', bg: bgOf(g), lines: [['n', `${cap(a)} и ${b} не здороваются, их люди косо смотрят друг на друга. Каждый ждёт, за кого вы будете.`]],
+    choices: [side(F.a, F.b, a), side(F.b, F.a, b), {t: 'Не вмешиваться', do: back}]}; };
+SC.tn_vis = g => { const S = peek(g, g.loc), v = S && S.vis.find(x => x.id === g.tnVis && x.until > day(g)), hs = heroes(g), h = hs[0];
+  if (!v || !h) return {title: 'Приезжий', bg: bgOf(g), lines: [['n', 'Приезжий уже уехал.']], choices: [{t: 'Назад', do: back}]};
+  const lines = [[v.n, '«' + VIS[v.k].say[(v.n.length + day(g)) % VIS[v.k].say.length] + '»']]; if (g.tnLast) lines.push(['n', g.tnLast]);
+  const ch = [];
+  if (v.k === 'kupec' && v.item && !v.sold) { const it = G.DATA.items[v.item] || {}; ch.push({t: `Купить: ${it.name} — ${R.priceText(v.price)}`, dis: (g.purse || 0) < v.price ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < v.price) return 'tn_vis'; g2.purse -= v.price; v.sold = 1; heroes(g2)[0].inv.push(v.item);
+    g2.tnLast = `${v.n} заворачивает ${it.name.toLowerCase()} в холстину: «Береги. Второй такой не будет»`; C.note(g2, `Куплено у заезжего купца: ${it.name.toLowerCase()}.`); return 'tn_vis'; }}); }
+  if (v.k === 'guslyar' && v.heard !== day(g)) ch.push({t: 'Послушать песни — вечер', do: g2 => { v.heard = day(g2); if (C.passH) C.passH(g2, 3); spirit(g2, 1); let t = null; try { t = C.folkRumor ? C.folkRumor(g2) : null; } catch (e) {}
+    g2.tnLast = `Песни — про старые чары и новых князей. А под конец, тише: ${t ? t.replace(/^Гусляр (рассказывает|шепчет)\s*/, '') : 'про то, что в лесах опять неспокойно.'}`; return 'tn_vis'; }});
+  if (v.k === 'palomnik' && v.told !== day(g)) ch.push({t: 'Накормить и расспросить', do: g2 => { v.told = day(g2); let t = null; try { t = C.folkRumor ? C.folkRumor(g2) : null; } catch (e) {} g2.tnLast = t || `${v.n}: «Видел я дым над старым капищем. Не к добру»`; if (t) C.note(g2, t); return 'tn_vis'; }});
+  if (v.k === 'znahar') { const sick = hs.filter(x => (x.ails || []).length); if (sick.length) ch.push({t: `Полечить хвори — ${R.priceText(K().ZNAHAR)}`, dis: (g.purse || 0) < K().ZNAHAR ? 'в кошеле не хватает' : null, do: g2 => { if ((g2.purse || 0) < K().ZNAHAR) return 'tn_vis'; g2.purse -= K().ZNAHAR; heroes(g2).forEach(x => { x.ails = []; });
+    g2.tnLast = `${v.n} растирает травы, шепчет на чужом языке. К утру как рукой сняло.`; return 'tn_vis'; }}); }
+  if (v.k === 'vdova' && C.kvMakeLoc) hs.filter(x => x.sex === 'm').forEach(x => { if (v.known && v.known[x.id]) return; ch.push({own: x.id, t: `${x.name}: заговорить с ней`, if: () => v.tried !== day(g), off: 'сегодня уже пробовали', do: g2 => { v.tried = day(g2);
+    const hh = heroes(g2).find(y => y.id === x.id); const att = C.kvAttract ? C.kvAttract(g2, hh, 36, {widow: true, rank: 'noble'}) : 1; const c = R.check(hh, 'cha', 'Убеждение', 15 - Math.round((att - 1) * 4)); g2.lastCheck = Object.assign({}, c, {hero: hh});
+    if (c.ok) { const rec = C.kvMakeLoc(g2, {at: g2.loc, hid: hh.id, n: v.n, sex: 'f', face: v.face, ppl: v.ppl, st: 'widow', t: v.t}, 45); rec.rank = 'boyar'; v.known = v.known || {}; v.known[x.id] = 1; v.until = Math.max(v.until, day(g2) + 20);
+      g2.tnLast = `${v.n} смеётся — впервые за год, говорит: «Пожалуй, я задержусь. Дорога подождёт»`; }
+    else g2.tnLast = `${v.n} вежливо улыбается и отворачивается к окну.`; return 'tn_vis'; }}); });
+  ch.push({t: 'Отойти', do: g2 => { g2.tnLast = null; return back(g2); }});
+  return {title: cap(v.t), bg: bgOf(g), face: v.face, faceName: v.n, faceSub: v.t, lines, choices: ch}; };
+Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+/* лицо в окне — из raw */
+{ const so2 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so2.apply(this, arguments); try { if (sc && /^tn_/.test(id) && sc.raw && sc.raw.face && !sc.face) Object.assign(sc, {face: sc.raw.face, faceName: sc.raw.faceName, faceSub: sc.raw.faceSub}); } catch (e) {} return sc; }; }
+/* люди на улице рассказывают свежие вести первыми */
+if (C.folkRumor) { const fr0 = C.folkRumor; C.folkRumor = function (g) { try { const F = C.tnFresh(g, g.loc, 20); if (F.length && R.rand() < 0.6) return `«${F[Math.floor(R.rand() * F.length)].text.replace(/^[^:]+:\s*/, '')}»`; } catch (e) {} return fr0.apply(this, arguments); }; }
+/* ---------- праздник и свадьба — все навеселе (Ник 25.11: «праздники — повод с кем-то завести отношения») ----------
+   В день праздника в месте и на свадьбе люди сговорчивее: обаяние героя ×FEST; и можно «пойти в хоровод» — рядом окажется кто-то из
+   местных иного пола; дальше как заигрывание на улице (town_folk), только легче. Однополым — только дружба; дети и старики — нет. */
+C.TN.FEST = 1.35;
+C.tnFestive = g => { try { if (C.holidaysAt && C.holidaysAt(g).length) return true; const S = peek(g, g.loc); return !!(S && S.ev.some(e => e.kind === 'wed' && e.at === g.loc && day(g) - e.day <= K().NEAR)); } catch (e) { return false; } };
+if (C.kvAttract) { const ka0 = C.kvAttract; C.kvAttract = function (g) { const v = ka0.apply(this, arguments); try { return g && C.tnFestive(g) ? Math.round(v * K().FEST * 100) / 100 : v; } catch (e) { return v; } }; }
+const DANCE = {m: ['В хороводе {h} оказывается рядом с {n} — рука в руке, щёки горят от браги и от пляски.', 'Через костёр {h} прыгает вместе с {n}. На том берегу огня {n} не спешит отпускать руку.'],
+  f: ['В хороводе {h} оказывается рядом с {n} — он сжимает ладонь чуть крепче, чем надо.', 'Когда хоровод рассыпается, {n} подаёт {h} ковш медовухи: «За тебя, хозяйка праздника»']};
+const danceCh = (g, i0, back0) => { const hs = heroes(g), out = []; let i = i0;
+  hs.forEach(x => { const P = alive(g, g.loc).filter(p => p.sex !== x.sex && p.age !== 'kid' && p.age !== 'old' && p.st !== 'old' && !(g.kvLoc && Object.values(g.kvLoc).some(k => k.tf === g.loc + '|' + p.id && k.hid === x.id)));
+    if (!P.length) return; const rr = id => tfRel(g, g.loc, id);
+    out.push({i: i++, label: `${x.name}: пойти в хоровод`, if: g2 => !(x.tnDance === day(g2)), off: 'сегодня уже плясали', do: g2 => { const hh = heroes(g2).find(y => y.id === x.id); if (!hh) return back0; hh.tnDance = day(g2);
+      const p = P[Math.floor(R.rand() * P.length)], r0 = tfRelW(g2, g2.loc, p.id); r0.met = r0.met || day(g2); r0.rel = Math.min(100, (r0.rel || 0) + 6);
+      const intro = DANCE[hh.sex === 'f' ? 'f' : 'm'][Math.floor(R.rand() * 2)].replace(/\{h\}/g, hh.name).replace(/\{n\}/g, p.n);
+      const res = C.tfFlirt ? C.tfFlirt(g2, hh, g2.loc, p.id) : null; g2.tnLast = intro + (res ? ' ' + res.text : ''); C.note(g2, g2.tnLast); return back0; }}); });
+  return out; };
+{ const so3 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so3.apply(this, arguments);
+  try { if (sc && (id === 'tn_wed' || id === 'w2c_fest') && Array.isArray(sc.choices) && C.tfPeople(g, g.loc).length) { const add = danceCh(g, 990, id);
+    if (add.length) { if (id === 'w2c_fest' && g.tnLast) { sc.lines = (sc.lines || []).concat([['n', g.tnLast]]); g.tnLast = null; } const b = sc.choices.length - 1; sc.choices.splice(Math.max(0, b), 0, ...add); } } } catch (e) {}
+  return sc; }; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
