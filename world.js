@@ -70706,6 +70706,7 @@ C.walkLoot = function (S, x, g) {
 const ENTER = {korchma: c => c.go === 'folk_tavern' || /^Корчма: наём/.test(c.label || ''), kupec: c => /^(Торг|Лавка)$/.test(c.label || ''), hram: c => /храм/i.test(c.label || '') && !/кружк/.test(c.label || ''),
   kuznya: c => /мастера и люди|^Кузн/.test(c.label || ''), masterskaya: c => /мастера и люди/.test(c.label || ''), banya: c => /^(Мыльня|Баня)/.test(c.label || '')};
 ENTER.korchma_big = ENTER.korchma;
+const HOUSE_FOLK = {kuznya: ['forge'], masterskaya: ['weave', 'charm', 'jewel']};
 const enterKey = k => (k === 'korchma_big' ? 'korchma' : k);
 const placeChoice = (g, k) => { const re = ENTER[k]; if (!re) return null; try { const sc = C.placeFull ? C.placeFull(g) : C.sceneOf(g, back(g)); return (sc && sc.choices || []).find(c => !c.dis && re(c)) || null; } catch (e) { return null; } };
 /* выбор сцены места — как C.choose, но по самому выбору (в полной сцене места он может быть спрятан в подменю) */
@@ -71040,6 +71041,9 @@ C.walkFinish = function (g, S) {
     if (E.go.k === 'scene') { g.innBack = null; return {scene: E.go.id}; }
     if (E.go.k === 'choice') { let ch = null; try { ch = (C.placeFull(g).choices || []).find(c => c.label === E.go.label && !c.dis); } catch (e) {} if (!ch) return {scene: back(g)};
       try { return runChoice(g, ch); } catch (e) { if (C.BF_DEBUG) console.error(e); return {scene: back(g)}; } }
+    // в кузню — прямо к кузнецу, в мастерскую — к её мастеру (а не в общий список «Мастера и люди») — Ник 25.11
+    try { const want = HOUSE_FOLK[E.go.hk] || [], here = (C.folkHere ? C.folkHere(g) : []).filter(r => want.includes(r));
+      if (here.length === 1) { g.folkRole = here[0]; g.folkAt = null; return {scene: 'folk'}; } } catch (e) {}
     const ch = placeChoice(g, E.go.hk);
     if (!ch) return {scene: back(g)};
     try { return runChoice(g, ch); } catch (e) { if (C.BF_DEBUG) console.error(e); return {scene: back(g)}; }

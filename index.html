@@ -49962,7 +49962,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611251315"></script><script>
+</script><script src="world.js?v=202611251345"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54784,7 +54784,13 @@ function bop(op, a) {
     case 'hit': { const t = T(a.t); if (!t || t.side === u.side || t.dead) return 'не та цель'; if (S.acted) return 'Действие уже потрачено в этот ход.';
       if (B.dist(u, t) > 1) { const reach = B.reach(S, u); let best = null; for (const k in reach) { const x = reach[k]; if (B.dist(x, t) === 1 && (!best || x.cost < best.cost)) best = x; } if (!best) return 'Не дойти.'; B.move(S, u, best.c, best.r); }
       if (B.active(u) && B.dist(u, t) === 1) { B.attack(S, u, t, false); S.acted = true; } break; }
-    case 'move': if (!B.move(S, u, a.c, a.r)) return; if (!B.active(u)) end = true; break;
+    case 'move': if (!B.move(S, u, a.c, a.r)) {
+        // прогулка: шагов нет, а игрок ткнул в клетку — ход дальше сам, и в новом ходу туда и идём (Ник 25.11)
+        if (S.walk && !S.walk.fight && !S.over && !a.again && u.steps - (S.moved || 0) <= 0) { B.endTurn(S); redraw();
+          const go = () => { if (battle === S && !S.over && B.current(S) === u && B.active(u)) bdo('move', Object.assign({}, a, {again: 1})); };
+          if (NETG()) go(); else runAI().then(go, () => {}); }
+        return; }
+      if (!B.active(u)) end = true; break;
     case 'next': end = true; break;
     case 'bf': { const w = B.bfOp ? B.bfOp(S, u, a) : 'неизвестное действие'; if (w) return w; if (!B.active(u)) end = true; break; }
     default: return 'неизвестное действие';
