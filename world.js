@@ -73390,6 +73390,63 @@ const wo0 = W.world;
 W.world = function (g) { try { if (g && g.shV !== 1 && C.CAMPS[g.camp] && spread(C.CAMPS[g.camp])) { if (g.pos) { g.pos = null; g.posNode = null; g.seen = {}; } g.shV = 1; } } catch (e) {} return wo0.apply(this, arguments); };
 })(typeof window !== 'undefined' ? window : globalThis);
 
+/* world_carry.js */
+/* Колдовство — один мир на всю сагу (Ник 25.11: «нужно, чтобы всё переносилось»).
+   Карта у глав и у Вечного мира одна, значит и люди на ней — те же. Конец главы: знакомые, их отношение, молва в сёлах,
+   жители сёл, мастера, сватовство, письма, разведанная карта — уезжают в летопись (ch.world). Новая глава
+   (и Вечный мир после последней) — всё это возвращается на те же места.
+   Места пишутся не именем главы, а клеткой карты: «xy:c,r»; в новой главе клетка снова становится местом этой главы
+   (или местом Вечного мира). Мест, которых в новой главе нет, просто «не видно» — запись ждёт, пока туда вернутся.
+   Мастера места — одни и те же люди во всех главах: имя и лицо считаются по месту Вечного мира, а не по главе.
+   Семья (супруг, дом, дети, очаг) переезжает своими путями (spouse.js, w2_family.js, w2_kids.js) — здесь не трогаем. Без DOM. */
+(function (G) {
+'use strict';
+const C = G.C, W = G.W;
+if (!C || !W || !C.closeCampaign || !C.newGame) return;
+const KEYS = ['kvLoc', 'kvSeq', 'kvReg', 'kvGrudge', 'folkRel', 'folkFace', 'tf', 'tfPpl', 'tn', 'rep', 'svat', 'w2ppl', 'w2fac', 'w2fame', 'mail', 'kvGossip'];
+const CAMP_TOK = '§camp';
+const onMap = g => { try { return !!(W.isHex(g) && (C.campShared && C.campShared(g) || g.camp === 'free')); } catch (e) { return false; } };
+/* имена мест главы ↔ клетки */
+const toXY = g => { const w = W.world(g), m = {}; Object.entries(w.nodeAt || {}).forEach(([id, c]) => { m[id] = 'xy:' + c.c + ',' + c.r; }); return m; };
+const fromXY = g => { const w = W.world(g); return tok => { if (!/^xy:/.test(tok)) return null; const c = w.cells[tok.slice(3)]; return c && c.node ? c.node : null; }; };
+const mapStr = (s, f) => (typeof s !== 'string' ? s : s.split(/([|@])/).map(t => (t === '|' || t === '@' ? t : f(t))).join(''));
+const deep = (v, f) => { if (Array.isArray(v)) return v.map(x => deep(x, f)); if (v && typeof v === 'object') { const o = {}; Object.keys(v).forEach(k => { o[mapStr(k, f)] = deep(v[k], f); }); return o; } return mapStr(v, f); };
+/* конец главы: что уезжает в летопись */
+C.worldPack = function (g) {
+  if (!g || !onMap(g)) return null; const M = toXY(g), camp = g.camp;
+  const f = t => (t === camp ? CAMP_TOK : M[t] || t);
+  const keys = {}; KEYS.forEach(k => { if (g[k] == null) return; let v = JSON.parse(JSON.stringify(g[k]));
+    if (k === 'folkRel') Object.keys(v).forEach(x => { const r = v[x]; if (r && (r.bond === 'wed' || r.bond === 'kin')) delete v[x]; }); // семья едет своим путём
+    if (k === 'kvLoc') Object.keys(v).forEach(x => { if (v[x] && v[x].st === 'wed') delete v[x]; });
+    keys[k] = deep(v, f); });
+  return {v: 1, from: camp, day: g.day, keys, seen: Object.assign({}, g.seen || {})}; };
+/* начало главы (или Вечного мира): всё на свои места */
+C.worldUnpack = function (g, P) {
+  if (!g || !P || !P.keys || !onMap(g)) return; const back = fromXY(g), camp = g.camp;
+  const f = t => (t === CAMP_TOK ? camp : back(t) || t);
+  Object.entries(P.keys).forEach(([k, v]) => { const x = deep(v, f);
+    if (typeof x === 'number') { g[k] = Math.max(g[k] || 0, x); return; }
+    if (Array.isArray(x)) { g[k] = (g[k] || []).concat(x); return; }
+    if (x && typeof x === 'object') g[k] = Object.assign({}, x, g[k] || {}); });
+  g.seen = Object.assign({}, P.seen || {}, g.seen || {}); };
+const cc0 = C.closeCampaign;
+C.closeCampaign = function (g) {
+  let P = null; try { const ch0 = g && g.chron; if (!(ch0 && ch0.done && ch0.done.includes(g.camp))) P = C.worldPack(g); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  const ch = cc0.apply(this, arguments); if (ch && P) ch.world = P; return ch; };
+const ng0 = C.newGame;
+C.newGame = function (camp, seed, chron) {
+  const g = ng0.apply(this, arguments);
+  try { if (g && chron && chron.world) C.worldUnpack(g, chron.world); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return g; };
+/* мастера места — одни люди во всех главах: считаем по месту Вечного мира */
+const FREE = () => C.CAMPS.free; let FW = null;
+const freeId = (g, at) => { try { if (!(C.campShared && C.campShared(g))) return null; const w = W.world(g), c = w.nodeAt[at]; if (!c) return null; FW = FW || W.buildBase(FREE()); const x = FW.cells[W.key(c.c, c.r)]; return x && x.node ? x.node : null; } catch (e) { return null; } };
+if (C.folkPerson) { const fp0 = C.folkPerson; C.folkPerson = function (g, role, at) {
+  const fid = g && freeId(g, at); if (!fid) return fp0.apply(this, arguments);
+  g.folkFace = g.folkFace || {}; const g1 = Object.create(g); g1.camp = 'free';
+  const p = fp0.call(this, g1, role, fid); return p; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
 /* town_news.js */
 /* Колдовство — вести города: у места своя судьба (Ник 25.11: «с каким-то интервалом в городах интересные события —
    кто-то женился, кто-то приехал»). Без DOM.
