@@ -50336,7 +50336,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270026"></script><script>
+</script><script src="world.js?v=202611270033"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52687,7 +52687,7 @@ function showScene(id, talk) {
   if (!view && sc.id && sc.id !== id && g.scene === sc.id) id = sc.id; // сцена перенаправила (годы, корни): выборы — от показанной сцены
   if (!view && !NET() && sc.raw && sc.raw.talk) return showTalkScene(id, sc); // волна D1: пир, дух павшего — окном разговора
   if (sc.raw && sc.raw.trk && window.__trkUI) { renderTop(); if (!view) save(); if (window.__trkUI(id, sc, {choose: i => choose(id, i), faceHTML, paintFaces, toast, step: () => { if (C.trkStep && C.trkStep(g) !== null) { save(); showScene(id); } }})) { if (NET()) { try { netBanners(); } catch (e) {} } return; } } // тринька: стол в корчме (trinka_ui.js), и за общим столом — у каждого свой вид
-  if (!view && (talkScene(id, sc) || g.w2rest)) { TALK_OK = true; setTimeout(showCompTalk, 650); } // реплики наёмников — в корчме, на ночлеге, после отдыха
+  // реплики наёмников — не посреди дел в селе, а когда отряд выходит на карту (Ник 27.11: «невозможно иногда»)
   { const nd = CAMP_OF().map.nodes[g.loc]; if (nd && nd.scene === id && ['село', 'город', 'подворье', 'стан'].includes(nd.kind)) setTimeout(() => tip1('town'), 600); if (/^tavern|^folk|^shop/.test(id)) setTimeout(() => tip1('food'), 600); }
   // личное: учёба, кузня, ювелир — решает игрок своего героя, без голосования
   const myOwn = id => myHeroes().some(h => h.id === id) || (amLeader() && (g.mercs || []).some(m => m.id === id));
