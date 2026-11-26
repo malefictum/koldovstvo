@@ -75200,3 +75200,136 @@ C.splitWhere = (g, id, title) => (K().PRIVATE.test(id || '') ? 'по своим 
 C.splitUntil = (g, clk) => { if (!(clk > 0)) return ''; const t = C.timeName ? null : null; const h = clk < 1 ? 'с полчаса' : clk < 2 ? 'около часа' : clk < 5 ? `часа ${Math.round(clk)}` : 'до вечера'; return h; };
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* letters.js */
+/* Колдовство — письменность (Ник 26.11: «литература и языки: рецепт — на каком-то языке, свиток — на каком-то языке,
+   найденные книги нести книжнику — он поможет прочесть»). Без DOM.
+   • У каждого языка своё письмо (C.SCRIPT): буквица, глаголь лосичей, южное торговое письмо, теракские резы, горские руны,
+     тамги степи, имперское письмо, книжное письмо Пар-Насса, знаки Подземья и велесская вязь (канон 1.10: письмо людей Акрополя).
+   • Писаное (рецепты rcp_, свитки sv_ и svitok_, книги с полем lang) — на одном из них (C.writLang: по предмету, постоянно).
+   • Прочесть может тот, кто говорит на языке (C.speaks), либо кто выучен этому письму ремеслом:
+     книжник и чаровник — книжное письмо Пар-Насса и вязь; брат Ока и обетник — имперское письмо; заклинатели тёмных школ и Велеса — вязь;
+     «Грамота» 4 и выше — вязь. Кто не может — видит кракозябры этого письма (C.gibberish).
+   • Книжник в городе (книжня, башня, лагерь) переводит писаное: плата и время, перевод пришивают к листам — g.trans[id].
+   • Запертое: запомнить рецепт (читает вслух любой в отряде, кто разбирает), учить свиток и читать свиток в бою (только сам). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C) return;
+const cp = (a, b) => { const o = []; for (let i = a; i <= b; i++) o.push(String.fromCodePoint(i)); return o; };
+const odd = a => a.filter((x, i) => i % 2 === 1);
+C.SCRIPT = {
+  nolgrim: {n: 'буквица', ins: 'буквицей', lang: 'нолгримская речь', g: [...'абвгдєжѕзиіклмнѻпрстѹфхѡцчшщъыьѣюꙗѧѫѩѭѯѱѳѵҩӭәҙӟӡҳұүџҫҹҭӧґӷҕѣѧѫ'], tit: 1, mac: [...'аоеиуыәө']},
+  loss: {n: 'глаголь', ins: 'глаголью лосичей', lang: 'лосская речь', g: cp(0x2C30, 0x2C5E)},
+  yuzhnober: {n: 'южное письмо', ins: 'южным торговым письмом', lang: 'южнобережская речь', g: cp(0x10300, 0x1031F)},
+  terak: {n: 'теракские резы', ins: 'теракскими резами', lang: 'теракский', g: cp(0x1681, 0x169A), sep: ' ', open: '᚛', close: '᚜'},
+  gorets: {n: 'горские руны', ins: 'горскими рунами', lang: 'горский', g: cp(0x16A0, 0x16EA), sep: ' ᛫ '},
+  stepnyak: {n: 'тамги', ins: 'тамгами', lang: 'степной язык', g: cp(0x10C00, 0x10C48)},
+  imperets: {n: 'имперское письмо', ins: 'имперским письмом', lang: 'имперский', g: odd(cp(0x2C80, 0x2CE3))},
+  parnass: {n: 'книжное письмо', ins: 'книжным письмом Пар-Насса', lang: 'пар-насский', g: cp(0x10330, 0x1034A)},
+  podzem: {n: 'знаки Подземья', ins: 'знаками Подземья', lang: 'речь Подземья', g: cp(0x2D30, 0x2D67)},
+  vyaz: {n: 'велесская вязь', ins: 'велесской вязью', lang: 'вязь', g: cp(0x0710, 0x072C), rtl: 1},
+};
+C.scriptLine = lang => { const S = C.SCRIPT[lang]; if (!S) return ''; return lang === 'vyaz' ? 'Писано велесской вязью.' : `Писано ${S.ins} — ${S.lang}.`; };
+const hsh = s => [...String(s)].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
+const wpick = (tab, x) => { const tot = Object.values(tab).reduce((s, v) => s + v, 0); let v = x % tot; for (const k in tab) { v -= tab[k]; if (v < 0) return k; } return Object.keys(tab)[0]; };
+/* на каком письме — по предмету */
+const SCHOOL_LANG = {
+  white: {parnass: 50, imperets: 20, yuzhnober: 15, nolgrim: 15}, alchem: {yuzhnober: 40, parnass: 30, terak: 15, imperets: 15},
+  astro: {parnass: 50, imperets: 20, gorets: 15, terak: 15}, necro: {vyaz: 50, parnass: 30, podzem: 20}, black: {vyaz: 40, parnass: 30, terak: 15, podzem: 15},
+  holy: {imperets: 60, nolgrim: 40}, druid: {nolgrim: 45, loss: 35, vyaz: 20}, mokosh: {nolgrim: 50, loss: 40, vyaz: 10}, stribog: {nolgrim: 60, loss: 25, vyaz: 15},
+  svarog: {gorets: 50, nolgrim: 50}, chernobog: {vyaz: 60, podzem: 40}, veles: {vyaz: 100}};
+const RCP_LANG = {nolgrim: 50, yuzhnober: 15, loss: 12, terak: 8, imperets: 8, gorets: 7};
+C.WRIT_FIX = Object.assign({kn_knizhitsa: 'nolgrim'}, C.WRIT_FIX || {});
+C.writLang = function (id) {
+  if (!id || typeof id !== 'string') return null; const base = id.split('~')[0];
+  if (C.WRIT_FIX[base]) return C.WRIT_FIX[base];
+  let it = null; try { it = R.item(base); } catch (e) {} if (it && it.lang) return it.lang;
+  if (/^rcp_/.test(base)) return wpick(RCP_LANG, hsh(base));
+  let m = /^svitok_([a-z]+)_\d$/.exec(base); if (m) return wpick(SCHOOL_LANG[m[1]] || {parnass: 1}, hsh(base));
+  m = /^sv_(.+)$/.exec(base); if (m) { const s = DATA.spellById && DATA.spellById[m[1]]; if (s) return wpick(SCHOOL_LANG[s.school] || {parnass: 1}, hsh(base)); }
+  return null; };
+C.isWrit = id => !!C.writLang(id);
+/* кто читает */
+const DARK = ['necro', 'black', 'chernobog', 'veles'];
+C.readsLang = function (h, lang) { if (!h || !lang) return false; if ((h.langs || []).includes(lang) || (h.letters || []).includes(lang)) return true;
+  const sch = R.schoolsOf ? (R.schoolsOf(h) || []) : [];
+  if (lang === 'vyaz') return ['knizhnik', 'charovnik', 'vedmak'].includes(h.cls) || sch.some(s => DARK.includes(s)) || R.skill(h, 'Грамота') >= 4;
+  if (lang === 'parnass' && (['knizhnik', 'charovnik'].includes(h.cls) || sch.some(s => (C.ARCANE || []).includes(s)))) return true;
+  if (lang === 'imperets' && (['chernets', 'obetnik'].includes(h.cls) || sch.includes('holy'))) return true;
+  if (lang === 'stepnyak') return h.people === 'stepnyak' || R.skill(h, 'Знание языков') >= 3; // тамги — знаки рода, а не книги
+  return !!(C.speaks && C.speaks(h, lang)); };
+const team = g => (C.alive(g) || []).concat(g.mercs || []);
+C.partyReader = (g, lang) => (g ? team(g).find(h => C.readsLang(h, lang)) : null) || null;
+C.isTrans = (g, id) => !!(g && g.trans && g.trans[String(id).split('~')[0]]);
+C.canReadWrit = (g, h, id) => { const L = C.writLang(id); if (!L) return true; return C.isTrans(g, id) || C.readsLang(h, L); };
+C.partyReadsWrit = (g, id) => { const L = C.writLang(id); if (!L) return null; if (C.isTrans(g, id)) return team(g)[0] || {}; return C.partyReader(g, L); };
+const whyNot = (id, who) => { const S = C.SCRIPT[C.writLang(id)] || {}; return `писано ${S.ins || 'чужим письмом'}: ${who} не разбирает — перевести может книжник в городе`; };
+C.writWhy = whyNot;
+/* кракозябры */
+C.gibberish = function (lang, seed, words) { const S = C.SCRIPT[lang] || C.SCRIPT.nolgrim; let st = hsh(lang + ':' + seed) || 1; const rnd = n => { st = (Math.imul(st, 1103515245) + 12345) >>> 0; return (st >>> 8) % n; };
+  const out = []; for (let w = 0; w < (words || 24); w++) { const L = 2 + rnd(6); let s = ''; for (let i = 0; i < L; i++) { s += S.g[rnd(S.g.length)]; if (S.tit && rnd(9) === 0) s += '\u0483'; else if (S.mac && S.mac.includes(s[s.length - 1]) && rnd(4) === 0) s += '\u0304'; } out.push(s); }
+  const sep = S.sep || ' '; let t = out.join(sep); if (S.open) t = S.open + t + S.close; return t; };
+/* что написано */
+const nm = id => { try { return R.item(id).name; } catch (e) { return id; } };
+const KNIZH = ['«Не всяк, кто с бородой, — дед; не всяк, кто с книгой, — книжник».', '«Слово — серебро, а записанное слово — долг».',
+  '«Дорога любит того, кто спрашивает; лес — того, кто молчит».', '«Кто три раза переписал, тот один раз понял».',
+  '«Чужой хлеб горек, чужая речь темна, а своя изба — что книга: каждый угол читан».', 'На последнем листе, мелко: «Взято у Митрофана-писаря. Вернуть до Покрова».'];
+C.writText = function (g, id) { const base = String(id).split('~')[0], it = R.item(base) || {}, lines = [];
+  if (it.text) return [].concat(it.text);
+  if (/^rcp_/.test(base) && C.RECIPES) { const r = C.RECIPES[base.replace(/^rcp_/, '')]; if (r) { lines.push(`«${r.name}».`); lines.push(it.notes ? it.notes.replace(/ Писано[^.]*\.?$/, '') : ''); if (r.item) lines.push('Выйдет: ' + nm(r.item).toLowerCase() + '. ' + (((R.item(r.item) || {}).notes) || '')); return lines.filter(Boolean); } }
+  let m = /^sv_(.+)$/.exec(base); if (m && DATA.spellById[m[1]]) { const s = DATA.spellById[m[1]]; lines.push(`«${s.name}» — ${(R.SCHOOL && R.SCHOOL[s.school] || s.school).toLowerCase()}, ${s.circle}-й круг.`); if (s.runes) lines.push(`Слова: «${s.runes}».`); if (s.effect) lines.push(s.effect); return lines; }
+  m = /^svitok_([a-z]+)_(\d)$/.exec(base); if (m) { lines.push(`Свиток ${(R.SCHOOL && R.SCHOOL[m[1]] || m[1]).toLowerCase()}, ${m[2]}-го круга: несколько заклинаний вперемешку, с пометками на полях.`); return lines; }
+  if (base === 'kn_knizhitsa') return ['Сказания и присловья, переписанные мелким почерком.'].concat(KNIZH);
+  return [it.notes || '']; };
+/* «Писано …» — в описании предмета */
+const tag = it => { if (!it || it._writ || !it.id) return; const L = C.writLang(it.id); if (!L) return; it._writ = 1; it.notes = (it.notes || '').replace(/\s*$/, '') + ' ' + C.scriptLine(L); };
+try { Object.values(DATA.items).forEach(tag); } catch (e) {}
+{ const it0 = R.item; R.item = function (id) { const x = it0.apply(this, arguments); if (x && !x._writ && typeof id === 'string' && /^(rcp_|sv_|svitok_|kn_)/.test(id)) tag(x); return x; }; }
+
+/* ---------- запоры ---------- */
+let G_ = null; const setG = g => { if (g) G_ = g; };
+['battleStart', 'pass', 'sceneOf', 'choose'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { setG(g); return f0.apply(this, arguments); }; });
+C._lettersG = () => G_;
+if (C.learnRecipe) { const lr0 = C.learnRecipe; C.learnRecipe = function (g, h, itemId) { const L = C.writLang(itemId);
+  if (L && !C.partyReadsWrit(g, itemId)) return {err: 'рецепт ' + whyNot(itemId, 'в отряде никто')};
+  const r = lr0.apply(this, arguments); if (r && r.ok && L && !C.readsLang(h, L) && !C.isTrans(g, itemId)) { const rd = C.partyReader(g, L); if (rd && rd !== h) { r.text += ` (читает вслух ${rd.name})`; } } return r; }; }
+if (C.canStudy) { const cs0 = C.canStudy; C.canStudy = function (h, id, g) { const why = cs0.apply(this, arguments); if (why) return why; const gg = g || G_; return C.canReadWrit(gg, h, id) ? '' : 'свиток ' + whyNot(id, h.name); }; }
+if (C.canRead) { const cr0 = C.canRead; C.canRead = function (h, id) { const why = cr0.apply(this, arguments); if (why) return why; return C.canReadWrit(G_, h, id) ? '' : 'свиток ' + whyNot(id, h.name); }; }
+if (C.canCastScroll) { const cc0 = C.canCastScroll; C.canCastScroll = function (h, s) { const why = cc0.apply(this, arguments); if (why || !s) return why; const id = 'sv_' + s.id; return C.canReadWrit(G_, h, id) ? why : 'свиток ' + whyNot(id, h.name); }; }
+
+/* ---------- книжник: перевести ---------- */
+const LV = lang => lang === 'vyaz' ? 5 : ((C.LANG || {})[lang] || [0, 3])[1];
+C.TRANS_PRICE = Object.assign({2: 200, 3: 500, 4: 1200, 5: 3000}, C.TRANS_PRICE || {});
+C.TRANS_HOURS = Object.assign({2: 1, 3: 2, 4: 4, 5: 8}, C.TRANS_HOURS || {});
+C.TRANS_KINDS = ['город', 'книжня', 'башня', 'лагерь'];
+C.transNeeds = g => { const seen = new Set(), out = []; team(g).forEach(h => (h.inv || []).forEach(id => { const b = String(id).split('~')[0]; if (seen.has(b)) return; seen.add(b); const L = C.writLang(b); if (!L || C.isTrans(g, b) || C.partyReader(g, L)) return; out.push({id: b, lang: L, lv: LV(L), price: C.TRANS_PRICE[LV(L)] || 500, hours: C.TRANS_HOURS[LV(L)] || 2}); })); return out; };
+C.translate = function (g, id) { const n = C.transNeeds(g).find(x => x.id === id); if (!n) return {err: 'это и так читается'}; if ((g.purse || 0) < n.price) return {err: 'не хватает серебра'};
+  g.purse -= n.price; if (C.pass) C.pass(g, n.hours); g.trans = g.trans || {}; g.trans[id] = g.day || 1;
+  const t = `Книжник переводит ${nm(id).toLowerCase()} и пришивает к листам перевод на буквице.`; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+const nodeOf = g => C.CAMPS[g.camp].map.nodes[g.loc];
+const nodeScene = g => { const n = nodeOf(g); return n ? n.scene : 'map'; };
+const SC = {};
+SC.kn_scribe = g => { const L = C.transNeeds(g), lines = [['n', 'В тесной книжне пахнет воском и пылью. Книжник поднимает глаза от листа: «Что принесли? Покажите — скажу, на каком писано и сколько возни».']];
+  if (g.knLast) lines.push(['n', g.knLast]);
+  if (!L.length) lines.push(['n', 'Всё, что у вас писано, кто-нибудь в отряде и сам прочтёт.']);
+  const ch = L.map(n => ({t: `Перевести: ${nm(n.id).toLowerCase()} (${C.SCRIPT[n.lang].n}) — ${R.priceText(n.price)}, ${n.hours} ч`, if: g2 => (g2.purse || 0) >= n.price, off: 'не хватает серебра',
+    do: g2 => { const r = C.translate(g2, n.id); g2.knLast = r.err || r.text; return 'kn_scribe'; }}));
+  ch.push({t: 'Уйти', do: g2 => { g2.knLast = null; return nodeScene(g2); }});
+  return {title: 'Книжник', bg: 'town', art: 'edvin_skriptoriy', lines, choices: ch}; };
+/* читать */
+SC.kn_read = g => { const X = g.knRead || {}, h = team(g).find(x => x.id === X.hid) || team(g)[0], id = X.id, L = C.writLang(id), S = C.SCRIPT[L] || {};
+  const lines = [['n', `${nm(id)}. ${L ? C.scriptLine(L) : ''}`]], rd = C.isTrans(g, id) ? null : C.partyReader(g, L);
+  if (!L || C.isTrans(g, id) || rd) { if (C.isTrans(g, id)) lines.push(['n', 'К листам пришит перевод на буквице.']); else if (rd && rd !== h) lines.push(['n', `${h.name} не разбирает — читает вслух ${rd.name}.`]);
+    C.writText(g, id).forEach(t => t && lines.push(['writ', t])); }
+  else { lines.push(['writ', C.gibberish(L, id, 18)]); lines.push(['n', `Никто в отряде не разбирает ${S.n || 'это письмо'}. Перевести может книжник в городе.`]); }
+  return {title: 'Чтение', bg: 'town', art: 'edvin_skriptoriy', lines, choices: [{t: 'Закрыть', do: g2 => { const back = (g2.knRead || {}).back; g2.knRead = null; return back || nodeScene(g2); }}]}; };
+Object.values(C.CAMPS).forEach(camp => Object.entries(SC).forEach(([k, sc]) => { camp.scenes[k] = sc; }));
+if (C.Q && C.Q.inject) { const in0 = C.Q.inject; C.Q.inject = function (g, sceneId, choices) { let out = in0.apply(this, arguments);
+  try { const n = nodeOf(g); if (!n || n.scene !== sceneId || !C.TRANS_KINDS.includes(n.kind) || !C.transNeeds(g).length) return out;
+    out = out.slice(); const i = out.length ? Math.max(...out.map(c => c.i)) + 1 : 0; out.push({i, label: 'Книжник: перевести писаное', go: 'kn_scribe'}); } catch (e) {} return out; }; }
+/* «Прочесть» — в карточке предмета */
+{ const am0 = C.wbActsMore, ak0 = C.wbActMore;
+  C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; return C.isWrit(id) ? a.concat({t: 'Прочесть', k: 'kn_read'}) : a; };
+  C.wbActMore = function (g, h, id, k) { if (k === 'kn_read') { g.knRead = {hid: h.id, id, back: g.scene || null}; return {go: 'kn_read'}; } return ak0 ? ak0.apply(this, arguments) : {err: 'не выходит'}; }; }
+})(typeof window !== 'undefined' ? window : globalThis);

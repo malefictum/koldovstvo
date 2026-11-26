@@ -11,6 +11,16 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 </script>
 <style>
 /* Раскладка: верхняя полоса отряда, под ней одна сцена на весь экран (сцена, карта, бой), окна поверх. Один тёмный «дубовый» облик, как у «Королевства». */
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-cyrx.woff2) format("woff2");unicode-range:U+0460-052F,U+1C80-1C8A,U+2DE0-2DFF,U+A640-A69F;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-glag.woff2) format("woff2");unicode-range:U+2C00-2C5F,U+1E000-1E02A;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-runic.woff2) format("woff2");unicode-range:U+16A0-16F8;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-ogham.woff2) format("woff2");unicode-range:U+1680-169C;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-oital.woff2) format("woff2");unicode-range:U+10300-1032F;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-oturk.woff2) format("woff2");unicode-range:U+10C00-10C48;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-copt.woff2) format("woff2");unicode-range:U+2C80-2CFF,U+03E2-03EF;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-goth.woff2) format("woff2");unicode-range:U+10330-1034A;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-tifi.woff2) format("woff2");unicode-range:U+2D30-2D7F;font-display:swap}
+@font-face{font-family:"Kldv Old";src:url(img/fonts/kl-syr.woff2) format("woff2");unicode-range:U+0700-074F,U+0860-086A;font-display:swap}
 @font-face{font-family:"Ruslan Display";src:url(img/fonts/ruslan.woff2) format("woff2");font-display:swap}
 @font-face{font-family:"Alegreya";src:url(img/fonts/alegreya.woff2) format("woff2");font-display:swap}
 @font-face{font-family:"Alegreya";font-style:italic;src:url(img/fonts/alegreya-italic.woff2) format("woff2");font-display:swap}
@@ -19,9 +29,10 @@ if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.
 :root{
   --night:#15120f; --oak:#2b2117; --oak-2:#3a2d1f; --rim:#6b5537; --brass:#c9a35c; --brass-2:#e7c983;
   --paper:#ece0c4; --paper-2:#dccca8; --ink:#2a2018; --ink-2:#5b4a38; --blood:#9b3226; --moss:#56723c; --sky:#5d7ea8; --navi:#7b5aa6;
-  --t-display:"Ruslan Display","Alegreya SC",Georgia,serif; --t-label:"Alegreya SC",Georgia,serif; --t-text:"Alegreya",Georgia,"Times New Roman",serif;
+  --t-display:"Ruslan Display","Alegreya SC",Georgia,serif; --t-label:"Alegreya SC","Kldv Old",Georgia,serif; --t-text:"Alegreya","Kldv Old",Georgia,"Times New Roman",serif;
   color-scheme:dark;
 }
+.lines .line.writ{display:block;grid-template-columns:none;font:21px/1.65 var(--t-text);font-style:normal;color:#e3cf9c;padding:10px 16px;margin:6px 0;border-left:2px solid rgba(201,162,92,.55);background:rgba(60,40,20,.35);overflow-wrap:anywhere}
 html,body{height:100%}
 [hidden]{display:none!important}
 body{margin:0}
@@ -50182,7 +50193,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261143"></script><script>
+</script><script src="world.js?v=202611261205"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52103,7 +52114,7 @@ function sceneFace(sc, id, who, lines) {
 }
 function sceneBg(sc, bg) { const k = [pogreb(sc) ? 'pogreb' : smallChurch(sc) ? 'church' : sc.raw && sc.raw.art, placeBg(sc), roadBg(sc), sc.bg].filter(x => x && HAVE.has(x)); return k.map(x => `url(img/bg_s_${x}.webp)`).concat([`url(img/bg_${bg}.webp)`]).join(','); }
 let TALK = null; // {scene, who}: к кому подошли в сцене, где на месте несколько человек
-const lineHTML = ([who, t], i, all) => who === 'n' || !C.SPEAKERS[who] ? `<div class="line n">${esc(t)}</div>` : all && i > 0 && all[i - 1][0] === who ? `<div class="line cont"><span class="fsp"></span><div><div>${esc(t)}</div></div></div>` : `<div class="line">${faceHTML(C.SPEAKERS[who][1])}<div><div class="who">${esc(C.SPEAKERS[who][0])}</div><div>${esc(t)}</div></div></div>`;
+const lineHTML = ([who, t], i, all) => who === 'writ' ? `<div class="line writ">${esc(t)}</div>` : who === 'n' || !C.SPEAKERS[who] ? `<div class="line n">${esc(t)}</div>` : all && i > 0 && all[i - 1][0] === who ? `<div class="line cont"><span class="fsp"></span><div><div>${esc(t)}</div></div></div>` : `<div class="line">${faceHTML(C.SPEAKERS[who][1])}<div><div class="who">${esc(C.SPEAKERS[who][0])}</div><div>${esc(t)}</div></div></div>`;
 const shortName = who => C.SPEAKERS[who] ? C.SPEAKERS[who][0].split(',')[0] : who;
 /* кнопка выбора: метка класса или народа ([Волхв]) и шанс проверки (~60%) */
 const KIND = [[/нового героя|за стол/i, 'recruit'], [/^(Нанять|Позвать|Взять с собой)/, 'merc'], [/Заночевать|Отдохнуть|Отлежаться|Привал|Ждать ночи|Переждать/, 'time'],
