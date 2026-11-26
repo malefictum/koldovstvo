@@ -32373,6 +32373,7 @@ C.dailyMeal = function (g) {
 };
 /* для шапки: «пасмурно», «ночь, туман» */
 C.weatherText = function (g) {
+  if (g && g.dungeon) return 'под землёй'; // наверху дождь, а в пещере сухо
   const w = C.WEATHER[C.weather(g)]; if (!w) return '';
   return w.word;
 };
@@ -50335,7 +50336,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270013"></script><script>
+</script><script src="world.js?v=202611270026"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54371,7 +54372,7 @@ function heroCached(u, p, H0) {
   ctx.drawImage(e.cv, p.x - e.W / 2, p.y + s * 0.5 - e.H * 0.86, e.W, e.H); return true;
 }
 function drawHero(u, p, H0) {
-  if (!HEROC_IN && u.civ && u.side !== 'party' && !u.dead && !u.down && !(u._red > 0.02) && (!u.pose || u.pose === 'stand' || u.pose === 'walk')) { const r = heroCached(u, p, H0); if (r != null) return r; }
+  if (!HEROC_IN && !u.dead && !u.down && !(u._red > 0.02) && ((u.civ && u.side !== 'party' && (!u.pose || u.pose === 'stand' || u.pose === 'walk')) || (!u.pose || u.pose === 'stand') && u.look && !u.look.torch)) { /* стоящий герой (и враг) — готовой картинкой, не из слоёв каждый кадр (Ник 27.11: подлагивает) */ const r = heroCached(u, p, H0); if (r != null) return r; }
   const L = u.look, A = ATLAS.heroes, s = geo.s;
   const dead = u.dead || u.down;
   let pose = dead ? 'dead' : (u.pose === 'cast' ? 'cast' : u.pose === 'atk' ? 'atk' : u.pose === 'walk' ? 'walk' : 'stand');
