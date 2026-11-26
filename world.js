@@ -70314,7 +70314,9 @@ C.TW_TX = {
     resume: 'Вернуться на улицу', close: 'Закончить прогулку',
   },
   title: {day: 'Прогулка: {p}', night: 'Ночью: {p}'},
-  start: {day: ['Улица шумит: кто с коромыслом, кто с мешком, кто просто стоит у ворот и глядит, кто идёт.', 'Народ по своим делам, торговцы у лавок зазывают покупателей. На чужака косятся, но без злобы.'],
+  start: {morn: ['Раннее утро: печи топятся, из труб тянет дымом, люди ещё по избам — кто корову доит, кто воду носит.', 'Утро: село только просыпается, ставни открывают, у колодца первая баба с вёдрами.'],
+    eve: ['Вечер: работа кончена, в корчме гомон, у ворот на лавках судачат, из бани тянет паром.', 'Смеркается: народ тянется в корчму да в баню, дети домой не идут, пока не накличут.'],
+    day: ['Улица шумит: кто с коромыслом, кто с мешком, кто просто стоит у ворот и глядит, кто идёт.', 'Народ по своим делам, торговцы у лавок зазывают покупателей. На чужака косятся, но без злобы.'],
     night: ['Темно и тихо. Где-то вдалеке колотушка сторожа, ближе — сонное ворчание пса.', 'Ночь глухая: по улице не ходят, ставни закрыты, и только факел стражи плывёт меж дворов.']},
   wait: 'Остальные ждут в корчме.',
   // стража и псы
@@ -70488,6 +70490,7 @@ C.walkWhy = function (g) {
 C.walkLabel = function (g) { const n = nodeHere(g) || {}; if (C.isNight(g)) return 'Осмотреться'; return n.kind === 'город' ? 'Пройтись по городу' : n.kind === 'подворье' ? 'Пройтись по подворью' : 'Пройтись по селу'; };
 
 /* ---------- спецификация боя-прогулки ---------- */
+C._walkG = () => G_;
 C.walkPlaceId = g => back(g);
 C.walkSpec = function (g) {
   if (g && g.twalk) delete g.twalk.ret;
@@ -70540,6 +70543,8 @@ C.walkSetup = function (S, g) {
   const T = g.twalk, F = S.field, night = !!T.night, kind = placeKind(g, F), n = nodeHere(g) || {};
   const Wk = S.walk = {v: 1, node: g.loc, night, kind, rnd: 0, min: 0, sus: {}, crimes: [], seen: [], opened: {}, said: {}, hail: {}, picked: {}, bark: {}, all: !T.who};
   S.bfRein = null; S.stealth = null; delete S.surrOk;
+  // зрение (Ник 26.11): днём село видно целиком (кроме тумана и метели); ночью — как в ночном бою: свет, факелы, память о виденном
+  F.fog = !!(night || (S.wx && ['fog', 'blizzard'].includes(S.wx.kind)));
   // кто не идёт — не на поле
   if (T.who) { const keep = new Set(T.who); S.units = S.units.filter(u => !(u.side === 'party' && (!u.ref || !keep.has(u.ref.id) || u.pet))); }
   // мирные: ночью спят по избам; во дворах ночью никого
@@ -70573,12 +70578,12 @@ C.walkSetup = function (S, g) {
   const inn = hs.find(h => h.k === 'korchma_big') || hs.find(h => h.k === 'korchma');
   const well = Object.values(F.cells).find(x => x.t === 'well');
   const mid = inn ? inn.doors[0] : well || roads[Math.floor(roads.length / 2)] || {c: Math.floor(F.w / 2), r: Math.floor(F.h / 2)};
-  const spots = Object.values(F.cells).filter(x => x.hb == null && freeCell(S, x) && B.dist(x, mid) <= 6).sort((a, b) => B.dist(a, mid) - B.dist(b, mid) || a.c - b.c || a.r - b.r);
+  const spots = Object.values(F.cells).filter(x => x.hb == null && freeCell(S, x) && B.dist(x, mid) <= 6 && !B.neigh(x.c, x.r).some(q => { const y = B.cell(S, q.c, q.r); return y && /^hdoor/.test(y.t); })) /* не в проходе у двери */.sort((a, b) => B.dist(a, mid) - B.dist(b, mid) || a.c - b.c || a.r - b.r);
   heroUs(S).concat(S.units.filter(u => u.side === 'party' && u.pet && B.active(u))).forEach(u => { const x = spots.find(y => B.dist(y, mid) >= 1 && !B.unitAt(S, y.c, y.r)); if (x) { u.c = x.c; u.r = x.r; } });
   // очерёдность — только свои
   S.order = S.units.filter(u => u.side === 'party').sort((a, b) => (a.ai ? 1 : 0) - (b.ai ? 1 : 0) || (b.init || 0) - (a.init || 0)).map(u => u.id);
   S.cur = -1; S.round = 1; S.log = S.log.filter(l => !/Начало боя|^Кто первый|^Ход \d/.test(l.t || ''));
-  lg(S, pickH(TX.start[night ? 'night' : 'day'], g.loc + g.day), 'round');
+  { const sl = g.time % 4; lg(S, pickH(TX.start[night ? 'night' : sl === 0 ? 'morn' : sl === 2 ? 'eve' : 'day'] || TX.start.day, g.loc + g.day), 'round'); }
   if (T.who) lg(S, TX.wait, '');
   B.next(S); syncSleep(S);
   return S;
@@ -70627,6 +70632,7 @@ const wander = (S, u, home, far) => {
 function civDue(S, u) {
   const Wk = S.walk, c = u.civ || {};
   if (Wk.fight || Wk.hot || c.hostile || c.hurt || c.k === 'tgt' || c.poisoned) return true;
+  if (C.walkDayDue) { const d = C.walkDayDue(S, u); if (d != null) return d; } // распорядок дня (walk_day.js)
   if (c.k === 'guard' || c.walker) { if (Wk.inv && Wk.inv.until >= Wk.rnd) return true; return (Wk.rnd + hsh(u.id || u.name || '')) % (K().CIV_GUARD_EVERY || 2) === 0; }
   return (Wk.rnd + hsh(u.id || u.name || '')) % (K().CIV_EVERY || 20) === 0;
 }
@@ -70649,6 +70655,7 @@ function civAct(S, u) {
   if (u.civ.walker) { const R0 = u.civ.route || []; if (!R0.length) return; let wp = R0[u.civ.wp % R0.length]; if (B.dist(u, wp) <= 2) { u.civ.wp = (u.civ.wp + 1) % R0.length; wp = R0[u.civ.wp]; } toward(S, u, wp); return; } // ночной прохожий бредёт по улице
   if (Wk.night) return; // проснувшиеся ночью — стоят, слушают
   if (Wk.hot) { if (home && BF.inHouse(S, u) !== home.id) toward(S, u, home.doors[0]); return; }
+  if (C.walkDayAct && C.walkDayAct(S, u, home)) return; // распорядок дня (walk_day.js)
   life(S, u, home);
 }
 /* табличка у двери: что за дом или кто живёт */
@@ -70898,12 +70905,17 @@ C.walkActs = function (S, u) {
     out.push({v: 'yield', label: 'Сдаться', title: 'Бросить оружие и поднять руки: бить перестанут, поведут к судьям, если есть за что.', grp: 'Прогулка'});
     return out; }
   const usedA = S.acted ? TX.why.acted : '';
+  // лечь на лежанку / встать (Ник 26.11: «на кровать можно лечь»)
+  if (u.lying) { const hid0 = BF.inHouse(S, u), hh = houseOf(S, hid0), mine = hh && (hh.own || /korchma/.test(hh.k)), sl = G_ ? G_.time % 4 : 1;
+    out.push({v: 'getup', label: 'Встать', title: 'Подняться с лежанки.', grp: 'Прогулка'});
+    if (mine) out.push({v: 'wait', p: sl >= 2 ? 'morn' : 'eve', label: sl >= 2 ? 'Уснуть до утра' : 'Вздремнуть до вечера', title: hh.own ? 'Дома, на своей лежанке.' : 'В корчме, на лавке у печи.', grp: 'Прогулка'}); }
+  else if (C.walkLieSpots && C.walkLieSpots(S, u).length && BF.inHouse(S, u) != null) out.push({v: 'lie', label: 'Лечь на лежанку', title: 'Прилечь: на лежанку, на печь или на лавку рядом.', grp: 'Прогулка'});
   out.push({v: 'arm', label: Wk.armed ? 'Убрать оружие' : 'К бою!', on: Wk.armed ? 1 : 0, title: Wk.armed ? 'Спрятать оружие и чары — снова просто прохожий.' : 'Оружие наготове, чары на кончиках пальцев: весь боевой арсенал — бить, стрелять, колдовать. Пока никто не видел и не слышал — тревоги нет. Кто увидит — запомнит.', grp: 'Прогулка'});
   out.push({v: 'back', label: Wk.all ? TX.back.all : TX.back.day, title: TX.tips.back, grp: 'Прогулка'});
   { const G0 = G_, tt = G0 ? G0.time % 4 : 1, busyW = Wk.hot || Wk.fight || (Wk.inv && Wk.inv.until >= Wk.rnd) ? 'Сейчас не до того: всполошились' : ''; /* переждать до нужного часа — вору под ночное дело (Ник 25.11) */
     if (tt < 2) out.push({v: 'wait', p: 'eve', label: 'Дождаться вечера', dis: busyW, title: 'Отсидеться в тихом углу до сумерек — улица станет другой.', grp: 'Прогулка'});
     if (tt !== 3) out.push({v: 'wait', p: 'night', label: 'Дождаться ночи', dis: busyW, title: 'Переждать до темноты: люди разойдутся по избам, на улице останутся сторожа да псы.', grp: 'Прогулка'});
-    else out.push({v: 'wait', p: 'morn', label: 'Дождаться утра', dis: busyW, title: 'Переждать ночь в тихом углу — к рассвету село проснётся.', grp: 'Прогулка'}); }
+    if (tt >= 2) out.push({v: 'wait', p: 'morn', label: 'Дождаться утра', dis: busyW, title: 'Переждать ночь в тихом углу — к рассвету село проснётся.', grp: 'Прогулка'}); }
   // войти
   doorsAround(S, u).forEach(o => { const ek = enterKey(o.h.k); if (!TX.enter[ek] || out.some(x => x.v === 'enter' && x.p === o.h.id)) return;
     const night = Wk.night && !['korchma', 'korchma_big'].includes(o.h.k);
@@ -70944,6 +70956,7 @@ C.walkActs = function (S, u) {
     out.push({v: 'knock', p: o.h.id, d: o.id, label: TX2.knock, dis: S.bonus ? TX2.why.bonus : '', title: TX2.tips.knock, grp: 'Люди'}); });
   // сундуки, короба, кубышки
   lootables(S, u).forEach(x => out.push({v: 'chest', p: key(x.c, x.r), label: TX.chest[x.t] || TX.chest.chest, dis: usedA, title: TX.tips.chest, grp: 'Тёмное дело'}));
+  (C.walkActsX || []).forEach(f => { try { f(S, u, out, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } }); // дела на прогулке (walk_errands.js)
   return out;
 };
 const bp0 = B.bfPanel;
@@ -71082,12 +71095,17 @@ C.walkDo = function (S, u, a) {
   const act = C.walkActs(S, u).find(x => x.v === a.v && (a.t == null || x.t === a.t) && (a.p == null || x.p === a.p)); if (!act) return 'Так нельзя.'; if (act.dis) return act.dis;
   const hid = u.ref ? u.ref.id : u.id, t = a.t ? B.U(S, a.t) : null;
   if (a.v === 'back') { Wk.end = {k: 'back'}; S.over = 'walk'; return ''; }
+  if (a.v === 'lie') { const x = (C.walkLieSpots(S, u) || [])[0]; if (!x) return 'Лечь некуда.'; u.lieFrom = {c: u.c, r: u.r}; u.c = x.c; u.r = x.r; u.lying = 1; if (BF.touch) BF.touch(S);
+    lg(S, `${nameOf(u)} ложится ${x.t === 'stove' ? 'на печь' : x.t === 'bed' ? 'на лежанку' : 'на лавку'} и вытягивает ноги.`, ''); return ''; }
+  if (a.v === 'getup') { const f = u.lieFrom && B.cell(S, u.lieFrom.c, u.lieFrom.r), ok = y => y && freeCell(S, y);
+    const x = ok(f) ? f : B.neigh(u.c, u.r).map(q => B.cell(S, q.c, q.r)).find(ok); if (!x) return 'Встать некуда: всё занято.'; u.c = x.c; u.r = x.r; u.lying = 0; u.lieFrom = null; if (BF.touch) BF.touch(S);
+    lg(S, `${nameOf(u)} встаёт.`, ''); return ''; }
   if (a.v === 'arm') { Wk.armed = Wk.armed ? 0 : 1;
     if (Wk.armed) { const ws = C.walkWitness(S, u); if (ws.length) { lg(S, fill(pick(TX3.armSeen), {n: ws[0].f, h: u}), ''); if (Wk.night) Wk.sus[hid] = Wk.rnd; } else lg(S, fill(pick(TX3.armQuiet), {h: u}), ''); }
     else lg(S, fill(pick(TX3.armOff), {h: u}), ''); return ''; }
   if (a.v === 'yield') { Wk.yielded = 1; Wk.fight = 0; Wk.hot = 0; S.units.forEach(f => { if (f.side === 'foe' && f.civ) { f.side = 'civ'; f.civ.hostile = 0; } });
     lg(S, `${nameOf(u)} бросает оружие и поднимает руки. Бить перестают, хватают под локти.`, 'bad'); Wk.end = {k: 'yield'}; S.over = 'walk'; return ''; }
-  if (a.v === 'wait') { Wk.end = {k: 'wait', to: a.p}; S.over = 'walk'; return ''; }
+  if (a.v === 'wait') { const hh = u.lying ? houseOf(S, BF.inHouse(S, u)) : null; Wk.end = {k: 'wait', to: a.p, sleep: hh && a.p === 'morn' ? (hh.own ? 'home' : /korchma/.test(hh.k) ? 'inn' : '') : ''}; S.over = 'walk'; return ''; } // лёг дома или в корчме — выспался
   if (a.v === 'gait') { if (!['walk', 'sneak', 'run'].includes(a.p) || gaitOf(u) === a.p) return ''; setGait(u, a.p); if (a.p !== 'walk' && u.conds && a.p === 'run') delete u.conds.hidden;
     lg(S, fill(pick(TX2.gaitLog[a.p]), {h: u}), ''); Wk._roll = {}; perceive(S, u); return ''; }
   if (a.v === 'crouch') { u.crouch = !u.crouch; if (u.steps0 == null) u.steps0 = u.steps; u.steps = u.crouch ? Math.max(1, Math.ceil(u.steps0 / 2)) : u.steps0; if (u.look) u.look = Object.assign({}, u.look, {crouch: !!u.crouch});
@@ -71113,8 +71131,8 @@ C.walkDo = function (S, u, a) {
   if (a.v === 'enter') { const h = houseOf(S, a.p); Wk.end = {k: 'pause', go: {k: 'place', hk: h ? h.k : ''}}; S.over = 'walk'; return ''; }
   if (a.v === 'menu' && act.p === 'Заночевать…') { Wk.end = {k: 'pause', go: {k: 'scene', id: 'place_inn'}}; S.over = 'walk'; return ''; }
   if (a.v === 'menu' || a.v === 'ask') { Wk.end = {k: 'pause', go: {k: 'choice', label: act.p}}; S.over = 'walk'; return ''; }
-  if (a.v === 'talk') { const j = tgtJob(g, t); let face = t.portrait || t.civ.face || ''; if (!face) { try { const fs = C.foeFaces(t.civ.k === 'guard' ? 'guard' : 'wander', sexOf(t)); face = fs.length ? fs[hsh(t.name || t.id) % fs.length] : ''; t.civ.face = face; } catch (e) {} }
-    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null, folk: t.civ.folk || null, job: t.civ.job || null, sub: t.civ.sub || null, kid: t.civ.kid || null, kv: t.civ.kv || null, kvr: t.civ.kvr || null, svc: t.civ.svc || null}}}; S.over = 'walk'; return ''; }
+  if (a.v === 'talk') { const j = tgtJob(g, t); let face = t.portrait || t.civ.face || ''; if (!face) { try { const sx = sexOf(t), PF = C.PORTRAITS_F || [], kidF = new Set([].concat(C.FACE_KID || [], C.D1_YOUNG || [])); let fs = C.foeFaces(t.civ.k === 'guard' ? 'guard' : 'wander', sx).filter(x => (sx === 'f') === PF.includes(x)); if (!fs.length && sx === 'f') fs = PF.filter(x => !kidF.has(x) && !/^p(k|l)/.test(x)); face = fs.length ? fs[hsh(t.name || t.id) % fs.length] : ''; t.civ.face = face; } catch (e) {} } // баба — женское лицо (Ник 26.11: у Забавы было мужское)
+    Wk.end = {k: 'pause', go: {k: 'talk', who: {id: t.id, name: t.name, k: t.civ.k, sex: sexOf(t), home: t.civ.home ? (houseOf(S, t.civ.home) || {}).k : null, face, jid: j ? j.id : null, tf: t.civ.tf || null, folk: t.civ.folk || null, job: t.civ.job || null, sub: t.civ.sub || null, kid: t.civ.kid || null, kv: t.civ.kv || null, kvr: t.civ.kvr || null, svc: t.civ.svc || null, werr: t.civ.werr || null}}}; S.over = 'walk'; return ''; }
   if (a.v === 'pick') {
     S.acted = true; Wk.picked[t.id] = 1; B.faceTo(u, t);
     const dc = 10 + Math.floor((t.level || 1) / 2) + (t.civ.k === 'guard' ? 3 : t.civ.k === 'trader' ? 2 : 0), r = roll(u, 'dex', 'Ловкость рук', dc);
@@ -71150,6 +71168,7 @@ C.walkDo = function (S, u, a) {
     if (r.ok) { const i = u.ref.inv.indexOf(id); if (i >= 0) u.ref.inv.splice(i, 1); t.civ.poisoned = Wk.rnd + 1; lg(S, fill(pick(TX.poisonOk), {n: t}), 'buff');
       const ws = C.walkWitness(S, u, t); Wk.tgtDead = {jid: t.civ.jid, hid, wit: witWord(ws) === 'face' ? 'someone' : null, r: Wk.rnd, how: 'poison'}; return ''; }
     lg(S, fill(pick(TX.poisonBad), {n: t}), 'bad'); sight(S, t, u); Wk.sus[hid] = Wk.rnd; C.walkAlarm(S, 'kill', t, u); return ''; }
+  if (C.walkDoX && C.walkDoX[a.v]) return C.walkDoX[a.v](S, u, a, t, g) || '';
   return 'Так нельзя.';
 };
 
@@ -71245,8 +71264,9 @@ C.walkFinish = function (g, S) {
   G_ = g; const Wk = S.walk, E = (Wk && Wk.end) || {k: 'back'};
   if (E.k === 'yield') { const r = C.walkClose(g, S, {lost: true}) || {}; if (!(Wk.crimes || []).length) try { C.note(g, 'Разобрались, кто таков, — помяли бока да отпустили.'); } catch (e) {} return r; }
   if (E.k === 'wait') { const who = g.twalk && g.twalk.who, r = C.walkClose(g, S) || {}; if (r.scene && r.scene !== back(g)) return r;
-    const t = g.time % 4, k = E.to === 'night' ? (3 - t + 4) % 4 : E.to === 'eve' ? (2 - t + 4) % 4 : (4 - t) % 4; if (k) C.pass(g, k);
-    try { C.note(g, E.to === 'night' ? 'Переждали в тихом углу до темноты. Село засыпает.' : E.to === 'eve' ? 'Скоротали время до сумерек.' : 'Пересидели ночь; светает, село просыпается.'); } catch (e) {}
+    const t = g.time % 4, k = E.to === 'night' ? (3 - t + 4) % 4 : E.to === 'eve' ? (2 - t + 4) % 4 : (4 - t) % 4;
+    if (E.sleep === 'inn' && C.lodge) { try { C.lodge(g, 20, 'Корчма'); } catch (e) { if (k) C.pass(g, k); } } else if (E.sleep === 'home') { try { C.rest(g, true); } catch (e) { if (k) C.pass(g, k); } } else if (k) C.pass(g, k);
+    try { C.note(g, E.sleep === 'home' ? 'Выспались дома, на своей лежанке. Утро.' : E.sleep === 'inn' ? 'Выспались в корчме у печи. Утро.' : E.to === 'night' ? 'Переждали в тихом углу до темноты. Село засыпает.' : E.to === 'eve' ? 'Скоротали время до сумерек.' : 'Пересидели ночь; светает, село просыпается.'); } catch (e) {}
     const b = C.walkBegin(g); if (b && g.twalk) g.twalk.who = who || null; return b || {scene: back(g)}; }
   if (E.k === 'pause' && g.twalk) {
     passMin(g, Wk); S.over = null; Wk.end = null; Wk._roll = {}; try { if (C.SFX && C.SFX.calm) C.SFX.calm(g); } catch (e) {}
@@ -73604,6 +73624,365 @@ Q.finish = function (g, j, text, mul, ex) {
       C.note(g, fill(seen ? T.doneSeen : T.done, {p: r.n, pg: decl(r.n, 'f').g})); } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
   return res;
 };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* walk_day.js */
+/* Колдовство — walk_day: распорядок суток на прогулке (Ник 26.11: «пусть не носятся как угорелые; утро — все ещё дома,
+   день — гуляют и работают, торговцы в лавках и двери открыты, дети гуляют, в полях работают; вечер — в корчме, в бане люди;
+   ночь — все спят, лежат в кроватях»).
+   • Каждому жителю на время суток — своё место (пост): изба, двор, огород, колодец, лавка, корчма, баня, игра у колодца.
+     На старте прогулки люди уже там, где им положено, — не сбегаются со всего села.
+   • Идут к посту шагом: не больше двух клеток за раз, раз в минуту (2 круга). На посту — стоят, делают дело,
+     переминаются раз в десять минут; дети носятся вокруг места игры. Сменилось время суток — новый пост, идут не спеша.
+   • Двери: днём лавки, кузня, мастерская, корчма — настежь; вечером — корчма и баня; утром и ночью — заперто (кроме корчмы вечером).
+   • Ночью спящие лежат: на лежанке, на печи, на лавке (рисуется лёжа). Герой может лечь на лежанку и уснуть до утра. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!R || !B || !C || !B.BF || !C.walkSetup) return;
+const BF = B.BF;
+const K = C.WDAY = Object.assign({STEP: 2, MOVE_EVERY: 2, IDLE_EVERY: 20, KID_EVERY: 3, FAR: 18}, C.WDAY || {});
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const key = (c, r) => c + ',' + r;
+const slotOf = g => ((g && g.time) || 0) % 4; // 0 утро, 1 день, 2 вечер, 3 ночь
+const PEOPLE = ['muzhik', 'baba', 'starik', 'child'];
+const LIE_T = ['bed', 'stove', 'hbench'];
+const doorOut = h => (h && h.doors || []).find(d => !d.inner) || (h && h.doors && h.doors[0]);
+const houses = S => (BF.houses ? BF.houses(S.field) : []);
+const houseById = (S, id) => (id == null ? null : BF.houseById(S.field, id));
+const occ = (S, x) => !!B.unitAt(S, x.c, x.r);
+const okCell = (S, x) => x && B.passable(S, x.c, x.r) && !occ(S, x) && !(B.TERRAIN[x.t] || {}).block;
+const inCells = (S, h) => Object.values(S.field.cells).filter(x => x && x.hb === h.id && x.hin);
+const freeIn = (S, h) => inCells(S, h).filter(x => okCell(S, x));
+const yardOf = (S, h, r0, r1) => { const d = doorOut(h); if (!d) return []; return Object.values(S.field.cells).filter(x => x && x.hb == null && okCell(S, x) && B.dist(x, d) >= (r0 || 1) && B.dist(x, d) <= (r1 || 3)); };
+const cellsT = (S, ts) => Object.values(S.field.cells).filter(x => x && ts.includes(x.t));
+const pickH = (a, k) => (a && a.length ? a[hsh(k) % a.length] : null);
+/* ближайшая свободная клетка к цели (по прямой), с фильтром */
+const nearFree = (S, at, f, maxD) => { if (!at) return null; let best = null, bd = 1e9; Object.values(S.field.cells).forEach(x => { if (!x || !okCell(S, x) || (f && !f(x))) return; const d = B.dist(x, at); if (d <= (maxD || 6) && d < bd) { bd = d; best = x; } }); return best; };
+const doorAdj = (S, x) => B.neigh(x.c, x.r).some(q => { const y = B.cell(S, q.c, q.r); return y && /^hdoor/.test(y.t); });
+const place = (u, x) => { if (u && x) { u.c = x.c; u.r = x.r; } };
+const isPerson = u => u && u.side === 'civ' && u.civ && B.active(u) && u.c != null && !u.horseOnly && (PEOPLE.includes(u.civ.k) || u.civ.folk || u.civ.kin);
+const skip = u => { const c = u.civ || {}; return c.k === 'guard' || c.k === 'tgt' || c.k === 'dog' || c.k === 'pig' || c.k === 'horse' || c.walker || c.hostile || c.ally || u.side !== 'civ'; };
+
+/* ---------- двери по времени суток ---------- */
+const OPEN_BY = {0: ['kuznya'], 1: ['kupec', 'kuznya', 'masterskaya', 'korchma', 'korchma_big'], 2: ['korchma', 'korchma_big', 'banya'], 3: []};
+const doorsFor = (S, slot) => { houses(S).forEach(h => { const open = (OPEN_BY[slot] || []).includes(h.k);
+  (h.doors || []).forEach(d => { if (d.inner || d.st === 'broken') return; const x = B.cell(S, d.c, d.r); if (!x) return;
+    if (open) { d.st = 'open'; d.lock = 0; d.prop = null; x.t = 'hdoor_o'; d.dayOpen = 1; }
+    else if (d.st === 'open' && !(h.own && slot !== 3)) { d.st = 'shut'; x.t = 'hdoor_c'; d.dayOpen = 0; } }); }); if (BF.touch) BF.touch(S); }; // прочие двери притворены
+
+/* ---------- куда кому на это время суток ---------- */
+const W_ = {
+  //            дома  двор  огород колодец болтать корчма баня  игра
+  muzhik: [[70, 25, 0, 5, 0, 0, 0, 0], [8, 22, 40, 5, 15, 10, 0, 0], [20, 15, 0, 0, 20, 40, 5, 0]],
+  baba: [[60, 15, 0, 25, 0, 0, 0, 0], [20, 25, 20, 15, 20, 0, 0, 0], [45, 10, 0, 5, 25, 5, 10, 0]],
+  starik: [[80, 20, 0, 0, 0, 0, 0, 0], [25, 45, 0, 0, 25, 5, 0, 0], [50, 20, 0, 0, 15, 15, 0, 0]],
+  child: [[85, 15, 0, 0, 0, 0, 0, 0], [5, 15, 0, 0, 0, 0, 0, 80], [55, 20, 0, 0, 0, 0, 0, 25]]};
+const WHERE = ['home', 'yard', 'field', 'well', 'chat', 'tavern', 'banya', 'play'];
+const choose = (u, slot) => { const k = u.civ.kin ? (u.civ.sex === 'm' ? 'muzhik' : 'baba') : u.civ.kid ? 'child' : (W_[u.civ.k] ? u.civ.k : (u.civ.sex === 'f' ? 'baba' : 'muzhik')); const w = (W_[k] || W_.muzhik)[Math.min(2, slot)];
+  const tot = w.reduce((a, b) => a + b, 0); let x = hsh(u.id + '|' + slot + '|' + (u.name || '')) % Math.max(1, tot); for (let i = 0; i < w.length; i++) { if (x < w[i]) return WHERE[i]; x -= w[i]; } return 'home'; };
+
+/* пост: {at: клетка, h: дом (если внутри), n: что делает, fid: радиус переминания} */
+const postFor = (S, u, slot, ctx) => {
+  const c = u.civ, home = houseById(S, c.workAt || c.home), myHome = houseById(S, c.home);
+  // мастер и работники — днём и вечером у себя в мастерской/лавке/корчме/бане; утром мастер уже там, корчма открывается
+  if ((c.k === 'trader' || c.workAt) && home) return {n: 'work', h: home.id, at: null, fid: 1};
+  if (c.ask) { const hh = myHome || pickH(ctx.dwell, u.id + 'ah'), d = hh ? doorOut(hh) : ctx.well; return {n: 'ask', at: (d && nearFree(S, d, x => x.hb == null && ctx.far(x) && !ctx.taken.has(key(x.c, x.r)), 4)) || null, fid: 0}; } // просит о помощи — стоит на виду у двора (у каждого свой), не у колодца толпой
+  if (c.svc === 'vesely') return null; // девицы весёлого дома гуляют сами (walk_folk)
+  if (c.folk && home && slot === 1 && ['kuznya', 'masterskaya'].includes(home.k)) return {n: 'work', h: home.id, fid: 1};
+  let w = choose(u, slot);
+  if (w === 'tavern' && !ctx.inn) w = 'chat'; if (w === 'banya' && !ctx.banya) w = 'home'; if (w === 'field' && !ctx.field.length) w = 'yard'; if (w === 'well' && !ctx.well) w = 'yard'; if (w === 'play' && !ctx.play.length) w = 'yard';
+  if ((w === 'home' || w === 'yard') && !myHome) w = slot === 1 ? 'chat' : ctx.inn ? 'tavern' : 'chat';
+  if (w === 'home') return {n: 'home', h: myHome.id, fid: 1};
+  if (w === 'tavern') return {n: 'tavern', h: ctx.inn.id, fid: 1};
+  if (w === 'banya') return {n: 'banya', h: ctx.banya.id, fid: 1};
+  if (w === 'yard') { const ys = yardOf(S, myHome, 1, 3); return {n: 'yard', at: pickH(ys, u.id + 'y'), fid: 1}; }
+  if (w === 'field') { const f = pickH(ctx.field, u.id + 'f'); return {n: 'field', at: f, fid: 1}; }
+  if (w === 'well') { if (!ctx.far(ctx.well)) w = 'yard'; else return {n: 'well', at: nearFree(S, ctx.well, x => x.hb == null, 3), fid: 1}; }
+  if (w === 'play') { const p = ctx.play[hsh(u.id + 'p') % ctx.play.length]; return {n: 'play', at: p, fid: 2}; }
+  // болтать: у чужого или своего двора, парой
+  return {n: 'chat', at: null, fid: 0};
+};
+
+/* ---------- расстановка ---------- */
+C.walkDayArrange = function (S, g, soft) {
+  const Wk = S.walk; if (!Wk) return; const slot = Wk.night ? 3 : slotOf(g); Wk.slot = slot;
+  const hs = houses(S), inn = hs.find(h => h.k === 'korchma_big') || hs.find(h => h.k === 'korchma'), banya = hs.find(h => h.k === 'banya');
+  const well = cellsT(S, ['well'])[0] || null;
+  const field = cellsT(S, ['ogorod', 'rye', 'garden']).filter(x => x.hb == null && B.passable(S, x.c, x.r));
+  const roads = Object.values(S.field.cells).filter(x => x && x.hb == null && (x.t === 'road' || x.vy === 'pave'));
+  // места игры детей: у колодца и на широкой улице (2–3 места)
+  const hero = S.units.filter(u => u.side === 'party' && u.c != null), far = x => !hero.some(h => B.dist(h, x) < 5); // у места, где стоят свои, — не толпиться
+  const play = []; [well].concat([0.25, 0.5, 0.75].map(q => roads[Math.floor(q * roads.length)])).forEach(r => { if (r && far(r) && !play.some(p => B.dist(p, r) < 6)) play.push(r); });
+  const dwell = hs.filter(h => ['izba', 'starosta', 'kupec', 'terem', 'boyar', 'dlin'].includes(h.k) && doorOut(h) && far(doorOut(h)));
+  const ctx = {inn, banya, well, field, play, dwell, far, taken: new Set()};
+  doorsFor(S, slot);
+  const L = S.units.filter(u => isPerson(u) && !skip(u));
+  if (slot === 3) { arrangeNight(S, L); return; }
+  const chatters = [];
+  // вечером в корчме людно, днём — двое-трое (Ник 26.11: «вечер — народ в тавернах»)
+  const wantInn = inn ? (slot === 2 ? 6 : slot === 1 ? 2 : 0) : 0;
+  L.forEach(u => { const P = postFor(S, u, slot, ctx); if (!P) return; u.civ.dpost = P; u.civ.plan = null; if (P.at) ctx.taken.add(key(P.at.c, P.at.r)); if (P.n === 'chat') chatters.push(u); });
+  if (wantInn) { let n = L.filter(u => u.civ.dpost && u.civ.dpost.n === 'tavern').length; L.filter(u => u.civ.dpost && ['home', 'yard', 'chat'].includes(u.civ.dpost.n) && ['muzhik', 'starik'].includes(u.civ.k) && !u.civ.kin && !u.civ.kid).sort((a, b) => hsh(a.id + 'inn') - hsh(b.id + 'inn')).forEach(u => { if (n >= wantInn) return; u.civ.dpost = {n: 'tavern', h: inn.id, fid: 1}; n++; }); chatters.splice(0, chatters.length, ...chatters.filter(u => u.civ.dpost.n === 'chat')); }
+  // болтуны — парами у дворов (лицом друг к другу)
+  const spots = ctx.dwell.map(h => yardOf(S, h, 2, 3).filter(ctx.far)).filter(a => a.length);
+  for (let i = 0; i < chatters.length; i++) { const u = chatters[i], m = chatters[i + 1]; const ys = spots.length ? spots[(i >> 1) % spots.length] : []; const a = pickH(ys, u.id + 'c');
+    u.civ.dpost = {n: 'chat', at: a, fid: 0, mate: m ? m.id : null}; if (m) { m.civ.dpost = {n: 'chat', at: null, near: u.id, fid: 0, mate: u.id}; i++; } }
+  if (soft) return; // время сменилось на ходу — идут сами, не переносим
+  // сразу на место: сперва те, кто внутри домов, потом улица
+  L.forEach(u => { const P = u.civ.dpost; if (!P) return; let x = null;
+    const clear = y => y.hb == null && ctx.far(y) && !doorAdj(S, y); // у дверей и у своих — не стоять столбом
+    if (P.h != null) { const h = houseById(S, P.h); const cs = h ? freeIn(S, h) : []; x = cs.length ? cs[hsh(u.id + 'in') % cs.length] : null; if (!x && h) { x = nearFree(S, doorOut(h), clear, 6); if (x) u.civ.dpost = {n: 'chat', at: x, fid: 0}; } }
+    else if (P.at) x = okCell(S, P.at) && !doorAdj(S, P.at) ? P.at : nearFree(S, P.at, clear, 4);
+    if (x) place(u, x); });
+  L.forEach(u => { const P = u.civ.dpost; if (!P || !P.near) return; const m = B.U(S, P.near); if (!m) return; const x = nearFree(S, m, y => y.hb == null && B.dist(y, m) === 1, 1); if (x) { place(u, x); B.faceTo(u, m); B.faceTo(m, u); } });
+};
+/* ночь: спят по домам, лёжа — лежанка, печь, лавка, а нет — на полу */
+const arrangeNight = (S, L) => {
+  const byH = {}; L.forEach(u => { const hid = u.civ.home; if (hid == null || !u.civ.sleep) return; (byH[hid] = byH[hid] || []).push(u); });
+  Object.keys(byH).forEach(hid => { const h = houseById(S, hid); if (!h) return; const us = byH[hid];
+    const lie = inCells(S, h).filter(x => LIE_T.includes(x.t) && !occ(S, x)).sort((a, b) => LIE_T.indexOf(a.t) - LIE_T.indexOf(b.t));
+    us.forEach(u => { const x = lie.shift(); if (x) { place(u, x); u.civ.lie = x.t; } else u.civ.lie = 'floor'; u.civ.dpost = {n: 'sleep', h: h.id, fid: 0}; }); });
+};
+
+/* ---------- ход жителя ---------- */
+const stepToward = (S, u, t, n) => { if (!t || B.dist(u, t) <= 0) return; const m0 = S.moved; try { S.moved = Math.max(0, (u.steps || 6) - (n || K.STEP)); B.goNear(S, u, t); } finally { S.moved = m0; } };
+const atPost = (S, u, P) => { if (P.h != null) return BF.inHouse(S, u) === P.h; if (P.near) { const m = B.U(S, P.near); return !m || B.dist(u, m) <= 1; } if (P.at) return B.dist(u, P.at) <= (P.fid || 0) || (B.dist(u, P.at) === 1 && occ(S, P.at)); return true; };
+C.walkDayDue = function (S, u) { const P = u.civ && u.civ.dpost; if (!P || S.walk.night || S.walk.hot) return null;
+  const r = S.walk.rnd + hsh(u.id) % 7; if (!atPost(S, u, P)) return r % K.MOVE_EVERY === 0; // идёт к месту — шаг раз в минуту
+  return r % (P.n === 'play' ? K.KID_EVERY : K.IDLE_EVERY) === 0; };
+C.walkDayAct = function (S, u, home) {
+  const P = u.civ && u.civ.dpost; if (!P || S.walk.night) return false;
+  if (!atPost(S, u, P)) {
+    if (P.h != null) { const h = houseById(S, P.h); if (!h) return true; const d = doorOut(h); if (!d) return true;
+      if (B.dist(u, d) > 1) { stepToward(S, u, d); return true; }
+      const o = (BF.doorsNear(S, u) || []).find(x => x.h === h && x.d === d); if (o && o.d.st === 'shut') { if (o.d.lock && (h.id === u.civ.home || h.id === u.civ.workAt || ['korchma', 'korchma_big', 'banya'].includes(h.k))) o.d.lock = 0; if (!o.d.lock) { try { const a0 = S.acted; BF.doorDo(S, u, o.id, 'open'); S.acted = a0; } catch (e) {} } }
+      const cs = freeIn(S, h).sort((a, b) => B.dist(a, d) - B.dist(b, d)); if (cs[0]) stepToward(S, u, cs[0]); return true; }
+    if (P.near) { const m = B.U(S, P.near); if (m) stepToward(S, u, m); return true; }
+    if (P.at) stepToward(S, u, P.at); return true; }
+  // на месте: дело делают, лицом к собеседнику; переминаются
+  if (P.mate) { const m = B.U(S, P.mate); if (m && B.dist(m, u) <= 1) B.faceTo(u, m); }
+  if (P.fid > 0) { const base = P.at || u, ns = B.neigh(u.c, u.r).map(q => B.cell(S, q.c, q.r)).filter(x => okCell(S, x) && (P.h != null ? x.hb === P.h && x.hin : x.hb == null && B.dist(x, base) <= P.fid));
+    if (ns.length && (P.n === 'play' || R.rand() < 0.5)) { const q = ns[Math.floor(R.rand() * ns.length)]; B.move(S, u, q.c, q.r); } }
+  return true;
+};
+
+/* ---------- время сменилось посреди прогулки — новые посты, идут шагом ---------- */
+if (C.walkTick) { const wt0 = C.walkTick; C.walkTick = function (S) { const r = wt0.apply(this, arguments);
+  try { const g = C._walkG ? C._walkG() : null; if (S.walk && !S.walk.night && g && S.walk.slot != null && slotOf(g) !== S.walk.slot && slotOf(g) !== 3) C.walkDayArrange(S, g, true); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return r; }; }
+
+/* ---------- после всей расстановки прогулки (дома, свои, знакомые) — по местам ---------- */
+const bs0 = C.battleStart;
+C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments);
+  try { if (S && S.walk && !S.walk._dayDone) { S.walk._dayDone = 1; C.walkDayArrange(S, g); } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return S; };
+
+/* ---------- шум: круг, докуда слышно (Ник 26.11: «шум имеет радиус — могут услышать, а могут нет») ---------- */
+if (C.walkNoise) { const wn0 = C.walkNoise; C.walkNoise = function (S, at, lv) { try { if (S && S.walk && at && at.c != null) { const W0 = (C.TW && C.TW.WAKE_R) || [3, 6, 10]; S.walk.noise = {c: at.c, r: at.r, rad: W0[lv] || 3, lv: lv || 0, rnd: S.walk.rnd}; } } catch (e) {} return wn0.apply(this, arguments); }; }
+/* ---------- лечь на лежанку: в своём доме или в корчме — уснуть до утра ---------- */
+if (B.reach) { const re0 = B.reach; B.reach = function (S, u) { if (u && u.lying && S && S.walk) { const o = {}; o[B.key(u.c, u.r)] = {c: u.c, r: u.r, cost: 0, prev: null}; return o; } return re0.apply(this, arguments); }; }
+C.walkLieSpots = (S, u) => B.neigh(u.c, u.r).map(q => B.cell(S, q.c, q.r)).filter(x => x && x.hin && LIE_T.includes(x.t) && !occ(S, x));
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* walk_errands.js */
+/* Колдовство — walk_errands: дела, что делаются только на прогулке (Ник 26.11: «цепочки квестов строго на мирной карте,
+   и подсказки на миникарте, куда идти — где примерно точка; я нпс долго искал»).
+   В каждом селе и городе у одного здешнего — своя беда; над ним жёлтое «!», на миникарте — тоже.
+   Цепочка «Пропажа»: 1) найти пропавшего (дитя или поросёнка) — где-то в круге на миникарте, отвести домой;
+     2) ночью покараулить клеть — вор крадётся, схватить; 3) днём — к тому, кто вора подослал: пристыдить, взять откуп или к старосте.
+   Цепочка «Весточка»: 1) отнести весточку человеку в другом дворе; 2) вечером подслушать, о чём шепчутся двое (в корчме или у колодца);
+     3) рассказать, что слышал, — или промолчать за плату.
+   Подсказки: пунктирный круг на миникарте — «где-то здесь» (не точка: искать всё-таки надо глазами). */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!R || !B || !C || !B.BF || !C.walkSetup) return;
+const BF = B.BF;
+C.walkActsX = C.walkActsX || []; C.walkDoX = C.walkDoX || {};
+const K = C.WERR = Object.assign({GAP_DAYS: 1, PAY: {lost1: [12, 25], lost3: [25, 45], let1: [6, 12], let3: [20, 35], hush: 40, bribe: 40}, XP: 40, LISTEN: 3, THIEF_STEP: 2}, C.WERR || {});
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const key = (c, r) => c + ',' + r;
+const day = g => (g && g.day) || 1;
+const slot = g => ((g && g.time) || 0) % 4;
+const pickH = (a, k) => (a && a.length ? a[hsh(k) % a.length] : null);
+const first = n => String(n || '').split(',')[0];
+const decl = (n, sex) => { try { return (C.Q && C.Q.decl ? C.Q.decl(n, sex) : null) || {n, g: n, d: n, a: n, i: n, p: n}; } catch (e) { return {n, g: n, d: n, a: n, i: n, p: n}; } };
+const lg = (S, t, cls) => { if (t) B.log(S, t, cls || ''); };
+const okCell = (S, x) => x && B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r) && !(B.TERRAIN[x.t] || {}).block;
+const doorOut = h => (h && h.doors || []).find(d => !d.inner) || (h && h.doors && h.doors[0]);
+const houses = S => (BF.houses ? BF.houses(S.field) : []);
+const houseById = (S, id) => (id == null ? null : BF.houseById(S.field, id));
+const near = (S, at, f, maxD) => { let best = null, bd = 1e9; Object.values(S.field.cells).forEach(x => { if (!okCell(S, x) || (f && !f(x))) return; const d = B.dist(x, at); if (d <= (maxD || 5) && d < bd) { bd = d; best = x; } }); return best; };
+const heroes = S => S.units.filter(u => u.side === 'party' && !u.pet && B.active(u) && u.c != null);
+const purse = (g, m) => { g.purse = (g.purse || 0) + m; };
+const pay = (g, k) => { const P = K.PAY[k] || [10, 20]; return Math.round((P[0] + (P[1] - P[0]) * ((hsh(g.loc + k + day(g)) % 100) / 100)) / 5) * 5; };
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const nameGen = (g, sex, k) => { let nm = null; try { const r0 = R.rand; let q = hsh(k); R.rand = () => { q = Math.imul(q ^ (q >>> 15), 2246822507) >>> 0; return (q % 100000) / 100000; }; try { const p = C.Q && C.Q.person ? C.Q.person(g, sex, null) : null; nm = p && p.n; } finally { R.rand = r0; } } catch (e) {} return nm || (sex === 'f' ? 'Милава' : 'Ждан'); };
+
+/* ---------- состояние ---------- */
+const ST = g => { g.werr = g.werr || {}; const E = g.werr[g.loc] = g.werr[g.loc] || {ch: null, step: 0, done: [], next: 0}; return E; };
+const CHAINS = ['lost', 'letter'];
+const TX = {
+  lost: {
+    offerKid: '«Беда у меня: {k} с утра пропал — играл у двора, и нет его. Кричала — не откликается. Поищи, а? Где-то он тут, в селе, далеко не уйдёт»',
+    offerPig: '«Поросёнок мой, {k}, сорвался из хлева и удрал. Жалко — к зиме откармливала. Где-то бегает, в огородах или под забором. Поможешь словить?»',
+    find: ['{k} сидит, насупившись: «Я не потерялся. Я тут живу». Но руку даёт.', '{k} похрюкивает и с подозрением нюхает сапог — но идёт следом.'],
+    home: '{g} всплёскивает руками: «Нашёлся! Ох ты ж моё…» — и суёт в руку {m}.',
+    offer2: '«Раз уж ты такой глазастый… У нас по ночам кто-то в клеть лазит — то курицу, то мешок. Покарауль ночью у клети, а? Поймаешь — век не забуду»',
+    thiefIn: 'В темноте у клети шевельнулась тень — кто-то крадётся.',
+    thiefGone: 'Тень метнулась за плетень — вор ушёл. Может, ещё полезет — в другую ночь.',
+    caughtOk: '{h} хватает вора за шиворот. Тот обмякает: «Пусти, мил человек! Не сам я — {x} подослал, ему и несу! Он платит, а мне жрать нечего…»',
+    caughtBad: 'Вор выворачивается и отскакивает в темноту!',
+    x: '{x} щурится: «Чего надо?» — но глаза бегают.',
+    shame: '{x} краснеет до ушей — соседи слышат каждое слово. «Ну было… Верну я всё, верну». {g} потом кланяется вам в пояс.',
+    bribe: '{x} суёт вам {m}: «Только тихо, слышишь? Ни ей, ни старосте». Вор останется безнаказанным — но серебро звенит.',
+    starosta: 'Вы ведёте {xa} к старосте. Тот хмурится, велит вернуть краденое и заплатить пеню. {g} благодарит вас — и {m} в придачу.'},
+  letter: {
+    offer: '«Слышь, добрый человек… Отнеси весточку {y} — {ya} в другом дворе живёт. Сама не могу — муж глядит. Только в руки, никому другому»',
+    give: '{y} берёт весточку, прячет за пазуху и долго молчит. Потом: «Спасибо. Вот тебе за труды» — {m}.',
+    offer2: '«Раз уж ты такой надёжный… Вечером {where} двое шепчутся — {a} и {b}. Мне б знать, о чём. Только чтоб не заметили»',
+    near: 'Вы садитесь поближе — разговор слышно.',
+    hush: '{a} замечает вас и обрывает: «…потом договорим». Оба замолкают и косятся. Отойти бы да попробовать снова, когда забудут.',
+    heard: 'Слышно: {secret}',
+    secrets: ['«…к Купале зерно придержим, цену поднимем вдвое — а там пусть просят»', '«…межу передвинем ночью, никто и не заметит, что огород вдовий стал короче»', '«…печать старостина у меня, грамоту выправим, что поле наше»', '«…чужаков в корчме обнесём, когда напьются, — а свалим на цыганских коней»'],
+    tell: '{y} слушает молча, кивает: «Так я и думала». Вот — {m}. «И никому, понял?»',
+    sell: 'Вы идёте к {aa} и шепчете, что знаете. {a} бледнеет и суёт {m}: «Забудь». {y} так ничего и не узнает.'}};
+const fill = (t, o) => String(t || '').replace(/\{(\w+)\}/g, (m, k) => (o[k] != null ? o[k] : m));
+const money = m => (C.coinWord ? C.coinWord(m) : m + ' монет');
+
+/* ---------- кто есть кто на поле ---------- */
+const adults = S => S.units.filter(u => u.side === 'civ' && u.civ && ['muzhik', 'baba', 'starik'].includes(u.civ.k) && u.civ.home && !u.civ.ask && !u.civ.folk && !u.civ.tf && !u.civ.kin && !u.civ.kv && !u.civ.werr && B.active(u) && u.c != null && !u.civ.sleep);
+const byRole = (S, r) => S.units.find(u => u.civ && u.civ.werr === r && !u.gone && !u.dead);
+/* назначить роль здешнему: имя и пол — постоянные (из состояния), дом — какой на этом поле */
+const cast = (S, g, E, role, sex) => { let u = byRole(S, role); if (u) return u; const L = adults(S).filter(x => !sex || (sex === 'f') === (x.civ.k === 'baba'));
+  u = pickH(L, g.loc + role + E.ch) || null;
+  if (!u && sex) { u = pickH(adults(S), g.loc + role + E.ch) || null; if (u) { u.civ.k = sex === 'f' ? 'baba' : 'muzhik'; u.civ.sex = sex; u.look = null; try { C.civDress(u); } catch (e) {} } } // нет подходящей — переоденем
+  if (!u) return null;
+  const nk = role + 'N', sk = role + 'S'; if (!E[nk]) { E[sk] = u.civ.k === 'baba' ? 'f' : 'm'; E[nk] = nameGen(g, E[sk], g.loc + '|' + role + '|' + E.ch); }
+  u.name = E[nk]; u.civ.sex = E[sk]; if (E[sk] === 'f' && u.civ.k !== 'baba') { u.civ.k = 'baba'; u.look = null; try { C.civDress(u); } catch (e) {} } u.sex = E[sk]; u.civ.werr = role; u.portrait = null; u.civ.face = null; return u; };
+const standAtYard = (S, u) => { const h = houseById(S, u.civ.home); const d = doorOut(h); if (!d) return; const x = near(S, d, y => y.hb == null && B.dist(y, d) >= 1, 3); if (x) { u.c = x.c; u.r = x.r; } u.civ.dpost = {n: 'ask', at: x || d, fid: 0}; };
+
+/* ---------- что нужно на поле сейчас ---------- */
+C.werrSync = function (S, g) {
+  const Wk = S.walk; if (!Wk || Wk.fight) return; const E = ST(g), night = !!Wk.night, sl = night ? 3 : slot(g);
+  // новое дело, если прежнее кончено
+  if (!E.ch && day(g) >= (E.next || 0)) { const left = CHAINS.filter(c => !E.done.includes(c)); if (left.length) { E.ch = left[hsh(g.loc + day(g)) % left.length]; E.step = 0; } }
+  if (!E.ch) { Wk.hints = hintsTgt(S); return; }
+  const giver = !night ? cast(S, g, E, 'giver', E.ch === 'lost' ? 'f' : 'f') : null;
+  if (giver) { standAtYard(S, giver); { const d0 = doorOut(houseById(S, giver.civ.home)); if (d0) E.gdoor = {c: d0.c, r: d0.r}; } giver.civ.werrMark = (E.step === 0 || E.step === 2 && !E.acc2 || E.ch === 'letter' && E.step === 3) ? 1 : 0; }
+  const H = []; const hint = (at, rad, col, label) => { if (!at) return; const o = hsh(g.loc + E.ch + E.step); const dc = (o % 5) - 2, dr = ((o >> 3) % 5) - 2; H.push({c: at.c + dc, r: at.r + dr, rad, col, label}); };
+  if (E.ch === 'lost') {
+    if (E.step === 1 && !night) { let t = byRole(S, 'lost'); if (!t) t = spawnLost(S, g, E, giver); if (t && !t.civ.follow) hint(t, 5, '#ffd36a', 'где-то здесь'); if (t && t.civ.follow && giver) hint(giver, 2, '#9fd36a', 'домой'); }
+    if (E.step === 2 && E.acc2 && night) { const barn = barnOf(S, g, E); if (barn) { hint(doorOut(barn), 4, '#ff8a70', 'клеть'); if (!byRole(S, 'thief') && !E.thiefGone) spawnThief(S, g, E, barn); } }
+    if (E.step === 3 && !night) { const x = cast(S, g, E, 'x', E.xS || null); if (x) { standAtYard(S, x); x.civ.werrMark = 1; hint(x, 3, '#ff8a70', first(E.xN)); } }
+  }
+  if (E.ch === 'letter') {
+    if ((E.step === 1 || E.step === 3) && !night) { const y = cast(S, g, E, 'y', 'f'); if (y) { standAtYard(S, y); y.civ.werrMark = 1; hint(y, 3, '#ffd36a', first(E.yN)); } }
+    if (E.step === 2 && sl === 2) { const sp = listenSpot(S); if (sp) { spawnPair(S, g, E, sp); hint(sp.at, 3, '#ff8a70', 'шепчутся'); } }
+  }
+  Wk.hints = H.concat(hintsTgt(S));
+};
+const hintsTgt = S => { const Wk = S.walk, out = []; if (Wk.tgtHome && !Wk.tgtDead) { const h = houseById(S, Wk.tgtHome), d = doorOut(h); if (d) out.push({c: d.c + 1, r: d.r - 1, rad: 4, col: '#e0503a', label: 'цель'}); } return out; };
+
+/* «Пропажа»: дитя или поросёнок — подальше от двора, в огороде, кустах, у деревьев */
+const spawnLost = (S, g, E, giver) => {
+  const kid = E.lostK === 'kid' || (!E.lostK && hsh(g.loc + 'lk') % 2 === 0); E.lostK = kid ? 'kid' : 'pig'; if (!E.lostN) E.lostN = kid ? nameGen(g, 'm', g.loc + 'lostkid') : pickH(['Хрюн', 'Пятак', 'Рыжик', 'Чернушка'], g.loc + 'pig');
+  const base = giver || heroes(S)[0]; if (!base) return null;
+  if (!E.spot) { const L = Object.values(S.field.cells).filter(x => x.hb == null && okCell(S, x) && B.dist(x, base) >= 10 && ['ogorod', 'brush', 'tree', 'grass', 'hay'].includes(x.t) || (x && x.hb == null && okCell(S, x) && B.dist(x, base) >= 10 && B.neigh(x.c, x.r).some(q => { const y = B.cell(S, q.c, q.r); return y && ['brush', 'tree', 'fence', 'hay'].includes(y.t); })));
+    const x = pickH(L, g.loc + 'spot' + day(g)); if (!x) return null; E.spot = {c: x.c, r: x.r}; }
+  const x = near(S, E.spot, y => y.hb == null, 4); if (!x) return null;
+  const m = C.MON[kid ? 'civ_ditya' : 'civ_svinya']; if (!m) return null; const u = B.fromMonster(m, 'civ', {}); u.c = x.c; u.r = x.r; u.ai = true; u.morale = false; u.init = R.d(20);
+  u.civ = {k: kid ? 'child' : 'pig', home: giver ? giver.civ.home : null, werr: 'lost', hold: 1, sex: 'm'}; u.name = kid ? E.lostN : 'Поросёнок ' + E.lostN; S.units.push(u); return u; };
+const barnOf = (S, g, E) => { const hs = houses(S), giver = byRole(S, 'giver') || E.gdoor; let L = hs.filter(h => ['klet', 'ambar', 'hlev', 'sklad'].includes(h.k) && doorOut(h)); if (!L.length) L = hs.filter(h => ['izba', 'starosta', 'dlin'].includes(h.k) && doorOut(h)); if (!L.length) return null; // нет клети — лезет в сени к хозяйке
+  if (E.barn) { const h = L.find(x => x.k === E.barn.k && doorOut(x) && B.dist(doorOut(x), E.barn) <= 2); if (h) return h; }
+  const h = L.sort((a, b) => (giver ? B.dist(doorOut(a), giver) - B.dist(doorOut(b), giver) : 0))[0]; const d = doorOut(h); E.barn = {k: h.k, c: d.c, r: d.r}; return h; };
+const edgeCell = (S, far) => { const F = S.field, L = Object.values(F.cells).filter(x => x.hb == null && okCell(S, x) && (x.c <= (F.c0 || 0) + 1 || x.r <= (F.r0 || 0) + 1 || x.c >= (F.c0 || 0) + F.w - 2 || x.r >= (F.r0 || 0) + F.h - 2) && (!far || B.dist(x, far) >= 8)); return L.length ? L[Math.floor(R.rand() * L.length)] : null; };
+const spawnThief = (S, g, E, barn) => { const x = edgeCell(S, doorOut(barn)); if (!x) return null; const m = C.MON.civ_muzhik; if (!m) return null; const u = B.fromMonster(m, 'civ', {}); u.c = x.c; u.r = x.r; u.ai = true; u.morale = false; u.init = R.d(20);
+  u.civ = {k: 'muzhik', home: null, werr: 'thief', hold: 1, sex: 'm', st: 'in', t0: S.walk.rnd, edge: {c: x.c, r: x.r}}; u.name = 'Тень у плетня'; u.look = {base: 'm_shirt', tint: '#2e2a26', weapon: null}; u.crouch = true; S.units.push(u); lg(S, TX.lost.thiefIn, ''); return u; };
+/* «Весточка»: где шепчутся вечером — в корчме у стола, а нет корчмы — у колодца */
+const listenSpot = S => { const inn = houses(S).find(h => h.k === 'korchma_big') || houses(S).find(h => h.k === 'korchma');
+  if (inn) { const cs = Object.values(S.field.cells).filter(x => x.hb === inn.id && x.hin && okCell(S, x)); const t = Object.values(S.field.cells).find(x => x.hb === inn.id && x.t === 'table'); const a = t ? near(S, t, y => y.hb === inn.id && y.hin, 2) : cs[0]; return a ? {at: a, where: 'в корчме', h: inn.id} : null; }
+  const w = Object.values(S.field.cells).find(x => x.t === 'well'); const a = w ? near(S, w, y => y.hb == null, 3) : null; return a ? {at: a, where: 'у колодца'} : null; };
+const spawnPair = (S, g, E, sp) => { if (byRole(S, 'pa')) return; if (!E.aN) { E.aN = nameGen(g, 'm', g.loc + 'pa'); E.bN = nameGen(g, 'm', g.loc + 'pb'); }
+  const m = C.MON.civ_muzhik; if (!m) return; const a = B.fromMonster(m, 'civ', {}); a.c = sp.at.c; a.r = sp.at.r; const x = near(S, sp.at, y => B.dist(y, sp.at) === 1 && (sp.h == null || y.hb === sp.h), 1); if (!x) return;
+  const b = B.fromMonster(m, 'civ', {}); b.c = x.c; b.r = x.r; [a, b].forEach((u, i) => { u.ai = true; u.morale = false; u.init = R.d(20); u.civ = {k: 'muzhik', home: sp.h || null, werr: i ? 'pb' : 'pa', hold: 1, sex: 'm'}; u.name = i ? E.bN + ', заезжий' : E.aN + ', староста'; S.units.push(u); });
+  B.faceTo(a, b); B.faceTo(b, a); E.where = sp.where; };
+
+/* ---------- ход дел на поле: кто идёт следом, вор крадётся, подслушанный разговор ---------- */
+const wt0 = C.walkTick;
+C.walkTick = function (S) { const r = wt0.apply(this, arguments);
+  try { const g = C._walkG && C._walkG(); if (!g || !S.walk || S.walk.fight || S.over) return r; const E = ST(g), Wk = S.walk;
+    // идёт следом
+    S.units.filter(u => u.civ && u.civ.follow && B.active(u) && u.c != null).forEach(u => { const h = B.U(S, u.civ.follow); if (!h || B.dist(u, h) <= 1) return; const m0 = S.moved; try { S.moved = Math.max(0, (u.steps || 6) - 5); B.goNear(S, u, h); } finally { S.moved = m0; } });
+    // дошёл до дома — отдали
+    const lost = byRole(S, 'lost'), giver = byRole(S, 'giver');
+    if (lost && lost.civ.follow && giver && B.dist(lost, giver) <= 2 && E.ch === 'lost' && E.step === 1) { const m = pay(g, 'lost1'); purse(g, m); lg(S, fill(TX.lost.home, {g: first(giver.name), m: money(m)}), 'buff'); try { C.giveXP(g, K.XP, 'нашли пропажу'); } catch (e) {}
+      lost.gone = true; lost.c = null; E.step = 2; E.acc2 = 0; giver.civ.werrMark = 1; C.werrSync(S, g); }
+    // вор: крадётся к клети (2 клетки за круг), шарит там 2 круга, уходит к краю
+    const th = byRole(S, 'thief');
+    if (th && B.active(th)) { const barn = barnOf(S, g, E), d = barn && doorOut(barn); const m0 = S.moved;
+      try { S.moved = Math.max(0, (th.steps || 6) - K.THIEF_STEP);
+        if (th.civ.st === 'in' && d) { if (B.dist(th, d) > 1) B.goNear(S, th, d); else { th.civ.st = 'loot'; th.civ.t1 = Wk.rnd; } }
+        else if (th.civ.st === 'loot') { if (Wk.rnd - th.civ.t1 >= 2) th.civ.st = 'out'; }
+        else if (th.civ.st === 'out') { S.moved = Math.max(0, (th.steps || 6) - 4); B.goNear(S, th, th.civ.edge); if (B.dist(th, th.civ.edge) <= 1) { lg(S, TX.lost.thiefGone, 'bad'); th.gone = true; th.c = null; E.thiefGone = day(g); } }
+      } finally { S.moved = m0; } }
+    if (E.thiefGone && E.thiefGone !== day(g)) E.thiefGone = 0;
+    // подслушать: рядом (≤2) три круга подряд, не замеченным
+    const pa = byRole(S, 'pa'), pb = byRole(S, 'pb');
+    if (pa && pb && E.ch === 'letter' && E.step === 2) { const h = heroes(S).find(x => B.dist(x, pa) <= 2 || B.dist(x, pb) <= 2);
+      if (!h) E.lis = 0; else if (E.hush && Wk.rnd < E.hush) E.lis = 0;
+      else { const seen = [pa, pb].some(f => C.walkNotices && C.walkNotices(S, f, h, true)) && !h.crouch && R.rand() < 0.6;
+        if (seen) { lg(S, fill(TX.letter.hush, {a: first(pa.name)}), 'bad'); E.hush = Wk.rnd + 5; E.lis = 0; }
+        else { E.lis = (E.lis || 0) + 1; if (E.lis === 1) lg(S, TX.letter.near, ''); if (E.lis >= K.LISTEN) { E.secret = pickH(TX.letter.secrets, g.loc + 'sec'); lg(S, fill(TX.letter.heard, {secret: E.secret}), 'buff'); E.step = 3; pa.civ.werr = 'pa0'; pb.civ.werr = 'pb0'; C.werrSync(S, g); } } } }
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return r; };
+
+/* ---------- кнопки на поле ---------- */
+C.walkActsX.push((S, u, out, g) => { const Wk = S.walk; if (Wk.fight) return; const E = ST(g);
+  B.neigh(u.c, u.r).map(q => B.unitAt(S, q.c, q.r)).filter(Boolean).forEach(t => { if (!t.civ) return;
+    if (t.civ.werr === 'lost' && !t.civ.follow) out.push({v: 'werrLead', t: t.id, label: (E.lostK === 'kid' ? 'Отвести домой: ' : 'Поймать и отвести: ') + first(t.name), title: 'Пусть идёт следом — до двора хозяйки.', grp: 'Люди'});
+    if (t.civ.werr === 'thief' && B.active(t)) out.push({v: 'werrGrab', t: t.id, label: 'Схватить вора', title: 'Сила или Ловкость против его увёртливости.', grp: 'Люди'}); }); });
+C.walkDoX.werrLead = (S, u, a, t, g) => { if (!t) return 'Некого.'; t.civ.follow = u.id; lg(S, fill(TX.lost.find[ST(g).lostK === 'kid' ? 0 : 1], {k: first(t.name)}), ''); C.werrSync(S, g); return ''; };
+C.walkDoX.werrGrab = (S, u, a, t, g) => { if (!t) return 'Некого.'; S.acted = true; const E = ST(g), h = u.ref || u;
+  const bonus = Math.max(R.mod ? R.mod(h, 'str') : 0, R.mod ? R.mod(h, 'dex') : 0) + (R.prof ? R.prof(h) : 2), dc = t.civ.st === 'loot' ? 10 : 13, r = R.d(20) + bonus;
+  if (r >= dc) { if (!E.xN) { E.xS = hsh(g.loc + 'xs') % 3 ? 'm' : 'f'; } lg(S, fill(TX.lost.caughtOk, {h: first(u.name), x: E.xN || (E.xN = nameGen(g, E.xS, g.loc + '|x|lost'))}), 'buff'); t.gone = true; t.c = null; E.step = 3; try { C.giveXP(g, K.XP, 'поймали вора'); } catch (e) {} C.werrSync(S, g); return ''; }
+  lg(S, TX.lost.caughtBad, 'bad'); const x = Object.values(S.field.cells).filter(y => okCell(S, y) && y.hb == null && B.dist(y, t) >= 3 && B.dist(y, t) <= 4)[0]; if (x) { t.c = x.c; t.r = x.r; } t.civ.st = 'out'; return ''; };
+
+/* ---------- разговор: дела у того, с кем говоришь ---------- */
+const so = C.sceneOf;
+C.sceneOf = function (g, id) { const sc = so.apply(this, arguments);
+  try { const T = id === 'tw_talk' && g.twalk && g.twalk.talk; if (!sc || !T || !T.werr) return sc; const E = ST(g); if (!E.ch) return sc;
+    const say = t => { (T.log = T.log || []).push({who: 'o', text: t}); }, me = t => { (T.log = T.log || []).push({who: 'h', text: t}); };
+    const add = []; const resume = 'tw_talk';
+    if (T.werr === 'giver' && E.ch === 'lost') {
+      if (E.step === 0) { if (!T.wo) { T.wo = 1; say(fill(E.lostK === 'pig' || hsh(g.loc + 'lk') % 2 ? TX.lost.offerPig : TX.lost.offerKid, {k: E.lostN || (hsh(g.loc + 'lk') % 2 === 0 ? nameGen(g, 'm', g.loc + 'lostkid') : pickH(['Хрюн', 'Пятак', 'Рыжик', 'Чернушка'], g.loc + 'pig'))})); }
+        add.push({t: 'Поищу', do: g2 => { const E2 = ST(g2); E2.step = 1; me('Поищу.'); say('«Храни тебя Око! Он где-то по ту сторону села…»'); return resume; }}); }
+      if (E.step === 2 && !E.acc2) { if (!T.wo2) { T.wo2 = 1; say(TX.lost.offer2); }
+        add.push({t: 'Покараулю ночью', do: g2 => { ST(g2).acc2 = 1; me('Покараулю.'); say('«Лезет к нам — в клеть да в сени, я тебе покажу где. Ночью, когда собаки затихнут»'); return resume; }}); }
+      if (E.step === 3 && E.xN && !T.wx) { T.wx = 1; say(`«${E.xN}? Сосед-то наш? Ох… Ну, ты уж реши с ним сам, как знаешь»`); } }
+    if (T.werr === 'x' && E.ch === 'lost' && E.step === 3) { if (!T.wo) { T.wo = 1; say(fill(TX.lost.x, {x: first(E.xN)})); }
+      const gn = first(E.giverN || 'соседка'); const fin = (g2, txt, why) => { const E2 = ST(g2); E2.done.push('lost'); E2.ch = null; E2.step = 0; E2.next = day(g2) + K.GAP_DAYS; E2.xN = null; E2.spot = null; E2.acc2 = 0; say(txt); try { C.giveXP(g2, K.XP, why); } catch (e) {} return resume; };
+      add.push({t: 'Пристыдить при соседях', do: g2 => { me('Ты вора подсылал? Все слышат — отвечай.'); try { C.repAdd(g2, g2.loc, 1, 'вывели вора на чистую воду'); } catch (e) {} return fin(g2, fill(TX.lost.shame, {x: first(E.xN), g: gn}), 'правда вышла наружу'); }});
+      add.push({t: `Взять откуп (${money(K.PAY.bribe)})`, do: g2 => { me('Заплатишь — промолчу.'); purse(g2, K.PAY.bribe); return fin(g2, fill(TX.lost.bribe, {x: first(E.xN), m: money(K.PAY.bribe)}), 'откуп'); }});
+      add.push({t: 'Отвести к старосте', do: g2 => { me('Пойдём к старосте.'); const m = pay(g2, 'lost3'); purse(g2, m); try { C.repAdd(g2, g2.loc, 1, 'вора — к старосте'); } catch (e) {} return fin(g2, fill(TX.lost.starosta, {xa: decl(first(E.xN), E.xS).a, g: gn, m: money(m)}), 'суд у старосты'); }}); }
+    if (T.werr === 'giver' && E.ch === 'letter') {
+      if (E.step === 0) { if (!E.yN) E.yN = nameGen(g, 'f', g.loc + '|y|let'); if (!T.wo) { T.wo = 1; say(fill(TX.letter.offer, {y: decl(E.yN, 'f').d, ya: 'она'})); }
+        add.push({t: 'Отнесу', do: g2 => { ST(g2).step = 1; me('Отнесу.'); say('«Только чтоб муж не видел. Двор её — я покажу, вон там»'); return resume; }}); } }
+    if (T.werr === 'y' && E.ch === 'letter') {
+      if (E.step === 1) add.push({t: 'Передать весточку', do: g2 => { const E2 = ST(g2); const m = pay(g2, 'let1'); purse(g2, m); me('Тебе весточка.'); say(fill(TX.letter.give, {y: first(E2.yN), m: money(m)}));
+        if (!E2.aN) { E2.aN = nameGen(g2, 'm', g2.loc + 'pa'); E2.bN = nameGen(g2, 'm', g2.loc + 'pb'); } const sp = 'то в корчме, то у колодца'; say(fill(TX.letter.offer2, {where: sp, a: E2.aN + ', староста', b: E2.bN + ', заезжий'})); E2.step = 2; return resume; }});
+      if (E.step === 3) { add.push({t: 'Рассказать, что слышал', do: g2 => { const E2 = ST(g2); const m = pay(g2, 'let3'); purse(g2, m); me('Слышал вот что: ' + (E2.secret || '').replace(/^«…|»$/g, '') + '.'); say(fill(TX.letter.tell, {y: first(E2.yN), m: money(m)})); try { C.repAdd(g2, g2.loc, 1, 'тайное стало явным'); C.giveXP(g2, K.XP, 'подслушали'); } catch (e) {} E2.done.push('letter'); E2.ch = null; E2.step = 0; E2.next = day(g2) + K.GAP_DAYS; return resume; }});
+        add.push({t: `Промолчать — и взять с них за молчание (${money(K.PAY.hush)})`, do: g2 => { const E2 = ST(g2); purse(g2, K.PAY.hush); me('Ничего не слышал.'); say(fill(TX.letter.sell, {aa: decl(E2.aN || 'староста', 'm').d, a: first(E2.aN || 'Староста'), m: money(K.PAY.hush), y: first(E2.yN)})); try { C.giveXP(g2, K.XP, 'тайна за плату'); } catch (e) {} E2.done.push('letter'); E2.ch = null; E2.step = 0; E2.next = day(g2) + K.GAP_DAYS; return resume; }}); } }
+    if (add.length) { add.forEach((c, k) => { c.i = 9700 + k; c.label = c.t; }); sc.choices = add.concat(sc.choices || []); sc.lines = (T.log || []).map(l => ['n', l.text]); [sc.talk, sc.raw && sc.raw.talk].forEach(tk => { if (tk) tk.log = (T.log || []).map(x => Object.assign({}, x)); }); }
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc; };
+
+/* ---------- держать места: дела-люди не бродят ---------- */
+if (C.walkDayDue) { const dd0 = C.walkDayDue; C.walkDayDue = function (S, u) { if (u.civ && (u.civ.hold || u.civ.follow)) return false; return dd0.apply(this, arguments); }; }
+/* после расстановки дня — дела */
+const bs0 = C.battleStart;
+C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk) { const E = ST(g); if (E.giverN == null && byRole(S, 'giver')) E.giverN = byRole(S, 'giver').name; C.werrSync(S, g); const gv = byRole(S, 'giver'); if (gv) E.giverN = gv.name; } } catch (e) { if (C.BF_DEBUG) console.error(e); } return S; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */
