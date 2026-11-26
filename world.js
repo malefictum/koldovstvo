@@ -76115,3 +76115,83 @@ BF.wildDress = function (F, center) {
 };
 BF.fromPlace = function (o) { const F = fp0.apply(this, arguments); try { if (!BF.HOUSE_OFF && o && !o.kind) BF.wildDress(F, o.center); } catch (e) {} return F; };
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* dg_look.js */
+/* Колдовство — подземелья с объёмом (листы 109–111, Ник 26.11: «оцени пещеры» → «делай»).
+   • Стена — не плоская темень, а глыба: верх поднят, к полу смотрят две грани своей кладки (скала, плиты кургана,
+     брёвна, рудная порода с крепью, кирпич подвала).
+   • На гранях иногда: ниша с горшком, трещина с капелью, череп в нише, светец (горящий светит), звезда Ока, решётка.
+   • Пол по виду: сухой и мокрый камень пещеры, земля кургана с костями, доски штольни, мох развалин.
+   • На полу мелочь без помехи ходу: кости, скелет, грибы, паутина, погребальные дары, обломки крепи.
+   Всё от места клетки (хэш), без общего генератора: бой тот же, рисунок тот же при каждом заходе. */
+(function (G) {
+'use strict';
+const B = G.B; if (!B || !B.BF) return;
+const BF = B.BF, AT = () => (G.ATLAS && G.ATLAS.house) || {};
+const MAT = {
+  cave: {face: ['d_cave', 'd_cave', 'd_cavewet'], top: 'd_rocktop', floor: ['d_cfloor', 'd_cfloor', 'd_cwet'], ins: ['w_d_crack', 'w_d_niche', 'w_d_tunnel', 'w_d_crack'], decor: ['p_d_mush', 'p_d_web', 'p_d_bones', 'p_d_mush']},
+  mine: {face: ['d_ore'], top: 'd_rocktop', floor: ['d_cfloor', 'd_planks'], ins: ['w_d_torch', 'w_d_torch_out', 'w_d_minetunnel', 'w_d_torch_out'], decor: ['p_d_props', 'p_d_bones', 'p_d_web']},
+  kurgan: {face: ['d_slab', 'd_slab', 'd_logs'], top: 'd_slabtop', floor: ['d_earth'], ins: ['w_d_skull', 'w_d_skull', 'w_d_torch_out', 'w_d_star', 'w_d_logdoor'], decor: ['p_d_bones', 'p_d_skeleton', 'p_d_goods', 'p_d_bones']},
+  ruins: {face: ['d_slab'], top: 'd_slabtop', floor: ['d_moss', 'd_cfloor'], ins: ['w_d_torch', 'w_d_star', 'w_d_door', 'w_d_torch_out'], decor: ['p_d_bones', 'p_d_web', 'p_d_goods']},
+  cellar: {face: ['d_brick'], top: 'd_rocktop', floor: ['d_planks', 'd_cfloor'], ins: ['w_d_torch', 'w_d_torch_out', 'w_d_grate'], decor: ['p_d_web', 'p_d_bones']}};
+const KIND = {peshchera: 'cave', shakhta: 'mine', kurgan: 'kurgan', kapishche: 'kurgan', ruiny: 'ruins', podval: 'cellar', khran: 'cellar'};
+const BG = {cave: 'cave', terak_rudnik: 'mine', kurgan: 'kurgan', kurgan_hall: 'kurgan', ruins: 'ruins', cellar: 'cellar'};
+const matOf = F => MAT[(F.bf && KIND[F.bf.dk]) || BG[F.bg] || 'cave'] || MAT.cave;
+const hs = (c, r, salt) => { let h = (c * 73856093) ^ (r * 19349663) ^ (salt * 83492791); h = Math.imul(h ^ (h >>> 13), 0x5bd1e995); return (h ^ (h >>> 15)) >>> 0; };
+const ok = () => !!AT().t_d_cave;
+const isDg = F => F && F.bf && F.bf.kind === 'dungeon';
+// какой вид подземелья — в поле (для курганов и пещер с общим фоном)
+if (BF.dungeon) { const d0 = BF.dungeon; BF.dungeon = function (d) { const F = d0.apply(this, arguments); try { if (F && F.bf && d) F.bf.dk = d.kind; } catch (e) {} return F; }; }
+/* пол */
+BF.dgGround = function (X, c, p, s, F, img) {
+  if (!isDg(F) || !ok() || !img || c.t !== 'floor' || !BF.texPat) return false;
+  const m = matOf(F), n = m.floor[hs(c.c >> 1, c.r >> 1, 3) % m.floor.length], P = BF.texPat(X, img, n, p, c, s, 2.4);
+  if (!P) return false; X.fillStyle = P; X.fill(); X.fillStyle = 'rgba(14,10,6,.28)'; X.fill(); return true;
+};
+/* стена-глыба */
+const V = (p, s, i) => { const a = Math.PI / 180 * (60 * i - 30); return {x: p.x + s * Math.cos(a), y: p.y + s * Math.sin(a)}; };
+const wallAt = (F, c, r) => { const y = F.cells[c + ',' + r]; return !y || y.t === 'wall'; };
+const faceFill = (X, img, name, a, b, hh, s, dark) => {
+  const P = BF.hPattern && BF.hPattern(X, img, name); const L = Math.hypot(b.x - a.x, b.y - a.y), ux = (b.x - a.x) / L, uy = (b.y - a.y) / L;
+  X.beginPath(); X.moveTo(a.x, a.y); X.lineTo(b.x, b.y); X.lineTo(b.x, b.y - hh); X.lineTo(a.x, a.y - hh); X.closePath();
+  if (P && P.setTransform && typeof DOMMatrix !== 'undefined') { const k = s * 1.5 / 256; P.setTransform(new DOMMatrix([ux * k, uy * k, 0, k, a.x, a.y - hh])); X.fillStyle = P; } else X.fillStyle = '#4a4238';
+  X.fill(); X.fillStyle = `rgba(8,6,4,${dark})`; X.fill(); X.strokeStyle = 'rgba(10,8,6,.55)'; X.lineWidth = 1; X.stroke();
+  return {ux, uy, L};
+};
+BF.dgWall = function (X, c, p, s, S, img) {
+  const F = S.field; if (!ok() || !img) return false;
+  const m = matOf(F), hh = s * 0.95, odd = c.r & 1;
+  const lr = !wallAt(F, c.c + odd, c.r + 1), ll = !wallAt(F, c.c - 1 + odd, c.r + 1);
+  const anyOpen = B.neigh(c.c, c.r).some(q => !wallAt(F, q.c, q.r));
+  if (!anyOpen) { // глубь скалы: только верх, тёмный
+    X.beginPath(); for (let i = 0; i < 6; i++) { const v = V(p, s * 1.01, i); v.y -= hh; i ? X.lineTo(v.x, v.y) : X.moveTo(v.x, v.y); } X.closePath(); X.fillStyle = '#16120e'; X.fill(); return true; }
+  const face = m.face[hs(c.c, c.r, 1) % m.face.length];
+  // грани к полу: правая нижняя (светлее), левая нижняя (темнее)
+  let ins = null;
+  if (lr) { const f = faceFill(X, img, face, V(p, s, 1), V(p, s, 2), hh, s, 0.28); ins = ins || {a: V(p, s, 1), f}; }
+  if (ll) { const f = faceFill(X, img, face, V(p, s, 2), V(p, s, 3), hh, s, 0.42); ins = ins || {a: V(p, s, 2), f}; }
+  // верх
+  X.beginPath(); for (let i = 0; i < 6; i++) { const v = V(p, s * 1.01, i); v.y -= hh; i ? X.lineTo(v.x, v.y) : X.moveTo(v.x, v.y); } X.closePath();
+  const TP = BF.texPat ? BF.texPat(X, img, m.top, {x: p.x, y: p.y - hh}, c, s, 2.2) : null; X.fillStyle = TP || '#2a241e'; X.fill(); X.fillStyle = 'rgba(10,8,6,.5)'; X.fill();
+  X.strokeStyle = 'rgba(0,0,0,.35)'; X.lineWidth = 1; X.stroke();
+  // вставка на грань: ниша, трещина, светец, звезда…
+  const h = hs(c.c, c.r, 7);
+  if (ins && h % 9 === 0) { const name = m.ins[(h >>> 4) % m.ins.length], a = AT()[name];
+    if (a) { const {ux, uy, L} = ins.f, w = L * 0.78, ih = hh * 0.86;
+      X.save(); X.transform(ux, uy, 0, 1, ins.a.x, ins.a.y); X.drawImage(img, a[0], a[1], a[2], a[3], (L - w) / 2, -ih - hh * 0.04, w, ih); X.restore();
+      if (name === 'w_d_torch') { const gx = ins.a.x + ux * L / 2, gy = ins.a.y + uy * L / 2 - hh * 0.62, R = s * 2.6; const op = X.globalCompositeOperation; X.globalCompositeOperation = 'lighter';
+        const gr = X.createRadialGradient(gx, gy, 0, gx, gy, R); gr.addColorStop(0, 'rgba(255,170,70,.38)'); gr.addColorStop(1, 'rgba(255,140,40,0)'); X.fillStyle = gr; X.beginPath(); X.arc(gx, gy, R, 0, 7); X.fill(); X.globalCompositeOperation = op; } } }
+  return true;
+};
+/* мелочь на полу */
+BF.dgDecorOf = function (F, c) {
+  if (!isDg(F) || !ok() || c.t !== 'floor' || c.o != null) return null;
+  const h = hs(c.c, c.r, 11); if (h % 100 >= 4) return null;
+  const m = matOf(F); return m.decor[(h >>> 8) % m.decor.length];
+};
+BF.dgDecor = function (X, c, p, s, S, img) {
+  const n = BF.dgDecorOf(S.field, c); if (!n || !BF.hSpr) return false;
+  const W = {p_d_bones: 1.0, p_d_skeleton: 1.25, p_d_goods: 1.05, p_d_mush: 0.7, p_d_web: 1.0, p_d_props: 1.15}[n] || 1;
+  return BF.hSpr(X, img, n, p.x, p.y + s * 0.5, Math.sqrt(3) * s * W * 0.8);
+};
+})(typeof window !== 'undefined' ? window : globalThis);
