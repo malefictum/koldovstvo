@@ -72205,6 +72205,8 @@ const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'me
 const heroById = (g, id) => heroes(g).find(x => x.id === id) || null;
 const fams = g => Object.values((g.w2kids || {}).fam || {}).filter(F => F && F.kv);
 const kidWith = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && ((F.kids || []).length || F.kvPreg));
+const kidBorn = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && (F.kids || []).some(k => !k.went && !k.dead)); // родилось — не просто ждут
+const kidWait = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && F.kvPreg && F.kvPreg.told);
 const placeName = (g, at) => { try { const n = C.CAMPS[g.camp].map.nodes[at]; return (n && n.name) || 'родное село'; } catch (e) { return 'родное село'; } };
 const hsh = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
 const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
@@ -72235,10 +72237,10 @@ const tick = g => {
         : `Вести из ${placeName(g, r.at)}: ${who(r)} ${verb(r, 'ждала', 'ждал')}, что ${h.name} ${h.sex === 'f' ? 'приедет' : 'приедет'}, — не ${verb(r, 'дождалась', 'дождался')}. Теперь при имени ${h.name} ${verb(r, 'отворачивается', 'отворачивается')}.`); return; }
     // новая просьба
     if (!r.ask && !r.cold) { if (r.askNext == null) r.askNext = d + K.GAP[0] + Math.floor(hsh('a' + r.id) * 6); if (d < r.askNext) return;
-      const visit = !here && R.rand() < 0.4, kid = kidWith(g, r);
-      if (visit) { r.ask = {k: 'visit', by: d + K.TERM}; const t = `${kid ? 'Дитя спрашивает, где ' + (h.sex === 'f' ? 'мать' : 'отец') + '. ' : ''}Приезжай, проведай — соскучил${verb(r, 'ась', 'ся')}. ${who(r)}, ${placeName(g, r.at)}.`;
+      const visit = !here && R.rand() < 0.4, kid = kidBorn(g, r), wait = !kid && kidWait(g, r);
+      if (visit) { r.ask = {k: 'visit', by: d + K.TERM}; const t = `${kid ? 'Дитя спрашивает, где ' + (h.sex === 'f' ? 'мать' : 'отец') + '. ' : wait ? (r.sex === 'f' ? 'Тяжело одной, а срок всё ближе. ' : 'Жду вестей, как ты там. ') : ''}Приезжай, проведай — соскучил${verb(r, 'ась', 'ся')}. ${who(r)}, ${placeName(g, r.at)}.`;
         mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); }
-      else { const sum = sumOf(g, r); r.ask = {k: 'gift', sum, by: d + K.TERM}; const t = `${kid ? 'На дитя нужно — то одёжка, то хворь. ' : 'Зима близко, а в доме пусто. '}Пришли гостинец, не забывай. ${who(r)}, ${placeName(g, r.at)}.`;
+      else { const sum = sumOf(g, r); r.ask = {k: 'gift', sum, by: d + K.TERM}; const t = `${kid ? 'На дитя нужно — то одёжка, то хворь. ' : wait ? (r.sex === 'f' ? 'Скоро рожать — то повитухе, то на пелёнки. ' : 'Тебе скоро тяжело будет — пришли весточку, чем помочь. ') : R.pick(['Зима близко, а в доме пусто. ', 'Крыша течёт, а позвать некого. ', 'Соседка новые бусы справила — а я что, хуже? ', 'Без тебя скучно, хоть подарком утешь. '])}Пришли гостинец, не забывай. ${who(r)}, ${placeName(g, r.at)}.`;
         mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); } }
   } catch (e) {} });
 };
@@ -76289,6 +76291,8 @@ const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'me
 const heroById = (g, id) => heroes(g).find(x => x.id === id) || null;
 const fams = g => Object.values((g.w2kids || {}).fam || {}).filter(F => F && F.kv);
 const kidWith = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && ((F.kids || []).length || F.kvPreg));
+const kidBorn = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && (F.kids || []).some(k => !k.went && !k.dead)); // родилось — не просто ждут
+const kidWait = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && F.kvPreg && F.kvPreg.told);
 const placeName = (g, at) => { try { const n = C.CAMPS[g.camp].map.nodes[at]; return (n && n.name) || 'родное село'; } catch (e) { return 'родное село'; } };
 const hsh = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
 const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
@@ -76319,10 +76323,10 @@ const tick = g => {
         : `Вести из ${placeName(g, r.at)}: ${who(r)} ${verb(r, 'ждала', 'ждал')}, что ${h.name} ${h.sex === 'f' ? 'приедет' : 'приедет'}, — не ${verb(r, 'дождалась', 'дождался')}. Теперь при имени ${h.name} ${verb(r, 'отворачивается', 'отворачивается')}.`); return; }
     // новая просьба
     if (!r.ask && !r.cold) { if (r.askNext == null) r.askNext = d + K.GAP[0] + Math.floor(hsh('a' + r.id) * 6); if (d < r.askNext) return;
-      const visit = !here && R.rand() < 0.4, kid = kidWith(g, r);
-      if (visit) { r.ask = {k: 'visit', by: d + K.TERM}; const t = `${kid ? 'Дитя спрашивает, где ' + (h.sex === 'f' ? 'мать' : 'отец') + '. ' : ''}Приезжай, проведай — соскучил${verb(r, 'ась', 'ся')}. ${who(r)}, ${placeName(g, r.at)}.`;
+      const visit = !here && R.rand() < 0.4, kid = kidBorn(g, r), wait = !kid && kidWait(g, r);
+      if (visit) { r.ask = {k: 'visit', by: d + K.TERM}; const t = `${kid ? 'Дитя спрашивает, где ' + (h.sex === 'f' ? 'мать' : 'отец') + '. ' : wait ? (r.sex === 'f' ? 'Тяжело одной, а срок всё ближе. ' : 'Жду вестей, как ты там. ') : ''}Приезжай, проведай — соскучил${verb(r, 'ась', 'ся')}. ${who(r)}, ${placeName(g, r.at)}.`;
         mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); }
-      else { const sum = sumOf(g, r); r.ask = {k: 'gift', sum, by: d + K.TERM}; const t = `${kid ? 'На дитя нужно — то одёжка, то хворь. ' : 'Зима близко, а в доме пусто. '}Пришли гостинец, не забывай. ${who(r)}, ${placeName(g, r.at)}.`;
+      else { const sum = sumOf(g, r); r.ask = {k: 'gift', sum, by: d + K.TERM}; const t = `${kid ? 'На дитя нужно — то одёжка, то хворь. ' : wait ? (r.sex === 'f' ? 'Скоро рожать — то повитухе, то на пелёнки. ' : 'Тебе скоро тяжело будет — пришли весточку, чем помочь. ') : R.pick(['Зима близко, а в доме пусто. ', 'Крыша течёт, а позвать некого. ', 'Соседка новые бусы справила — а я что, хуже? ', 'Без тебя скучно, хоть подарком утешь. '])}Пришли гостинец, не забывай. ${who(r)}, ${placeName(g, r.at)}.`;
         mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); } }
   } catch (e) {} });
 };
@@ -76429,7 +76433,7 @@ const wrap = () => { const SC = C.KV_SC || {}; const sc0 = SC.kv_local; if (!sc0
   const sc = function (g) { const out = sc0.apply(this, arguments); try { const r = C.kvLocOf(g, g.kvCur); if (!r || !out || !out.choices) return out; const h = (g.heroes || []).find(x => x.id === r.hid && !x.dead); if (!h) return out;
     const ks = kidsOf(g, r); if (!ks.length) return out;
     const cold = r.cold && r.oko; const k = ks[Math.floor(day(g) / 3) % ks.length];
-    if (!g.kvLast) out.lines.push(['n', cold ? `Дитя уводят в дальнюю горницу, едва ${h.name} ${h.sex === 'f' ? 'входит' : 'входит'}: ${r.n} не желает, чтобы оно привыкало.` : kidLine(g, r, h, k)]);
+    { const at = Math.max(1, out.lines.length - (g.kvLast ? 1 : 0)); out.lines.splice(at, 0, ['n', cold ? `Дитя уводят в дальнюю горницу, едва ${h.name} ${h.sex === 'f' ? 'входит' : 'входит'}: ${r.n} не желает, чтобы оно привыкало.`   : kidLine(g, r, h, k)]); }
     if (!cold) { const leave = out.choices.findIndex(c => /^Уйти/.test(c.t || c.label || '')); const nm = k.n || (k.sex === 'f' ? 'дочкой' : 'сыном');
       out.choices.splice(leave < 0 ? out.choices.length : leave, 0, {own: h.id, t: `Побыть с ${k.n ? decl(k.n, k.sex).i : nm}`, if: g2 => (C.kvLocOf(g2, r.id) || {}).kidDay !== day(g2), off: 'сегодня уже', do: g2 => { const x = C.kvLocOf(g2, r.id); if (!x) return 'kv_local';
         x.kidDay = day(g2); x.rel = Math.min(100, (x.rel || 0) + 3); if (C.spiritAdd) C.spiritAdd(g2, 1, '', h); if (C.passH) C.passH(g2, 2);
