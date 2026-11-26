@@ -76788,6 +76788,10 @@ const wrap = () => { const SC = C.KV_SC || {}; const sc0 = SC.kv_local; if (!sc0
   const sc = function (g) { const out = sc0.apply(this, arguments);
     try { const r = C.kvLocOf(g, g.kvCur), h = r && heroOf(g, r); if (!r || !h || !out || !out.choices) return out;
       const tk = g.kvTopic && g.kvTopic.r === r.id ? g.kvTopic : null;
+      // лента разговора за день: сказанное не пропадает, новое дописывается снизу (Ник 27.11)
+      let fd = g.kvFeed; if (!fd || fd.r !== r.id || fd.d !== day(g)) fd = g.kvFeed = {r: r.id, d: day(g), L: []};
+      if (g.kvLast) { const ls = fd.L[fd.L.length - 1]; if (!ls || ls[1] !== g.kvLast) fd.L.push(['n', g.kvLast]); const at = out.lines.map(l => l[1]).lastIndexOf(g.kvLast); if (at > 0) out.lines.splice(at, 1); }
+      if (fd.L.length > 14) fd.L = fd.L.slice(-14); out.lines = out.lines.concat(fd.L);
       // «Поговорить» обычной кнопкой: после неё — тема
       out.choices.forEach(c => { if (c.t !== 'Поговорить' || !c.do || c._chat) return; const d0 = c.do; c._chat = 1;
         c.do = function (g2) { const res = d0.apply(this, arguments); try { const x = C.kvLocOf(g2, r.id), hh = heroOf(g2, x); const p = pick(g2, x, hh); if (p) { g2.kvTopic = {r: x.id, k: p.k, i: p.i, sex: x.sex}; x.chatSeen = (x.chatSeen || []).concat(p.k + p.i).slice(-40); g2.kvLast = null; } } catch (e) {} return res; }; });
@@ -76795,13 +76799,14 @@ const wrap = () => { const SC = C.KV_SC || {}; const sc0 = SC.kv_local; if (!sc0
       const S = tk.sex === 'f' ? F : M, t = (S[tk.k] || [])[tk.i]; if (!t) { delete g.kvTopic; return out; }
       const kid = kidOf(g, r), o = {h, p: {n: r.n, sex: r.sex}, x: {k: kid ? (kid.n || (kid.sex === 'f' ? 'дочка' : 'сынок')) : 'малой'}};
       const lines = out.lines.slice(); lines.push(['n', fill(t.o, o)]);
-      const ch = t.r.map(([lab, ans, eff]) => ({own: h.id, t: fill(lab, o), do: g2 => { const x = C.kvLocOf(g2, r.id); delete g2.kvTopic; if (!x) return 'kv_local';
+      const said = (g2, txt) => { const f2 = g2.kvFeed; if (f2 && f2.r === r.id) f2.L.push(['n', fill(t.o, o)], ['n', txt]); };
+      const ch = t.r.map(([lab, ans, eff]) => ({own: h.id, t: fill(lab, o), do: g2 => { const x = C.kvLocOf(g2, r.id); delete g2.kvTopic; if (!x) return 'kv_local'; said(g2, `— ${h.name}: ${fill(lab, o).replace(/^./, c => c.toLowerCase())}.`);
         x.rel = Math.max(0, Math.min(100, (x.rel || 0) + eff)); if (eff >= W && C.spiritAdd && R.rand() < 0.3) C.spiritAdd(g2, 1, '', h);
         g2.kvLast = fill(ans, o) + (eff <= XX ? ` ${x.sex === 'f' ? 'Обиделась' : 'Обиделся'} — и, кажется, всерьёз.` : ''); return 'kv_local'; }}));
-      ch.push({own: h.id, t: 'Промолчать', do: g2 => { delete g2.kvTopic; g2.kvLast = null; return 'kv_local'; }});
+      ch.push({own: h.id, t: 'Промолчать', do: g2 => { delete g2.kvTopic; said(g2, `${h.name} молчит.`); g2.kvLast = null; return 'kv_local'; }});
       return Object.assign({}, out, {lines, choices: ch}); } catch (e) { return out; } };
   sc._chat = 1; sc._kids = sc0._kids; SC.kv_local = sc; Object.values(C.CAMPS || {}).forEach(camp => { if (camp.scenes && camp.scenes.kv_local === sc0) camp.scenes.kv_local = sc; });
-  if (C.SPLIT && C.SPLIT.CTX && !C.SPLIT.CTX.includes('kvTopic')) C.SPLIT.CTX.push('kvTopic'); };
+  if (C.SPLIT && C.SPLIT.CTX) ['kvTopic', 'kvFeed'].forEach(k => { if (!C.SPLIT.CTX.includes(k)) C.SPLIT.CTX.push(k); }); };
 wrap();
 if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes && C.KV_SC && C.KV_SC.kv_local) camp.scenes.kv_local = C.KV_SC.kv_local; } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);

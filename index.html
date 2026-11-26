@@ -80,6 +80,8 @@ button{font:inherit;cursor:pointer}
 .lines{display:grid;gap:12px;align-content:start;max-width:74ch;font-size:17px;line-height:1.5}
 .line{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:start}
 .line.n{grid-template-columns:1fr;font-style:italic;color:var(--paper-2)}
+.feed-old{display:grid;gap:12px;opacity:.55;padding-bottom:10px;border-bottom:1px dashed rgba(200,170,120,.25)}
+.line.n.pick{font-style:normal;opacity:.85;font-size:.92em}
 .line .face{width:64px;height:64px;box-shadow:0 2px 8px rgba(0,0,0,.6);border-radius:6px;border:1px solid var(--rim);display:block}
 .line .who{font:700 13px var(--t-label);color:var(--brass);letter-spacing:.04em;text-transform:uppercase}
 .choices{display:grid;gap:8px;align-content:start;counter-reset:ch}
@@ -50336,7 +50338,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270033"></script><script>
+</script><script src="world.js?v=202611270039"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52198,11 +52200,14 @@ function askMore() {
 /* речь выкатывается строкой, как у рассказчика у огня. Щелчок по тексту, пробел или цифра — дописать сразу */
 let TYPING = null; const TYPED = new Set();
 const typeSpeed = () => { try { return localStorage.getItem('kldv-type') || 'normal'; } catch (e) { return 'normal'; } };
+const TYPED_TXT = new Set();
 function typeLines(root, key) {
   if (TYPING) TYPING.finish();
   const sp = typeSpeed(); if (!root || sp === 'off' || TYPED.has(key)) return; TYPED.add(key);
   const box = root.querySelector('.lines'), ch = root.querySelector('.choices');
-  const items = [...box.querySelectorAll(':scope > .line')].filter(l => !l.classList.contains('pc'));
+  const all0 = [...box.querySelectorAll(':scope > .line')].filter(l => !l.classList.contains('pc'));
+  const items = all0.filter(l => !TYPED_TXT.has(l.textContent)); // уже прочитанное не печатаем заново — лента дописывается снизу (Ник 27.11)
+  all0.forEach(l => TYPED_TXT.add(l.textContent)); if (TYPED_TXT.size > 600) TYPED_TXT.clear();
   if (!items.length) return;
   const tgt = items.map(l => l.classList.contains('n') ? l : l.querySelector(':scope > div:last-child > div:last-child') || l);
   const html = tgt.map(t => t.innerHTML), text = tgt.map(t => t.textContent);
@@ -52733,6 +52738,7 @@ function showScene(id, talk) {
    ${SAYS.filter(x => x.sid === id).slice(-8).map(x => x.html).join('')}</div>${lbox}<div class="choices${lbox ? ' lchoices' : ''}">${NET() ? `<div class="votebar" id="votebar"></div>${myHeroes().length ? `<label class="claim note">Проверку бросает: <select id="claimSel"><option value="">лучший в отряде</option>${myHeroes().map(h => `<option value="${h.id}" ${CLAIM === h.id ? 'selected' : ''}>${esc(h.name)} — беру на себя</option>`).join('')}</select></label>` : `<div class="hint">${C.alive(g).length ? 'У вас нет героя за этим столом — можно смотреть и говорить.' : 'Отряд пал. Посадите нового героя.'}</div>`}` : ''}${hub && !who ? sc.people.map(p => `<button class="btn ch" data-talk="${p}"><span class="ui-i i-chat"></span><span class="ct">Подойти: ${esc(shortName(p))}</span></button>`).join('') : ''}${choices.filter(c => c.who).map(c => choiceBtn(id, c)).join('')}${hub && who ? `<button class="btn ch" data-talk=""><span class="ui-i i-steps"></span><span class="ct">Отойти</span></button>` : ''}${menuHTML(id, choices.filter(c => !c.who && !(lbox && c.learn)))}</div></div></div>`;
   paintFaces($('#main')); paintIcons($('#main')); bindFolds($('#main')); if (lbox) bindLearn(id, sc);
   if (dmap) drawDMap(true);
+  if (!dmap) feedShow(id, sc);
   typeLines($('#main .scene'), id + '|' + lines.map(l => l[1]).join('|').length + '|' + (lines[0] ? lines[0][1].slice(0, 40) : '') + '|' + (lines.length ? lines[lines.length - 1][1].slice(-40) : ''));
   if (NET()) { const cs = $('#claimSel'); if (cs) cs.onchange = () => { CLAIM = cs.value; const sc2 = C.sceneOf(g, id); if (sc2) $('#main').querySelectorAll('.choices [data-ch]').forEach(b => { const c2 = sc2.choices.find(x => x.i === +b.dataset.ch); const chk = c2 && b.querySelector('.chk'); if (chk) { const t = document.createElement('div'); t.innerHTML = choiceBtn(id, c2); const n2 = t.querySelector('.chk'); if (n2) chk.replaceWith(n2); } }); }; paintVotes(); }
   $('#main').querySelectorAll('[data-ch]').forEach(b => b.onclick = () => choose(id, +b.dataset.ch));
@@ -52787,7 +52793,22 @@ const isShopping = c => !!(c && c.do && /shop:\s*true/.test(String(c.do)));
 /* номер версии на главной (Ник 25.11): из адреса world.js?v=ГГГГММДДЧЧММ */
 function verText() { try { const sc = document.querySelector('script[src*="world.js?v="]'), v = sc ? (sc.getAttribute('src').split('v=')[1] || '') : ''; const m = v.match(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})$/);
   return m ? `версия ${m[3]}.${m[2]}.${m[1]} · ${m[4]}:${m[5]}` : v ? `версия ${v}` : ''; } catch (e) { return ''; } }
+let FEED = null; // лента сцены: что было до выбора — остаётся выше, новое дописывается снизу (Ник 27.11: «кусками пишется, часть пропадает»)
+function feedKeep(id, i) { try { const box = $('#main .scene .lines'); if (!box || id === 'kv_local') { FEED = null; return; } if (TYPING) TYPING.finish();
+  const sc = C.sceneOf(g, id), c = sc && sc.choices.find(x => x.i === i), h2 = $('#main .scene h2');
+  FEED = {id, title: h2 ? h2.textContent : '', label: c ? String(c.label || c.t || '').replace(/\s+—\s+\d.*$/, '') : '', html: box.innerHTML, until: Date.now() + 180000}; } catch (e) { FEED = null; } }
+function feedShow(id, sc) { const F = FEED; FEED = null; try { const box = $('#main .scene .lines');
+  if (!F || !box || F.until < Date.now() || id === 'kv_local' || !(F.id === id || (F.title && F.title === sc.title))) return;
+  const d = document.createElement('div'); d.className = 'feed-old'; d.innerHTML = F.html;
+  d.querySelectorAll('button, .people, .votebar, .split-bar, .news').forEach(e => e.remove());
+  const now = new Set([...box.querySelectorAll('.line, .check')].map(e => e.textContent));
+  d.querySelectorAll('.line, .check').forEach(e => { if (now.has(e.textContent)) e.remove(); });
+  let n = d.querySelectorAll('.line, .check').length; while (n > 30 && d.firstElementChild) { d.firstElementChild.remove(); n = d.querySelectorAll('.line, .check').length; }
+  if (!d.textContent.trim()) return;
+  box.prepend(d); if (F.label) { const pk = document.createElement('div'); pk.className = 'line n pick'; pk.textContent = '— ' + F.label; d.after(pk); TYPED_TXT.add(pk.textContent); }
+  setTimeout(() => { try { (d.nextElementSibling || d).scrollIntoView({block: 'start', behavior: 'smooth'}); } catch (e) {} }, 30); } catch (e) {} }
 function choose(id, i) {
+  feedKeep(id, i);
   if (NET() && g && g.net && C.splitOn && C.splitOn(g)) { const w = splitWaiting(myPid()); if (w) return toast(w); }
   if (NET()) { const sc = C.sceneOf(g, id), c = sc && sc.choices.find(x => x.i === i);
     if (c && c.swap && !c.dis) return showSwap(id);
