@@ -70328,7 +70328,7 @@ C.TW_TX = {
   wake: ['За стеной заворочались: «Кто там? Мань, ты?»', 'В избе скрипнула лавка. Кто-то сел и слушает.', 'Хозяин просыпается и приподнимается на локте.'],
   heard: ['Стража слышит шум и идёт поглядеть.', 'Факел стражи сворачивает на звук.'],
   // тревога
-  alarm: {thief: ['«Воры! Люди, воры!» — кричат со двора, и по улице хлопают двери.', '«Держи вора!» — орёт хозяин, и с соседних дворов отзываются.', 'Крик «Воры!» летит по дворам, псы надрываются, бьют в било.'],
+  alarm: {beast: ['Зверь бросается — к бою!', 'Рык, треск сучьев — зверь идёт прямо на вас!'], thief: ['«Воры! Люди, воры!» — кричат со двора, и по улице хлопают двери.', '«Держи вора!» — орёт хозяин, и с соседних дворов отзываются.', 'Крик «Воры!» летит по дворам, псы надрываются, бьют в било.'],
     kill: ['«Убили! Люди, убили!» — визг стоит на всю улицу.', 'Кто-то видел и кричит: «Душегуб! Держите его!»'],
     pick: ['«Держи вора! Кошель срезал!» — вопит обокраденный, хватая тебя за рукав.', '«Вор! Карманник!» — и вокруг уже тянутся руки.'],
     door: ['Треск двери поднимает полсела: «Ломают! У Ждановых ломают!»', 'Дверь трещит, и тут же в избе кричат: «Кто там?! Воры!»'],
@@ -70468,7 +70468,7 @@ const kindName = h => (BF.HOUSE_T && BF.HOUSE_T[h.k] ? BF.HOUSE_T[h.k].n : 'до
 const hood = h => !!(h && h.eq && h.eq.head && (R.baseId ? R.baseId(h.eq.head) : h.eq.head) === 'kapyushon');
 const disg = (g, h) => !!(g && h && g.crime && g.crime.disg && (g.crime.disg[h.id] || 0) >= g.day);
 const back = g => { const n = nodes(g)[g.loc]; return (n && n.scene) || 'free_place'; };
-const placeKind = (g, F) => { const n = nodeHere(g) || {}; return n.kind === 'подворье' ? 'yard' : (F && F.vKind === 'town') || n.kind === 'город' ? 'town' : 'village'; };
+const placeKind = (g, F) => { if (g && g.twalk && g.twalk.wild) return 'wild'; const n = nodeHere(g) || {}; return n.kind === 'подворье' ? 'yard' : (F && F.vKind === 'town') || n.kind === 'город' ? 'town' : 'village'; };
 let G_ = null; // игра, чья прогулка сейчас идёт (для ходов внутри боя)
 
 /* ---------- можно ли ---------- */
@@ -70505,7 +70505,7 @@ C.walkBegin = function (g, who) {
 
 /* ---------- одно и то же поле у места: зерно поля — от места, а не от дня ---------- */
 const so0 = BF.seedOf;
-if (so0) BF.seedOf = function (g, spec) { if (spec && spec.setupKey === 'walk' && g) return hsh('walk|' + g.loc + '|' + (g.seed || '')) || 1; return so0.apply(this, arguments); };
+if (so0) BF.seedOf = function (g, spec) { if (spec && spec.setupKey === 'walk' && g && spec.wild && g.pos) return hsh('wild|' + g.pos.c + ',' + g.pos.r + '|' + (g.seed || '') + '|' + g.day) || 1; if (spec && spec.setupKey === 'walk' && g) return hsh('walk|' + g.loc + '|' + (g.seed || '')) || 1; return so0.apply(this, arguments); };
 
 /* поле прогулки — большое поле места (bf_start не строит его для боёв со своей расстановкой — снимаем метку на время) */
 const fb0 = BF.forBattle;
@@ -70535,7 +70535,7 @@ C.battleStart = function (g, spec, auto) {
   BF._twNow = 1; let S;
   try { S = bs0.apply(this, arguments); } finally { BF._twNow = 0; }
   g.battles = Math.max(0, (g.battles || 1) - 1); // прогулка — не бой
-  try { BF.ownRng(g, spec, () => C.walkSetup(S, g)); if (S.walk && !S.walk.night) C.walkAskers(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); if (!S.walk) S.walk = {node: g.loc, night: g.twalk.night, kind: 'village', rnd: 0, min: 0, sus: {}, crimes: [], seen: [], opened: {}, said: {}}; }
+  try { BF.ownRng(g, spec, () => C.walkSetup(S, g)); if (S.walk && !S.walk.night && !(g.twalk && g.twalk.wild)) C.walkAskers(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); if (!S.walk) S.walk = {node: g.loc, night: g.twalk.night, kind: 'village', rnd: 0, min: 0, sus: {}, crimes: [], seen: [], opened: {}, said: {}}; }
   mood(g, S);
   return S;
 };
@@ -70566,7 +70566,7 @@ C.walkSetup = function (S, g) {
     const u = mk('strazhnik', 'guard', x, {}); if (!u) continue; nameIt(u, 'm', kind === 'town' ? 'стражник' : 'сторож', 'g' + i); u.civ.route = i % 2 ? route.slice().reverse() : route; u.civ.wp = i % 2 ? (route.length - i0) % route.length : (i0 + 1) % route.length; if (night) u.torch = true; }
   if (kind === 'town') { const gate = Object.values(F.cells).find(x => x.vy === 'gate' && freeCell(S, x)); if (gate) { const u = mk('strazhnik', 'guard', gate, {}); if (u) { nameIt(u, 'm', 'стражник у ворот', 'gate'); u.civ.post = {c: gate.c, r: gate.r}; if (night) u.torch = true; } } }
   // ночные прохожие с факелами: кто из корчмы домой, кто по нужде — в городе двое, в селе через раз один (Ник 25.11)
-  if (night && route.length) { const nW = kind === 'town' ? 2 : (hsh(g.loc + '|' + g.day + 'nw') % 2); const inn0 = hs.find(h => h.k === 'korchma_big' || h.k === 'korchma');
+  if (night && route.length && kind !== 'wild') { const nW = kind === 'town' ? 2 : (hsh(g.loc + '|' + g.day + 'nw') % 2); const inn0 = hs.find(h => h.k === 'korchma_big' || h.k === 'korchma');
     for (let i = 0; i < nW; i++) { const at = inn0 && i === 0 ? inn0.doors[0] : route[(i * 2 + 1) % route.length], x = [B.cell(S, at.c, at.r)].concat(B.neigh(at.c, at.r).map(p => B.cell(S, p.c, p.r))).find(y => freeCell(S, y) && y.hb == null);
       const u = mk('civ_muzhik', 'muzhik', x, {}); if (!u) continue; u.civ.sex = 'm'; nameIt(u, 'm', 'прохожий', 'nw' + i + g.day); u.torch = true; u.civ.walker = 1; u.civ.route = i % 2 ? route.slice().reverse() : route; u.civ.wp = (i * 2 + 2) % route.length; } }
   // псы ночью — во дворах
@@ -70583,7 +70583,7 @@ C.walkSetup = function (S, g) {
   // очерёдность — только свои
   S.order = S.units.filter(u => u.side === 'party').sort((a, b) => (a.ai ? 1 : 0) - (b.ai ? 1 : 0) || (b.init || 0) - (a.init || 0)).map(u => u.id);
   S.cur = -1; S.round = 1; S.log = S.log.filter(l => !/Начало боя|^Кто первый|^Ход \d/.test(l.t || ''));
-  { const sl = g.time % 4; lg(S, pickH(TX.start[night ? 'night' : sl === 0 ? 'morn' : sl === 2 ? 'eve' : 'day'] || TX.start.day, g.loc + g.day), 'round'); }
+  if (kind !== 'wild') { const sl = g.time % 4; lg(S, pickH(TX.start[night ? 'night' : sl === 0 ? 'morn' : sl === 2 ? 'eve' : 'day'] || TX.start.day, g.loc + g.day), 'round'); }
   if (T.who) lg(S, TX.wait, '');
   B.next(S); syncSleep(S);
   return S;
@@ -70829,7 +70829,7 @@ const dm0 = B.damage;
 B.damage = function (S, t, d, src, by) {
   const was = t && B.active(t);
   const r = dm0.apply(this, arguments);
-  try { if (S && S.walk && t && t.civ && by && by.side === 'party' && !by.ai && d > 0 && was) {
+  try { if (S && S.walk && t && t.civ && t.civ.k !== 'beast' && by && by.side === 'party' && !by.ai && d > 0 && was) { /* дичь — не преступление */
     const Wk = S.walk, died = !B.active(t), hid = by.ref ? by.ref.id : by.id;
     if (died) { Wk.seen = Wk.seen.filter(s2 => s2.uid !== t.id); const ws = C.walkWitness(S, by, t), wit = witWord(ws);
       if (t.civ.k === 'tgt' && t.civ.jid) Wk.tgtDead = {jid: t.civ.jid, hid, wit, r: Wk.rnd, how: Wk._quiet ? 'sleep' : 'blade'};
@@ -70911,7 +70911,7 @@ C.walkActs = function (S, u) {
     if (mine) out.push({v: 'wait', p: sl >= 2 ? 'morn' : 'eve', label: sl >= 2 ? 'Уснуть до утра' : 'Вздремнуть до вечера', title: hh.own ? 'Дома, на своей лежанке.' : 'В корчме, на лавке у печи.', grp: 'Прогулка'}); }
   else if (C.walkLieSpots && C.walkLieSpots(S, u).length && BF.inHouse(S, u) != null) out.push({v: 'lie', label: 'Лечь на лежанку', title: 'Прилечь: на лежанку, на печь или на лавку рядом.', grp: 'Прогулка'});
   out.push({v: 'arm', label: Wk.armed ? 'Убрать оружие' : 'К бою!', on: Wk.armed ? 1 : 0, title: Wk.armed ? 'Спрятать оружие и чары — снова просто прохожий.' : 'Оружие наготове, чары на кончиках пальцев: весь боевой арсенал — бить, стрелять, колдовать. Пока никто не видел и не слышал — тревоги нет. Кто увидит — запомнит.', grp: 'Прогулка'});
-  out.push({v: 'back', label: Wk.all ? TX.back.all : TX.back.day, title: TX.tips.back, grp: 'Прогулка'});
+  out.push({v: 'back', label: Wk.wild ? 'Назад на карту' : Wk.all ? TX.back.all : TX.back.day, title: Wk.wild ? 'Отряд уходит с этого места — дальше по карте.' : TX.tips.back, grp: 'Прогулка'});
   { const G0 = G_, tt = G0 ? G0.time % 4 : 1, busyW = Wk.hot || Wk.fight || (Wk.inv && Wk.inv.until >= Wk.rnd) ? 'Сейчас не до того: всполошились' : ''; /* переждать до нужного часа — вору под ночное дело (Ник 25.11) */
     if (tt < 2) out.push({v: 'wait', p: 'eve', label: 'Дождаться вечера', dis: busyW, title: 'Отсидеться в тихом углу до сумерек — улица станет другой.', grp: 'Прогулка'});
     if (tt !== 3) out.push({v: 'wait', p: 'night', label: 'Дождаться ночи', dis: busyW, title: 'Переждать до темноты: люди разойдутся по избам, на улице останутся сторожа да псы.', grp: 'Прогулка'});
@@ -70921,7 +70921,7 @@ C.walkActs = function (S, u) {
     const night = Wk.night && !['korchma', 'korchma_big'].includes(o.h.k);
     out.push({v: 'enter', p: o.h.id, label: TX.enter[ek], dis: night ? TX.shut : '', title: TX.tips.enter, grp: 'Прогулка'}); });
   // всё, что есть в меню места, — у своего дома, у колодца, в поле (Ник 25.11: «чтобы можно было всё»)
-  { const MM = menuMap(S), seen = new Set(); const add = (c, why) => { if (seen.has(c.label)) return; seen.add(c.label); out.push({v: 'menu', p: c.label, label: shortL(c.label), dis: c.dis || why || '', title: c.label, grp: 'Здесь'}); };
+  if (!Wk.wild) { const MM = menuMap(S), seen = new Set(); const add = (c, why) => { if (seen.has(c.label)) return; seen.add(c.label); out.push({v: 'menu', p: c.label, label: shortL(c.label), dis: c.dis || why || '', title: c.label, grp: 'Здесь'}); };
     doorsAround(S, u).forEach(o => (MM.house[o.h.id] || []).forEach(c => add(c, Wk.night && !['korchma', 'korchma_big', 'starosta', 'terem', 'boyar'].includes(o.h.k) ? TX.shut : '')));
     // свой дом (табличка «Свой дом») — зайти к жене/мужу
     try { const lb = C.svHomeLabel && C.svHomeLabel(g); if (lb) doorsAround(S, u).forEach(o => { if (Wk.kvHomes && Wk.kvHomes[o.h.id] === 'Свой дом' && !out.some(x => x.p === lb)) out.push({v: 'menu', p: lb, label: 'Зайти домой', title: lb, grp: 'Прогулка'}); }); } catch (e) {}
@@ -73523,7 +73523,7 @@ C.walkPeople = function (S, g) {
 
 const hs0 = BF.houseSign;
 BF.houseSign = function (S, h) { try { const K = S && S.walk && S.walk.kvHomes; if (K && h && K[h.id]) return K[h.id]; } catch (e) {} return hs0.apply(this, arguments); };
-if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk') { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } try { C.walkPeople(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk' && !spec.wild) { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } try { C.walkPeople(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* kv_murder.js */
@@ -73865,7 +73865,7 @@ const standAtYard = (S, u) => { const h = houseById(S, u.civ.home); const d = do
 
 /* ---------- что нужно на поле сейчас ---------- */
 C.werrSync = function (S, g) {
-  const Wk = S.walk; if (!Wk || Wk.fight) return; const E = ST(g), night = !!Wk.night, sl = night ? 3 : slot(g);
+  const Wk = S.walk; if (!Wk || Wk.fight || Wk.wild || (g.twalk && g.twalk.wild)) return; const E = ST(g), night = !!Wk.night, sl = night ? 3 : slot(g);
   // новое дело, если прежнее кончено
   if (!E.ch && day(g) >= (E.next || 0)) { const left = CHAINS.filter(c => !E.done.includes(c)); if (left.length) { E.ch = left[hsh(g.loc + day(g)) % left.length]; E.step = 0; } }
   if (!E.ch) { Wk.hints = hintsTgt(S); return; }
@@ -74036,10 +74036,18 @@ const TX = {
   dog: '{h} бросает псу {i}. Пёс чавкает, виляет хвостом — теперь он свой.',
   wash: '{h} умывается студёной водой из кадки — лицо свежее, взгляд ясный.'};
 
+/* ---------- вязанка дров: взять с собой — на стоянке костёр без стука топора (Ник 26.11: «лагерь можно разбить бесшумно») ---------- */
+const DR = 'drova_vyazanka';
+try { const D0 = G.DATA || (typeof DATA !== 'undefined' ? DATA : null); if (D0 && D0.items && !D0.items[DR]) D0.items[DR] = {_t: 'g', id: DR, name: 'Вязанка дров', price: 3, weight: 8, category: 'снаряжение', notes: 'Наколотые дрова в дорогу. На ночной стоянке костёр разводят из своих — топор не стучит, и на шум никто не выйдет.'}; } catch (e) {}
+const hasDr = g => (C.alive(g).concat(g.mercs || [])).find(h => (h.inv || []).includes(DR));
+if (C.campRisk) { const cr0 = C.campRisk; C.campRisk = function (g) { const r = cr0.apply(this, arguments); try { if (r && (g._drova || hasDr(g))) { r.p = r.p * 0.6; r.why = (r.why || '') + '; свои дрова — без стука топора'; } } catch (e) {} return r; }; }
+if (G.W && W.nightCamp) { const nc0 = W.nightCamp; W.nightCamp = function (g) { const h = g && hasDr(g); if (h) { h.inv.splice(h.inv.indexOf(DR), 1); g._drova = 1; } try { const r = nc0.apply(this, arguments); if (h) try { C.note(g, 'Костёр развели из своих дров — топор в ночи не стучал.'); } catch (e) {} return r; } finally { delete g._drova; } }; }
+
 /* ---------- кнопки ---------- */
 C.walkActsX.push((S, u, out, g) => { const Wk = S.walk; if (!Wk || Wk.fight || u.lying) return; const night = Wk.night, inH = BF.inHouse(S, u), hh = houseOf(S, inH);
   const add = (v, label, title, grp, dis, p) => out.push({v, label, title, grp: grp || 'Рядом', dis: dis || '', p});
-  const wood = near(S, u, ['wood'])[0]; if (wood) add('twWood', 'Наколоть дров', 'Полчаса работы. Днём хозяин двора заплатит, у себя — дрова впрок. Ночью — стук на всю улицу.', 'Рядом', used(Wk, 'wood' + wood.c + ',' + wood.r) ? 'Эту поленницу уже накололи.' : '', wood.c + ',' + wood.r);
+  const wood = near(S, u, ['wood'])[0]; if (wood) add('twWoodTake', 'Наколоть дров в дорогу', 'Вязанка дров с собой (8 кг): на ночной стоянке костёр без стука топора — тише и безопаснее. У чужой поленницы без спросу — кража.', 'Рядом', used(Wk, 'take' + wood.c + ',' + wood.r) ? 'Отсюда уже взяли.' : '', wood.c + ',' + wood.r);
+  if (wood) add('twWood', 'Наколоть дров', 'Полчаса работы. Днём хозяин двора заплатит, у себя — дрова впрок. Ночью — стук на всю улицу.', 'Рядом', used(Wk, 'wood' + wood.c + ',' + wood.r) ? 'Эту поленницу уже накололи.' : '', wood.c + ',' + wood.r);
   const og = near(S, u, ['ogorod'])[0]; if (og) { if (!night && !yardOwn(S, og)) add('twHelp', 'Помочь на огороде', 'Полчаса: хозяин рядом — отблагодарит репой или медью.', 'Рядом', used(Wk, 'help') ? 'Сегодня уже помогали.' : !ownerNear(S, og, 5) ? 'Хозяев рядом нет — помогать некому.' : '', og.c + ',' + og.r);
     if (!yardOwn(S, og)) add('twPull', 'Нарвать репы', 'Без спросу — если увидят, это кража.', 'Тёмное дело', used(Wk, 'pull' + og.c + ',' + og.r) ? 'Тут уже надёргали.' : '', og.c + ',' + og.r); }
   const gong = near(S, u, ['gong'])[0]; if (gong) add('twGong', 'Ударить в било', 'Грохот на всё село: стража и народ бегут к билу. Днём за пустую тревогу осудят.', 'Тёмное дело', used(Wk, 'gong') ? 'В било уже били.' : '', gong.c + ',' + gong.r);
@@ -74058,6 +74066,9 @@ C.walkDoX.twWood = (S, u, a, t, g) => { const x = at(S, a.p); if (!x) return 'Н
   if (S.walk.night) { lg(S, TX.woodNight, 'bad'); C.walkNoise(S, u, 1); return ''; }
   if (yardOwn(S, x)) { lg(S, TX.woodOwn, 'buff'); spirit(g, 1, 'дрова впрок'); return ''; }
   const o = ownerNear(S, x, 6); if (o) { const m = rng(K.WOOD); g.purse = (g.purse || 0) + m; lg(S, fill(TX.woodPay, {n: nameOf(o), m: price(m)}), 'buff'); } return ''; };
+C.walkDoX.twWoodTake = (S, u, a, t, g) => { const x = at(S, a.p); if (!x) return 'Нет поленницы.'; S.acted = true; use(S.walk, 'take' + a.p); time(S, K.MIN_JOB); giveItem(u, DR); lg(S, fill(pick(TX.wood), {h: nameOf(u)}) + ' Вязанка — с собой.', 'buff');
+  if (S.walk.night) { lg(S, TX.woodNight, 'bad'); C.walkNoise(S, u, 1); }
+  if (!yardOwn(S, x)) { const o = ownerNear(S, x, 6); if (o && !S.walk.night) lg(S, `${nameOf(o)} машет рукой: «Бери, бери — сам ведь колол»`, ''); else { const W0 = wit(S, u); if (W0.ws.length) { S.walk.crimes.push({hid: hidOf(u), kind: 'theft', val: 3, why: 'унесены чужие дрова', r: S.walk.rnd, wit: W0.w}); lg(S, `${nameOf(W0.ws[0].f)}: «Эй, дрова-то чужие!»`, 'bad'); } } } return ''; };
 C.walkDoX.twHelp = (S, u, a, t, g) => { const x = at(S, a.p); const o = x && ownerNear(S, x, 5); if (!o) return 'Хозяев рядом нет.'; S.acted = true; use(S.walk, 'help'); time(S, K.MIN_JOB); lg(S, fill(pick(TX.help), {h: nameOf(u)}), '');
   if (R.rand() < 0.5 && giveItem(u, 'repa_1_funt')) lg(S, fill(TX.helpPay, {n: nameOf(o), i: itemName('repa_1_funt').toLowerCase()}), 'buff'); else { const m = rng(K.HELP); g.purse = (g.purse || 0) + m; lg(S, fill(TX.helpPay, {n: nameOf(o), i: price(m)}), 'buff'); }
   try { if (C.repAdd && R.rand() < 0.25) C.repAdd(g, g.loc, 1, 'помог на огороде'); } catch (e) {} return ''; };
@@ -74086,6 +74097,178 @@ C.walkDoX.twDog = (S, u, a, t, g) => { if (!t) return 'Пса нет.'; const in
 if (C.walkTick) { const wt0 = C.walkTick; C.walkTick = function (S) { const r = wt0.apply(this, arguments);
   try { const Wk = S.walk; if (Wk && Wk.gongTill && Wk.rnd >= Wk.gongTill) { Wk.gongTill = 0; S.units.forEach(f => { if (f.civ && f.civ.dpost && f.civ.dpost.n === 'gong') { f.civ.dpost = f.civ.dpost0 || null; delete f.civ.dpost0; } }); } } catch (e) {}
   return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* wild_walk.js */
+/* Колдовство — wild_walk: «Осмотреться» на любой клетке края (Ник 26.11: «действие Осмотреться — с группой — в открытом мире;
+   там можно и траву искать, и рыбачить и прочее»). Поле — по местности клетки (лес, луг, болото, холмы, берег), весь отряд на нём.
+   Что на поле (своё на клетке и на день):
+     травы (кусты с травой — заметит знахарь или глазастый: Мудрость против 12; «Собрать травы» — Знахарство);
+     грибы, ягоды, орехи — по времени года; «Набрать»;
+     хворост у деревьев — «Набрать хвороста»: вязанка дров (на стоянке — без стука топора);
+     вода — «Закинуть снасть»: несколько кругов у воды, клюёт или нет (Рыбалка, удочка);
+     следы — «Прочесть следы» (Выживание): где зверь — круг на миникарте;
+     дичь — заяц, олень (бегут, если заметят: подкрадывайся), кабан (подойдёшь близко — кинется); ночью — волки;
+       добыл — «Разделать тушу»: мясо, шкура, клыки;
+     находка (не всегда): старое кострище, схрон под камнем, брошенная телега, безымянная могилка.
+   Время идёт по минутам прогулки. «Закончить» — назад на карту. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C, W = G.W;
+if (!R || !B || !C || !B.BF || !W || !C.walkSetup) return;
+const BF = B.BF; C.walkActsX = C.walkActsX || []; C.walkDoX = C.walkDoX || {};
+const K = C.WILD = Object.assign({NOTICE_R: 2, FISH_RND: 4, HERB_DC: 12, FLEE_R: 4}, C.WILD || {});
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const key = (c, r) => c + ',' + r;
+const pick = a => a[Math.floor(R.rand() * a.length)];
+const nameOf = u => String((u && u.name) || '').split(',')[0];
+const lg = (S, t, cls) => { if (t) B.log(S, t, cls || ''); };
+const T = (h, id) => (C.profTier ? C.profTier(h, id) : 0);
+const okCell = (S, x) => x && B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r) && !(B.TERRAIN[x.t] || {}).block;
+const heroes = S => S.units.filter(u => u.side === 'party' && !u.pet && B.active(u) && u.c != null);
+const itemName = id => { try { return R.item(id).name; } catch (e) { return id; } };
+const give = (u, id, n) => { if (!u.ref) return 0; u.ref.inv = u.ref.inv || []; for (let i = 0; i < (n || 1); i++) u.ref.inv.push(id); return n || 1; };
+const short = id => itemName(id).toLowerCase().replace(/,? ?\d.*$/, '');
+const WORD = {forest: 'лес', meadow: 'луг', field: 'поле', hills: 'холмы', mountains: 'горы', marsh: 'болото', steppe: 'степь', wasteland: 'пустошь', sand: 'берег', vineyard: 'виноградник', water: 'берег'};
+const cellHere = g => { try { const w = W.world(g); return g.pos ? w.cells[W.key(g.pos.c, g.pos.r)] : null; } catch (e) { return null; } };
+
+/* ---------- можно ли ---------- */
+C.wildOk = function (g) {
+  if (!g || !W.isHex || !W.isHex(g) || !g.pos || g.dungeon || g.waCapt || !C.alive(g).length) return false;
+  const cell = cellHere(g); if (!cell) return false;
+  if (cell.node) { const n = (C.CAMPS[g.camp].map.nodes || {})[cell.node]; if (n && ['село', 'город', 'подворье'].includes(n.kind)) return false; } // в селе — «Пройтись»
+  return true;
+};
+C.wildWord = g => { const c = cellHere(g) || {}; return WORD[c.t] || 'округа'; };
+C.wildBegin = function (g) {
+  if (!C.wildOk(g)) return null;
+  g.twalk = {v: 1, node: g.loc, wild: {c: g.pos.c, r: g.pos.r}, night: !!C.isNight(g), who: null, day: g.day, time: g.time, snap: null, min: 0};
+  return {battle: C.walkSpec(g)};
+};
+const ws0 = C.walkSpec;
+C.walkSpec = function (g) { if (g && g.twalk && g.twalk.wild) { delete g.twalk.ret; const night = !!g.twalk.night, w = C.wildWord(g);
+    return {title: (night ? 'Ночью: ' : 'Осмотреться: ') + w, foes: [], field: {night}, setupKey: 'walk', wild: 1, place: w, xpBonus: 0}; }
+  return ws0.apply(this, arguments); };
+const wb0 = C.walkBegin;
+C.walkBegin = function (g, who) { if (g && g._wildNext) { delete g._wildNext; return C.wildBegin(g); } return wb0.apply(this, arguments); };
+const wf0 = C.walkFinish;
+C.walkFinish = function (g, S) { const wild = !!(S && S.walk && S.walk.wild); if (wild) g._wildNext = 1;
+  let r; try { r = wf0.apply(this, arguments); } finally { delete g._wildNext; }
+  if (wild && r && !r.battle && (!r.scene || /_place$|^free_place$/.test(r.scene) || r.scene === ((C.CAMPS[g.camp].map.nodes[g.loc] || {}).scene))) return {map: 1};
+  return r; };
+
+/* ---------- что на поле ---------- */
+const SEASON = g => (C.seasonOf ? C.seasonOf(g) : 'summer');
+const GATHER = {summer: {forest: ['griby_1_funt', 'orehi_1_funt', 'ovoshchi_ili_yaytsa_gorst'], marsh: ['ovoshchi_ili_yaytsa_gorst', 'griby_1_funt'], meadow: ['ovoshchi_ili_yaytsa_gorst'], hills: ['orehi_1_funt']},
+  autumn: {forest: ['griby_1_funt', 'griby_1_funt', 'orehi_1_funt'], marsh: ['griby_1_funt'], meadow: ['repa_1_funt'], hills: ['orehi_1_funt']},
+  spring: {forest: ['ovoshchi_ili_yaytsa_gorst'], marsh: ['ovoshchi_ili_yaytsa_gorst'], meadow: ['ovoshchi_ili_yaytsa_gorst'], hills: []}, winter: {forest: ['orehi_1_funt'], hills: [], meadow: [], marsh: []}};
+const HERBS = ['podorozhnik', 'zveroboy', 'polyn', 'myata', 'shipovnik', 'lipovyy_tsvet', 'oduvanchik', 'koren_paporotnika', 'smorodina'];
+const RARE = ['koren_mandragory_adamova_golova', 'kaplya_rosy', 'pahuchiy_tsvetok'];
+const GAME = {hare: {n: 'Заяц', meat: 2, hp: 3, steps: 9, skin: null}, deer: {n: 'Олень', meat: 8, hp: 14, steps: 9, skin: 'tr_shkura_zverya'}, boar: {n: 'Кабан', meat: 6, hp: 22, steps: 6, skin: 'tr_kabanyi_klyki', mon: 'kaban'}};
+const LABEL = {herb: 'травы', shroom: 'грибы, ягоды', brush: 'хворост', track: 'следы', find: 'что-то лежит'};
+const nearT = (S, x, ts, r) => Object.values(S.field.cells).some(y => ts.includes(y.t) && B.dist(y, x) <= (r || 1));
+C.wildSetup = function (S, g) {
+  const Wk = S.walk; Wk.wild = 1; Wk.kind = 'wild'; S.wildSpots = []; const cell = cellHere(g) || {}, terr = cell.t || 'meadow', night = Wk.night, season = SEASON(g);
+  const seed = 'wild|' + (g.pos ? g.pos.c + ',' + g.pos.r : '') + '|' + g.day; let q = hsh(seed); const rnd = () => { q = Math.imul(q ^ (q >>> 15), 2246822507) >>> 0; return (q % 100000) / 100000; };
+  const cells = Object.values(S.field.cells).filter(x => x.hb == null && okCell(S, x)); const hs = heroes(S), far = x => !hs.some(h => B.dist(h, x) < 4);
+  const take = (f, n, k, ex) => { const L = cells.filter(x => !x.wf && f(x) && far(x)); for (let i = 0; i < n && L.length; i++) { const x = L.splice(Math.floor(rnd() * L.length), 1)[0]; x.wf = Object.assign({k, id: k + i}, ex || {}); S.wildSpots.push({c: x.c, r: x.r}); } };
+  const green = x => ['grass', 'brush', 'meadow'].includes(x.t) || nearT(S, x, ['tree', 'brush'], 1);
+  if (season !== 'winter') take(x => green(x) && nearT(S, x, ['tree', 'brush', 'water'], 2), 3 + Math.floor(rnd() * 3), 'herb', {seen: 0});
+  const pool = (GATHER[season] || GATHER.summer)[terr === 'field' || terr === 'steppe' ? 'meadow' : terr] || []; if (pool.length) take(x => nearT(S, x, ['tree', 'brush'], 1), 2 + Math.floor(rnd() * 2), 'shroom', {pool});
+  if (Object.values(S.field.cells).some(y => y.t === 'tree')) take(x => nearT(S, x, ['tree'], 1), 2, 'brush');
+  // дичь и следы
+  const kinds = night ? [] : terr === 'forest' ? ['hare', 'deer', 'boar'] : terr === 'marsh' ? ['boar'] : ['meadow', 'field', 'steppe', 'hills'].includes(terr) ? ['hare', 'hare', 'deer'] : ['hare'];
+  const nG = kinds.length ? 1 + Math.floor(rnd() * 2) : 0;
+  for (let i = 0; i < nG; i++) { const k = kinds[Math.floor(rnd() * kinds.length)], x = cells.filter(y => !B.unitAt(S, y.c, y.r) && hs.every(h => B.dist(h, y) >= 9))[Math.floor(rnd() * cells.length) % Math.max(1, cells.length)];
+    if (x && okCell(S, x)) { spawnGame(S, k, x); const tx = cells.filter(y => !y.wf && B.dist(y, x) >= 3 && B.dist(y, x) <= 7 && far(y)); const t0 = tx[Math.floor(rnd() * tx.length)]; if (t0) { t0.wf = {k: 'track', id: 'tr' + i, beast: k}; S.wildSpots.push({c: t0.c, r: t0.r}); } } }
+  // ночью — волки (не всегда)
+  if (night && ['forest', 'hills', 'steppe', 'meadow'].includes(terr) && rnd() < 0.35) { const x = cells.find(y => hs.every(h => B.dist(h, y) >= 10)); if (x) { const n = 2; for (let i = 0; i < n; i++) { const y = B.neigh(x.c, x.r).map(p => B.cell(S, p.c, p.r)).filter(z => okCell(S, z))[i] || x; spawnGame(S, 'wolf', y); } } }
+  // находка — не всегда
+  if (rnd() < 0.45) { const fk = pick(['ash', 'cache', 'cart', 'grave']); take(x => true, 1, 'find', {f: fk}); }
+  // вода — рыбалка
+  Wk.water = Object.values(S.field.cells).some(y => y.t === 'water' || y.t === 'ford' || y.river);
+  lg(S, night ? 'Ночь. Шорохи, треск веток, где-то кричит сыч. Дальше нескольких шагов — ни зги.' : WILD_START[terr] || 'Отряд останавливается и осматривается: кругом тихо, только ветер в траве.', 'round');
+};
+const WILD_START = {forest: 'Лес обступает: стволы, папоротник, птичья перекличка. Под ногами — грибная прель.', marsh: 'Болото: кочки, осока, туман над окнами воды. Ступать надо с оглядкой.', meadow: 'Луг до самого окоёма: травы по пояс, пчёлы, далёкий лес синей полосой.',
+  hills: 'Холмы: ветер, камни, редкий кустарник. Сверху видно далеко.', field: 'Поле: межи, бурьян, перелески по краям.', steppe: 'Степь: ковыль волнами, ни деревца.'};
+const spawnGame = (S, k, x) => {
+  if (k === 'wolf' || k === 'boar') { const m = C.beast ? C.beast(k === 'wolf' ? 'volk' : 'kaban') : null; if (!m) return null; const u = B.fromMonster(m, 'civ', {}); u.c = x.c; u.r = x.r; u.ai = true; u.morale = false; u.init = R.d(20);
+    u.civ = {k: 'beast', game: k, home: null, hold: 1, wild: 1}; S.units.push(u); return u; }
+  const G0 = GAME[k]; const base = C.MON.civ_svinya || C.MON.civ_pyos; if (!base) return null; const u = B.fromMonster(base, 'civ', {}); u.c = x.c; u.r = x.r; u.ai = true; u.morale = false; u.init = R.d(20);
+  u.name = G0.n; u.hp = u.hpMax = G0.hp; u.steps = G0.steps; u.art = k; u.sprite = null; u.civ = {k: 'beast', game: k, home: null, hold: 1, wild: 1}; S.units.push(u); return u; };
+
+/* ---------- ход: дичь пасётся и бежит; рыбалка идёт; травы замечают ---------- */
+const sees = (S, f, h) => { if (h.conds && h.conds.hidden) return false; const d = B.dist(f, h); if (d > K.FLEE_R + (h.gait === 'run' ? 2 : 0)) return false; if (h.crouch && d > 2) { const r = R.d(20) + (R.mod ? R.mod(h.ref ? h.ref.stats.dex : 10) : 0) + (h.ref && R.skill ? R.skill(h.ref, 'Скрытность') : 0); return r < 12; } return true; };
+const wt0 = C.walkTick;
+C.walkTick = function (S) { const r = wt0.apply(this, arguments);
+  try { const Wk = S.walk; if (!Wk || !Wk.wild || Wk.fight || S.over) return r; const g = C._walkG && C._walkG(), hs = heroes(S);
+    // дичь
+    S.units.filter(u => u.civ && u.civ.k === 'beast' && B.active(u) && u.c != null).forEach(u => { const h = hs.slice().sort((a, b) => B.dist(a, u) - B.dist(b, u))[0]; if (!h) return; const m0 = S.moved;
+      try { S.moved = 0;
+        if (u.civ.game === 'boar' || u.civ.game === 'wolf') { if (B.dist(u, h) <= (u.civ.game === 'wolf' ? 6 : 2) && !(h.conds && h.conds.hidden)) { lg(S, u.civ.game === 'wolf' ? 'Из темноты — жёлтые глаза и рык: волки!' : 'Кабан фыркает, роет копытом землю — и кидается!', 'bad'); try { if (BF.civHostile) BF.civHostile(S, u); C.walkAlarm(S, 'beast', u, h); } catch (e) {} } return; }
+        if (u.civ.fled) return; if (sees(S, u, h)) { u.civ.fled = 1; lg(S, `${u.name} вскидывает голову — и стрелой уносится прочь!`, ''); const away = Object.values(S.field.cells).filter(x => okCell(S, x) && B.dist(x, h) >= B.dist(u, h) + 4).sort((a, b) => B.dist(b, h) - B.dist(a, h))[0]; if (away) { u.c = away.c; u.r = away.r; } u.civ.fled = 0; return; }
+        if (Wk.rnd % 3 === 0) { const ns = B.neigh(u.c, u.r).map(p => B.cell(S, p.c, p.r)).filter(x => okCell(S, x)); if (ns.length) { const x = ns[Math.floor(R.rand() * ns.length)]; B.move(S, u, x.c, x.r); } }
+      } finally { S.moved = m0; } });
+    // травы замечают (глазастый — Мудрость; знахарь, волхв, ведьмак — сразу)
+    Object.values(S.field.cells).forEach(x => { if (!x.wf || x.wf.k !== 'herb' || x.wf.seen) return; const h = hs.find(y => B.dist(y, x) <= K.NOTICE_R); if (!h) return; const ref = h.ref || {};
+      const auto = ['volhv', 'zhrets', 'vedmak'].includes(ref.cls) || T(ref, 'travy'); const ok = auto || (R.d(20) + (R.mod ? R.mod((ref.stats || {}).wis || 10) : 0) + (R.skill ? R.skill(ref, 'Знахарство') : 0)) >= K.HERB_DC;
+      x.wf.seen = ok ? 1 : -1; if (ok) lg(S, `${nameOf(h)} замечает в траве знакомые листья — тут растёт что-то целебное.`, 'buff'); });
+    // рыбалка
+    hs.forEach(h => { const f = h.fishing; if (!f) return; f.n--; const ref = h.ref || {}, t = T(ref, 'rybalka'), rod = (ref.inv || []).some(id => /^udochka|^set_rybolov/.test(id)); const p = ([0.12, 0.25, 0.38, 0.5, 0.6][t] || 0.6) + (rod ? 0.12 : 0);
+      if (R.rand() < p) { const n = 1 + (t >= 2 ? 1 : 0); give(h, 'ryba_svezhaya_1_funt', n); f.got = (f.got || 0) + n; lg(S, pick([`У ${nameOf(h)} клюёт! Рыбина бьётся на траве.`, `Поплавок ныряет — ${nameOf(h)} подсекает: есть!`]), 'buff'); }
+      if (f.n <= 0) { lg(S, f.got ? `${nameOf(h)} сматывает снасть: рыбы на ${f.got} ф.` : `${nameOf(h)} сматывает снасть — не клюёт сегодня.`, ''); delete h.fishing; } });
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return r; };
+
+/* ---------- кнопки ---------- */
+const spotsNear = (S, u, k) => B.neigh(u.c, u.r).concat([{c: u.c, r: u.r}]).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.wf && x.wf.k === k && !x.wf.done && (k !== 'herb' || x.wf.seen === 1));
+C.walkActsX.push((S, u, out, g) => { const Wk = S.walk; if (!Wk || !Wk.wild || Wk.fight || u.lying) return; const add = (v, label, title, p, dis) => out.push({v, label, title, grp: 'Округа', p, dis: dis || ''});
+  const used = S.acted ? 'Основное действие уже потрачено.' : '';
+  spotsNear(S, u, 'herb').slice(0, 1).forEach(x => add('wHerb', 'Собрать травы', 'Знахарство: что за травы и сколько — от умения. Четверть часа.', key(x.c, x.r), used));
+  spotsNear(S, u, 'shroom').slice(0, 1).forEach(x => add('wGather', 'Набрать: ' + (x.wf.pool || []).map(short).filter((v, i, a) => a.indexOf(v) === i).slice(0, 2).join(', '), 'Четверть часа.', key(x.c, x.r), used));
+  spotsNear(S, u, 'brush').slice(0, 1).forEach(x => add('wBrush', 'Набрать хвороста', 'Вязанка дров (8 кг): на ночной стоянке — без стука топора.', key(x.c, x.r), used));
+  spotsNear(S, u, 'track').slice(0, 1).forEach(x => add('wTrack', 'Прочесть следы', 'Выживание: чей след и куда ведёт — покажет на миникарте.', key(x.c, x.r), used));
+  spotsNear(S, u, 'find').slice(0, 1).forEach(x => add('wFind', FIND[x.wf.f].btn, FIND[x.wf.f].tip, key(x.c, x.r), used));
+  if (Wk.water && !u.fishing && B.neigh(u.c, u.r).some(p => { const x = B.cell(S, p.c, p.r); return x && (x.t === 'water' || x.t === 'ford' || x.river); })) add('wFish', 'Закинуть снасть', `Несколько кругов у воды: клюёт или нет — Рыбалка, удочка помогает.`, null, used);
+  B.neigh(u.c, u.r).map(p => B.unitAt(S, p.c, p.r)).filter(t => t && t.civ && t.civ.k === 'beast' && !B.active(t) && !t.civ.cut).concat(S.units.filter(t => t.civ && t.civ.k === 'beast' && !B.active(t) && !t.civ.cut && t.c != null && B.dist(t, u) <= 1)).slice(0, 1).forEach(t => out.push({v: 'wCut', t: t.id, label: 'Разделать тушу: ' + (GAME[t.civ.game] ? GAME[t.civ.game].n.toLowerCase() : 'зверь'), title: 'Мясо и шкура. Умение «Звероводство» — больше.', grp: 'Округа', dis: used})); });
+const FIND = {ash: {btn: 'Осмотреть кострище', tip: 'Кто тут сидел и давно ли.'}, cache: {btn: 'Пошарить под камнем', tip: 'Под камнем что-то спрятано? Поиск.'}, cart: {btn: 'Обыскать брошенную телегу', tip: 'Колесо сломано, рогожа истлела.'}, grave: {btn: 'Постоять у могилки', tip: 'Безымянный холмик, крест из веток. Помянуть.'}};
+const at = (S, p) => { if (!p) return null; const [c, r] = String(p).split(',').map(Number); return B.cell(S, c, r); };
+const ck = (u, stat, skill, dc) => { const h = u.ref || u, r = R.d(20), tot = r + (R.mod ? R.mod((h.stats || {})[stat] || 10) : 0) + (R.skill ? R.skill(h, skill) : 0); return {ok: r === 20 || (r !== 1 && tot >= dc), r, tot}; };
+C.walkDoX.wHerb = (S, u, a) => { const x = at(S, a.p); if (!x || !x.wf) return 'Тут ничего.'; S.acted = true; x.wf.done = 1; S.walk.min += 15; const h = u.ref || u, c = ck(u, 'wis', 'Знахарство', 13), n = c.ok ? 2 + (T(h, 'travy') ? 1 : 0) : 1;
+  const got = []; for (let i = 0; i < n; i++) { const id = pick(HERBS); if (R.item(id)) { give(u, id); got.push(short(id)); } } if (c.ok && c.tot >= 18 && R.rand() < 0.5) { const id = pick(RARE); if (R.item(id)) { give(u, id); got.push(short(id) + ' (редкое!)'); } }
+  lg(S, got.length ? `${nameOf(u)} собирает травы: ${got.join(', ')}.` : `${nameOf(u)} рвёт что попало — всё не то.`, got.length ? 'buff' : ''); return ''; };
+C.walkDoX.wGather = (S, u, a, t, g) => { const x = at(S, a.p); if (!x || !x.wf) return 'Тут ничего.'; S.acted = true; x.wf.done = 1; S.walk.min += 15; const zt = T(u.ref || {}, 'zemled'), n = 1 + Math.floor(R.rand() * 2) + zt; const got = {};
+  for (let i = 0; i < n; i++) { const id = pick(x.wf.pool); give(u, id); got[id] = (got[id] || 0) + 1; } lg(S, `${nameOf(u)} набирает: ${Object.entries(got).map(([id, c]) => short(id) + (c > 1 ? ' ×' + c : '')).join(', ')}.`, 'buff'); return ''; };
+C.walkDoX.wBrush = (S, u, a) => { const x = at(S, a.p); if (!x || !x.wf) return 'Тут ничего.'; S.acted = true; x.wf.done = 1; S.walk.min += 15; give(u, 'drova_vyazanka'); lg(S, `${nameOf(u)} собирает сушняк и стягивает вязанку — дрова на ночь есть.`, 'buff'); return ''; };
+C.walkDoX.wTrack = (S, u, a) => { const x = at(S, a.p); if (!x || !x.wf) return 'Тут ничего.'; S.acted = true; x.wf.done = 1; const c = ck(u, 'wis', 'Выживание', 12); const b = S.units.find(t => t.civ && t.civ.game === x.wf.beast && B.active(t));
+  if (!c.ok || !b) { lg(S, `${nameOf(u)} разглядывает примятую траву — след старый, путаный.`, ''); return ''; }
+  const N = {hare: 'заячий', deer: 'оленьи копыта', boar: 'кабан рыл — свежо'}; S.walk.hints = (S.walk.hints || []).filter(h => h.label !== 'зверь').concat([{c: b.c + (hsh(b.id) % 3) - 1, r: b.r + 1, rad: 3, col: '#9fd36a', label: 'зверь'}]);
+  lg(S, `${nameOf(u)} читает след: ${N[x.wf.beast] || 'зверь'}. Ушёл вон туда — круг на миникарте.`, 'buff'); return ''; };
+C.walkDoX.wFish = (S, u) => { u.fishing = {n: K.FISH_RND, got: 0}; S.acted = true; lg(S, `${nameOf(u)} садится у воды и закидывает снасть.`, ''); return ''; };
+C.walkDoX.wCut = (S, u, a, t) => { if (!t) return 'Нечего.'; S.acted = true; t.civ.cut = 1; S.walk.min += 20; const G0 = GAME[t.civ.game] || {meat: 4}, zt = T(u.ref || {}, 'zhivotn'), k = [0.5, 0.7, 0.85, 1, 1][zt] || 1, n = Math.max(1, Math.round((G0.meat || (t.civ.game === 'wolf' ? 0 : 3)) * k));
+  const parts = []; if (t.civ.game !== 'wolf') { give(u, 'myaso_1_funt', n); parts.push('мяса ' + n + ' ф.'); }
+  const skin = t.civ.game === 'wolf' ? 'tr_volchya_shkura' : G0.skin; if (skin && R.item(skin) && (zt || R.rand() < 0.6)) { give(u, skin); parts.push(short(skin)); }
+  lg(S, `${nameOf(u)} разделывает тушу: ${parts.join(', ')}`.replace(/\.?$/, '.'), 'buff'); t.gone = true; t.c = null; return ''; };
+C.walkDoX.wFind = (S, u, a, t, g) => { const x = at(S, a.p); if (!x || !x.wf) return 'Тут ничего.'; S.acted = true; x.wf.done = 1; const f = x.wf.f;
+  if (f === 'ash') { const d = 1 + Math.floor(R.rand() * 4); lg(S, `Кострище остыло ${d === 1 ? 'вчера' : d + ' дня назад'}. Кости, обглоданные начисто, обрывок верёвки${R.rand() < 0.4 ? ' и стрела с чужим оперением — тут ходят лихие люди' : ''}.`, ''); if (R.rand() < 0.35) { const m = 3 + Math.floor(R.rand() * 12); g.purse = (g.purse || 0) + m; lg(S, 'В золе — обронённая медь: ' + (R.priceText ? R.priceText(m) : m) + '.', 'buff'); } return ''; }
+  if (f === 'cache') { const c = ck(u, 'wis', 'Внимательность', 13); if (!c.ok) { lg(S, `${nameOf(u)} ворочает камень — под ним только мокрицы.`, ''); return ''; } const m = 20 + Math.floor(R.rand() * 60); g.purse = (g.purse || 0) + m; const it = R.rand() < 0.5 ? pick(['nozh', 'kremen_i_ognivo', 'zele_lecheniya', 'verevka_konoplyanaya_15']) : null; if (it && R.item(it)) give(u, it);
+    lg(S, `Под камнем — схрон: тряпица, а в ней ${R.priceText ? R.priceText(m) : m}${it && R.item(it) ? ' и ' + short(it) : ''}.`, 'buff'); return ''; }
+  if (f === 'cart') { const id = pick(['verevka_konoplyanaya_15', 'zerno_1_funt', 'tr_rzhavyi_mech', 'kremen_i_ognivo']); if (R.item(id) && R.rand() < 0.7) { give(u, id); lg(S, `В брошенной телеге под гнилой рогожей — ${short(id)}.`, 'buff'); } else lg(S, 'В телеге только труха да мышиные гнёзда.', ''); return ''; }
+  lg(S, `${nameOf(u)} стоит у безымянной могилки, поправляет веточный крест. Тихо.`, ''); try { if (C.spiritAdd) C.spiritAdd(g, 1, 'помянули безымянного'); } catch (e) {} return ''; };
+
+/* ---------- схватка со зверем: зверь повержен — дальше осматриваемся (не конец прогулки) ---------- */
+const ce0 = B.checkEnd;
+B.checkEnd = function (S) {
+  try { if (S && S.walk && S.walk.wild && S.walk.fight && !S.over) { const live = S.units.some(u => u.side === 'foe' && B.active(u) && u.c != null), mine = heroes(S).length;
+      if (mine && !live) { const Wk = S.walk; Wk.fight = 0; Wk.hot = 0; Wk.alarm = 0; S.order = (S.order || []).filter(id => { const u = B.U(S, id); return u && u.side === 'party'; });
+        S.units.forEach(u => { if (u.civ && u.civ.k === 'beast') u.side = 'civ'; }); lg(S, 'Зверь повержен. Тихо — только сердце стучит. Можно разделать тушу.', 'round'); return false; } } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return ce0.apply(this, arguments);
+};
+/* ---------- старт: после обычной расстановки прогулки ---------- */
+const bs0 = C.battleStart;
+C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments);
+  try { if (S && S.walk && spec && spec.wild && !S.walk._wildDone) { S.walk._wildDone = 1; BF.ownRng(g, spec, () => C.wildSetup(S, g)); } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return S; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */

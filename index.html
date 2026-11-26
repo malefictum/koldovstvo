@@ -50180,7 +50180,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261046"></script><script>
+</script><script src="world.js?v=202611261058"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52896,6 +52896,7 @@ function showHexMap() {
     ${C.marchText && C.marchText(g) ? `<div class="info morder"><span>${esc(C.marchText(g))}.</span><button class="btn small" id="m-order" ${dis}>Походный порядок</button></div>` : ''}
     ${C.partyLoad && C.partyLoad(g).tier >= 2 ? `<button class="btn small" ${dis} id="m-dropx">Бросить лишнее</button>` : ''}
     <div class="grp2">Здесь</div>
+    ${C.wildOk && C.wildOk(g) ? `<button class="btn" id="m-look" ${dis || (NET() ? 'disabled' : '')} title="${esc(NET() ? 'В сетевой игре пока нельзя.' : 'Пройтись по округе всем отрядом: травы, грибы, хворост, рыбалка у воды, следы и дичь, находки. Время идёт по минутам.')}">Осмотреться: ${esc(C.wildWord(g))}</button>` : ''}
     <button class="btn" id="m-scout" ${dis}>Разведать округу · ${C.hoursText(C.HOURS.scout)}</button>
     <button class="btn" id="m-forage" ${dis}>Охота и припасы · ${C.hoursText(C.HOURS.hunt)}</button>
     ${W.canFish && W.canFish(g) ? `<button class="btn" id="m-fish" ${dis}>Рыбачить · ${C.hoursText(C.HOURS.fish)}</button>` : ''}
@@ -52940,6 +52941,7 @@ function showHexMap() {
   if (node) $('#m-enter').onclick = () => NET() ? act({a: 'enter'}) : showScene(camp.map.nodes[node].scene);
   if ($('#m-folk')) $('#m-folk').onclick = () => { g.folkRole = here.folk || 'temple'; g.folkAt = W.key(here.c, here.r); showScene('folk'); };
   const wact = (f, k) => () => NET() ? act({a: 'wact', k}) : wactRun(f);
+  if ($('#m-look')) $('#m-look').onclick = () => { if (NET()) return; const b = C.wildBegin(g); if (b && b.battle) { save(); startBattle(b.battle); } };
   if ($('#m-dropx')) $('#m-dropx').onclick = () => showScene('load_heavy');
   $('#m-camp').onclick = () => restCmd({op: 'open', kind: W.nightCamp && W.isHex && W.isHex(g) && g.pos ? 'night' : 'halt'});
   if ($('#m-want')) $('#m-want').onclick = () => mercTalkGo($('#m-want').dataset.mid);
@@ -53922,6 +53924,10 @@ function drawField(noFollow) {
       if (to) areaCells(S, cur, mode.spell, to).forEach(x => { const p = hexXY(x.c, x.r); hexPath(p.x, p.y, s * 0.92); ctx.fillStyle = 'rgba(190,150,255,.28)'; ctx.fill(); ctx.strokeStyle = 'rgba(210,180,255,.7)'; ctx.lineWidth = 1.5; ctx.stroke(); }); }
     if (mode && mode.spell) B.alliesOf(S, cur).forEach(a => { if (spellTargetOk(cur, mode.spell, a)) { const p = hexXY(a.c, a.r); hexPath(p.x, p.y, s * 0.9); ctx.strokeStyle = '#a6d38a'; ctx.lineWidth = 2.5; ctx.stroke(); } });
   }
+  // округа: что заметили — травы, грибы, хворост, следы, находка (маленькая метка с подписью)
+  if (S.walk && S.walk.wild && !S.walk.fight) (S.wildSpots || []).forEach(q => { const x = B.cell(S, q.c, q.r); if (!x || !x.wf || x.wf.done || (x.wf.k === 'herb' && x.wf.seen !== 1)) return; if (F.fog && bfFogOf(S, x) < 2) return;
+    const p0 = hexXY(x.c, x.r), col = {herb: '#7fd06a', shroom: '#e0a060', brush: '#c8a070', track: '#d8d0b0', find: '#ffd36a'}[x.wf.k] || '#fff'; ctx.save(); ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(p0.x, p0.y + geo.s * 0.2, geo.s * 0.18, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(20,14,8,.8)'; ctx.stroke();
+    const lb = {herb: 'травы', shroom: 'грибы, ягоды', brush: 'хворост', track: 'следы', find: '?'}[x.wf.k]; ctx.font = `600 ${Math.max(10, Math.round(geo.s * 0.27))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeText(lb, p0.x, p0.y + geo.s * 0.62); ctx.fillStyle = col; ctx.fillText(lb, p0.x, p0.y + geo.s * 0.62); ctx.restore(); });
   // дела на прогулке: «где-то здесь» — пунктирный круг на поле; за краем экрана — стрелка к нему (Ник 26.11: «нпс долго искал»)
   if (S.walk && !S.walk.fight && (S.walk.hints || []).length) S.walk.hints.forEach(H => { const p0 = hexXY(H.c, H.r), rr = (H.rad || 4) * geo.s * 1.6; ctx.save(); const col = H.col || '#ffd36a';
     const on = p0.x > -rr && p0.y > -rr && p0.x < geo.W + rr && p0.y < geo.H + rr;
@@ -54610,9 +54616,20 @@ function drawLying(u) {
   ctx.restore();
   if (u.civ && u.civ.sleep) { ctx.save(); ctx.font = `italic 700 ${Math.max(10, Math.round(s * 0.3))}px Georgia, serif`; ctx.fillStyle = 'rgba(220,230,255,.85)'; ctx.textAlign = 'center'; ctx.fillText('з-з', p.x - s * 0.55, p.y - s * 0.75); ctx.restore(); }
 }
+/* дичь без своего рисунка — силуэт пером: заяц, олень (Ник 26.11: «Осмотреться» в округе) */
+function drawGame(u) {
+  const p = unitXY(u), s = geo.s, dead = !B.active(u), dir = mirrorOf(u) ? -1 : 1; ctx.save(); ctx.translate(p.x, p.y + s * 0.35); ctx.scale(dir, 1); if (dead) { ctx.rotate(0.25); ctx.globalAlpha = 0.85; }
+  ctx.fillStyle = u.art === 'deer' ? '#8a5a32' : '#9a8a72'; ctx.strokeStyle = 'rgba(30,20,10,.85)'; ctx.lineWidth = Math.max(1, s * 0.04);
+  if (u.art === 'hare') { ctx.beginPath(); ctx.ellipse(0, -s * 0.28, s * 0.34, s * 0.22, 0, 0, 7); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.ellipse(s * 0.3, -s * 0.46, s * 0.14, s * 0.12, 0, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.ellipse(s * 0.28, -s * 0.72, s * 0.05, s * 0.18, -0.2, 0, 7); ctx.ellipse(s * 0.36, -s * 0.7, s * 0.05, s * 0.17, 0.15, 0, 7); ctx.fill(); ctx.stroke(); ctx.fillStyle = '#eee'; ctx.beginPath(); ctx.arc(-s * 0.34, -s * 0.3, s * 0.07, 0, 7); ctx.fill(); }
+  else { ctx.beginPath(); ctx.ellipse(0, -s * 0.62, s * 0.46, s * 0.22, 0, 0, 7); ctx.fill(); ctx.stroke(); [-0.32, -0.18, 0.22, 0.34].forEach(x => { ctx.fillRect(s * x - s * 0.03, -s * 0.5, s * 0.06, s * 0.5); });
+    ctx.beginPath(); ctx.moveTo(s * 0.32, -s * 0.7); ctx.lineTo(s * 0.5, -s * 1.05); ctx.lineTo(s * 0.62, -s * 1.02); ctx.lineTo(s * 0.48, -s * 0.66); ctx.closePath(); ctx.fill(); ctx.stroke(); ctx.beginPath(); ctx.ellipse(s * 0.62, -s * 1.06, s * 0.14, s * 0.08, 0.3, 0, 7); ctx.fill(); ctx.stroke();
+    ctx.strokeStyle = '#d8c8a8'; ctx.lineWidth = Math.max(1, s * 0.035); ctx.beginPath(); ctx.moveTo(s * 0.56, -s * 1.12); ctx.lineTo(s * 0.5, -s * 1.36); ctx.lineTo(s * 0.42, -s * 1.42); ctx.moveTo(s * 0.5, -s * 1.3); ctx.lineTo(s * 0.62, -s * 1.42); ctx.moveTo(s * 0.64, -s * 1.12); ctx.lineTo(s * 0.72, -s * 1.34); ctx.stroke(); }
+  ctx.restore(); if (!dead) { ctx.save(); ctx.font = `600 ${Math.max(10, Math.round(s * 0.3))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(15,10,6,.8)'; ctx.strokeText(u.name, p.x, p.y - s * (u.art === 'deer' ? 1.2 : 0.55)); ctx.fillStyle = '#d8c8a8'; ctx.fillText(u.name, p.x, p.y - s * (u.art === 'deer' ? 1.2 : 0.55)); ctx.restore(); }
+}
 function drawUnit(u) {
   ctx.save();
-  try { if (lyingU(u)) drawLying(u); else drawUnit0(u); }
+  try { if (u.art && (u.art === 'hare' || u.art === 'deer')) drawGame(u); else if (lyingU(u)) drawLying(u); else drawUnit0(u); }
   catch (e) {
     try { ctx.restore(); ctx.save(); ctx.filter = 'none'; ctx.globalAlpha = 1; const p = unitXY(u), s = geo.s;
       ctx.beginPath(); ctx.arc(p.x, p.y, s * 0.42, 0, Math.PI * 2); ctx.fillStyle = u.side === 'party' ? 'rgba(201,163,92,.85)' : 'rgba(176,74,58,.85)'; ctx.fill();
