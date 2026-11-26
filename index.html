@@ -451,7 +451,7 @@ button.prow:hover{background:rgba(255,255,255,.3)}button.prow.on{box-shadow:inse
 .jtabs{margin:4px 0 10px}.jbody{display:grid;gap:10px}.jcard{border:1px solid rgba(107,85,55,.45);border-radius:8px;padding:10px 12px;background:rgba(255,255,255,.22);display:grid;gap:5px}
 .jcard.fin{border-color:#b08a3a;background:rgba(231,201,131,.22);color:#3a2a18}.jcard .note{margin:0}.jcard .row{display:flex;gap:6px;flex-wrap:wrap;align-items:center}.jh2{display:flex;justify-content:space-between;gap:8px;align-items:baseline}
 .jcard.job.done{box-shadow:inset 3px 0 0 #6f9a4a}.jcard.job.late{box-shadow:inset 3px 0 0 #a3341f;opacity:.85}.jgoals{list-style:none;margin:0;padding:0;display:grid;gap:2px}.jgoals li{color:var(--ink-2)}.jgoals li.ok{color:var(--ink);font-weight:600}
-.jlead{margin:0;font-size:15px;line-height:1.45}.jold{margin:0;padding-left:18px;color:var(--ink-2);font-size:13.5px;display:grid;gap:2px}.list .it.mn{box-shadow:inset 3px 0 0 #b08a3a}
+.jlead{margin:0;font-size:15px;line-height:1.45}.jold{margin:0;padding-left:18px;color:var(--ink-2);font-size:13.5px;display:grid;gap:2px}.jold li.fail{opacity:.7}.list .it.mn{box-shadow:inset 3px 0 0 #b08a3a}
 .guide{position:fixed;left:14px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:40;width:min(340px,calc(100vw - 28px));padding:10px 12px;border:1px solid var(--brass);border-radius:8px;background:linear-gradient(rgba(36,26,15,.96),rgba(22,16,10,.97));color:#ead8b0;box-shadow:0 8px 24px rgba(0,0,0,.55);font-size:14px}
 .guide .gh{display:flex;align-items:center;gap:6px}.guide .gh b{font:700 13px var(--t-label);letter-spacing:.06em;text-transform:uppercase;color:var(--brass-2);margin-right:auto}.guide .gh span{font-size:12px;opacity:.8}
 .guide ol{margin:8px 0 0;padding-left:20px;display:grid;gap:4px}.guide li{opacity:.7}.guide li.ok{opacity:.5;text-decoration:line-through}.guide li.cur{opacity:1;color:#fff3d2;font-weight:600}.guide .gcur{margin:6px 0 0;color:#fff3d2}
@@ -31846,7 +31846,7 @@ Q.tick = function (g) {
 /* отказаться от взятого дела: честнее, чем пропасть, но молва всё равно падает */
 Q.abandon = function (g, j) {
   if (!j || j.status !== 'open') return;
-  j.status = 'late'; g.fame = (g.fame || 0) - 1;
+  j.status = 'late'; j.dropped = 1; g.fame = (g.fame || 0) - 1;
   if (j.src === 'town') C.repAdd(g, j.node, -1, 'взялись и бросили');
   const s = Q.sideOf(j); if (s) C.sideAdd(g, s, -0.5);
   C.note(g, `Отказались от дела: «${Q.title(j)}».`);
@@ -50323,7 +50323,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611262301"></script><script>
+</script><script src="world.js?v=202611262324"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51641,7 +51641,7 @@ function showJournal(tab) {
   setTimeout(() => tip1('journal'), 300); if (tab) JTAB = tab; if (g && !g.flags._g_journal) { g.flags._g_journal = 1; save(); }
   const onMap = g.scene === 'map' && !battle && W && W.isHex && W.isHex(g), camp = CAMP_OF();
   const goBtn = (k, v) => onMap ? `<button class="btn small primary" data-jgo="${k}:${esc(v)}">Идти туда</button>` : `<span class="note">идти — с карты края</span>`;
-  const jobs = (g.jobs || []).filter(j => ['open', 'done', 'late'].includes(j.status)).slice().reverse(), old = (g.jobs || []).filter(j => j.status === 'paid').slice(-6).reverse();
+  const jobs = (g.jobs || []).filter(j => ['open', 'done'].includes(j.status)).slice().reverse(), old = (g.jobs || []).filter(j => ['paid', 'late', 'dropped'].includes(j.status)).slice(-8).reverse(); // просроченное — в закрытые (Ник 26.11: «висит»)
   // --- главное
   let main = '';
   if (g.ended) main += `<div class="jcard fin"><b>Сага края пройдена.</b><p class="note">Можно ещё бродить: доделать дела, продать добро, поучиться. Когда будете готовы — закончите главу.</p><button class="btn small primary" id="j-end">Закончить главу</button></div>`;
@@ -51661,7 +51661,7 @@ function showJournal(tab) {
       <p class="note">${where}${j.status === 'open' && j.stages ? ` · шаг ${Math.min(j.stage + 1, j.stages.length)} из ${j.stages.length}` : ''}${left != null && j.status === 'open' ? ` · ${left > 0 ? 'осталось ' + B.plural(left, 'день', 'дня', 'дней') : left === 0 ? 'срок — сегодня' : 'срок вышел'}` : ''}</p>
       ${(j.notes || []).length ? `<ul class="jold">${j.notes.slice(-3).map(t => `<li>${esc(typeof t === 'string' ? t : t.t || '')}</li>`).join('')}</ul>` : ''}
       <div class="row">${site ? goBtn('cell', j.site.c + ',' + j.site.r) : j.status === 'done' && j.node !== g.loc ? goBtn('node', j.node) : ''}${j.status === 'open' ? `<button class="btn small" data-abandon="${j.id}">Отказаться</button>` : ''}</div></div>`; };
-  const deals = (jobs.length ? jobs.map(jobCard).join('') : '<p class="note">Дел нет. Их дают старосты, корчмари, купцы и служители — спросите в селе или в городе.</p>') + (old.length ? `<h4 class="jh">Закрытые</h4><ul class="jold">${old.map(j => `<li>${esc(Q.title(j))} — ${esc(Q.giverName(j))}</li>`).join('')}</ul>` : '');
+  const deals = (jobs.length ? jobs.map(jobCard).join('') : '<p class="note">Дел нет. Их дают старосты, корчмари, купцы и служители — спросите в селе или в городе.</p>') + (old.length ? `<h4 class="jh">Закрытые</h4><ul class="jold">${old.map(j => `<li class="${j.status === 'paid' ? '' : 'fail'}">${esc(Q.title(j))} — ${esc(Q.giverName(j))}${j.status === 'late' ? (j.dropped ? ' · <i>отказались</i>' : ' · <i>срок вышел</i>') : ''}</li>`).join('')}</ul>` : '');
   // --- записи
   const notes = `<div class="list">${g.journal.slice().reverse().map(j => `<div class="it ${j.main ? 'mn' : ''}"><span class="r" style="margin:0;min-width:56px">день ${j.day}</span><span>${esc(j.t)}</span></div>`).join('')}</div>`;
   const tabs = [['main', 'Главное'], ['jobs', 'Дела' + (jobs.length ? ' (' + jobs.length + ')' : '')], ['notes', 'Записи']];
