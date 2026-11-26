@@ -76145,8 +76145,20 @@ const faceFill = (X, img, name, a, b, hh, s, dark) => {
   X.fill(); X.fillStyle = `rgba(8,6,4,${dark})`; X.fill(); X.strokeStyle = 'rgba(10,8,6,.55)'; X.lineWidth = 1; X.stroke();
   return {ux, uy, L};
 };
+/* стена рисуется один раз на вид (кладка, открытые грани, вставка, масштаб) в свой холст — дальше кладётся готовой (лаги в подземелье) */
+const WC = new Map();
 BF.dgWall = function (X, c, p, s, S, img) {
   const F = S.field; if (!ok() || !img) return false;
+  if (typeof document !== 'undefined' && X.getTransform && !X._dgw) { const m = X.getTransform(); if (!m.b && !m.c && m.a > 0) {
+    const sc = m.a, m0 = matOf(F), odd = c.r & 1, lr = !wallAt(F, c.c + odd, c.r + 1), ll = !wallAt(F, c.c - 1 + odd, c.r + 1), open = B.neigh(c.c, c.r).some(q => !wallAt(F, q.c, q.r));
+    const face = m0.face[hs(c.c, c.r, 1) % m0.face.length], h7 = hs(c.c, c.r, 7), ins = (lr || ll) && h7 % 9 === 0 ? m0.ins[(h7 >>> 4) % m0.ins.length] : '';
+    const key = [face, m0.top, lr ? 1 : 0, ll ? 1 : 0, open ? 1 : 0, ins, (lr ? 1 : 0) + ':' + (h7 % 3), s.toFixed(2), sc.toFixed(2)].join('|');
+    let e = WC.get(key);
+    if (!e) { const W = Math.ceil(s * 2.4 * sc), H = Math.ceil(s * 3.4 * sc), cv = document.createElement('canvas'); cv.width = W; cv.height = H; const x2 = cv.getContext('2d'); x2._dgw = 1;
+      x2.setTransform(sc, 0, 0, sc, W / 2, H - s * 1.1 * sc); // центр клетки — (0,0) в холсте
+      const q = {c: c.c, r: c.r}; BF.dgWall(x2, Object.assign({}, c, q), {x: 0, y: 0}, s, S, img);
+      if (WC.size > 500) WC.clear(); e = {cv, w: W / sc, h: H / sc}; WC.set(key, e); }
+    X.drawImage(e.cv, p.x - e.w / 2, p.y - (e.h - s * 1.1), e.w, e.h); return true; } }
   const m = matOf(F), hh = s * 0.95, odd = c.r & 1;
   const lr = !wallAt(F, c.c + odd, c.r + 1), ll = !wallAt(F, c.c - 1 + odd, c.r + 1);
   const anyOpen = B.neigh(c.c, c.r).some(q => !wallAt(F, q.c, q.r));

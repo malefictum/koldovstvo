@@ -50335,7 +50335,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611262333"></script><script>
+</script><script src="world.js?v=202611262347"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53648,7 +53648,7 @@ function layout() {
   const narrow = window.innerWidth <= 860, VW = Math.min(F.w, F.big && narrow ? 9 : 16), VH = Math.min(F.h, F.big && narrow ? 9 : 11); // сколько клеток видно при обычном приближении (большое поле на телефоне — крупнее)
   if (window.innerWidth <= 860) { const mh = ($('#main') || {}).clientHeight || window.innerHeight; const want = Math.min(Math.round(mh * 0.6), Math.round(cv.clientWidth * (VH * 1.5 + 0.5) / ((VW + 0.5) * SQ3) + cv.clientWidth * 0.08)); if (Math.abs(cv.clientHeight - want) > 2) cv.style.height = want + 'px'; }
   else if (cv.style.height) cv.style.height = '';
-  const W = cv.clientWidth, H = cv.clientHeight, dpr = window.devicePixelRatio || 1;
+  const W = cv.clientWidth, H = cv.clientHeight, dpr = Math.min(battle && battle.field && battle.field.big ? 1.5 : 3, window.devicePixelRatio || 1); // большое поле — не выше полутора: на ноутбуках со 150–200% это втрое меньше точек
   if (cv.width !== Math.round(W * dpr) || cv.height !== Math.round(H * dpr)) { cv.width = W * dpr; cv.height = H * dpr; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   const fit = Math.min(W / U.X, H / U.Y) * 0.98, near = Math.min(W / ((VW + 0.5) * SQ3), H / (VH * 1.5 + 0.5)) * 0.98;
@@ -53930,7 +53930,11 @@ const unitXY = u => { const p = u._wx != null ? {x: geo.ox + u._wx * geo.s, y: g
 /* чей ход показывать: того, чьё действие проигрывается, иначе — текущего */
 function curShowId(S) { if (PLAY.busy && PLAY.actor != null) return PLAY.actor; const c = B.current(S); return c ? c.id : null; }
 function playActive() { const now = performance.now(); return PLAY.busy || Object.keys(PLAY.anim).length || Object.keys(PLAY.fl).length || PLAY.pops.some(p => now - p.t0 < p.dur) || (PLAY.aim && now - PLAY.aim.t0 < PLAY.aim.dur + 260); }
-function playKick() { if (PLAY.raf || !playActive() || typeof requestAnimationFrame !== 'function') return; PLAY.raf = requestAnimationFrame(() => { PLAY.raf = 0; if (battle && cv && cv.isConnected) drawField(true); }); }
+/* ход и удары: поле перерисовываем не чаще ~30 раз в секунду — глазу хватает, процессору вдвое легче (Ник 26.11: «в боях подлагивает») */
+let PLAY_LAST = 0;
+function playKick() { if (PLAY.raf || !playActive() || typeof requestAnimationFrame !== 'function') return;
+  const tick = now => { if (now - PLAY_LAST < 31) { PLAY.raf = requestAnimationFrame(tick); return; } PLAY.raf = 0; PLAY_LAST = now; if (battle && cv && cv.isConnected) drawField(true); };
+  PLAY.raf = requestAnimationFrame(tick); }
 /* стрелка от бьющего к цели и цифры — поверх фигур */
 function drawPlayTop() {
   const S = battle, s = geo.s, now = performance.now();
@@ -54022,7 +54026,7 @@ function sortedCells(F) { const n = Object.keys(F.cells).length; let sc = F._sor
 const cellSig = c => (c.t || '') + '.' + (c.vy || '') + '.' + (c.hb != null ? c.hb : '') + '.' + (c.hyard != null ? c.hyard : '') + (c.hd != null ? 'd' + c.hd : '') + ';';
 const isDynCell = c => c.hb != null; // дом: подсветка дверей у того, чей ход — рисуем каждый раз
 function groundTiles(S, F, s, cells, off, cellBase, cellOver, UNK) {
-  const dpr = Math.min(2, window.devicePixelRatio || 1), key = [F._tileId || (F._tileId = Math.random().toString(36).slice(2)), s.toFixed(3), dpr, F.night ? 1 : 0].join('|');
+  const dpr = (ctx.getTransform ? ctx.getTransform().a : 0) || Math.min(2, window.devicePixelRatio || 1), key = [F._tileId || (F._tileId = Math.random().toString(36).slice(2)), s.toFixed(3), dpr, F.night ? 1 : 0].join('|');
   if (GT.key !== key) { GT.key = key; GT.m.clear(); }
   const T = GT_PX, sx = SQ3 * s, fx = c => sx * (c.c + 0.5 + (c.r & 1) * 0.5), fy = c => s * (1 + c.r * 1.5);
   // клетки по кускам (кусок — квадрат T×T в координатах поля); клетка попадает во все куски, которые задевает
