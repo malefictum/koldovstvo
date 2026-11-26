@@ -35496,7 +35496,7 @@ const fight = (g, d, foes, o) => { o = o || {}; const rr = o.room != null ? d.ro
   d.fight = {room: o.room != null ? o.room : null, boss: !!o.boss, pend: !!o.pend, fac: o.pat || (rr && rr.fac) || (o.pend ? d.pendFac : null) || null, pat: o.pat || (o.pend && d.pendKind === 'pat' ? d.pendFac : null), at: d.at};
   const L = d.lvl, KD = K[d.kind] || K.kurgan;
   return {battle: {title: o.title || `${d.name}: ${o.boss ? 'хозяин' : 'стража'}`, foes: foes.slice(), field: C.fieldFor(KD.field, true), ambush: o.ambush || null,
-    xpBonus: (o.boss ? 60 : 20) * L, win: 'dungeon', lose: 'dungeon_out', place: d.name, setupKey: 'dungeon'}}; };
+    xpBonus: (o.boss ? 60 : 20) * L, win: 'dungeon', lose: 'dungeon_out', place: d.name, setupKey: 'dungeon', weather: 'clear'}}; };
 /* после драки отряда соседи: приходят на шум или пользуются ею */
 function afterFight(g, d, f) {
   const fa = f.fac; if (!fa || !(d.fac || []).length) return;
@@ -50180,7 +50180,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261058"></script><script>
+</script><script src="world.js?v=202611261116"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53925,9 +53925,9 @@ function drawField(noFollow) {
     if (mode && mode.spell) B.alliesOf(S, cur).forEach(a => { if (spellTargetOk(cur, mode.spell, a)) { const p = hexXY(a.c, a.r); hexPath(p.x, p.y, s * 0.9); ctx.strokeStyle = '#a6d38a'; ctx.lineWidth = 2.5; ctx.stroke(); } });
   }
   // округа: что заметили — травы, грибы, хворост, следы, находка (маленькая метка с подписью)
-  if (S.walk && S.walk.wild && !S.walk.fight) (S.wildSpots || []).forEach(q => { const x = B.cell(S, q.c, q.r); if (!x || !x.wf || x.wf.done || (x.wf.k === 'herb' && x.wf.seen !== 1)) return; if (F.fog && bfFogOf(S, x) < 2) return;
-    const p0 = hexXY(x.c, x.r), col = {herb: '#7fd06a', shroom: '#e0a060', brush: '#c8a070', track: '#d8d0b0', find: '#ffd36a'}[x.wf.k] || '#fff'; ctx.save(); ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(p0.x, p0.y + geo.s * 0.2, geo.s * 0.18, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(20,14,8,.8)'; ctx.stroke();
-    const lb = {herb: 'травы', shroom: 'грибы, ягоды', brush: 'хворост', track: 'следы', find: '?'}[x.wf.k]; ctx.font = `600 ${Math.max(10, Math.round(geo.s * 0.27))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeText(lb, p0.x, p0.y + geo.s * 0.62); ctx.fillStyle = col; ctx.fillText(lb, p0.x, p0.y + geo.s * 0.62); ctx.restore(); });
+  if (S.walk && (S.walk.wild || S.walk.dg) && !S.walk.fight) (S.wildSpots || []).forEach(q => { const x = B.cell(S, q.c, q.r); if (!x || !x.wf || x.wf.done || (x.wf.k === 'herb' && x.wf.seen !== 1)) return; if (F.fog && bfFogOf(S, x) < 2) return;
+    const p0 = hexXY(x.c, x.r), col = {herb: '#7fd06a', shroom: '#e0a060', brush: '#c8a070', track: '#d8d0b0', find: '#ffd36a', dg: '#ffd36a'}[x.wf.k] || '#fff'; ctx.save(); ctx.globalAlpha = 0.9; ctx.beginPath(); ctx.arc(p0.x, p0.y + geo.s * 0.2, geo.s * 0.18, 0, 7); ctx.fillStyle = col; ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(20,14,8,.8)'; ctx.stroke();
+    const lb = x.wf.lb || {herb: 'травы', shroom: 'грибы, ягоды', brush: 'хворост', track: 'следы', find: '?'}[x.wf.k]; ctx.font = `600 ${Math.max(10, Math.round(geo.s * 0.27))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeText(lb, p0.x, p0.y + geo.s * 0.62); ctx.fillStyle = col; ctx.fillText(lb, p0.x, p0.y + geo.s * 0.62); ctx.restore(); });
   // дела на прогулке: «где-то здесь» — пунктирный круг на поле; за краем экрана — стрелка к нему (Ник 26.11: «нпс долго искал»)
   if (S.walk && !S.walk.fight && (S.walk.hints || []).length) S.walk.hints.forEach(H => { const p0 = hexXY(H.c, H.r), rr = (H.rad || 4) * geo.s * 1.6; ctx.save(); const col = H.col || '#ffd36a';
     const on = p0.x > -rr && p0.y > -rr && p0.x < geo.W + rr && p0.y < geo.H + rr;
@@ -54802,9 +54802,9 @@ document.addEventListener('click', e => { const c = battle && e.target.closest('
 const BMORE = {open: false}; // «Ещё приёмы» в бою: раскрыто ли (помнится до перезагрузки)
 const BMORE2 = {open: false}; // «Ещё на поле» — группы приёмов модулей (B.bfPanel)
 /* порядок групп B.bfPanel в панели боя — одним местом (меньше — выше); неизвестные группы — внизу */
-const BF_GRP_W = {'Прогулка': 1, 'Походка': 1.5, 'Люди': 2, 'Тёмное дело': 3, 'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
+const BF_GRP_W = {'Камора': 0.5, 'Округа': 0.5, 'Здесь': 0.6, 'Прогулка': 1, 'Походка': 1.5, 'Люди': 2, 'Тёмное дело': 3, 'Скрытно': 5, 'Бегущие': 10, 'Побег': 12, 'Приёмы': 20, 'Рядом': 25, 'Удаль': 28, 'Дверь': 30, 'Ограда': 32, 'Дерево': 34, 'Конь': 36, 'Бой': 40, 'Звёзды': 50};
 const BF_GRP_WAR = new Set(['Приёмы', 'Бегущие', 'Побег', 'Бой', 'Удаль']); // на прогулке без боя этих групп нет
-const BF_GRP_TOP = new Set(['Прогулка', 'Походка', 'Дверь', 'Люди', 'Тёмное дело', 'Скрытно', 'Бегущие', 'Побег']);
+const BF_GRP_TOP = new Set(['Камора', 'Округа', 'Здесь', 'Прогулка', 'Походка', 'Дверь', 'Люди', 'Тёмное дело', 'Скрытно', 'Бегущие', 'Побег']);
 /* лента очерёдности (waveA): лица в порядке хода от текущего; текущий выделен, следующий подписан, невидимый враг — пустой силуэт */
 let TL_KEY = '';
 function drawTurnLine() {

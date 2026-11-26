@@ -70911,8 +70911,8 @@ C.walkActs = function (S, u) {
     if (mine) out.push({v: 'wait', p: sl >= 2 ? 'morn' : 'eve', label: sl >= 2 ? 'Уснуть до утра' : 'Вздремнуть до вечера', title: hh.own ? 'Дома, на своей лежанке.' : 'В корчме, на лавке у печи.', grp: 'Прогулка'}); }
   else if (C.walkLieSpots && C.walkLieSpots(S, u).length && BF.inHouse(S, u) != null) out.push({v: 'lie', label: 'Лечь на лежанку', title: 'Прилечь: на лежанку, на печь или на лавку рядом.', grp: 'Прогулка'});
   out.push({v: 'arm', label: Wk.armed ? 'Убрать оружие' : 'К бою!', on: Wk.armed ? 1 : 0, title: Wk.armed ? 'Спрятать оружие и чары — снова просто прохожий.' : 'Оружие наготове, чары на кончиках пальцев: весь боевой арсенал — бить, стрелять, колдовать. Пока никто не видел и не слышал — тревоги нет. Кто увидит — запомнит.', grp: 'Прогулка'});
-  out.push({v: 'back', label: Wk.wild ? 'Назад на карту' : Wk.all ? TX.back.all : TX.back.day, title: Wk.wild ? 'Отряд уходит с этого места — дальше по карте.' : TX.tips.back, grp: 'Прогулка'});
-  { const G0 = G_, tt = G0 ? G0.time % 4 : 1, busyW = Wk.hot || Wk.fight || (Wk.inv && Wk.inv.until >= Wk.rnd) ? 'Сейчас не до того: всполошились' : ''; /* переждать до нужного часа — вору под ночное дело (Ник 25.11) */
+  out.push({v: 'back', label: Wk.dg ? 'Хватит осматриваться' : Wk.wild ? 'Назад на карту' : Wk.all ? TX.back.all : TX.back.day, title: Wk.wild ? 'Отряд уходит с этого места — дальше по карте.' : TX.tips.back, grp: 'Прогулка'});
+  if (!Wk.dg) { const G0 = G_, tt = G0 ? G0.time % 4 : 1, busyW = Wk.hot || Wk.fight || (Wk.inv && Wk.inv.until >= Wk.rnd) ? 'Сейчас не до того: всполошились' : ''; /* переждать до нужного часа — вору под ночное дело (Ник 25.11) */
     if (tt < 2) out.push({v: 'wait', p: 'eve', label: 'Дождаться вечера', dis: busyW, title: 'Отсидеться в тихом углу до сумерек — улица станет другой.', grp: 'Прогулка'});
     if (tt !== 3) out.push({v: 'wait', p: 'night', label: 'Дождаться ночи', dis: busyW, title: 'Переждать до темноты: люди разойдутся по избам, на улице останутся сторожа да псы.', grp: 'Прогулка'});
     if (tt >= 2) out.push({v: 'wait', p: 'morn', label: 'Дождаться утра', dis: busyW, title: 'Переждать ночь в тихом углу — к рассвету село проснётся.', grp: 'Прогулка'}); }
@@ -70921,7 +70921,7 @@ C.walkActs = function (S, u) {
     const night = Wk.night && !['korchma', 'korchma_big'].includes(o.h.k);
     out.push({v: 'enter', p: o.h.id, label: TX.enter[ek], dis: night ? TX.shut : '', title: TX.tips.enter, grp: 'Прогулка'}); });
   // всё, что есть в меню места, — у своего дома, у колодца, в поле (Ник 25.11: «чтобы можно было всё»)
-  if (!Wk.wild) { const MM = menuMap(S), seen = new Set(); const add = (c, why) => { if (seen.has(c.label)) return; seen.add(c.label); out.push({v: 'menu', p: c.label, label: shortL(c.label), dis: c.dis || why || '', title: c.label, grp: 'Здесь'}); };
+  if (!Wk.wild && !Wk.dg) { const MM = menuMap(S), seen = new Set(); const add = (c, why) => { if (seen.has(c.label)) return; seen.add(c.label); out.push({v: 'menu', p: c.label, label: shortL(c.label), dis: c.dis || why || '', title: c.label, grp: 'Здесь'}); };
     doorsAround(S, u).forEach(o => (MM.house[o.h.id] || []).forEach(c => add(c, Wk.night && !['korchma', 'korchma_big', 'starosta', 'terem', 'boyar'].includes(o.h.k) ? TX.shut : '')));
     // свой дом (табличка «Свой дом») — зайти к жене/мужу
     try { const lb = C.svHomeLabel && C.svHomeLabel(g); if (lb) doorsAround(S, u).forEach(o => { if (Wk.kvHomes && Wk.kvHomes[o.h.id] === 'Свой дом' && !out.some(x => x.p === lb)) out.push({v: 'menu', p: lb, label: 'Зайти домой', title: lb, grp: 'Прогулка'}); }); } catch (e) {}
@@ -73523,7 +73523,7 @@ C.walkPeople = function (S, g) {
 
 const hs0 = BF.houseSign;
 BF.houseSign = function (S, h) { try { const K = S && S.walk && S.walk.kvHomes; if (K && h && K[h.id]) return K[h.id]; } catch (e) {} return hs0.apply(this, arguments); };
-if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk' && !spec.wild) { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } try { C.walkPeople(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments); try { if (S && S.walk && spec && spec.setupKey === 'walk' && !spec.wild && !spec.dg) { const seen = new Set(); (S.units || []).forEach(u => { if (seen.has(u.id)) { const id0 = u.id; u.id = 'w' + Math.random().toString(36).slice(2, 9); if (S.order) S.order = S.order.map(x => x === id0 && false ? u.id : x); } seen.add(u.id); }); /* одинаковые id у двоих — хиты «прыгали» ±3 над головами (Ник 25.11) */ C.walkKnownHomes(S, g); try { C.walkOwnHome(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } try { C.walkPeople(S, g); } catch (e) { if (C.BF_DEBUG) console.error(e); } if (S.walk.signs) S.walk.signs = {}; } } catch (e) {} return S; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* kv_murder.js */
@@ -74269,6 +74269,114 @@ const bs0 = C.battleStart;
 C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments);
   try { if (S && S.walk && spec && spec.wild && !S.walk._wildDone) { S.walk._wildDone = 1; BF.ownRng(g, spec, () => C.wildSetup(S, g)); } } catch (e) { if (C.BF_DEBUG) console.error(e); }
   return S; };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* dg_walk.js */
+/* Колдовство — dg_walk: «Осмотреться» в каморе подземелья (Ник 26.11: «в пещерах всё идёт в диалоговых кнопках, а тут можно и простукать,
+   и всякие кнопки нажимать — атмосфернее»).
+   Камора — полем (bf_dungeon.js), отряд ходит по ней сам. То, что прежде было кнопками окна, — на своих местах:
+     стены — подойди к стене и «Простучать эту стену» (Поиск): пустота за ней — тайный ход откроется прямо на поле;
+     ходы — встань в проходе: «Пройти на север…», «Прислушаться у хода»; запертая дверь — вскрыть, выбить, осмотреть на ловушку;
+     ловушка, сундуки, письмена и алтарь, рычаги и черепа, вода — у своих вещей (метка с подписью);
+     заночевать, выбраться наружу — где угодно.
+   Решения и броски — те же, что в окне подземелья (тот же выбор, та же логика dungeon.js), только руками. Бой — обычный бой. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!R || !B || !C || !B.BF || !C.walkSetup || !C.dgGeom) return;
+const BF = B.BF; C.walkActsX = C.walkActsX || []; C.walkDoX = C.walkDoX || {};
+const lg = (S, t, cls) => { if (t) B.log(S, t, cls || ''); };
+const DW = {север: 'n', юг: 's', восток: 'e', запад: 'w', севере: 'n', юге: 's', востоке: 'e', западе: 'w'};
+const SIDEW = {n: 'север', s: 'юг', e: 'восток', w: 'запад'};
+const dirIn = s => { const m = String(s).match(/(?:^|\s)(?:на|На) (север[е]?|юг[е]?|восток[е]?|запад[е]?)(?=\s|$|—|\))/); return m ? DW[m[1]] : null; };
+const DG = g => g && g.dungeon;
+const foesHere = d => { const r = d.rooms[d.at] || {}; return (r.foes || []).length > 0 && !r.cleared && !r.friendly; };
+
+/* ---------- в окне подземелья: «Осмотреться» ---------- */
+const so = C.sceneOf;
+C.sceneOf = function (g, id) { const sc = so.apply(this, arguments);
+  try { const d = DG(g); if (sc && id === 'dungeon' && d && !d.pending && d.knock !== d.at && !d.fight && sc.choices && sc.choices.length) {
+      const busy = foesHere(d); const c = {i: 9800, t: 'Осмотреться: пройти по каморе', label: 'Осмотреться: пройти по каморе', title: 'Отряд ходит по каморе сам: простучать стены, подойти к ходам, к сундукам и письменам — руками.', do: g2 => C.dgWalkBegin(g2) || 'dungeon'};
+      if (busy) { c.dis = 'в каморе не одни — сперва разобраться'; c.if = () => false; c.off = c.dis; }
+      sc.choices = [c].concat(sc.choices); } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc; };
+C.dgWalkBegin = function (g) { const d = DG(g); if (!d || foesHere(d)) return null; const rn = ((d.rooms[d.at] || {}).name) || 'камора';
+  g.twalk = {v: 1, node: g.loc, wild: {dg: 1}, dg: 1, night: true, who: null, day: g.day, time: g.time, snap: null, min: 0};
+  return {battle: {title: d.name + ': ' + rn, foes: [], field: {}, setupKey: 'walk', dg: 1, weather: 'clear', night: true, place: d.name, xpBonus: 0, win: 'dungeon', lose: 'dungeon_out'}}; };
+
+/* поле — камора подземелья (как для боя в ней), без врагов */
+const fb0 = BF.forBattle;
+BF.forBattle = function (g, spec, ctx) { if (spec && spec.setupKey === 'walk' && spec.dg && DG(g)) { const d = DG(g); const keep = d.fight; d.fight = null; try { const s2 = Object.assign({}, spec, {setupKey: 'dungeon'}); delete s2.dg; return fb0.call(this, g, s2, ctx || {}); } finally { d.fight = keep; } } return fb0.apply(this, arguments); };
+
+/* ---------- метки: где что делать ---------- */
+const kindOf = lab => { const L = String(lab);
+  if (/^(На север|На юг|На восток|На запад)/.test(L)) return 'exit';
+  if (/двер[ьи]? (на|к) /.test(L) || /двер[ьи] на (севере|юге|востоке|западе)/.test(L)) return 'door';
+  if (/^Простукать стены/.test(L)) return 'knock';
+  if (/^Прислушаться у ходов/.test(L)) return 'listen';
+  if (/^(Заночевать|Выбраться наружу|Короткий привал)/.test(L) && !/воды/.test(L)) return 'any';
+  if (/Напасть|Биться|Подкрасться|Принять бой|Затаиться и пропустить|Увести погоню|договорит|Сойтись на|уговор|Стравить|засаду|Переждать в темноте|отчитать|выманить|Подбить/.test(L)) return 'any';
+  return 'feat'; };
+const featCell = (S, lab, room) => { const L = String(lab), cs = Object.values(S.field.cells).filter(z => z.room === room);
+  const find = ts => cs.find(z => ts.includes(z.t));
+  const ctr = (() => { const fl = cs.filter(z => z.t === 'floor'); if (!fl.length) return cs[0]; const cx = fl.reduce((s, z) => s + z.c, 0) / fl.length, cy = fl.reduce((s, z) => s + z.r, 0) / fl.length; return fl.sort((a, b) => Math.hypot(a.c - cx, a.r - cy) - Math.hypot(b.c - cx, b.r - cy))[0]; })();
+  if (/сундук|сокровищ/.test(L)) return find(['crate', 'chest', 'barrels']) || ctr;
+  if (/письмена|обряд|подношени|алтар|идол/.test(L)) return find(['altar', 'idol']) || ctr;
+  if (/вод|плиту/.test(L)) return find(['pool', 'shallow']) || ctr;
+  if (/павших/.test(L)) return ctr;
+  if (/тайник|по-воровски|лаз/.test(L)) { const w = cs.filter(z => z.t === 'floor' && B.neigh(z.c, z.r).some(p => { const y = B.cell(S, p.c, p.r); return y && (y.t === 'wall' || y.t === 'niche'); })); return w[Math.floor(w.length / 2)] || ctr; }
+  if (/череп|рычаг|повернуть|нажать|Повернуть|Нажать/.test(L)) return find(['idol', 'niche', 'altar', 'rubble']) || ctr;
+  return ctr; };
+const short = lab => String(lab).replace(/\s*\([^)]*\)\s*$/, '').replace(/^[А-ЯЁ][а-яё]+: /, '');
+const sideOf = (S, x, room) => { const fl = Object.values(S.field.cells).filter(z => z.room === room && z.t === 'floor'); if (!fl.length) return null; const cx = fl.reduce((s, z) => s + z.c, 0) / fl.length, cy = fl.reduce((s, z) => s + z.r, 0) / fl.length;
+  const dx = x.c - cx, dy = (x.r - cy) * 1.15; return Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 'e' : 'w') : (dy > 0 ? 's' : 'n'); };
+C.dgSpots = function (S, g) { const d = DG(g); if (!d) return; const room = d.at; S.wildSpots = []; let sc = null; try { sc = C.sceneOf(g, 'dungeon'); } catch (e) {} if (!sc) return;
+  (sc.choices || []).forEach(c => { if (c.i === 9800) return; const k = kindOf(c.label); if (k !== 'feat') return; const x = featCell(S, c.label, room); if (!x) return; if (!x.wf) { x.wf = {k: 'dg', lb: short(c.label).toLowerCase().slice(0, 28), labs: []}; S.wildSpots.push({c: x.c, r: x.r}); } x.wf.labs.push(c.label); }); };
+
+/* ---------- кнопки на поле ---------- */
+// какие стены каморы вообще можно простучать (глухие, без хода) — спросим окно подземелья
+const knockable = g => { const d = DG(g), was = d.knock, out = {}; d.knock = d.at; try { const sc = C.sceneOf(g, 'dungeon'), SD = (C.DGT || {}).SIDE || {}; (sc.choices || []).forEach(c => { for (const k in SD) if (c.label === 'Простукать ' + SD[k].a) out[k] = 1; }); } catch (e) {} d.knock = was; return out; };
+const atWall = (S, u) => B.neigh(u.c, u.r).map(p => B.cell(S, p.c, p.r)).filter(y => y && (y.t === 'wall' || y.t === 'niche'));
+const corHere = (S, u) => [{c: u.c, r: u.r}].concat(B.neigh(u.c, u.r)).map(p => B.cell(S, p.c, p.r)).find(y => y && (y.cor != null || y.t === 'door_shut'));
+C.walkActsX.push((S, u, out, g) => { const Wk = S.walk; if (!Wk || !Wk.dg || Wk.fight) return; const d = DG(g); if (!d) return; let sc = null; try { sc = C.sceneOf(g, 'dungeon'); } catch (e) {} if (!sc) return;
+  const room = d.at, add = (label, p, title, dis) => out.push({v: 'dgAct', p, label: short(label), title: title || label, grp: 'Камора', dis: dis || ''});
+  const L = (sc.choices || []).filter(c => c.i !== 9800);
+  const cor = corHere(S, u), side = cor ? sideOf(S, cor, room) : null;
+  L.forEach(c => { const k = kindOf(c.label), dis = c.dis || (c.if && !c.if(g) ? c.off || 'нельзя' : '');
+    if (k === 'any') add(c.label, c.label, '', dis);
+    else if ((k === 'exit' || k === 'door') && cor && dirIn(c.label) === side) add(c.label, c.label, '', dis);
+    else if (k === 'listen' && cor) add('Прислушаться у хода', c.label, c.label, dis);
+    else if (k === 'feat') { const x = featCell(S, c.label, room); if (x && B.dist(u, x) <= 2) add(c.label, c.label, '', dis); } });
+  // стены: стоишь у стены — простучать её
+  const walls = atWall(S, u); if (walls.length && L.some(c => /^Простукать стены/.test(c.label))) { const can = knockable(g), r = d.rooms[room] || {}; const k = walls.map(w => sideOf(S, w, room)).find(q => q && can[q]); if (k) add('Простучать эту стену (' + SIDEW[k] + ', Поиск)', 'knock:' + k, 'Мудрость, Поиск: пустота за стеной — тайный ход.', r.kn && r.kn[k] ? 'эту стену уже простучали' : ''); } });
+
+/* выбрать в окне подземелья то же самое — и посмотреть, что вышло */
+const choose = (g, lab) => { const sc = C.sceneOf(g, 'dungeon'); const c = (sc.choices || []).find(x => x.label === lab); if (!c) return {err: 'Так уже нельзя.'}; if (c.dis || (c.if && !c.if(g))) return {err: c.off || c.dis || 'Нельзя.'}; return {res: C.choose(g, 'dungeon', c.i)}; };
+C.walkDoX.dgAct = (S, u, a, t, g) => { const d = DG(g); if (!d) return 'Подземелья нет.'; const at0 = d.at, vis0 = d.edges.filter(e => !e.secret || e.found).length; let r;
+  if (/^knock:/.test(a.p)) { const k = a.p.slice(6); d.knock = d.at; const sc = C.sceneOf(g, 'dungeon'); const c = (sc.choices || []).find(x => x.label === 'Простукать ' + (((C.DGT || {}).SIDE || {})[k] || {}).a); if (!c) { d.knock = null; return 'Эту стену не простучать.'; } r = {res: C.choose(g, 'dungeon', c.i)}; if (d.knock === d.at) d.knock = null; }
+  else r = choose(g, a.p);
+  if (r.err) return r.err;
+  (d.msg || []).forEach(m => lg(S, Array.isArray(m) ? m[1] : m, '')); S.acted = true;
+  const res = r.res, vis1 = d.edges.filter(e => !e.secret || e.found).length;
+  if (res && typeof res === 'object' && res.battle) { S.walk.end = {k: 'dg', res}; S.over = 'walk'; return ''; }
+  if (res && typeof res === 'string' && res !== 'dungeon') { S.walk.end = {k: 'dg', res}; S.over = 'walk'; return ''; }
+  if (!DG(g)) { S.walk.end = {k: 'dg', res: res || 'map'}; S.over = 'walk'; return ''; }
+  if (d.at !== at0) { S.walk.end = {k: 'dg', res: 'next'}; S.over = 'walk'; return ''; }
+  if (vis1 !== vis0) { lg(S, 'Камень подаётся — за стеной открывается ход!', 'buff'); S.walk.end = {k: 'dg', res: 'again'}; S.over = 'walk'; return ''; }
+  if (d.pending || foesHere(d)) { S.walk.end = {k: 'dg', res: 'dungeon'}; S.over = 'walk'; return ''; }
+  try { C.dgSpots(S, g); } catch (e) {} return ''; };
+
+/* ---------- старт и конец ---------- */
+const bs0 = C.battleStart;
+C.battleStart = function (g, spec) { const S = bs0.apply(this, arguments);
+  try { if (S && S.walk && spec && spec.dg && !S.walk._dgDone) { S.walk._dgDone = 1; S.walk.dg = 1; S.walk.wild = 0; S.field.fog = true; C.dgSpots(S, g); const d = DG(g);
+      S.log.forEach(l => { if (typeof l.t === 'string') l.t = l.t.replace(/^Ночь, темень/, 'Под землёй темень').replace(/^Ночь\. /, 'Под землёй темно. '); }); lg(S, `Отряд расходится по каморе, светя под ноги.${(d.rooms[d.at] || {}).name ? ' Здесь — ' + (d.rooms[d.at].name || '').toLowerCase() + '.' : ''} Стены, ходы, всё, что лежит, — можно потрогать руками.`, 'round'); } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return S; };
+const wf0 = C.walkFinish;
+C.walkFinish = function (g, S) { if (!(S && S.walk && S.walk.dg)) return wf0.apply(this, arguments);
+  const E = S.walk.end || {k: 'back'}; try { C.walkClose(g, S); } catch (e) {} delete g.twalk;
+  if (E.k === 'dg') { const res = E.res; if (res && typeof res === 'object' && res.battle) return res; if (res === 'next' || res === 'again') return C.dgWalkBegin(g) || {scene: 'dungeon'}; if (res === 'map') return {map: 1}; return {scene: typeof res === 'string' ? res : 'dungeon'}; }
+  return {scene: DG(g) ? 'dungeon' : 'map'}; };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */
