@@ -74260,7 +74260,7 @@ const SEASON = g => (C.seasonOf ? C.seasonOf(g) : 'summer');
 const GATHER = {summer: {forest: ['griby_1_funt', 'orehi_1_funt', 'ovoshchi_ili_yaytsa_gorst'], marsh: ['ovoshchi_ili_yaytsa_gorst', 'griby_1_funt'], meadow: ['ovoshchi_ili_yaytsa_gorst'], hills: ['orehi_1_funt']},
   autumn: {forest: ['griby_1_funt', 'griby_1_funt', 'orehi_1_funt'], marsh: ['griby_1_funt'], meadow: ['repa_1_funt'], hills: ['orehi_1_funt']},
   spring: {forest: ['ovoshchi_ili_yaytsa_gorst'], marsh: ['ovoshchi_ili_yaytsa_gorst'], meadow: ['ovoshchi_ili_yaytsa_gorst'], hills: []}, winter: {forest: ['orehi_1_funt'], hills: [], meadow: [], marsh: []}};
-const HERBS = ['podorozhnik', 'zveroboy', 'polyn', 'myata', 'shipovnik', 'lipovyy_tsvet', 'oduvanchik', 'koren_paporotnika', 'smorodina'];
+const HERBS = ['podorozhnik', 'zveroboy', 'polyn', 'myata', 'shipovnik', 'lipovyy_tsvet', 'oduvanchik', 'koren_paporotnika', 'smorodina', 'volchya_yagoda', 'bolegolov', 'durman'];
 const RARE = ['koren_mandragory_adamova_golova', 'kaplya_rosy', 'pahuchiy_tsvetok'];
 const GAME = {hare: {n: 'Заяц', meat: 2, hp: 3, steps: 9, skin: null}, deer: {n: 'Олень', meat: 8, hp: 14, steps: 9, skin: 'tr_shkura_zverya'}, boar: {n: 'Кабан', meat: 6, hp: 22, steps: 6, skin: 'tr_kabanyi_klyki', mon: 'kaban'}};
 const LABEL = {herb: 'травы', shroom: 'грибы, ягоды', brush: 'хворост', track: 'следы', find: 'что-то лежит'};
@@ -75659,4 +75659,52 @@ SC.kn_sell = g => { const L = C.knSellList(g), lines = [['n', 'Книжник л
 Object.values(C.CAMPS).forEach(camp => Object.entries(SC).forEach(([k, sc]) => { camp.scenes[k] = sc; }));
 { const ks0 = Object.values(C.CAMPS)[0].scenes.kn_scribe; if (ks0) { const ks = function (g) { const sc = ks0.apply(this, arguments); try { const back = sc.choices.pop(); sc.choices.push({t: 'Продать книги и свитки', do: g2 => { g2.knLast = null; return 'kn_sell'; }}); sc.choices.push(back); } catch (e) {} return sc; };
   Object.values(C.CAMPS).forEach(camp => { camp.scenes.kn_scribe = ks; }); } }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* poisons.js */
+/* Колдовство — яды душегуба готовят сами (Ник 26.11: «яд надо готовить: базовые ингредиенты; простой — в дороге или в городе
+   из меню персонажа, без приблуд; сложные и сильные — рецепты и ингредиенты; наносить только на кинжалы»).
+   • Ядовитые травы: волчья ягода, болиголов, дурман — находятся «Поиском трав» в дороге и на «Осмотреться» в лесу.
+   • Простая отрава (yad_prostoy): душегуб варит сам, где угодно, из двух любых ядовитых трав — две склянки; час времени.
+   • Склянок на бой больше не дают даром: «Яд на клинок» в бою тратит склянку простой отравы из сумы.
+   • Сильные яды (клинковый, смертный) — по книге «Яды на клинок»: душегуб варит их и без «Приготовления зелий»,
+     ступень ему в этом — как у зельевара: 1 + уровень/4.
+   • Яд держится только на кинжале или ноже: с мечом, топором, саблей — нельзя. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B;
+if (!R || !C || !B) return;
+const D = G.DATA || (typeof DATA !== 'undefined' ? DATA : null);
+const HERB = {volchya_yagoda: ['Волчья ягода', 'Красные ягоды с кустов у оврагов. Есть нельзя — разве что на отраву.'],
+  bolegolov: ['Болиголов', 'Зонтик с мышиным духом. От него немеют губы, а потом и всё остальное.'], durman: ['Дурман', 'Колючие коробочки с семенами. Мутит голову, сушит рот.']};
+Object.entries(HERB).forEach(([id, [name, notes]]) => { if (!D.items[id]) D.items[id] = {_t: 'g', id, name, price: 8, weight_kg: 0.05, category: 'компоненты', notes: notes + ' Ядовитая трава: из двух таких душегуб сварит простую отраву.', poisonHerb: 1}; });
+const YAD = 'yad_prostoy';
+if (!D.items[YAD]) D.items[YAD] = {_t: 'g', id: YAD, name: 'Простая отрава (склянка)', price: 60, weight_kg: 0.1, category: 'зелья', notes: 'Своя варка из ядовитых трав. Душегуб мажет ею кинжал или нож в бою (малое действие): следующий удачный удар травит.'};
+C.POISON_HERBS = Object.keys(HERB);
+const isDagger = id => { if (!id) return false; const b = R.baseId ? R.baseId(id) : String(id).split('~')[0]; if (['kinzhal', 'nozh'].includes(b)) return true; const it = R.item(b) || R.item(id); return !!(it && /^(Кинжал|Нож)(?!-тесак)/.test(it.name || '') && !/тесак/i.test(it.name || '')); };
+C.isDagger = isDagger;
+const herbs = h => (h.inv || []).filter(x => HERB[x]);
+/* ---------- варить простую отраву ---------- */
+C.yadWhy = (g, h) => { if (!h || h.cls !== 'dushegub') return 'отраву варит душегуб'; if (herbs(h).length < 2) return 'нужно две ядовитые травы (волчья ягода, болиголов, дурман)'; if (h.busy) return C.busyText ? C.busyText(g, h) : 'занят'; if (g && g.dungeon) return 'в подземелье не до варки'; return ''; };
+C.yadMake = function (g, h) { const why = C.yadWhy(g, h); if (why) return {err: why}; const hs = herbs(h).slice(0, 2); hs.forEach(x => h.inv.splice(h.inv.indexOf(x), 1)); h.inv.push(YAD, YAD);
+  let t = `${h.name} толчёт ${hs.map(x => HERB[x][0].toLowerCase()).join(' и ')}, выпаривает на огне — две склянки простой отравы.`; t += C.spendTime ? C.spendTime(g, h, 1, 'варит отраву') : ''; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+{ const am0 = C.wbActsMore, ak0 = C.wbActMore;
+  C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; if (HERB[id] && h && h.cls === 'dushegub') a.push({t: 'Сварить простую отраву (2 травы → 2 склянки)', k: 'yad_make', why: C.yadWhy(g, h)}); return a; };
+  C.wbActMore = function (g, h, id, k) { if (k === 'yad_make') { const r = C.yadMake(g, h); return r.err ? r : {text: r.text}; } return ak0 ? ak0.apply(this, arguments) : {err: 'не выходит'}; }; }
+/* ---------- в бою: склянки — из сумы, только на кинжал ---------- */
+const weaponOf = u => (u && u.ref && u.ref.eq && u.ref.eq.weapon) || null;
+if (B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments); try { (S.units || []).forEach(u => { if (u.side === 'party' && u.ref && u.cls === 'dushegub') u.poison = isDagger(weaponOf(u)) ? (u.ref.inv || []).filter(x => x === YAD).length : 0; }); } catch (e) {} return S; }; }
+if (B.poisonWhy) { const pw0 = B.poisonWhy; B.poisonWhy = function (S, u) { if (u && u.ref && u.cls === 'dushegub' && !isDagger(weaponOf(u))) return 'Яд держится только на кинжале или ноже.'; const why = pw0.apply(this, arguments); return why === 'Склянки с ядом на этот бой кончились.' ? 'Склянок простой отравы в суме нет: сварите из ядовитых трав.' : why; }; }
+if (B.poisonBlade) { const pb0 = B.poisonBlade; B.poisonBlade = function (S, u) { if (u && u.ref && !isDagger(weaponOf(u))) return 'Яд держится только на кинжале или ноже.'; const r = pb0.apply(this, arguments); try { if (u && u.ref && u.ref.inv) { const i = u.ref.inv.indexOf(YAD); if (i >= 0) u.ref.inv.splice(i, 1); } } catch (e) {} return r; }; }
+// клинковые зелья (по книге) — тоже только на кинжал
+if (B.usePotion) { const up0 = B.usePotion; B.usePotion = function (S, u, id) { if (C.potKind && C.potKind(id) === 'blade' && u && u.ref && !isDagger(weaponOf(u))) return 'Яд держится только на кинжале или ноже.'; return up0.apply(this, arguments); }; }
+/* ---------- сильные яды по книге: душегуб варит и без «Приготовления зелий» ---------- */
+const YADY = ['zelye_yad', 'zelye_yad_smert'];
+const dTier = h => (h && h.cls === 'dushegub' ? 1 + Math.floor((h.level || 1) / 4) : 0);
+const withTier = (h, fn) => { const keep = h.prof && h.prof.zelya; const t = dTier(h); if (!t || (keep || 0) >= t) return fn(); h.prof = h.prof || {}; h.prof.zelya = t; try { return fn(); } finally { if (keep) h.prof.zelya = keep; else delete h.prof.zelya; } };
+if (C.recipesOf) { const ro0 = C.recipesOf; C.recipesOf = function (h) { const base = ro0.apply(this, arguments); if (!h || h.cls !== 'dushegub' || !(h.potKnown || []).some(p => YADY.includes(p))) return base;
+  const ext = withTier(h, () => ro0.call(this, h)).filter(p => YADY.includes(p)); return [...new Set(base.concat(ext))]; }; }
+['canBrewRecipe', 'brewRecipe', 'brewChance'].forEach(k => { const f0 = C[k]; if (!f0) return; C[k] = function (a, b, c) { const h = k === 'brewRecipe' ? b : a, id = k === 'brewRecipe' ? c : b; if (h && h.cls === 'dushegub' && YADY.includes(id)) return withTier(h, () => f0.apply(this, arguments)); return f0.apply(this, arguments); }; });
+if (C.krWhy) { const kw0 = C.krWhy; C.krWhy = function (g, h, id) { const b = C.krBook && C.krBook(id); if (b && b.pot === 'yady' && h && h.cls === 'dushegub') return withTier(h, () => kw0.apply(this, arguments)); return kw0.apply(this, arguments); }; }
+if (C.krStudy) { const ks0 = C.krStudy; C.krStudy = function (g, h, id) { const b = C.krBook && C.krBook(id); if (b && b.pot === 'yady' && h && h.cls === 'dushegub') return withTier(h, () => ks0.apply(this, arguments)); return ks0.apply(this, arguments); }; }
 })(typeof window !== 'undefined' ? window : globalThis);

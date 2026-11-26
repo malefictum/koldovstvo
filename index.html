@@ -27927,7 +27927,7 @@ C.brewRecipe = function (g, h, id) {
   C.note(g, text); return {ok, text};
 };
 /* поиск трав теперь даёт и компоненты */
-const HERBS = ['podorozhnik', 'yabloko_dichka_zelenoe', 'pahuchiy_tsvetok', 'kaplya_rosy', 'chesnok', 'koren_paporotnika', 'polyn', 'zveroboy', 'myata'];
+const HERBS = ['podorozhnik', 'yabloko_dichka_zelenoe', 'pahuchiy_tsvetok', 'kaplya_rosy', 'chesnok', 'koren_paporotnika', 'polyn', 'zveroboy', 'myata', 'volchya_yagoda', 'bolegolov'];
 if (G.W) { const st0 = G.W.step; G.W.step = function (g, cell, isLast) { const had = g.herbDay; const r = st0(g, cell, isLast);
   if (g.herbDay === g.day && had !== g.day) { const h = C.alive(g).filter(x => T(x, 'travy')).sort((a, b) => T(b, 'travy') - T(a, 'travy'))[0]; if (h) { const n = 1 + T(h, 'travy'); const got = []; for (let i = 0; i < n; i++) { const c = R.pick(HERBS); if (DATA.items[c]) { h.inv.push(c); got.push(R.item(c).name.toLowerCase()); } } if (got.length) C.note(g, `${h.name} собирает ещё: ${got.join(', ')}.`); } }
   return r; }; }
@@ -29410,7 +29410,7 @@ B.start = function (o) {
   if (o.ambush === 'party') o.party.forEach(u => { u.initBonus = (u.initBonus || 0) + 10; if (STEALTHY.includes(u.cls)) u.conds.hidden = 1; });
   if (o.prep && o.prep.know) o.party.forEach(u => { u.initBonus = (u.initBonus || 0) + 3; });
   const S = start0.apply(this, arguments);
-  if (o.prep && o.prep.venom) S.units.filter(u => u.side === 'party' && u.cls === 'dushegub' && u.poison > 0).forEach(u => { u.poison--; u.venom = true; B.log(S, `${u.name} ещё в засаде смазал клинок ядом.`, 'buff'); });
+  if (o.prep && o.prep.venom) S.units.filter(u => u.side === 'party' && u.cls === 'dushegub' && u.poison > 0).forEach(u => { u.poison--; u.venom = true; try { const i = (u.ref.inv || []).indexOf('yad_prostoy'); if (i >= 0) u.ref.inv.splice(i, 1); } catch (e) {} B.log(S, `${u.name} ещё в засаде смазал клинок ядом.`, 'buff'); });
   if (o.noFlee) S.noFlee = true;
   return S;
 };
@@ -50201,7 +50201,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261307"></script><script>
+</script><script src="world.js?v=202611261318"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
