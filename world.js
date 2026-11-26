@@ -74541,7 +74541,7 @@ BF.cityQuarter = function (F, q, seed) {
   for (let r = ra; r <= rbIn; r++) for (let qq = qa; qq <= qb; qq++) { if (r === ra || r === rbIn || qq === qa || qq === qb) { const x = setQ(qq, r, 'pali', 'pali'); if (x) { x.hyard = '~'; wallCells.push({qq, r, x}); } } }
   // главные улицы: поперёк (середина) и вдоль (середина) — по две клетки, мощёные
   const rm = Math.floor((ra + rbIn) / 2), qm = Math.floor((qa + qb) / 2);
-  const road = (qq, r) => { if (qq <= qa || qq >= qb || r <= ra || r >= rbIn) return; const x = setQ(qq, r, 'road', 'pave'); if (x) x.hyard = '~'; };
+  const road = (qq, r) => { if (qq <= qa || qq >= qb || r <= ra || r >= rbIn) return; const x = setQ(qq, r, 'road', 'pave'); if (x) x.hyard = '~'; return x; };
   for (let qq = qa + 1; qq < qb; qq++) { road(qq, rm); road(qq, rm + 1); }
   for (let r = ra + 1; r < rbIn; r++) { road(qm, r); road(qm + 1, r); }
   // ворота: концы главных улиц, куда есть путь
@@ -74551,7 +74551,7 @@ BF.cityQuarter = function (F, q, seed) {
   gate(qa, rm, 'w'); gate(qa, rm + 1, 'w'); gate(qb, rm, 'e'); gate(qb, rm + 1, 'e'); gate(qm, ra, 'n'); gate(qm + 1, ra, 'n'); if (!wet) { gate(qm, rbIn, 's'); gate(qm + 1, rbIn, 's'); }
   // площадь в середине: торг и детинец — шире
   const sq = q === 'torg' ? [12, 4] : q === 'detinets' ? [10, 4] : [3, 2];
-  for (let r = rm - sq[1]; r <= rm + 1 + sq[1]; r++) for (let qq = qm - sq[0]; qq <= qm + 1 + sq[0]; qq++) road(qq, r);
+  for (let r = rm - sq[1]; r <= rm + 1 + sq[1]; r++) for (let qq = qm - sq[0]; qq <= qm + 1 + sq[0]; qq++) { const x = road(qq, r); if (x) x.sq = 1; }
   // улицы рядами: поперёк через каждые P рядов; переулки вдоль — через каждые ~3 двора
   const P = q === 'posad' ? 9 : q === 'torg' || q === 'detinets' ? 11 : 10, streets = [];
   // улицы рядами: сверху вниз от стены — через P; последняя над площадью оставляет место большим домам (до 9 рядов)
