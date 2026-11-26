@@ -74497,6 +74497,7 @@ if (!B || !B.BF || !C || !C.walkSpec) return;
 const BF = B.BF, key = BF.key;
 const L = () => BF._hbLib;
 const HT = BF.HOUSE_T;
+if (B.TERRAIN && !B.TERRAIN.stall) { B.TERRAIN.stall = {name: 'торговый ряд', block: true, cover: 2}; B.TERRAIN.trough = {name: 'колода', block: true, cover: 1}; }
 const Q = C.CITY_Q = {
   torg: {n: 'Торг', w: 'на Торг', gen: 'торга'},
   detinets: {n: 'Детинец', w: 'в Детинец', gen: 'детинца'},
@@ -74599,12 +74600,17 @@ BF.cityQuarter = function (F, q, seed) {
     const fp = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(Boolean), top = Math.min(...fp.map(x => x.r));
     fp.filter(x => x.r === top).forEach(x => { const up = B.neigh(x.c, x.r).map(p => F.cells[key(p.c, p.r)]).filter(y => y && y.r < top && y.t === 'grass' && y.hb == null && !busy[key(y.c, y.r)]); up.forEach(y => { if (rnd() < 0.55) y.t = 'fence'; }); });
     const side = fp.filter(x => x.r === top + 1).map(x => B.neigh(x.c, x.r).map(p => F.cells[key(p.c, p.r)]).find(y => y && y.t === 'grass' && y.hb == null && !busy[key(y.c, y.r)])).filter(Boolean)[0];
-    if (side && rnd() < 0.6) side.t = h.k === 'kuznya' ? 'barrels' : pick(['wood', 'wood', 'barrels']); }
+    if (side && rnd() < 0.6) { side.t = h.k === 'kuznya' ? 'barrels' : pick(['wood', 'wood', 'barrels']); if (side.t === 'wood') { side.vp = 'p_woodpile'; side.vy = side.vy || 'prop'; } } }
+  // колода у конюшни и корчмы — коней поить
+  function trough(h) { const fp = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(Boolean), bot = Math.max(...fp.map(x => x.r));
+    const y = fp.filter(x => x.r === bot).flatMap(x => B.neigh(x.c, x.r).map(p => F.cells[key(p.c, p.r)])).find(y => y && y.t === 'grass' && y.hb == null && !busy[key(y.c, y.r)] && !(h.doors || []).some(d => B.dist(d, y) <= 1));
+    if (y) { y.t = 'trough'; y.vp = 'p_trough'; y.vy = y.vy || 'prop'; } }
+  BF.houses(F).forEach(h => { if (['konyushnya', 'korchma', 'korchma_big', 'hlev'].includes(h.k)) trough(h); });
   // площадь: колодец, лобное место, прилавки торга; детинец — звезда Ока у храма
   const sqC = off(qm, rm), wellX = F.cells[key(sqC.c + 1, sqC.r + 2)] || F.cells[key(sqC.c, sqC.r)];
   if (wellX) { wellX.t = 'well'; delete wellX.vy; }
   if (q === 'torg') { // ряды прилавков: телеги и бочки в два ряда по площади
-    for (let qq = qm - sq[0] + 2; qq <= qm + sq[0] - 1; qq += 3) [rm - 2, rm + 3].forEach((r, j) => { const x = cellQ(qq, r); if (x && x.t === 'road' && !(x.c === wellX.c && x.r === wellX.r)) { x.t = (qq + j) % 2 ? 'cart' : 'barrels'; delete x.vy; } }); }
+    for (let qq = qm - sq[0] + 2; qq <= qm + sq[0] - 1; qq += 3) [rm - 2, rm + 3].forEach((r, j) => { const x = cellQ(qq, r); if (x && x.t === 'road' && !(x.c === wellX.c && x.r === wellX.r)) { if ((qq + j) % 3 === 2) { x.t = 'cart'; } else { x.t = 'stall'; x.vp = (qq + j) % 2 ? 'p_stall_cloth' : 'p_stall_baskets'; } } }); }
   // посад: огороды по краю у стены; колодцы на улицах
   if (q === 'posad' || q === 'sloboda') Object.values(F.cells).forEach(x => { if (x.t !== 'grass' || x.hb != null || x.lot || busy[key(x.c, x.r)]) return; const qq = x.c - (x.r - (x.r & 1)) / 2; if (inQ(qq, x.r) && (qq <= qa + 2 || qq >= qb - 2 || x.r <= ra + 2) && rnd() < 0.7) { x.t = 'ogorod'; x.vy = 'og'; x.hyard = '~'; } });
   streets.forEach((r, i) => { if (i % 2) return; const x = cellQ(qm + 6 + (i * 7) % 15, r - 1); if (x && x.t === 'grass' && x.hb == null) x.t = 'well'; });
