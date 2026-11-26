@@ -4017,23 +4017,24 @@ Q.PLACE = {
 
 /* ---------- заказчики ---------- */
 /* t — кто (как назвать на кнопке), say — как говорит, mul — щедрость */
+Q.BONUS_SAY = ['Сделаешь чисто — накину ещё {x} сверху, за расторопность.', 'Дело спешное — так что ещё {x} сверху.', 'И ещё {x} от меня лично, если обойдётся без шума.'];
 Q.GIVER = {
-  starosta: {t: 'староста', mul: 1, sex: 'm', town: 1},
-  tiun: {t: 'тиун', mul: 1.2, sex: 'm', town: 1},
-  korchmar: {t: 'корчмарь', mul: 0.9, sex: 'm', town: 1},
+  starosta: {t: 'староста', mul: 1.15, bonus: 0.15, sex: 'm', town: 1},
+  tiun: {t: 'тиун', mul: 1.45, bonus: 0.3, sex: 'm', town: 1},
+  korchmar: {t: 'корчмарь', mul: 1, bonus: 0.1, sex: 'm', town: 1},
   kuznets: {t: 'кузнец', mul: 0.9, sex: 'm', town: 1, gift: 'weapon'},
   vdova: {t: 'вдова-хозяйка', mul: 0.8, sex: 'f', town: 1},
   znakharka: {t: 'знахарка', mul: 0.7, sex: 'f', town: 1, gift: 'potion', ppl: ['nolgrim', 'loss'], voice: 'znakharka'},
-  kupets: {t: 'купец', mul: 1.3, sex: 'm', town: 1, voice: 'kupets'},
+  kupets: {t: 'купец', mul: 1.6, bonus: 0.35, sex: 'm', town: 1, voice: 'kupets'},
   zhritsa: {t: 'жрица Мокоши', mul: 0.8, sex: 'f', town: 1, side: 'kap', ppl: ['nolgrim', 'nolgrim', 'loss'], voice: 'zhritsa'},
-  okovets: {t: 'человек Ока', mul: 1.25, sex: 'm', town: 1, side: 'oko', ppl: ['imperets', 'imperets', 'nolgrim'], voice: 'oko'},
+  okovets: {t: 'человек Ока', mul: 1.5, bonus: 0.25, sex: 'm', town: 1, side: 'oko', ppl: ['imperets', 'imperets', 'nolgrim'], voice: 'oko'},
   // на дороге
   putnik: {t: 'путник', mul: 0.6, road: 1},
   pastukh: {t: 'пастух', mul: 0.5, sex: 'm', road: 1},
   bortnik: {t: 'бортник', mul: 0.5, sex: 'm', road: 1, gift: 'honey'},
-  voznitsa: {t: 'возница', mul: 0.7, sex: 'm', road: 1},
+  voznitsa: {t: 'возница', mul: 0.8, bonus: 0.1, sex: 'm', road: 1},
   palomnitsa: {t: 'паломница', mul: 0.5, sex: 'f', road: 1, gift: 'blessing'},
-  gonets: {t: 'гонец', mul: 0.9, sex: 'm', road: 1},
+  gonets: {t: 'гонец', mul: 1.1, bonus: 0.2, sex: 'm', road: 1},
   rybak: {t: 'рыбак', mul: 0.5, sex: 'm', road: 1},
   lesorub: {t: 'лесоруб', mul: 0.5, sex: 'm', road: 1},
   ranenyy: {t: 'раненый ратник', mul: 0.6, sex: 'm', road: 1},
@@ -4299,6 +4300,7 @@ Q.make = function (g, src, opt) {
   const job = {id: Q.uid(g), src, giverId, kind, thr, diff, terr, site, v, stages, stage: 0, used: {}, twist, status: 'offer', node: g.loc, day: g.day,
     dl: g.day + (K.rush ? 2 : diff === 'hard' ? 5 : 7), pay: GV.omen ? 0 : Q.pay(g, diff, GV.mul), hook: R.rand() * 9 | 0, haggled: 0, notes: []};
   if (GV.omen) job.treasure = Q.pay(g, diff, 1.2);
+  if (GV.bonus && R.rand() < GV.bonus) { const add = Math.max(20, Math.round(job.pay * (0.25 + R.rand() * 0.25) / 10) * 10); job.pay += add; job.bonus = add; } // щедрый заказчик — надбавка сверху (Ник 27.11)
   job.txt = Q.offerText(g, job);
   if (kind === 'investigate') { const RL = [['мельник', 'мельничиха'], ['сосед-бондарь', 'соседка-бондариха'], ['батрак', 'батрачка'], ['зять старосты', 'сноха старосты'], ['бортник', 'бортничиха'], ['вдовий сын', 'вдовья дочь']];
     job.suspects = [Q.person(g), Q.person(g), Q.person(g)].map((p, i) => Object.assign(p, {role: RL[(job.hook + i * 2) % 6][p.sex === 'f' ? 1 : 0]})); job.culprit = R.rand() * 3 | 0; job.clues = 0; }
@@ -4338,9 +4340,10 @@ Q.offerLines = function (g, j) {
   L.push(['n', tx.intro]);
   L.push([j.v.giver.n, '«' + tx.hook + '»']);
   const days = Math.max(1, j.dl - g.day), pays = Q.TXT.PAY[tx.payKey];
-  const pay = fmt(pays[(j.hook || 0) % pays.length], R.priceText(j.payBase || j.pay)), dl = fmt(tx.dl || Q.TXT.DEADLINE[0], days);
+  const pay = fmt(pays[(j.hook || 0) % pays.length], R.priceText((j.payBase || j.pay) - (j.bonus && !j.payBase ? j.bonus : 0))), dl = fmt(tx.dl || Q.TXT.DEADLINE[0], days);
   // условия — словами самого заказчика, в кавычках; рассказчик только отмечает место на карте
   L.push([j.v.giver.n, `«${tx.diff} ${pay} ${dl}»`]);
+  if (j.bonus && !j.haggled) L.push([j.v.giver.n, '«' + Q.BONUS_SAY[(j.hook || 0) % Q.BONUS_SAY.length].replace('{x}', R.priceText(j.bonus)) + '»']);
   if (j.site && mapHint(g, j)) L.push(['n', 'Место, куда идти, вы отмечаете на карте.']);
   return L;
 };
@@ -50345,7 +50348,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270132"></script><script>
+</script><script src="world.js?v=202611270157"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54172,6 +54175,10 @@ function drawField(noFollow) {
         const txt = (C.bkHitWord && C.bkHitWord(S, t, ch, ranged)) || (ranged ? 'выстрел' : 'удар'); ctx.save(); ctx.font = `700 ${Math.max(12, Math.round(s2 * 0.42))}px "Alegreya SC", serif`; const tw = ctx.measureText(txt).width + 14;
         ctx.fillStyle = 'rgba(20,14,8,.9)'; ctx.strokeStyle = ch >= 60 ? '#a6d38a' : ch >= 40 ? '#e7c983' : '#ff8a70'; ctx.lineWidth = 1.5; const bx = p.x - tw / 2, by = p.y - s2 * 2.75;
         ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx, by, tw, s2 * 0.62, 5) : ctx.rect(bx, by, tw, s2 * 0.62); ctx.fill(); ctx.stroke(); ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText(txt, p.x, by + s2 * 0.31); ctx.restore(); } } }
+  // слышно, но не видно: знак на клетке «там кто-то есть» (bf_search.js)
+  if (B.BF && B.BF.heardMarks) { try { B.BF.heardMarks(S).forEach(m => { const p = hexXY(m.c, m.r), s = geo.s, age = (S.bfTick || 0) - m.t, a = Math.max(0.35, 1 - age / 9);
+    ctx.save(); ctx.globalAlpha = a; ctx.beginPath(); ctx.arc(p.x, p.y - s * 0.3, s * 0.42, 0, Math.PI * 2); ctx.fillStyle = 'rgba(20,14,8,.75)'; ctx.fill(); ctx.strokeStyle = '#e7c983'; ctx.lineWidth = 1.5; ctx.setLineDash([3, 3]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#e7c983'; ctx.font = `700 ${Math.round(s * 0.5)}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillText('?', p.x, p.y - s * 0.28); ctx.restore(); }); } catch (e) {} }
   // прикрытие: пунктир от стража и щит над прикрытым
   S.units.filter(u => B.guardOf(S, u)).forEach(u => { const gd = B.guardOf(S, u), p = hexXY(u.c, u.r), q = hexXY(gd.c, gd.r), s = geo.s;
     ctx.save(); ctx.strokeStyle = 'rgba(231,201,131,.8)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]); ctx.beginPath(); ctx.moveTo(p.x, p.y + s * 0.45); ctx.lineTo(q.x, q.y + s * 0.45); ctx.stroke(); ctx.setLineDash([]);
@@ -54766,6 +54773,7 @@ function bfOver(S, cur) {
 function mineSeesCell(S, c, r) { const BF = B.BF; if (!BF || !BF.viewMine || !BF.visView || !S.field.fog) return true; const w = BF.visView(S); return !w || w[c + ',' + r] === 1; }
 let SIL_NOW = false;
 function seenByParty(S, u) {
+  if (B.BF && B.BF.soulSeen && B.BF.soulSeen(S, u)) return true; // Зрение Душ / Нежити — сквозь стены и темень
   if (S && u && u.side !== 'party' && !u.dead && u.c != null && B.BF && B.BF.viewMine) { const x = B.cell(S, u.c, u.r); if (x && x.hb != null && !mineSeesCell(S, u.c, u.r)) return false; } // враг в доме, которого мои не видят
   if (S && u && u.side !== 'party' && !u.dead && B.bfHidden && B.bfHidden(S, u)) return false;
   if (!S || !u || u.side !== 'foe' || u.dead || u.down) return true;

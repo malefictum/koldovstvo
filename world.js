@@ -76928,6 +76928,36 @@ C.sceneOf = function (g, id) {
   return sc;
 };
 if (C.SPLIT && C.SPLIT.CTX && !C.SPLIT.CTX.includes('spTopic')) C.SPLIT.CTX.push('spTopic');
+/* ---------- наёмница (наёмник), с кем у героя дитя: «Как ты? Как дитя?» в разговоре по душам (w2_merctalk) ---------- */
+if (C.mtView && C.mtAsk && C.mtReply) {
+  const mfams = (g, h) => Object.values((g.w2kids || {}).fam || {}).filter(F => F && F.kv && F.kv.pid === 'merc:' + h.id);
+  const mWait = (g, h) => mfams(g, h).some(F => F.kvPreg && F.kvPreg.told);
+  const mKid = (g, h) => mfams(g, h).flatMap(F => (F.kids || []).filter(k => !k.went && !k.dead))[0] || null;
+  const quote = t => { const m = /«([^»]+)»/.exec(t); return m ? m[1] : t; };
+  const heroOfM = (g, h) => { const F = mfams(g, h)[0]; return F ? (C.alive(g).find(x => x.id === F.hero) || null) : null; };
+  const v0 = C.mtView; C.mtView = function (g, h) { const v = v0.apply(this, arguments);
+    try { if (v && h && h.kind === 'merc') { const w = mWait(g, h), k = mKid(g, h), done = (h.kvChatDay === g.day);
+      if (w) v.qs = v.qs.concat({id: 'kv:preg', t: h.sex === 'f' ? 'Как ты? Как дитя?' : 'Как ты меня бережёшь?', asked: done, dis: done ? 'завтра' : ''});
+      else if (k) v.qs = v.qs.concat({id: 'kv:kid', t: `Как там ${k.n || (k.sex === 'f' ? 'наша дочка' : 'наш малой')}?`, asked: done, dis: done ? 'завтра' : ''}); } } catch (e) {}
+    return v; };
+  const a0 = C.mtAsk; C.mtAsk = function (g, h, qid) {
+    if (!/^kv:/.test(String(qid))) return a0.apply(this, arguments);
+    const hero = heroOfM(g, h); if (!hero) return {err: 'об этом не спросить'}; if (h.kvChatDay === g.day) return {err: 'об этом — завтра'};
+    const f = h.sex === 'f', src = qid === 'kv:preg' ? 'preg' : 'kid', P = (f ? KV.F : KV.M)[src] || [], k = mKid(g, h), ks = k && C.kidStage ? C.kidStage(g, k) : 1;
+    const ok = P.map((t, i) => ({t, i})).filter(x => x.t.s0 == null || (ks >= x.t.s0 && ks <= x.t.s1)); if (!ok.length) return {err: 'об этом не спросить'};
+    const seen = h.kvSeen || []; let fr = ok.filter(x => !seen.includes(src + x.i)); if (!fr.length) { h.kvSeen = []; fr = ok; } const q = fr[Math.floor(R.rand() * fr.length)];
+    h.kvSeen = (h.kvSeen || []).concat(src + q.i).slice(-30); h.kvChatDay = g.day;
+    const o = {h: hero, p: {n: h.name, sex: h.sex}, x: {k: k ? (k.n || (k.sex === 'f' ? 'дочка' : 'сынок')) : 'малой'}};
+    h.kvPend = {src, i: q.i, day: g.day}; const text = quote(fill(q.t.o, o)); C.note(g, `${h.name}: «${text}»`);
+    return {ok: true, q: qid === 'kv:preg' ? 'Как ты? Как дитя?' : 'Как там малой?', text, repeat: false, mood: 'warm', opts: q.t.r.map((r, j) => ({k: 'kv' + j, t: fill(r[0], o)}))}; };
+  const r0 = C.mtReply; C.mtReply = function (g, h, kk) {
+    if (!/^kv\d$/.test(String(kk)) || !h || !h.kvPend) return r0.apply(this, arguments);
+    const P = h.kvPend; delete h.kvPend; const hero = heroOfM(g, h), f = h.sex === 'f', t = ((f ? KV.F : KV.M)[P.src] || [])[P.i]; if (!t || !hero) return {err: 'отвечать уже поздно'};
+    const k = mKid(g, h), o = {h: hero, p: {n: h.name, sex: h.sex}, x: {k: k ? (k.n || (k.sex === 'f' ? 'дочка' : 'сынок')) : 'малой'}};
+    const [lab, ans, eff] = t.r[+kk.slice(2)] || t.r[0]; if (C.mwAdd) C.mwAdd(g, h, eff >= W ? 2 : eff >= N ? 1 : eff <= XX ? -3 : -1);
+    const react = quote(fill(ans, o)); C.note(g, `${narr(hero, fill(lab, o))} ${h.name}: «${react}»`);
+    return {ok: true, hero: {name: hero.name, face: hero.portrait || '', sex: hero.sex, text: narr(hero, fill(lab, o)), nar: true}, react, cls: eff > 0 ? 'good' : eff < 0 ? 'bad' : '', d: eff}; };
+}
 C.SP_CHAT = {WF, WM};
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -76973,9 +77003,16 @@ BF.spellNoise = function (sp) { if (!sp) return BF.SRCH.spell; const nm = String
   if (!/^Защита/.test(nm) && /Молни|Гроз|Гром|Землетряс|Смерч|Пожар|Перун|Разряд|Крик|песнь|Шок/i.test(nm)) return 18;
   if (/damage/.test(k)) return /огн|пламя|жар|взрыв/i.test(nm + ef) ? 14 : 10;
   return 6; };
-BF.noiseOf = function (S, u, kind, sp) {
-  let n = kind === 'melee' ? BF.SRCH.melee : kind === 'shot' ? BF.SRCH.shot : kind === 'spell' ? BF.spellNoise(sp) : BF.stepNoise(u) * (kind === 'dash' ? 2 : 1);
+/* земля шумит по-разному (Ник 27.11): трава и дорога — тихо, сено и пепел — глуше; кусты, камыш, валежник — шуршат;
+   грязь чавкает, по воде — плеск, доски скрипят, щебень и лёд хрустят; зимой снег скрипит */
+BF.GROUND_N = {grass: 1, road: 0.9, hill: 1, hay: 0.6, ash: 0.7, ogorod: 0.9, brush: 1.4, rye: 1.2, reeds: 1.5, tree: 1.3, uproot: 1.4, log: 1.3, mud: 1.4, slick: 1.3,
+  shallow: 1.8, water: 2, deep: 2, pool: 1.8, ice: 1.4, rubble: 1.6, ruin: 1.4, floor: 1.1, hfloor: 1.3, loft: 1.3, bridge: 1.4, beam: 1.4, stall: 1.2};
+BF.groundMul = function (S, x) { if (!x) return 1; let m = BF.GROUND_N[x.t] != null ? BF.GROUND_N[x.t] : 1;
+  try { if (S.wx && /snow|winter/.test(String(S.wx.kind || '')) || (S.field && S.field.snow)) m += 0.3; } catch (e) {} return m; };
+BF.noiseOf = function (S, u, kind, sp, x) {
+  let n = kind === 'melee' ? BF.SRCH.melee : kind === 'shot' ? BF.SRCH.shot : kind === 'spell' ? BF.spellNoise(sp) : BF.stepNoise(u) * (kind === 'dash' ? 2 : 1) * BF.groundMul(S, x || (u.c != null ? B.cell(S, u.c, u.r) : null));
   if (kind !== 'spell' && u.conds && u.conds.hidden) n = n / 2;
+  if (S && !S._noRnd) n *= 0.7 + R.rand() * 0.6; // наступил на ветку — или прошёл тише тени
   return Math.max(1, Math.round(n)); };
 const noise = (S, u, kind, at, sp) => { if (!on(S) || !u || u.side !== 'party' || u.c == null) return;
   const p = at || u; (S.bfSnd = S.bfSnd || []).push({hid: u.id, c: p.c, r: p.r, rad: BF.noiseOf(S, u, kind, sp), t: tick(S)}); if (S.bfSnd.length > 40) S.bfSnd = S.bfSnd.slice(-40); };
@@ -77047,7 +77084,18 @@ B.ai = function (S, u) {
 /* ---------- шум от действий героя ---------- */
 const mv0 = B.move;
 B.move = function (S, u, c, r) { const from = u ? {c: u.c, r: u.r} : null; const res = mv0.apply(this, arguments);
-  try { if (on(S) && u && u.side === 'party' && from && (u.c !== from.c || u.r !== from.r)) noise(S, u, u.conds && u.conds.running ? 'dash' : 'step'); } catch (e) {} return res; };
+  try { if (on(S) && u && u.side === 'party' && from && (u.c !== from.c || u.r !== from.r)) noise(S, u, u.conds && u.conds.running ? 'dash' : 'step');
+    else if (on(S) && u && u.side === 'foe' && from && (u.c !== from.c || u.r !== from.r)) heard(S, u, BF.noiseOf(S, u, 'step')); } catch (e) {} return res; };
+/* и отряд слышит врагов: в темноте, за деревьями, за стеной — на клетке знак «там кто-то есть» (Ник 27.11) */
+const partySees = (S, f) => S.units.some(h => h.side === 'party' && B.active(h) && h.c != null && (B.dist(h, f) <= 1 || BF.foeSees(S, Object.assign({}, h, {side: 'foe', bfRout: 0, bfUnaware: 0}), f)));
+function heard(S, f, rad) { if (!on(S) || !f || f.c == null || f.side !== 'foe') return; if (partySees(S, f)) return;
+  const ears = S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null && !(h.conds && h.conds.deaf) && B.dist(h, f) <= rad + (h.cls === 'lovchiy' ? 2 : 0)); if (!ears.length) return;
+  S.bfHeard = (S.bfHeard || []).filter(m => m.id !== f.id && tick(S) - m.t <= 8).concat({id: f.id, c: f.c, r: f.r, t: tick(S)}).slice(-20); }
+BF.heardMarks = S => (S && S.bfHeard ? S.bfHeard.filter(m => tick(S) - m.t <= 8 && !S.units.some(u => u.id === m.id && (u.dead || u.gone || partySees(S, u)))) : []);
+/* Зрение Душ (и Зрение Нежити в бою): видно всех в пятнадцати клетках — сквозь стены, лес, туман, темень */
+BF.soulSeen = function (S, u) { if (!S || !u || u.side === 'party' || u.c == null || u.dead || u.gone) return false;
+  return S.units.some(h => h.side === 'party' && B.active(h) && h.c != null && h.fx && ((h.fx.soulSight && !u.undead && B.dist(h, u) <= 15) || (h.fx.deadSight && h.fx.deadSight.until >= S.round && B.dist(h, u) <= 15))); };
+if (B.bfHidden) { const bh0 = B.bfHidden; B.bfHidden = function (S, u) { if (BF.soulSeen(S, u)) return false; return bh0.apply(this, arguments); }; }
 const dash0 = B.dash;
 if (dash0) B.dash = function (S, u) { const r = dash0.apply(this, arguments); try { if (on(S) && u && u.side === 'party') noise(S, u, 'dash'); } catch (e) {} return r; };
 const at0 = B.attack;
@@ -77104,7 +77152,11 @@ B.bfOp = function (S, u, a) {
   return bo0 ? bo0.apply(this, arguments) : 'Так нельзя.'; };
 const fight = (S, at, rad) => { if (!on(S) || !at || at.c == null) return; (S.bfFight = S.bfFight || []).push({c: at.c, r: at.r, rad, t: tick(S)}); if (S.bfFight.length > 30) S.bfFight = S.bfFight.slice(-30); };
 const at1 = B.attack;
-B.attack = function (S, u, t, ranged) { try { return at1.apply(this, arguments); } finally { try { fight(S, u, ranged ? BF.SRCH.shot + 2 : BF.SRCH.melee + 4); } catch (e) {} } };
+B.attack = function (S, u, t, ranged) { try { return at1.apply(this, arguments); } finally { try { fight(S, u, ranged ? BF.SRCH.shot + 2 : BF.SRCH.melee + 4); if (u && u.side === 'foe') heard(S, u, ranged ? BF.SRCH.shot : BF.SRCH.melee); } catch (e) {} } };
+if (S_ && S_.cast) { const cs1 = S_.cast; S_.cast = function (S, u, sp) {
+  if (sp && sp.id === 'necro_zrenie_nezhiti' && S && S.units) { u.fx = u.fx || {}; u.fx.deadSight = {until: (S.round || 1) + 10}; S.acted = true; B.log(S, `${nameOf(u)} смотрит глазами мёртвых: живые и неживые проступают сквозь стены и темень.`, '', 'Зрение Нежити: все в пятнадцати клетках видны десять ходов'); return; }
+  const r = cs1.apply(this, arguments); try { if (u && u.side === 'foe') heard(S, u, BF.spellNoise(sp)); } catch (e) {} return r; }; }
+try { const z = (G.DATA && G.DATA.spellById || {}).necro_zrenie_nezhiti; if (z) { z.kind = ['buff', 'detect']; z.targets = 'self'; z.effect = 'Заклинатель смотрит глазами мёртвых: десять ходов видит всех — живых, нежить и невидимых — в 15 клетках, сквозь стены, лес, туман и темень. Вне боя — видит в темноте, отличает живых от мёртвых.'; } } catch (e) {}
 const foeSpot = S => { try { const ps = S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null);
   S.units.filter(f => f.side === 'foe' && B.active(f) && f.c != null).forEach(f => { if (ps.some(h => B.dist(h, f) <= 1 || BF.foeSees(S, Object.assign({}, h, {side: 'foe', bfRout: 0}), f))) S.bfFoeSeen = {c: f.c, r: f.r, t: tick(S)}; }); } catch (e) {} };
 const ai1 = B.ai;
@@ -77156,4 +77208,47 @@ C.encounter = function (g) { let e = en0.apply(this, arguments);
   for (let k = 0; k < 3 && plain(e); k++) { const p = SKIP[groupOf(e)]; if (!p || R.rand() >= p) break; const e2 = en0.apply(this, arguments); if (!plain(e2)) break; e = e2; }
   return e; };
 C.ENC_SKIP = SKIP;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* names_nick.js */
+/* Колдовство — прозвища (Ник 27.11: «у женщин и мужчин нет прозвищ к именам? имена повторяются; может раздать всем?
+   после совершеннолетия получают — или от отца»).
+   • Знакомые (g.kvLoc): у кого одно имя — получает прозвище по нраву и ремеслу (Ласточка, Певунья, Пряха; Кудряш, Бондарь)
+     или отчество («Влада Ждановна»). Раз и навсегда, от id — без общего ГСЧ. Старые сохранения — при первом обращении.
+   • Дети (g.w2kids): в шестнадцать лет — прозвище: чаще от отца (отчество — «Ждан Бориславич»), иначе — своё. Весть в летопись. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C; if (!R || !C) return;
+const hsh = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+const pickH = (a, k) => a[hsh(k) % a.length];
+const NF = ['Ласточка', 'Сорока', 'Пряха', 'Певунья', 'Хохотушка', 'Белянка', 'Ягодка', 'Синеглазка', 'Звонкая', 'Косатая', 'Черноброва', 'Румяная', 'Кружевница',
+  'Огонёк', 'Вишенка', 'Смешливая', 'Тихоня', 'Рыжая', 'Медуница', 'Голубка', 'Ткачиха', 'Травница', 'Говорунья', 'Быстрая', 'Сероглазка', 'Золотко', 'Хлопотунья', 'Веснушка'];
+const NM = ['Кудряш', 'Молчун', 'Силач', 'Весельчак', 'Сокол', 'Бондарь', 'Гончар', 'Плотник', 'Чернобров', 'Рыжий', 'Бортник', 'Рыбак', 'Говорун', 'Ясный', 'Медведь', 'Ловкий', 'Сивый', 'Резчик'];
+const patOf = (ppl, father, sex) => { try { const P = (C.FOLK_NAMES || {})[ppl] || (C.FOLK_NAMES || {}).nolgrim; return P && P.pat && father ? P.pat(father, sex) : ''; } catch (e) { return ''; } };
+const fatherPool = ppl => { try { const P = (C.FOLK_NAMES || {})[ppl] || (C.FOLK_NAMES || {}).nolgrim; return (P && P.m) || []; } catch (e) { return []; } };
+const one = n => !/\s/.test(String(n || '').trim());
+/* знакомая (знакомый) */
+const nickLoc = (r, g) => { if (!r || !r.n || !one(r.n) || r.nk) return r; r.nk = 1;
+  const used = new Set(Object.values((g && g.kvLoc) || {}).filter(x => x !== r && x.n).map(x => String(x.n).split(' ').slice(1).join(' ')));
+  const k = r.id + '|' + r.n, ppl = r.ppl || 'nolgrim', fp = fatherPool(ppl);
+  let add = '';
+  if (hsh(k + 'p') % 100 < 35 && fp.length) add = patOf(ppl, pickH(fp, k + 'f'), r.sex);
+  if (!add) { const P = r.sex === 'f' ? NF : NM; let i = hsh(k + 'n') % P.length; for (let j = 0; j < P.length && used.has(P[i]); j++) i = (i + 1) % P.length; add = P[i]; }
+  r.n0 = r.n; r.n = r.n + ' ' + add; return r; };
+C.nickLoc = nickLoc;
+if (C.kvMakeLoc) { const mk0 = C.kvMakeLoc; C.kvMakeLoc = function () { const r = mk0.apply(this, arguments); try { nickLoc(r, arguments[0]); } catch (e) {} return r; }; }
+if (C.kvLocOf) { const lo0 = C.kvLocOf; C.kvLocOf = function () { const r = lo0.apply(this, arguments); try { if (r) nickLoc(r, arguments[0]); } catch (e) {} return r; }; }
+/* дети: прозвище в шестнадцать */
+C.NICK_AGE = 16;
+const fatherOf = (g, F) => { const hi = F.hi || {}; if (hi.sex !== 'f' && hi.name) return String(hi.name).split(' ')[0];
+  if (F.sp && F.sp.sex === 'm' && F.sp.n) return String(F.sp.n).split(' ')[0]; return null; };
+const nickKids = g => { const fams = Object.values((g && g.w2kids && g.w2kids.fam) || {}); fams.forEach(F => (F.kids || []).forEach(k => {
+  if (!k || k.nk || !k.n || k.dead || !C.kidAge || C.kidAge(g, k) < C.NICK_AGE || !one(k.n)) return; k.nk = 1;
+  const ppl = (F.hi && F.hi.people) || 'nolgrim', fa = fatherOf(g, F), key = k.id + '|' + k.n;
+  let add = fa && hsh(key + 'p') % 100 < 65 ? patOf(ppl, fa, k.sex) : '';
+  if (!add) add = pickH(k.sex === 'f' ? NF : NM, key + 'n');
+  const was = k.n; k.n = was + ' ' + add;
+  if (C.note) C.note(g, `${was} ${k.sex === 'f' ? 'вошла' : 'вошёл'} в года: теперь ${k.sex === 'f' ? 'её' : 'его'} зовут ${k.n}.`); })); };
+C.nickKids = nickKids;
+if (C.kidsTick) { const kt0 = C.kidsTick; C.kidsTick = function (g) { const r = kt0.apply(this, arguments); try { nickKids(g); } catch (e) {} return r; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
