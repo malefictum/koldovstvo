@@ -50323,7 +50323,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611262207"></script><script>
+</script><script src="world.js?v=202611262245"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54014,7 +54014,7 @@ function groundTiles(S, F, s, cells, off, cellBase, cellOver, UNK) {
   if (F.fog) { const dark = new Path2D(), dim = new Path2D(), grid = new Path2D();
     const hp = (P2, x, y, r) => { for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i - 30), qx = x + r * Math.cos(a), qy = y + r * Math.sin(a); i ? P2.lineTo(qx, qy) : P2.moveTo(qx, qy); } P2.closePath(); };
     vis.forEach(([c, p]) => { const fv = bfFogOf(S, c); if (fv === 0) hp(dark, p.x, p.y, s * 1.03); else { if (fv === 1) hp(dim, p.x, p.y, s * 0.98); if (!isDynCell(c)) hp(grid, p.x, p.y, s * 0.98); } });
-    ctx.fillStyle = 'rgba(10,8,5,.58)'; ctx.fill(dim); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(grid); ctx.fillStyle = UNK; ctx.fill(dark); }
+    ctx.fillStyle = F.bf && F.bf.kind === 'dungeon' ? 'rgba(10,8,5,.58)' : 'rgba(10,8,5,.8)'; ctx.fill(dim); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(grid); ctx.fillStyle = UNK; ctx.fill(dark); }
   vis.forEach(([c, p]) => { if (F.fog && bfFogOf(S, c) === 0) return; cellOver(c, p); });
 }
 function drawField(noFollow) {
@@ -54057,7 +54057,7 @@ function drawField(noFollow) {
     if (F.night) { ctx.fillStyle = 'rgba(10,14,40,.35)'; ctx.fill(); }
   };
   const cellDyn = (c, p) => {
-    if (F.fog) { const fv = bfFogOf(S, c); if (fv === 1) { ctx.fillStyle = 'rgba(10,8,5,.58)'; ctx.fill(); } }
+    if (F.fog) { const fv = bfFogOf(S, c); if (fv === 1) { ctx.fillStyle = F.bf && F.bf.kind === 'dungeon' ? 'rgba(10,8,5,.58)' : 'rgba(10,8,5,.8)'; ctx.fill(); } }
     ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke();
     if (reach[B.key(c.c, c.r)] && !(c.c === cur.c && c.r === cur.r)) { ctx.fillStyle = 'rgba(231,201,131,.18)'; ctx.fill(); }
     if (hover && hover.c === c.c && hover.r === c.r) { ctx.strokeStyle = '#e7c983'; ctx.lineWidth = 2; ctx.stroke(); }
@@ -54077,6 +54077,7 @@ function drawField(noFollow) {
   const things = [];
   const seenObj = {};
   cells.forEach(c => { if (F.fog && fogShow(S, c) === 0) return; if (c.t === 'floor' && B.BF.dgDecorOf && B.BF.dgDecorOf(F, c)) { const p = hexXY(c.c, c.r); if (!off(p)) things.push({y: p.y - geo.s * 0.2, dgd: c}); } if (c.o != null && F.objs && F.objs[c.o]) { if (seenObj[c.o]) return; seenObj[c.o] = 1; const o = F.objs[c.o], ys = o.cells.map(x => hexXY(x.c, x.r)); if (ys.every(off)) return; things.push({y: Math.max(...ys.map(q => q.y)), o}); return; }
+    if (F.fog && c.hb == null && c.hyard == null && !(F.bf && F.bf.kind === 'dungeon') && bfFogOf(S, c) === 1) return; // не видно сейчас — только память о земле, без деревьев и вещей (и быстрее)
     if (['tree', 'rock', 'brush', 'grave', 'fence', 'house', 'wall', 'idol', 'log', 'hay', 'wood', 'barrels', 'well', 'fire', 'shelter', 'rye'].includes(c.t) || (F.big && BF_PROPS.has(c.t)) || (c.hb != null && c.t !== 'hfloor') || (c.vy === 'pali' || c.vy === 'gate') || c.vp) { if (c.t === 'wall' && F.bf && F.bf.kind === 'dungeon') { if (B.BF.dgWall) { const p = hexXY(c.c, c.r); if (!off(p)) things.push({y: p.y + geo.s * 0.5, dgw: c}); } return; } const p = hexXY(c.c, c.r); if (!off(p)) things.push({y: p.y, c}); } });
   if (B.BF) B.BF.viewMine = B.BF._viewForce || (NET() ? mineU : null); // в сети дом и что внутри — по обзору МОИХ героев (bf_house.js)
   if (F.big && B.BF && B.BF.hbRoofs) B.BF.hbRoofs(S, things, hexXY, off); // крыши домов (снимаются, когда внутрь видно)
