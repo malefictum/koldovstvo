@@ -75443,3 +75443,92 @@ if (C.TRANS_KINDS && C.Q && C.Q.inject) { const in0 = C.Q.inject; C.Q.inject = f
 { const ks0 = Object.values(C.CAMPS)[0].scenes.kn_scribe; if (ks0) { const ks = function (g) { const sc = ks0.apply(this, arguments); try { const back = sc.choices.pop(); sc.choices.push({t: 'Посмотреть книги', do: g2 => { g2.knLast = null; return 'kn_books'; }}); sc.choices.push(back); } catch (e) {} return sc; };
   Object.values(C.CAMPS).forEach(camp => { camp.scenes.kn_scribe = ks; }); } }
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* kraft_books.js */
+/* Колдовство — книги ремёсел (Ник 26.11: «кузнечество, ювелирка и всё крафтовое — тоже нужны книги, просто навыка недостаточно»).
+   Ремесло даёт руки, книга — знание:
+   • Зелья: без книги — восстанавливающий отвар и противоядие; прочее — по зелейным книгам (h.potKnown), и не выше своей ступени.
+   • Улучшать вещь самому: +1 — по умению; +2 и +3 — по книге своего материала (h.craftKnow: metal2, metal3, cloth2…).
+   • Свойства вещей: знание на весь отряд (g.recipes) — из сводов чар; купить рецепт за 100 зм у мастера больше нельзя
+     (книжник по-прежнему может переписать один рецепт — «Рецепт чар»).
+   • Ювелир берётся за металлы силы (звёздное железо, булат, подземное серебро, алатырь, навья руда, громовая стрела)
+     только по своду «Металлы силы» — книга в суме отряда или выученная.
+   • Кто уже играл: что было открыто умением до этих книг — остаётся (g.craftBooks, перенос при загрузке).
+   Изучить книгу — день, нужно прочесть её (письмо или перевод) и иметь хоть первую ступень ремесла. Книга остаётся. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.recipesOf) return;
+const D = G.DATA || (typeof DATA !== 'undefined' ? DATA : null), EN = C.EN || {};
+const T = (h, id) => (C.profTier ? C.profTier(h, id) : 0);
+const POT_BASIC = ['zelye_vosstanovlenie', 'zelye_protivoyadie'];
+const potGroup = id => /^zelye_z_/.test(id) || ['zelye_razrushenie'].includes(id) ? 'stihii' : ['zelye_lechenie', 'zelye_izlechenie', 'zelye_nyuhatelnaya_sol', 'zelye_vosstanovlenie'].includes(id) ? 'travnik'
+  : ['zelye_svyataya_voda', 'zelye_dym', 'zelye_kislota', 'zelye_goryuchaya', 'zelye_vonyuchee', 'zelye_paraliz_gaz'].includes(id) ? 'sklyanki' : ['zelye_yad', 'zelye_yad_smert', 'zelye_protivoyadie'].includes(id) ? 'yady'
+  : ['zelye_sila', 'zelye_um', 'zelye_skorost', 'zelye_koldovstvo', 'zelye_krepkoe_telo'].includes(id) ? 'sila' : 'velikie';
+const allPots = () => Object.values(C.POT_TIER || {}).flat().filter(id => EN[id]);
+C.potGroup = potGroup;
+const propGroup = pid => /^zashch_/.test(pid) ? 'zashch' : ['balans', 'bystrota', 'dop_uron'].includes(pid) ? 'klinok' : 'bron';
+C.propGroup = propGroup;
+const SILA = ['yuvelir_zvezdnoe_zhelezo', 'yuvelir_bulat', 'yuvelir_podzemnoe_serebro', 'yuvelir_alatyr', 'yuvelir_navya_ruda', 'yuvelir_gromovaya_strela'];
+/* ---------- книги ---------- */
+const BOOKS = C.KRAFT_BOOKS = {
+  kn_zel_travnik: {name: 'Травник: настои и отвары', pot: 'travnik', price: 1500, lang: 'nolgrim', prof: 'zelya', sell: 'herb', note: 'лечебные настои, отвары и нюхательная соль'},
+  kn_zel_sklyanki: {name: 'Склянки: кислота, огонь и дым', pot: 'sklyanki', price: 2500, lang: 'yuzhnober', prof: 'zelya', sell: 'herb', note: 'бросаемые склянки: святая вода, дым, кислота, горючая смесь, вонючее, дурман-газ'},
+  kn_zel_yady: {name: 'Яды на клинок', pot: 'yady', price: 3000, lang: 'terak', prof: 'zelya', note: 'клинковые яды, вплоть до смертного, и противоядия к ним'},
+  kn_zel_sila: {name: 'Зелейник силы и ума', pot: 'sila', price: 4000, lang: 'parnass', prof: 'zelya', sell: 'herb', note: 'зелья силы, проворства, ума, чародейства и крепкого тела'},
+  kn_zel_stihii: {name: 'Зелья от стихий', pot: 'stihii', price: 4000, lang: 'yuzhnober', prof: 'zelya', note: 'обереговые зелья от огня, молнии, яда, смерти, холода, чар, страха и окаменения'},
+  kn_zel_velikie: {name: 'Великий зелейник', pot: 'velikie', price: 12000, lang: 'parnass', prof: 'zelya', rare: 1, note: 'великие зелья: исполинская сила, ясный ум, каменное тело, воскрешение'},
+  kn_kr_metal_2: {name: 'Закалка и отпуск', craft: 'metal2', price: 3000, lang: 'gorets', prof: 'kuzn', sell: 'forge', note: 'перековка на +2: харалуг, закалка в масле и в снегу'},
+  kn_kr_metal_3: {name: 'Булатное дело', craft: 'metal3', price: 10000, lang: 'gorets', prof: 'kuzn', rare: 1, note: 'перековка на +3: булатный узор и его тайны'},
+  kn_kr_cloth_2: {name: 'Мастерское шитьё', craft: 'cloth2', price: 2500, lang: 'yuzhnober', prof: 'tkach', sell: 'weave', note: 'улучшение одежды и кожи на +2'},
+  kn_kr_cloth_3: {name: 'Дивное шитьё', craft: 'cloth3', price: 8000, lang: 'imperets', prof: 'tkach', rare: 1, note: 'улучшение одежды и кожи на +3: паволока, золотная нить'},
+  kn_kr_wood_2: {name: 'Мастерская резьба', craft: 'wood2', price: 2500, lang: 'loss', prof: 'rezba', sell: 'charm', note: 'улучшение луков, щитов и посохов на +2'},
+  kn_kr_wood_3: {name: 'Дивная резьба', craft: 'wood3', price: 8000, lang: 'loss', prof: 'rezba', rare: 1, note: 'улучшение луков, щитов и посохов на +3'},
+  kn_chary_klinok: {name: 'Свод чар: клинок', props: 'klinok', price: 5000, lang: 'gorets', prof: 'kuzn_volsh', sell: 'forge', note: 'свойства оружия: баланс, быстрота, урон стихией'},
+  kn_chary_bron: {name: 'Свод чар: броня', props: 'bron', price: 6000, lang: 'parnass', prof: 'kuzn_volsh', note: 'свойства доспеха и щита: закалка, лёгкость, крепость, удача, бесшумность и прочее'},
+  kn_chary_zashch: {name: 'Свод чар: обереги от стихий', props: 'zashch', price: 8000, lang: 'vyaz', prof: 'kuzn_volsh', rare: 1, note: 'защиты от огня, холода, молнии, яда, кислоты и смерти'},
+  kn_yuv_sila: {name: 'Металлы силы', jewel: 1, price: 6000, lang: 'yuzhnober', prof: null, sell: 'jewel', note: 'как работать со звёздным железом, булатом, подземным серебром, алатырём, навьей рудой и громовой стрелой — ювелир берётся за них только по этой книге'},
+};
+Object.entries(BOOKS).forEach(([id, b]) => { if (D.items[id]) return; D.items[id] = {_t: 'g', id, name: 'Книга: ' + b.name, price: b.price, weight_kg: 1.5, category: 'книги', ico: 'item:kniga_po_remeslu', lang: b.lang, krb: 1,
+  notes: `Ремесленная книга: ${b.note}. Изучить — день; нужно уметь прочесть${b.prof && C.PROF[b.prof] ? ` и знать «${C.PROF[b.prof].name}» хоть на первую ступень` : ''}. Книга после учёбы остаётся.`}; });
+C.krBook = id => BOOKS[String(id).split('~')[0]] || null;
+const knows = (h, b) => b.pot ? allPots().filter(p => potGroup(p) === b.pot).every(p => (h.potKnown || []).includes(p)) : b.craft ? (h.craftKnow || []).includes(b.craft) : b.jewel ? (h.craftKnow || []).includes('yuv_sila') : false;
+C.krWhy = function (g, h, id) { const b = C.krBook(id); if (!b) return 'это не ремесленная книга'; if (!h || h.kind === 'merc') return 'наёмники по книгам не учатся'; if (!(h.inv || []).includes(id)) return 'книги нет в суме';
+  if (C.canReadWrit && !C.canReadWrit(g, h, id)) return 'книга ' + C.writWhy(id, h.name); if (h.busy) return C.busyText(g, h);
+  if (b.prof && !T(h, b.prof)) return `сперва нужно учиться «${(C.PROF[b.prof] || {}).name}»`;
+  if (b.props) { const all = (C.propsFor ? [...new Set(['mech', 'kolchuga_korot', 'shchit_kruglyi', 'luk_ohot'].flatMap(x => C.propsFor(x)))] : []).filter(p => propGroup(p) === b.props); if (all.length && all.every(p => (g.recipes || []).includes(p))) return 'всё это отряду уже знакомо'; return ''; }
+  return knows(h, b) ? 'всё это уже знакомо' : ''; };
+C.krStudy = function (g, h, id) { const why = C.krWhy(g, h, id); if (why) return {err: why}; const b = C.krBook(id); let what;
+  if (b.pot) { const ps = allPots().filter(p => potGroup(p) === b.pot); h.potKnown = [...new Set((h.potKnown || []).concat(ps))]; what = ps.map(p => EN[p].name.toLowerCase()).join(', '); }
+  else if (b.craft) { h.craftKnow = [...new Set((h.craftKnow || []).concat(b.craft))]; what = b.note; }
+  else if (b.jewel) { h.craftKnow = [...new Set((h.craftKnow || []).concat('yuv_sila'))]; what = 'металлы силы'; }
+  else if (b.props) { const ps = [...new Set(['mech', 'kolchuga_korot', 'shchit_kruglyi', 'luk_ohot'].flatMap(x => (C.propsFor ? C.propsFor(x) : [])))].filter(p => propGroup(p) === b.props); g.recipes = [...new Set((g.recipes || []).concat(ps))]; what = ps.map(p => (C.propName ? C.propName({id: p, lvl: 1}) : p)).join(', '); }
+  let text = `${h.name} день сидит над книгой «${b.name}» — теперь знакомо: ${what}.`; text += C.spendTime ? C.spendTime(g, h, 4, 'книга: ' + b.name) : (C.pass(g, 4), ''); if (C.note) C.note(g, text); return {ok: true, text}; };
+/* ---------- запоры ---------- */
+const rOf0 = C.recipesOf;
+C.recipesOf = function (h) { const all = rOf0.apply(this, arguments); if (!h) return all; return all.filter(p => POT_BASIC.includes(p) || (h.potKnown || []).includes(p)); };
+const potBookOf = p => { const k = Object.keys(BOOKS).find(k => BOOKS[k].pot === potGroup(p)); return k ? BOOKS[k].name : 'зелейная книга'; };
+if (C.canBrewRecipe) { const cb0 = C.canBrewRecipe; C.canBrewRecipe = function (h, id) { const why = cb0.apply(this, arguments); if (why === 'рецепт не знаком' && rOf0(h).includes(id)) return `рецепт не знаком — он в книге «${potBookOf(id)}»`; return why; }; }
+const craftBook = (mat, nb) => BOOKS['kn_kr_' + mat + '_' + nb];
+if (C.craftSelf) { const cs0 = C.craftSelf; C.craftSelf = function (g, h, id, nb, mat) { if (nb >= 2 && h && !(h.craftKnow || []).includes(mat + nb)) { const b = craftBook(mat, nb); return {err: `на +${nb} — нужно знать книгу «${b ? b.name : 'мастерскую'}»`}; } return cs0.apply(this, arguments); }; }
+if (C.forgeSelf) { const fs0 = C.forgeSelf; C.forgeSelf = function (g, h, id, nb) { if (nb >= 2 && h && !(h.craftKnow || []).includes('metal' + nb)) return {err: `на +${nb} — нужно знать книгу «${craftBook('metal', nb).name}»`}; return fs0.apply(this, arguments); }; }
+const propBook = pid => { const k = Object.keys(BOOKS).find(k => BOOKS[k].props === propGroup(pid)); return k ? BOOKS[k].name : 'свод чар'; };
+C.propBookName = propBook;
+if (C.forgeProp) { const fp0 = C.forgeProp; C.forgeProp = function (g, h, id, pid, el) { if (!(g.recipes || []).includes(pid)) return {err: `свойство не знакомо — оно в книге «${propBook(pid)}»`}; return fp0.apply(this, arguments); }; }
+if (C.jewelMake) { const jm0 = C.jewelMake; C.jewelMake = function (g, h, mat, form) { if (SILA.includes(mat)) { const ok = (C.alive(g) || []).some(x => (x.craftKnow || []).includes('yuv_sila') || (x.inv || []).includes('kn_yuv_sila')); if (!ok) return {err: 'ювелир: «С металлами силы — только по своду. Принесите «Металлы силы» — по нему и сделаю»'}; } return jm0.apply(this, arguments); }; }
+/* ---------- кто уже играл: открытое умением — остаётся ---------- */
+C.craftMigrate = function (g) { if (!g || g.craftBooks) return; g.craftBooks = 1; (C.alive(g) || []).concat(g.mercs || []).forEach(h => { h.potKnown = [...new Set((h.potKnown || []).concat(rOf0(h)))];
+  const ck = new Set(h.craftKnow || []); ['metal', 'cloth', 'wood'].forEach(m => { const self = (C.CRAFT_RULES || {})[m]; const t = self ? T(h, self.self) : 0; for (let nb = 2; nb <= Math.min(3, t); nb++) ck.add(m + nb); });
+  for (let nb = 2; nb <= Math.min(3, T(h, 'kuzn_volsh')); nb++) ck.add('metal' + nb); h.craftKnow = [...ck]; }); };
+{ const ng0 = C.newGame; C.newGame = function () { const g = ng0.apply(this, arguments); if (g) g.craftBooks = 1; return g; }; }
+if (C.load) { const ld0 = C.load; C.load = function () { const g = ld0.apply(this, arguments); try { C.craftMigrate(g); } catch (e) {} return g; }; }
+/* ---------- кнопка в карточке, и где купить ---------- */
+{ const am0 = C.wbActsMore, ak0 = C.wbActMore;
+  C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; if (C.krBook(id)) a.push({t: 'Изучить книгу (день)', k: 'kn_kraft', why: C.krWhy(g, h, id)}); return a; };
+  C.wbActMore = function (g, h, id, k) { if (k === 'kn_kraft') { const r = C.krStudy(g, h, id); return r.err ? r : {text: r.text}; } return ak0 ? ak0.apply(this, arguments) : {err: 'не выходит'}; }; }
+// мастер своего ремесла держит книгу своего дела (кроме редких)
+if (C.folkStock) { const fs0 = C.folkStock; C.folkStock = function (g, role) { const s = fs0.apply(this, arguments); try { if (s && s.left && !s.kb) { s.kb = 1; Object.entries(BOOKS).filter(([, b]) => b.sell === role && !b.rare).forEach(([id]) => { if (!s.left[id]) s.left[id] = 1; }); } } catch (e) {} return s; }; }
+// и книжник — одну-две нередких ремесленных
+if (C.knStock) { const ks0 = C.knStock; C.knStock = function (g) { const out = ks0.apply(this, arguments); try { const common = Object.keys(BOOKS).filter(k => !BOOKS[k].rare); const wk = Math.floor((g.day || 1) / 7), x = [...(g.loc + wk)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 3);
+  const add = [common[x % common.length], common[(x >>> 5) % common.length]]; const sold = ((g.knSold || {})[g.loc + ':' + wk]) || []; add.forEach(id => { if (!out.includes(id) && !sold.includes(id)) out.push(id); }); } catch (e) {} return out; }; }
+})(typeof window !== 'undefined' ? window : globalThis);

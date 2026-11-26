@@ -28653,7 +28653,7 @@ SC.folk_craft = g => {
     const full = el ? 'dop_uron_' + el : pid, cur = o.props.find(q => q.id === full), lvl = cur ? cur.lvl + 1 : 1, dc = (e.dc_by_level || [e.dc])[lvl - 1];
     if (!dc || dc > 30 || lvl > tp + 1 || (!cur && o.props.length >= 2)) return;
     const c = C.propComp(pid, el); if (!c.id) return; const have = h.inv.filter(y => y === c.id).length, rec = (g.recipes || []).includes(pid);
-    ch.push({t: `Наложить «${C.propName({id: full, lvl})}»: ${R.item(c.id).name.toLowerCase()} ×${c.n} (есть ${have})${rec ? '' : ', рецепт 100 зм'}`, if: g2 => have >= c.n && (rec || g2.purse >= 10000), off: have < c.n ? `нужно: ${R.item(c.id).name.toLowerCase()} ×${c.n}` : 'рецепт стоит 100 зм',
+    ch.push({t: `Наложить «${C.propName({id: full, lvl})}»: ${R.item(c.id).name.toLowerCase()} ×${c.n} (есть ${have})${rec ? '' : ', нужна книга «' + (C.propBookName ? C.propBookName(pid) : 'свод чар') + '»'}`, if: g2 => have >= c.n && rec, off: have < c.n ? `нужно: ${R.item(c.id).name.toLowerCase()} ×${c.n}` : 'нужна книга «' + (C.propBookName ? C.propBookName(pid) : 'свод чар') + '»',
       do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const kz = hh.prof && hh.prof.kuzn_volsh; hh.prof = hh.prof || {}; hh.prof.kuzn_volsh = Math.max(kz || 0, tp); const r = C.forgeProp(g2, hh, it, pid, el); hh.prof.kuzn_volsh = kz || 0; if (!kz) delete hh.prof.kuzn_volsh; g2.folkLast = r.err || r.text; if (r.ok) g2.craft.item = null; return 'folk_craft'; }}); }); });
   if (!ts) lines.push(['n', M.selfWhy]);
   ch.push({t: 'Другая вещь', do: g2 => { g2.craft = {hero: h.id}; return 'folk_craft'; }}, back);
@@ -42085,7 +42085,7 @@ SC.folk_craft = g => {
       const full = el ? 'dop_uron_' + el : pid, cur = o.props.find(q => q.id === full), lvl = cur ? cur.lvl + 1 : 1, dc = (e.dc_by_level || [e.dc])[lvl - 1];
       if (!dc || dc > 30 || lvl > tp + 1 || (!cur && o.props.length >= 2)) return;
       const c = C.propComp(pid, el); if (!c.id || !R.item(c.id)) return; const n = c.n * lvl, have = h.inv.filter(y => y === c.id).length, rec = (g.recipes || []).includes(pid), gmin = lvl >= 3 ? 5000 : lvl >= 2 ? 2000 : 0;
-      ch.push({t: `Наложить «${C.propName({id: full, lvl})}»: ${R.item(c.id).name.toLowerCase()} ×${n} (есть ${have})${gmin ? ` и самоцвет от ${R.priceText(gmin)}` : ''}${rec ? '' : ', рецепт 100 зм'}`, if: g2 => have >= n && (!gmin || !!gemOf(h, gmin)) && (rec || g2.purse >= 10000), off: have < n ? `нужно: ${R.item(c.id).name.toLowerCase()} ×${n}` : gmin && !gemOf(h, gmin) ? `нужен самоцвет от ${R.priceText(gmin)}` : 'рецепт стоит 100 зм',
+      ch.push({t: `Наложить «${C.propName({id: full, lvl})}»: ${R.item(c.id).name.toLowerCase()} ×${n} (есть ${have})${gmin ? ` и самоцвет от ${R.priceText(gmin)}` : ''}${rec ? '' : ', нужна книга «' + (C.propBookName ? C.propBookName(pid) : 'свод чар') + '»'}`, if: g2 => have >= n && (!gmin || !!gemOf(h, gmin)) && rec, off: have < n ? `нужно: ${R.item(c.id).name.toLowerCase()} ×${n}` : gmin && !gemOf(h, gmin) ? `нужен самоцвет от ${R.priceText(gmin)}` : 'нужна книга «' + (C.propBookName ? C.propBookName(pid) : 'свод чар') + '»',
         do: g2 => { const hh = C.alive(g2).find(y => y.id === h.id); const kz = hh.prof && hh.prof.kuzn_volsh; hh.prof = hh.prof || {}; hh.prof.kuzn_volsh = Math.max(kz || 0, tp); const r = C.forgeProp(g2, hh, it, pid, el); hh.prof.kuzn_volsh = kz || 0; if (!kz) delete hh.prof.kuzn_volsh; g2.folkLast = r.err || r.text; if (r.ok) g2.craft.item = null; return 'folk_craft'; }}); }); });
   ch.push({t: 'Другая вещь', do: g2 => { g2.craft = {hero: h.id}; return 'folk_craft'; }}, back);
   return {title: M.title, bg: F.bg, art: F.art, lines, choices: ch, focus: hs.length > 1 ? h.id : null};
@@ -50201,7 +50201,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261230"></script><script>
+</script><script src="world.js?v=202611261243"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
