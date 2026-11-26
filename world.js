@@ -75470,7 +75470,7 @@ C.writText = function (g, id) { const base = String(id).split('~')[0], it = R.it
   if (base === 'kn_knizhitsa') return ['Сказания и присловья, переписанные мелким почерком.'].concat(KNIZH);
   return [it.notes || '']; };
 /* «Писано …» — в описании предмета */
-const tag = it => { if (!it || it._writ || !it.id) return; const L = C.writLang(it.id); if (!L) return; it._writ = 1; it.notes = (it.notes || '').replace(/\s*$/, '') + ' ' + C.scriptLine(L); };
+const tag = it => { if (!it || it._writ || !it.id) return; it._writ = 1; /* метка — до writLang: иначе R.item → tag → writLang → R.item… (зависание у книжника) */ const L = C.writLang(it.id); if (!L) return; it.notes = (it.notes || '').replace(/\s*$/, '') + ' ' + C.scriptLine(L); };
 try { Object.values(DATA.items).forEach(tag); } catch (e) {}
 { const it0 = R.item; R.item = function (id) { const x = it0.apply(this, arguments); if (x && !x._writ && typeof id === 'string' && /^(rcp_|sv_|svitok_|kn_)/.test(id)) tag(x); return x; }; }
 
