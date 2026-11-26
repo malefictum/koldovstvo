@@ -41883,14 +41883,15 @@ C.sceneOf = function (g, id) {
     const p = C.folkPerson(g, role, at), kinT = r.bond === 'kin' && C.KIN_TALK && C.KIN_TALK[p.sex === 'f' ? 'f' : 'm'], pool = kinT || (p.sex === 'f' ? TALK_F : TALK_M); // kin — мать (отец) наследника: свои речи (w2_kids.js)
     // приветствие — новое при каждом приходе, а не одно на весь день
     r.visitN = r.visitN || 0;
-    if (g.homeVisitKey !== g.day + ':' + g.time + ':' + at) { g.homeVisitKey = g.day + ':' + g.time + ':' + at; r.visitN++; }
-    if (sc.lines && sc.lines.length) sc.lines[0] = ['n', pool[(r.visitN + hs(role + at)) % pool.length](h)];
+    if (g.homeVisitKey !== g.day + ':' + g.time + ':' + at) { g.homeVisitKey = g.day + ':' + g.time + ':' + at; r.visitN++;
+      r.deedNote = C.homeDeed ? C.homeDeed(g, h, pool[(r.visitN + hs(role + at)) % pool.length](h), role + '@' + at) : ''; r.deedKey = g.homeVisitKey; } // сказала — сделала (home_deeds.js)
+    if (sc.lines && sc.lines.length) { sc.lines[0] = ['n', pool[(r.visitN + hs(role + at)) % pool.length](h)]; if (r.deedNote && r.deedKey === g.homeVisitKey) sc.lines.splice(1, 0, ['n', r.deedNote]); }
     const ch = sc.choices.slice(), back = ch.length && /^(Назад|Уйти)/.test(ch[ch.length - 1].label || ch[ch.length - 1].t || '') ? ch.pop() : null;
     let i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1; // номера — после всех, вместе с «Назад», иначе кнопки путаются
     ch.push({i: i++, label: 'Поговорить по душам', do: g2 => { const rr = C.relOf(g2, role, at); rr.talkN = (rr.talkN || 0) + 1;
-      const line = pool[(rr.talkN * 5 + (rr.visitN || 0) + 3) % pool.length](h); if (C.passH) C.passH(g2, 0.5);
+      const line = pool[(rr.talkN * 5 + (rr.visitN || 0) + 3) % pool.length](h); if (C.passH) C.passH(g2, 0.5); const dd = C.homeDeed ? C.homeDeed(g2, h, line, role + '@' + at) : '';
       if (rr.talkDay !== g2.day && C.spiritAdd) { rr.talkDay = g2.day; C.spiritAdd(g2, 1, `${p.n} — и на душе светлее.`); }
-      g2.folkLast = line; return 'folk'; }});
+      g2.folkLast = dd ? line + ' ' + dd : line; return 'folk'; }});
     const slept = r.nightDay === g.day;
     ch.push({i: i++, label: slept ? 'Ночь дома уже была' : 'Остаться дома на ночь', dis: slept ? 'сегодня уже ночевали дома' : null, do: g2 => {
       const rr = C.relOf(g2, role, at); rr.nightDay = g2.day;
@@ -50180,7 +50181,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261116"></script><script>
+</script><script src="world.js?v=202611261128"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
