@@ -50338,7 +50338,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270049"></script><script>
+</script><script src="world.js?v=202611270101"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52799,7 +52799,7 @@ function verText() { try { const sc = document.querySelector('script[src*="world
 let FEED = null; // лента сцены: что было до выбора — остаётся выше, новое дописывается снизу (Ник 27.11: «кусками пишется, часть пропадает»)
 function feedKeep(id, i) { try { const box = $('#main .scene .lines'); if (!box || id === 'kv_local') { FEED = null; return; } if (TYPING) TYPING.finish();
   const sc = C.sceneOf(g, id), c = sc && sc.choices.find(x => x.i === i), h2 = $('#main .scene h2');
-  FEED = {id, title: h2 ? h2.textContent : '', label: c ? String(c.label || c.t || '').replace(/\s+—\s+\d.*$/, '') : '', html: box.innerHTML, until: Date.now() + 180000}; } catch (e) { FEED = null; } }
+  FEED = {id, title: h2 ? h2.textContent : '', label: c && !c._nopick ? String(c.label || c.t || '').replace(/\s+—\s+\d.*$/, '') : '', html: box.innerHTML, until: Date.now() + 180000}; } catch (e) { FEED = null; } }
 function feedShow(id, sc) { const F = FEED; FEED = null; try { const box = $('#main .scene .lines');
   if (!F || !box || F.until < Date.now() || id === 'kv_local' || !(F.id === id || (F.title && F.title === sc.title))) return;
   const d = document.createElement('div'); d.className = 'feed-old'; d.innerHTML = F.html;
