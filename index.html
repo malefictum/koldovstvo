@@ -41497,7 +41497,8 @@ function folkTalk(g, sc, role, at, p, r, k, fam) {
   if (!r.bond) ch.push({t: 'Поговорить', do: g2 => { const rr = C.relOf(g2, role, at), h2 = C.alive(g2)[0]; const tt = C.relTier(rr);
     const say = tt >= 3 ? (s ? fill(pickL(g2, rr.love ? LOVE[p.sex] : FLIRT[p.sex], k + 't'), p, s) : fill(pickL(g2, CLOSE, k + 't'), p, kn || h2)) : TALK[role] ? fill(pickL(g2, TALK[role][tt], k + 't' + g2.time), p, h2) : `${p.n} кивает.`;
     let add = 0; if (rr.talkDay !== g2.day) { rr.talkDay = g2.day; if (rr.rep < 40) add = C.relAdd(g2, role, at, 2); else if (rr.love) add = C.relAdd(g2, role, at, 3); }
-    if (C.passH) C.passH(g2, 0.5); g2.folkLast = say + (add > 0 ? ' Разговор пришёлся по душе.' : ''); return 'folk'; }});
+    const dd = C.homeDeed ? C.homeDeed(g2, h2, say, k) : ''; // сказал «бери» — дал (home_deeds.js)
+    if (C.passH) C.passH(g2, 0.5); g2.folkLast = say + (add > 0 ? ' Разговор пришёлся по душе.' : '') + (dd ? ' ' + dd : ''); return 'folk'; }});
   // подарок
   if (!r.bond) ch.push({t: 'Сделать подарок', if: g2 => C.relOf(g2, role, at).giftDay !== g2.day, off: 'сегодня уже дарили', do: g2 => { g2.relGift = k; return 'folk_gift'; }});
   // любовь: ответить, сердечное дело, предложение
@@ -50181,7 +50182,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261128"></script><script>
+</script><script src="world.js?v=202611261143"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

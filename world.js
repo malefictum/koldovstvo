@@ -74148,9 +74148,22 @@ const R = G.R, C = G.C;
 if (!R || !C) return;
 const OBR = 'bz_obereg_zheny';
 try { const D0 = G.DATA || (typeof DATA !== 'undefined' ? DATA : null); if (D0 && D0.items && !D0.items[OBR]) D0.items[OBR] = {_t: 'g', id: OBR, name: 'Оберег, сплетённый женой', price: 5, price_text: '5 мм', weight_kg: 0.05, category: 'безделушки', ico: 'item:tr_obereg',
-  notes: 'Узелок из красной и белой нити. Сплела жена и велела носить под рубахой, у сердца. Продавать такое не принято.', bz: 'obereg_zheny'}; } catch (e) {}
+  notes: 'Узелок из красной и белой нити. Сплела жена и велела носить под рубахой, у сердца. Продавать такое не принято.', bz: 'obereg_zheny'};
+  if (D0 && D0.items && !D0.items.bz_gvozd_voevody) D0.items.bz_gvozd_voevody = {_t: 'g', id: 'bz_gvozd_voevody', name: 'Гвоздь из воеводиной подковы', price: 5, price_text: '5 мм', weight_kg: 0.02, category: 'безделушки', ico: 'item:podkovy_s_podkovkoy', notes: 'Кузнец отдал на удачу: гвоздь из подковы, что сорок лет носил конь воеводы.', bz: 'gvozd_voevody'};
+  if (D0 && D0.items && !D0.items.kn_knizhitsa) D0.items.kn_knizhitsa = {_t: 'g', id: 'kn_knizhitsa', name: 'Ветхая книжица писаря', price: 50, price_text: '5 см', weight_kg: 0.3, category: 'безделушки', ico: 'item:kniga_po_remeslu', notes: 'Писарь дал почитать в дороге: сказания и присловья, переписанные мелким почерком. Просил вернуть.', bz: 'knizhitsa'}; } catch (e) {}
+const BELT_KG = 5, HORSE_HP = 2;
 const DEEDS = C.HOME_DEEDS = [
-  {k: 'wash', re: /рубаху зашила|рубахи твои перестирала|портянки я тебе чистые|воды согрел умыться|ремень на суме перешил/, cd: 1, wash: 1},
+  {k: 'wash', re: /рубаху зашила|рубахи твои перестирала|портянки я тебе чистые|воды согрел умыться/, cd: 1, wash: 1},
+  {k: 'belt', re: /ремень на суме перешил/, cd: 7, fx: 'belt'},
+  {k: 'horse', re: /Коня твоего я почистил/, cd: 7, fx: 'horse'},
+  // мастера-друзья (hearts_more): сказал «бери» — дал
+  {k: 'feather', re: /пучок перьев: «Это на стрелы/, cd: 14, give: ['strely_legkie_12']},
+  {k: 'fever', re: /узелок: «Это от лихорадки/, cd: 14, give: ['vzvar_travyanoy', 'vzvar_travyanoy']},
+  {k: 'kapish', re: /карта старых капищ/, once: 1, fx: 'kapish'},
+  {k: 'knizh', re: /протягивает тебе ветхую книжицу/, once: 1, give: ['kn_knizhitsa']},
+  {k: 'luchina', re: /протягивает лучину: «Зажгите/, cd: 30, give: ['svecha_voskovaya']},
+  {k: 'gvozd', re: /протягивает гвоздь: «На удачу/, once: 1, give: ['bz_gvozd_voevody']},
+  {k: 'varezh', re: /кладёт вам в руки варежки/, cd: 90, give: ['rukavitsy']},
   {k: 'pirog', re: /тесто поставлю/, cd: 3, give: ['dish_pirog']},
   {k: 'salo', re: /сала завернула и луку/, cd: 3, give: ['harch_v_dorogu_na_den_suhari_vyalenoe_myaso', 'luk']},
   {k: 'obereg', re: /оберег тебе сплела/, once: 1, give: [OBR]},
@@ -74164,11 +74177,24 @@ C.homeDeed = function (g, h, text, key) {
     const S = g.homeDeeds = g.homeDeeds || {}, M = S[key] = S[key] || {}, d = g.day || 0;
     if (M[D.k] != null && (D.once || d - M[D.k] < (D.cd || 1))) return '';
     M[D.k] = d;
+    if (D.fx === 'belt') { h.capBonus = {kg: BELT_KG, till: d + 7}; return `${h.name}: ремень на суме как новый — неделю можно нести на ${BELT_KG} кг больше.`; }
+    if (D.fx === 'horse') { if (!(h.inv || []).some(id => C.isRiding && C.isRiding(id))) { M[D.k] = null; return ''; } h.horseCare = d + 7; return `${h.name}: конь вычищен и подкован — неделю в бою держится крепче (+${HORSE_HP} хита коню, в седле увереннее).`; }
+    if (D.fx === 'kapish') { const n = C.kapishMark ? C.kapishMark(g) : 0; if (!n) { M[D.k] = null; return ''; } return `На карте края отмечены старые капища: ${n}.`; }
     if (D.wash) { const had = (h.grime || 0) > 0; if (C.grimeWash) C.grimeWash(h); return had ? `${h.name}: чистое бельё — дорожную грязь как рукой сняло.` : `${h.name}: рубаха чистая, всё зашито.`; }
     const ids = (D.give || []).filter(id => { try { return !!R.item(id); } catch (e) { return false; } }); if (!ids.length) return '';
     h.inv = h.inv || []; ids.forEach(id => h.inv.push(id));
     return `${h.name} берёт в суму: ${ids.map(nm).join(', ')}.`;
   } catch (e) { return ''; } };
+/* ремень: +кг к ноше, пока срок; конь: крепче в бою, пока срок */
+if (C.heroCap) { const hc0 = C.heroCap; C.heroCap = function (h) { const v = hc0.apply(this, arguments); return h && h.capBonus ? v + (h.capBonus.kg || 0) : v; }; }
+if (C.pass) { const ps0 = C.pass; C.pass = function (g) { const d0 = g && g.day, r = ps0.apply(this, arguments);
+  try { if (g && g.day !== d0) (C.alive(g) || []).forEach(h => { if (h.capBonus && g.day >= h.capBonus.till) delete h.capBonus; if (h.horseCare && g.day >= h.horseCare) delete h.horseCare; }); } catch (e) {} return r; }; }
+if (G.B && G.B.mountUp) { const B = G.B, mu0 = B.mountUp; B.mountUp = function (S, u, id) { const r = mu0.apply(this, arguments);
+  try { if (u && u.ref && u.ref.horseCare && u.mount) { u.mount.hp += HORSE_HP; u.mount.hpMax += HORSE_HP; u.mount.sit = (u.mount.sit || 0) + 1; } } catch (e) {} return r; }; }
+/* карта капищ: открыть на карте до трёх ближних ещё не найденных капищ */
+C.kapishMark = function (g) { const W = G.W; if (!W || !W.world) return 0; try { const w = W.world(g), here = W.here ? W.here(g) : (g.pos ? w.cells[W.key(g.pos.c, g.pos.r)] : null);
+  const cs = Object.values(w.cells).filter(x => x.poi === 'shrine' && !(g.flags || {})['poi_' + x.poiId] && !(g.seen || {})[W.key(x.c, x.r)]);
+  if (here) cs.sort((a, b) => W.dist(a, here) - W.dist(b, here)); const pick = cs.slice(0, 3); pick.forEach(x => W.reveal(g, x, 1)); return pick.length; } catch (e) { return 0; } };
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* wild_walk.js */
