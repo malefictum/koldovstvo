@@ -75532,3 +75532,131 @@ if (C.folkStock) { const fs0 = C.folkStock; C.folkStock = function (g, role) { c
 if (C.knStock) { const ks0 = C.knStock; C.knStock = function (g) { const out = ks0.apply(this, arguments); try { const common = Object.keys(BOOKS).filter(k => !BOOKS[k].rare); const wk = Math.floor((g.day || 1) / 7), x = [...(g.loc + wk)].reduce((a, c) => (a * 31 + c.charCodeAt(0)) >>> 0, 3);
   const add = [common[x % common.length], common[(x >>> 5) % common.length]]; const sold = ((g.knSold || {})[g.loc + ':' + wk]) || []; add.forEach(id => { if (!out.includes(id) && !sold.includes(id)) out.push(id); }); } catch (e) {} return out; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* kn_lore.js */
+/* Колдовство — книги-сказы, листы из списков Чёрной книги, бестиарии; книги в добыче; книжник выкупает книги
+   (Ник 26.11: «книги в игре, которые рассказывают про легендарные квесты, — получить можно и так; на своих языках»).
+   • Книга-сказ (kn_lore_*): читается в окне чтения; впервые прочитанная — строка в летопись (g.taleLore), опыт,
+     и, если в её крае есть ещё не найденное заповедное подземелье, — его место на карте (C.fdgReveal). Канон: книги намекают, не называют.
+   • Листы из списков Чёрной книги (kn_cherny_1…12, вязь; «холодят руки»): каждый — строка; собранные 4, 8, 12 — строки в летопись.
+   • Бестиарий (kn_best_*): прочитавший отряд знает тварей этой породы — в бою у них −2 к спасброскам от чар и −1 к защите («знаешь, куда бить»).
+   • Добыча: в подземельях и у поверженных людей изредка находятся книги — сказы своего края, листы, бестиарии, наставления «мастер»/«эксперт»,
+     редкие ремесленные книги. Книжник выкупает книги дороже лавки (60 % цены). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, B = G.B;
+if (!R || !C || !C.writLang) return;
+const D = G.DATA || (typeof DATA !== 'undefined' ? DATA : null);
+const LORE = C.KN_LORE = {
+  kn_lore_pesennik: {land: 'dw', lang: 'nolgrim', name: 'Песенник, переписанный в Ольшанке', price: 600,
+    text: ['Тетрадь сшита суровой ниткой, листы в воске. Колыбельные, свадебные, плачи — и одна с пометкой на полях: «петь до конца, а то проснётся».',
+      '«Баю-бай, на чёрной воде, / спит наш князь на студёной гряде… / Вода уйдёт — ложись на землю…» — дальше лист оторван, а на корешке кто-то тёр строку пальцем, пока не стёрлась.',
+      'На последней странице чужой рукой, наискось: «Пока поют — спит. Песенников больше не давать никому, особенно серым».']},
+  kn_lore_kupchaya: {land: 'as', lang: 'nolgrim', name: 'Купчая на землю в Липках', price: 400,
+    text: ['Грамота о продаже трёх наделов под Липками на имя боярина Путяты, с тиунской печатью. Межи описаны дотошно: «от сухого колодца до камня, что гудит в грозу».',
+      'На обороте другой рукой, торопливо: «держать до Пр…» — дальше клякса, жирная, будто нарочно.',
+      'Внизу оттиск: перстень повёрнут гербом к пальцу — на воске остался гладкий круг.']},
+  kn_lore_perepischik: {land: 'ed', lang: 'imperets', name: 'Записки ученика переписчика', price: 900,
+    text: ['«Нынче опять переписывали списки. Учитель велит считать листы вслух: тридцать девять, ни больше ни меньше. Спросил, где сороковой, — получил по пальцам».',
+      '«Пергамент холодит руки, хоть в печку клади. Учитель говорит — это от соли, листы солят, чтобы не тлели. Я не верю: соль не холодит».',
+      '«Старый брат шептал над кружкой: книгу держали под главою, а не в руках. Теперь главы нет, а книги нет — вот и дышит под храмом». Дальше страница выдрана.']},
+  kn_lore_mezha: {land: 'tk', lang: 'gorets', name: 'Сага о межевом камне', price: 800,
+    text: ['Рунами на дубовых дощечках, связанных ремнём. Сага о старейшине кузнецов, «что ушёл вниз ковать узду и не вернулся, и род его с ним».',
+      'Припев повторяется после каждой песни: «Межа держит. Пока куём — межа держит».',
+      'На последней дощечке руна, которой горцы наверху не режут: стрелка вниз. Под ней — зарубки, будто кто-то считал годы и бросил.']},
+  kn_lore_gatnik: {land: 'sw', lang: 'nolgrim', name: 'Записи старого гатника', price: 500,
+    text: ['Гатник записывал, где гать держит, а где топь. Между делом — приметы: «Огни строем — уходи с гати. Огни врозь — то болотник, не трогай его».',
+      '«Не считай вслух от девяти. Кто досчитал до одного — того мы больше не видели, а сосед его говорит, что тот ушёл вниз сам, с улыбкой».',
+      '«У Утопленных галерей соль почернела квадратом, будто ящик стоял. Тяжёлый, в четыре пуда, как покойник. Кто носил — не знаю. Ушёл водой».']},
+  kn_lore_vityaz: {land: 'wd', lang: 'loss', name: 'Песнь о витязе без имени', price: 700,
+    text: ['Глаголью на бересте, свёрнутой в трубку. Лосская песнь о витязе, что приплыл с полудня на ладье и лёг в холм.',
+      '«Кони его головами на полдень, а кормило залито смолой — домой он не собирался». Песнопевцы поют это место молча — так и записано: «тут молчат».',
+      'Последняя строка: «Он не наш. Он от них ушёл. Вода стоит — значит, держит».']},
+  kn_lore_donos: {land: 'imp', lang: 'imperets', name: 'Донесение из Тривия', price: 600,
+    text: ['Донос, писанный как положено: кто, где, при ком. Доносчик клянётся, что видел на письме чёрную печать с ямкой посредине.',
+      'Ответ Палаты приписан внизу: «Такой печати в Палате нет. Доносчику — плата за усердие и молчание».',
+      'Чьей-то рукой на полях: «Нет у нас — значит, есть у кого-то ещё. Вторая печать». Слово «вторая» зачёркнуто дважды.']},
+  kn_lore_baba: {land: 'step', lang: 'parnass', name: 'Путевые записи пар-насского учёного в Степи', price: 900,
+    text: ['Учёный ехал с торговым караваном и записывал всё подряд: цены, ветры, обычаи. Про каменных баб — подробнее всего.',
+      '«Камы говорят, баба поворачивает лицо туда, куда идёт смерть, и отворачивается от лжеца. Я смеялся. Утром она смотрела на нашего проводника. К вечеру он сознался в краже».',
+      '«Видел баб со стёсанными лицами. Степняки говорят, это люди в серых обмотках, и что безликие ушедшие не находят дороги за ветер». На полях: «звезда со дна колодца — где видна, там вода больная».']},
+  kn_lore_bezvetrie: {land: 'par', lang: 'parnass', name: 'Трактат о безветрии', price: 1200,
+    text: ['Учёный трактат о воздухе и воде. Сухо, с расчётами — пока не доходит до главы «О лишнем свете».',
+      '«В Звёздной башне в безветренную ночь в тазу с водой отражается звезда, которой нет на небе. Стоит дунуть на воду — пропадает. Я дул. Она возвращалась».',
+      '«Трубы Школы Семи Ветров кто-то затыкает воском. На воске оттиснут серп. Спрашивать об этом не советую: спросивший у меня ученик больше не отбрасывает тени»']},
+  kn_lore_lastochka: {land: 'ber', lang: 'yuzhnober', name: 'Судовая книга «Ласточки»', price: 1000,
+    text: ['Судовая книга, просоленная насквозь. Записи кормчего короткие: ветер, курс, сколько воды в бочках.',
+      '«Шли на закат сорок дней. На сорок первый море кончилось, а мы — нет». Дальше ни слова о том, что там было, — только: «вернулись пустыми».',
+      'Внизу, крупно: «Три тумана. В тумане зовут по имени с воды. НЕ ОТВЕЧАТЬ». Подчёркнуто так, что перо прорвало лист.']},
+  kn_lore_blednye: {land: 'pod', lang: 'podzem', name: 'Счёт бледного дома', price: 900,
+    text: ['Знаки Подземья на сланцевых пластинах. Домашний счёт: споры, соль, серебро — и праздники.',
+      '«В Дедову ночь ставим ложку для царя. Пока борода растёт, межа стоит». Повторено на каждой пластине, как молитва.',
+      '«Сверху перестало капать — растёт кровяной гриб. Тёплых детей поить отваром, чтобы не пахли. По имени при чужих не звать».']},
+  kn_lore_teplye: {land: null, lang: 'nolgrim', name: 'Знахаркина тетрадь о тёплых детях', price: 500,
+    text: ['Записи сельской знахарки: кто родился, когда, у какой воды. Против иных имён — пометка «тёплый».',
+      '«Тёплый — к долгой жизни, что бы там ни болтали. Руки горячие, тень ложится не туда. Смотри, куда ложится тень, — оттуда и зовут».',
+      '«Матерям говорю: дайте второе имя у колыбели, никому не сказывайте. Того, у кого имя знает одна мать, не дозовутся»']},
+};
+Object.entries(LORE).forEach(([id, b]) => { if (D.items[id]) return; D.items[id] = {_t: 'g', id, name: b.name, price: b.price, weight_kg: 0.6, category: 'книги', ico: 'item:kniga_po_remeslu', lang: b.lang, text: b.text, lore: 1, notes: 'Старая запись. Прочитанная — останется в летописи, а может, и укажет место.'}; });
+/* листы из списков Чёрной книги */
+const CH = ['Писанное держит. Читанное будит. Читай, если хочешь, чтобы проснулось.', 'Лист тридцатый: строки идут сверху вниз и снизу вверх разом. Глазу больно.',
+  'На поле — чужая пометка: «из тридцати девяти. Сорокового нет и не было». Чернила свежее листа.', 'Слова лежат тяжело, как камни на крышке. Пергамент холодит пальцы.',
+  'Посредине — круг без зрачка, обведённый трижды. Под ним строка вязи, выскобленная ножом.', 'Здесь писано не для чтения, а чтобы давить. Так и сказано, первой строкой.',
+  '«…тот, что пишется, чтобы закрывать», — обрывается на полуслове, остальное отрезано.', 'Соль въелась в лист белой коркой. Кто-то берёг его от тлена, а не от глаз.',
+  'Вязь бежит вокруг пятна, похожего на след головы. Будто на лист долго лежали.', 'Прочитанное наоборот снимает тень тяжести — так приписано мелко внизу. И ещё мельче: «но не всю».',
+  'Лист в бурых пятнах. Под ним тянет сыростью, как от болотной воды.', 'Последний из списка листов. На обороте: «держать при себе, пока край не дозреет».'];
+for (let i = 1; i <= 12; i++) { const id = 'kn_cherny_' + i; if (!D.items[id]) D.items[id] = {_t: 'g', id, name: `Лист из списка Чёрной книги (${i})`, price: 300, weight_kg: 0.05, category: 'книги', ico: 'item:sv_astro_obereg', lang: 'vyaz', text: [CH[i - 1]], cherny: i, notes: 'Пергаментный лист, исписанный вязью. Холодит руки. Око жжёт такое не глядя.'}; }
+const CH_LORE = {4: 'Листы из списков Чёрной книги холодят руки, хоть у печи держи: книжники знают это и не спорят.', 8: 'Списки Чёрной книги ходят по тридцать девять листов. Сорокового нет ни в одном — будто его нарочно отделили.', 12: 'Вязь писана «не для чтения, а чтобы давить». Сама книга, говорят, лежит на болоте, под чьей-то головой.'};
+/* бестиарии */
+const BEST = {zveri: ['звери', 'Охотничий бестиарий: звери', 'nolgrim'], nezhit: ['нежить', 'Навий список: нежить', 'vyaz'], nechist: ['нечисть', 'Сказ о нечисти', 'nolgrim'], chudovishcha: ['чудовища', 'Бестиарий чудовищ', 'parnass'],
+  zmei: ['змеи', 'Змеиная книга', 'yuzhnober'], duhi: ['духи', 'О духах и тенях', 'loss'], lyudi: ['люди', 'Наставление дружиннику: о лихих людях', 'imperets'], podzem: ['люди Подземья', 'Записки о бледном народе', 'podzem'],
+  step: ['степные дикари', 'Записки о степняках', 'parnass'], les: ['лесные племена', 'О лесных племенах', 'loss'], gortsy: ['народы-горцы', 'Сага о горных родах', 'gorets']};
+Object.entries(BEST).forEach(([k, [grp, nm, lang]]) => { const id = 'kn_best_' + k; if (D.items[id]) return; const ms = (D.bestiary || []).filter(m => m.group === grp).map(m => m.name);
+  D.items[id] = {_t: 'g', id, name: nm, price: 1500, weight_kg: 1, category: 'книги', ico: 'item:kniga_po_remeslu', lang, best: grp, text: [`Описаны: ${ms.slice(0, 12).join(', ')}${ms.length > 12 ? ' и другие' : ''}.`, 'Где водятся, чем живут, куда бить и чего беречься.'],
+    notes: `Кто прочёл — узнаёт эту породу в бою: −2 к спасброскам от чар и −1 к защите у тварей «${grp}».`}; });
+/* ---------- прочитано впервые ---------- */
+const team = g => (C.alive(g) || []).concat(g.mercs || []);
+const nodeOf = g => C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[g.loc];
+C.knFirstRead = function (g, id) { const base = String(id).split('~')[0], it = D.items[base]; if (!g || !it) return ''; g.knRead1 = g.knRead1 || {}; if (g.knRead1[base]) return ''; g.knRead1[base] = g.day || 1; const out = [];
+  if (it.lore) { const b = LORE[base]; g.taleLore = (g.taleLore || []).concat({id: 'kn:' + base, title: b.name, land: b.land, t: b.text[b.text.length - 1], day: g.day}); out.push('Прочитанное записано в летопись.');
+    if (b.land && C.fdgHidden && C.fdgReveal) { const F = (C.fdgHidden(g, b.land) || []).find(x => x.land === b.land) || null; if (F) { C.fdgReveal(g, F.id, 'book'); out.push(`Из прочитанного ясно, где искать: ${F.name}.`); } }
+    if (C.giveXP) C.giveXP(g, 20, 'прочитано'); }
+  if (it.cherny) { const n = Object.keys(g.knRead1).filter(k => /^kn_cherny_/.test(k)).length; out.push(`Листов из списков прочитано: ${n}.`); if (CH_LORE[n]) { g.taleLore = (g.taleLore || []).concat({id: 'kn:cherny' + n, title: 'Списки Чёрной книги', land: 'ed', t: CH_LORE[n], day: g.day}); out.push(CH_LORE[n]); if (C.giveXP) C.giveXP(g, 15 * n, 'листы'); } }
+  if (it.best) { g.bestRead = Object.assign({}, g.bestRead, {[it.best]: g.day || 1}); out.push(`Теперь отряд знает породу «${it.best}»: в бою — куда бить.`); }
+  if (out.length && C.note) C.note(g, out.join(' ')); return out.join(' '); };
+// окно чтения: впервые прочитанное — отметить (только если в отряде читают или есть перевод)
+{ const camp = Object.values(C.CAMPS)[0], kr0 = camp && camp.scenes.kn_read; if (kr0) { const kr = function (g) { const sc = kr0.apply(this, arguments); try { const X = g.knRead || {}; if (X.id && (C.isTrans(g, X.id) || C.partyReader(g, C.writLang(X.id)))) { const t = C.knFirstRead(g, X.id); if (t) sc.lines.push(['n', t]); } } catch (e) {} return sc; };
+  Object.values(C.CAMPS).forEach(c => { c.scenes.kn_read = kr; }); } }
+/* ---------- бестиарий в бою ---------- */
+{ const bs0 = B.start; B.start = function (o) { const S = bs0.apply(this, arguments); try { const g = C._lettersG ? C._lettersG() : null; const BR = g && g.bestRead; if (!BR || !S || !S.units) return S;
+  const known = S.units.filter(u => u.side === 'foe' && u.ref && BR[u.ref.group || u.group]); known.forEach(u => { if (!u.loreKnown) u.saveBonus = (u.saveBonus || 0) - 2; u.loreKnown = true; u.def = (u.def || 0) - 1; });
+  if (known.length) B.log(S, `Читано в бестиарии: ${[...new Set(known.map(u => u.name))].slice(0, 4).join(', ')} — знаете, куда бить.`, 'buff', '−2 к спасброскам от чар и −1 к защите у знакомых тварей'); } catch (e) {} return S; }; }
+/* ---------- книги в добыче ---------- */
+const HUMAN = ['люди', 'степные дикари', 'лесные племена', 'народы-горцы', 'люди Подземья'];
+C.KN_DROP = Object.assign({dg: 0.12, human: 0.04}, C.KN_DROP || {});
+const owned = (g, id) => team(g).some(h => (h.inv || []).includes(id)) || !!(g.knRead1 || {})[id];
+C.knBookDrop = function (g) { const n = nodeOf(g), land = n && (n.reg || n.land), pool = [];
+  Object.keys(LORE).forEach(id => { if (!owned(g, id)) pool.push([id, LORE[id].land === land ? 30 : 4]); });
+  for (let i = 1; i <= 12; i++) { const id = 'kn_cherny_' + i; if (!owned(g, id)) pool.push([id, ['ed', 'sw', 'imp'].includes(land) ? 5 : 1.5]); }
+  Object.keys(BEST).forEach(k => { const id = 'kn_best_' + k; if (!owned(g, id)) pool.push([id, 2]); });
+  Object.keys(D.items).filter(k => /^kn_nast_.+_[34]$/.test(k)).forEach(id => pool.push([id, 0.06]));
+  Object.entries(C.KRAFT_BOOKS || {}).filter(([, b]) => b.rare).forEach(([id]) => { if (!owned(g, id)) pool.push([id, 2]); });
+  Object.keys(D.items).filter(k => /^rcp_/.test(k)).forEach(id => pool.push([id, 0.5]));
+  const tot = pool.reduce((s, x) => s + x[1], 0); if (!tot) return null; let v = R.rand() * tot; for (const [id, w] of pool) { v -= w; if (v < 0) return id; } return pool[0][0]; };
+if (C.dropOf) { const do0 = C.dropOf; C.dropOf = function (u, g) { const out = do0.apply(this, arguments); try { const gg = g || (C._lettersG && C._lettersG()); if (!gg) return out; const grp = (u && (u.group || (u.ref && u.ref.group))) || '';
+  const p = gg.dungeon ? C.KN_DROP.dg : HUMAN.includes(grp) ? C.KN_DROP.human : 0; if (p && R.rand() < p) { const id = C.knBookDrop(gg); if (id) return (out || []).concat(id); } } catch (e) {} return out; }; }
+/* ---------- книжник выкупает книги ---------- */
+C.KN_BUYBACK = 0.6;
+const isBook = id => { const it = D.items[String(id).split('~')[0]]; return !!(it && (it.category === 'книги' || it.category === 'рецепты' || /^(sv_|kn_)/.test(it.id))); };
+C.knSellList = g => { const out = []; team(g).forEach(h => [...new Set(h.inv || [])].forEach(id => { if (isBook(id) && !Object.values(h.eq || {}).includes(id)) out.push({h, id, price: Math.max(1, Math.round(((R.item(id) || {}).price || 0) * C.KN_BUYBACK))}); })); return out; };
+C.knSell = function (g, hid, id) { const x = C.knSellList(g).find(o => o.h.id === hid && o.id === id); if (!x) return {err: 'нечего продать'}; x.h.inv.splice(x.h.inv.indexOf(id), 1); g.purse = (g.purse || 0) + x.price;
+  const t = `Книжник берёт ${(R.item(id) || {}).name.toLowerCase()} за ${R.priceText(x.price)}.`; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+const SC = {};
+SC.kn_sell = g => { const L = C.knSellList(g), lines = [['n', 'Книжник листает принесённое, нюхает переплёт: «Книги беру дороже, чем в лавке, — лавочник их на растопку пустит. Что продаёте?»']];
+  if (g.knLast) lines.push(['n', g.knLast]); if (!L.length) lines.push(['n', 'Ни книг, ни свитков в сумах нет.']);
+  const ch = L.slice(0, 24).map(o => ({t: `${o.h.name}: ${(R.item(o.id) || {}).name} — ${R.priceText(o.price)}${(g.knRead1 || {})[o.id] ? '' : C.KN_LORE[o.id] ? ' (ещё не прочитано)' : ''}`, do: g2 => { const r = C.knSell(g2, o.h.id, o.id); g2.knLast = r.err || r.text; return 'kn_sell'; }}));
+  ch.push({t: 'Назад', do: g2 => { g2.knLast = null; return 'kn_scribe'; }}); return {title: 'Книжник: продать', bg: 'town', art: 'edvin_skriptoriy', lines, choices: ch}; };
+Object.values(C.CAMPS).forEach(camp => Object.entries(SC).forEach(([k, sc]) => { camp.scenes[k] = sc; }));
+{ const ks0 = Object.values(C.CAMPS)[0].scenes.kn_scribe; if (ks0) { const ks = function (g) { const sc = ks0.apply(this, arguments); try { const back = sc.choices.pop(); sc.choices.push({t: 'Продать книги и свитки', do: g2 => { g2.knLast = null; return 'kn_sell'; }}); sc.choices.push(back); } catch (e) {} return sc; };
+  Object.values(C.CAMPS).forEach(camp => { camp.scenes.kn_scribe = ks; }); } }
+})(typeof window !== 'undefined' ? window : globalThis);
