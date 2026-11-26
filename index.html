@@ -4271,7 +4271,7 @@ Q.make = function (g, src, opt) {
   const v = {kind, gid: giverId, thrId: thr, ttype, thr: {n: T.n, a: T.a, g: T.g, i: T.i, gen: T.gen}, place, rcp: Q.person(g), vic: Q.person(g, kind === 'missing' && R.rand() < 0.5 ? 'f' : null, giver.ppl && R.rand() < 0.8 ? giver.ppl : null), wit: Q.person(g), item: R.pick(ITEMS), giver, herb: R.pick(Q.TXT.HERBS)};
   // препятствия: дорога (по местности) + одно на месте (+ ещё одно, если дело опасное)
   // Ник 25.11: «эти ивенты оооч часто повторяются» — не в каждом деле дорога с препятствием, и недавние препятствия реже
-  const stages = [], seenOb = (g.qObSeen || []).slice(-5), fresh = L => { const f = L.filter(k => !seenOb.includes(k)); return f.length ? f : L; };
+  const stages = [], seenOb = (g.qObSeen || []).slice(-8), fresh = L => { const f = L.filter(k => !seenOb.includes(k)); if (f.length) return f; const age = k => seenOb.lastIndexOf(k), m = Math.min(...L.map(age)); return L.filter(k => age(k) === m); }; // всё было — то, что было давнее всего
   const road = (Q.ROAD_OB[terr] || ['lost']).filter(k => Q.OB[k] && Q.obOk(k, terr));
   if (R.rand() < (src === 'omen' ? 0.3 : 0.5) && road.length) stages.push(R.pick(fresh(road)));
   // мёртвый свидетель — только в розыске и там, где убивают люди
@@ -4279,7 +4279,6 @@ Q.make = function (g, src, opt) {
   const mids = mids0.length ? mids0 : ['witness'];
   if (diff !== 'easy' || !stages.length || R.rand() < 0.6) stages.push(R.pick(fresh(mids)));
   if (diff === 'hard' || (diff === 'mid' && R.rand() < 0.3)) { const m2 = mids.filter(k => !stages.includes(k)); if (m2.length) stages.push(R.pick(fresh(m2))); }
-  g.qObSeen = seenOb.concat(stages).slice(-8);
   // поворот
   let twist = null;
   const tw = Object.keys(Q.TWIST).filter(k => Q.TWIST[k].kinds.includes(kind) && (!Q.TWIST[k].human || T.human) && (!Q.TWIST[k].beast || T.beast));
@@ -4348,8 +4347,10 @@ Q.ways = function (g, j) {
   const key = j.stages[j.stage], ob = Q.OB[key]; if (!ob) return [];
   const used = j.used[j.stage] || [];
   const out = [];
+  const horse = C.alive(g).some(h => (h.eq && h.eq.mount) || (h.inv || []).some(id => C.horseOf && C.horseOf(id)));
   ob.ways.forEach((w, wi) => {
     if (used.includes(wi)) return;
+    if ((w.skill === 'Верховая езда' || w.horse) && !horse) return; // без коней не скачут (Ник 26.11)
     if (w.k === 'spell') { const animal = !Q.THREAT[j.thr].beast && key !== 'beast' && key !== 'lost'; const sp = Q.spellFor(g, w.re, animal ? /животн/ : null); if (sp) out.push({wi, w, t: `Чары: «${sp.s.name}» (${sp.h.name}, Сила −${sp.cost})`, sp}); return; }
     if (w.k === 'need') { const h = C.who(g, w); if (h) out.push({wi, w, t: fmt(w.t, j.v), need: w, hero: h}); return; }
     if (w.k === 'item') { if (Q.hasItem(g, w.id)) out.push({wi, w, t: w.t}); return; }
@@ -4581,6 +4582,7 @@ Q.siteAt = (g, cell) => Q.active(g).find(j => j.site && j.site.c === cell.c && j
 Q.accept = function (g, j) {
   if (j.dl != null && j.day != null && g.day > j.day) { j.dl += g.day - j.day; j.day = g.day; } // срок — от дня, когда взялись
   j.status = 'open'; g.jobs = g.jobs || []; g.jobs.push(j);
+  g.qObSeen = (g.qObSeen || []).concat(j.stages || []).slice(-10); // недавние препятствия — по взятым делам, не по всем предложенным (Ник 26.11: «повторяются»)
   if (j.site && W()) W().reveal(g, W().world(g).cells[W().key(j.site.c, j.site.r)], 1);
   C.note(g, `Взялись: «${Q.title(j)}» — ${Q.giverName(j)}. Срок — до ${j.dl}-го дня.`);
   if (g.jobBoard && g.jobBoard[j.node]) g.jobBoard[j.node].offers = g.jobBoard[j.node].offers.filter(x => x.id !== j.id);
@@ -49255,7 +49257,7 @@ BF.villageKind = function (F, ctx) {
   if (ctx.nk === 'город') return 'town';
   if (ctx.camp === 'terak' || ctx.reg === 'tk') return 'terak';
   if (ctx.reg === 'imp' && ctx.nk === 'подворье') return 'villa';
-  if (ctx.nk === 'подворье' || ctx.nk === 'лагерь') return 'khutor';
+  if (ctx.nk === 'подворье' || ctx.nk === 'лагерь' || ctx.nk === 'мельница') return 'khutor';
   if (F.bf && F.bf.river) return 'river';
   if (south) return 'south';
   return 'street';
@@ -49305,7 +49307,8 @@ BF.houseVillage = function (F) {
   if (!town && !terak && !villa) {
     if (kind !== 'khutor') { place("kuznya", (rnd() < 0.5 ? alMax0 - 5 : alMin0 + 5), (rnd() < 0.5 ? 1 : -1) * 6.5, 200) || place("kuznya", (rnd() - 0.5) * 30, (rnd() < 0.5 ? 1 : -1) * 8, 300, 1); }
     if (river.length && kind !== 'khutor') { const w0 = river.slice().sort((a, b) => B.dist(a, mid) - B.dist(b, mid))[0]; if (w0) { const sg = across(w0) >= 0 ? 1 : -1; place('melnitsa', along(w0), across(w0) - sg * 5, 200, 1); } }
-    if (kind === 'khutor') { place('hlev', 6, 9, 60, 1); place('saray', -6, -9, 60, 1); }
+    if (kind === 'khutor' && ctx.nk === 'мельница') { const w0 = river.length ? river.slice().sort((a, b) => B.dist(a, mid) - B.dist(b, mid))[0] : null; (w0 && place('melnitsa', along(w0), across(w0) - (across(w0) >= 0 ? 1 : -1) * 5, 200, 1)) || place('melnitsa', 0, -7, 200, 1); place('ambar', -7, 8, 60, 1); } // мельница: сама мельница у воды, амбар для зерна
+    else if (kind === 'khutor') { place('hlev', 6, 9, 60, 1); place('saray', -6, -9, 60, 1); }
   }
   // усадьбы полосами
   const slot = town ? 18 : 19, nMax = kind === 'khutor' ? 2 : town ? 12 : 11; // сёла гуще: дворов больше, полосы уже
@@ -50320,7 +50323,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611262155"></script><script>
+</script><script src="world.js?v=202611262207"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

@@ -70421,7 +70421,7 @@ const BF = B.BF, key = BF.key, FREE = C.CAMPS.free, TX = C.TW_TX;
 C.TW = Object.assign({
   MIN: 0.5, MIN_FIGHT: 0.1, CIV_EVERY: 20, CIV_GUARD_EVERY: 2, // селяне шагают раз в 10 минут, стража раз в минуту
                         // круг прогулки — полминуты, круг драки — 6 секунд; 60 кругов = полчаса (Ник 25.11)
-  KINDS: ['село', 'город', 'подворье'],
+  KINDS: ['село', 'город', 'подворье', 'мельница'],
   GUARDS: {town: [2, 3], village: [0, 1], yard: [0, 1]}, // [день, ночь]
   DOGS: {town: 2, village: 3, yard: 2},
   SCENT: 3,                                        // псы чуют за столько шагов
@@ -70489,7 +70489,7 @@ C.walkWhy = function (g) {
   if (!C.alive(g).length) return 'некому идти';
   return '';
 };
-C.walkLabel = function (g) { const n = nodeHere(g) || {}; if (C.isNight(g)) return 'Осмотреться'; return n.kind === 'город' ? 'Пройтись по городу' : n.kind === 'подворье' ? 'Пройтись по подворью' : 'Пройтись по селу'; };
+C.walkLabel = function (g) { const n = nodeHere(g) || {}; if (C.isNight(g)) return 'Осмотреться'; return n.kind === 'город' ? 'Пройтись по городу' : n.kind === 'подворье' ? 'Пройтись по подворью' : n.kind === 'мельница' ? 'Пройтись по мельнице' : 'Пройтись по селу'; };
 
 /* ---------- спецификация боя-прогулки ---------- */
 C._walkG = () => G_;
