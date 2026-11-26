@@ -44910,7 +44910,7 @@ G.B = B;
 const R = G.R, B = G.B, C = G.C;
 if (!B || !B.BF || !C) return;
 const BF = B.BF, key = BF.key;
-Object.assign(B.TERRAIN, {door_shut: {name: 'запертая дверь', block: true, cover: 2}});
+Object.assign(B.TERRAIN, {door_shut: {name: 'запертая дверь', block: true, cover: 2}, coffin: {name: 'гроб-колода', block: true, cover: 2}, dslab: {name: 'плита с дарами', block: true, cover: 2}, urns: {name: 'урны', block: true, cover: 1}, cairn: {name: 'каменный тур', block: true, cover: 2}, barrow: {name: 'тачка с рудой', block: true, cover: 1}, dladder: {name: 'лестница наверх', cost: 1}});
 if (B.LOS_BLOCK) B.LOS_BLOCK.door_shut = 1;
 BF.KX = 2.4; BF.KY = 2.77; // клеток поля на сажень: по ширине и по рядам (ряды гексов ниже столбцов)
 const CAVE = ['peshchera', 'shakhta'];
@@ -44972,6 +44972,19 @@ BF.dungeon = function (d, o) {
     else if (Z === 'zaboy' || Z === 'produh') put('rubble', 2);
     else if (Z === 'boss') { const back = cs.filter(onEdge).sort((a, b) => B.dist(b, ctr) - B.dist(a, ctr)); if (back[0] && !nearDoor(back[0])) back[0].t = d.kind === 'kurgan' ? 'grave' : 'idol'; }
     else if (Z === 'vhod') put('rubble', 1, cs.filter(onEdge));
+    // лист 111: гробы, плиты с дарами, урны, тур со звездой, тачка, обломки крепи, лестница — без общей случайности (порядок по месту клетки)
+    { const hsh = z => { let h = (z.c * 73856093) ^ (z.r * 19349663) ^ (rid * 83492791); h = Math.imul(h ^ (h >>> 13), 0x5bd1e995); return (h ^ (h >>> 15)) >>> 0; };
+      const ring = z => B.neigh(z.c, z.r).map(p => { const y = BF.at(F, p.c, p.r); return !!(y && !(B.TERRAIN[y.t] || {}).block && y.t !== 'wall'); });
+      const ringOK = z => { const o = ring(z), n = o.filter(Boolean).length; if (n < 2) return n > 0; let runs = 0; for (let i = 0; i < 6; i++) if (o[i] && !o[(i + 5) % 6]) runs++; return runs <= 1; }; // проход вокруг не рвётся
+      const putD = (t, vp, n, pool) => { (pool || cs).filter(z => z.t === 'floor' && !nearDoor(z) && z.cor == null).sort((a, b) => hsh(a) - hsh(b)).filter(z => ringOK(z)).slice(0, n).forEach(z => { z.t = t; if (vp) { z.vp = vp; z.vy = 'prop'; } }); };
+      const kurg = ['kurgan', 'kapishche'].includes(d.kind), mine = d.kind === 'shakhta';
+      if (Z === 'usyp') { putD('coffin', 'p_d_coffin', Math.max(1, Math.round(cs.length / 18)), cs.filter(onEdge)); putD('urns', 'p_d_urns', 1, cs.filter(onEdge)); if (kurg) putD('dslab', 'p_d_slab', 1, cs.filter(onEdge)); }
+      else if (Z === 'sklad') { const cr = cs.filter(z => z.t === 'crate').sort((a, b) => hsh(a) - hsh(b))[0]; if (cr) { cr.vp = 'p_d_chest'; cr.vy = 'prop'; } putD('urns', 'p_d_urns', 1, cs.filter(onEdge)); }
+      else if (Z === 'svyat' && kurg) putD('cairn', 'p_d_cairn', 1, cs.filter(onEdge));
+      else if (Z === 'boss' && kurg) putD('dslab', 'p_d_slab', 1, cs.filter(onEdge));
+      else if (Z === 'voda' && ctr.t === 'pool') { ctr.vp = 'p_d_pool'; ctr.vy = 'prop'; }
+      else if ((Z === 'zaboy' || Z === 'produh') && mine) { putD('barrow', 'p_d_barrow', 1, cs.filter(onEdge)); const rb = cs.filter(z => z.t === 'rubble').sort((a, b) => hsh(a) - hsh(b))[0]; if (rb) { rb.vp = 'p_d_props'; rb.vy = 'prop'; } }
+      else if (Z === 'vhod' && (kurg || mine)) putD('dladder', 'p_d_ladder', 1, cs.filter(onEdge)); }
     if (main) F.bf.center = {c: ctr.c, r: ctr.r};
   });
   // выходы: проходимые клетки на краю окна — куда ведут
@@ -49397,7 +49410,7 @@ BF.hbCell = function (X, c, p, s, S, img) {
   X.restore();
 };
 BF.vyThing = function (X, c, p, s, S, U) {
-  if (c.vp && U && U.img && BF.hSpr) { const W = {p_stall_cloth: 1.7, p_stall_baskets: 1.7, p_trough: 1.2, p_woodpile: 1.3, p_turret: 1.5}[c.vp] || 1.1; if (BF.hSpr(X, U.img, c.vp, p.x, p.y + s * 0.62, Math.sqrt(3) * s * W)) return true; } // лист 108: прилавки, колода, поленница
+  if (c.vp && U && U.img && BF.hSpr) { const W = {p_stall_cloth: 1.7, p_stall_baskets: 1.7, p_trough: 1.2, p_woodpile: 1.3, p_turret: 1.5, p_d_coffin: 1.05, p_d_slab: 1.05, p_d_urns: 0.85, p_d_cairn: 0.95, p_d_barrow: 1.0, p_d_props: 1.05, p_d_ladder: 0.6, p_d_chest: 0.85, p_d_pool: 1.15}[c.vp] || 1.1; if (BF.hSpr(X, U.img, c.vp, p.x, p.y + s * 0.62, Math.sqrt(3) * s * W)) return true; } // лист 108: прилавки, колода, поленница
   if (c.vy === 'pali') { if (U && U.fprop && U.fprop('fp_palisade', p.x, p.y + s * 0.6, {w: Math.sqrt(3) * s * 1.15})) return true;
     X.save(); X.fillStyle = '#6a4a28'; for (let i = -2; i <= 2; i++) { X.fillRect(p.x + i * s * 0.32 - s * 0.12, p.y - s * 1.5, s * 0.24, s * 1.9); X.beginPath(); X.moveTo(p.x + i * s * 0.32 - s * 0.12, p.y - s * 1.5); X.lineTo(p.x + i * s * 0.32, p.y - s * 1.75); X.lineTo(p.x + i * s * 0.32 + s * 0.12, p.y - s * 1.5); X.fill(); } X.restore(); return true; }
   if (c.vy === 'gate') { X.save(); X.fillStyle = '#5a3a1c'; X.fillRect(p.x - s * 0.8, p.y - s * 1.9, s * 0.22, s * 2.2); X.fillRect(p.x + s * 0.58, p.y - s * 1.9, s * 0.22, s * 2.2); X.fillRect(p.x - s * 0.9, p.y - s * 2.0, s * 1.8, s * 0.22); X.restore(); return true; }
@@ -50302,7 +50315,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261949"></script><script>
+</script><script src="world.js?v=202611262114"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54593,7 +54606,7 @@ function bfFogOf(S, c) { /* 0 — не разведано, 1 — разведа�
   if (Z.v && Z.v[kk]) return 2; return exp(); }
 function bfCell(c, p, s, F, k, tex) {
   const dg = F.bf && F.bf.kind === 'dungeon';
-  if (dg && B.BF.dgGround && c.t === 'floor' && B.BF.dgGround(ctx, c, p, s, F, IMG.house)) return;
+  if (dg && B.BF.dgGround && c.t !== 'wall' && !['pool', 'shallow', 'deep', 'water', 'ice', 'blaze'].includes(c.t) && B.BF.dgGround(ctx, c, p, s, F, IMG.house)) { if (c.t === 'rubble') { ctx.fillStyle = 'rgba(90,82,70,.3)'; ctx.fill(); } return; }
   if (dg && c.t === 'wall') { const edge = B.neigh(c.c, c.r).some(n => { const y = F.cells[n.c + ',' + n.r]; return y && y.t !== 'wall'; }); ctx.fillStyle = edge ? 'rgba(18,14,10,.72)' : '#15110d'; ctx.fill(); return; }
   if (dg && c.t !== 'shallow' && c.t !== 'pool' && c.t !== 'floor') { ctx.fillStyle = tex(F.bg === 'cave' ? 'cave' : 'rock') || '#3b342a'; ctx.fill(); ctx.fillStyle = 'rgba(22,17,12,.42)'; ctx.fill(); }
   if (c.t === 'pool') { ctx.fillStyle = tex('water') || '#3f5f73'; ctx.fill(); ctx.fillStyle = 'rgba(10,20,30,.35)'; ctx.fill(); }
@@ -55360,7 +55373,7 @@ function bop(op, a) {
       B[op](S, u, t); break; }
     case 'shoot': { const t = T(a.t); if (S.acted) return 'Действие уже потрачено в этот ход.'; if (!t || t.dead || B.rangeBand(u, t) === null) return 'Не достать.'; B.attack(S, u, t, true); S.acted = true; break; }
     case 'hit': { const t = T(a.t); if (!t || t.side === u.side || t.dead) return 'не та цель'; if (S.acted) return 'Действие уже потрачено в этот ход.';
-      if (B.dist(u, t) > 1) { const reach = B.reach(S, u); let best = null; for (const k in reach) { const x = reach[k]; if (B.dist(x, t) === 1 && (!best || x.cost < best.cost)) best = x; } if (!best) return 'Не дойти.'; B.move(S, u, best.c, best.r); }
+      if (B.dist(u, t) > 1) { const reach = B.reach(S, u); let best = null; for (const k in reach) { const x = reach[k]; if (!x.thick && B.dist(x, t) === 1 && (!best || x.cost < best.cost)) best = x; } if (!best) return 'Не дойти.'; B.move(S, u, best.c, best.r); }
       if (B.active(u) && B.dist(u, t) === 1) { B.attack(S, u, t, false); S.acted = true; } break; }
     case 'move': if (!B.move(S, u, a.c, a.r)) {
         // прогулка: далеко — идём сами ход за ходом, пока не дойдём (Ник 25.11: «нажал идти куда угодно — идёт без остановки, считая шаги»)
@@ -56791,7 +56804,7 @@ function coinize(root) {
 }
 new MutationObserver(ms => { ms.forEach(m => { m.addedNodes.forEach(n => { if (n.nodeType === 1 && n.querySelector && !n.closest('.dd') && (n.tagName === 'SELECT' || n.querySelector('select:not(.dd-src)'))) enhanceSelects(n.tagName === 'SELECT' ? n.parentNode : n); if (n.nodeType === 1) coinize(n); else if (n.nodeType === 3 && n.parentNode) coinize(n.parentNode); }); if (m.type === 'characterData' && m.target.parentNode) coinize(m.target.parentNode); }); }).observe(document.body, {childList: true, subtree: true, characterData: true});
 coinize(document.body);
-window.__kldv = { nethost: n => raiseTable(n || 'Хозяин', ''), netgive: (hid, pid) => { g.net.own[hid] = pid; save(); publish(true); }, scr: () => SCR, netEmu: () => { g = C.load(JSON.stringify(g)); battle = unpackBattle(packBattle(battle)); drawField(true); return (window.__kldv || {}).drawErr || ''; }, civMenu: id => civMenu(battle, B.current(battle), B.U(battle, id)), end: () => showEnd(), play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), cam: (c, r) => { camFollow({c, r}, true); drawField(true); }, hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
+window.__kldv = { nethost: n => raiseTable(n || 'Хозяин', ''), netgive: (hid, pid) => { g.net.own[hid] = pid; save(); publish(true); }, scr: () => SCR, netEmu: () => { g = C.load(JSON.stringify(g)); battle = unpackBattle(packBattle(battle)); drawField(true); return (window.__kldv || {}).drawErr || ''; }, civMenu: id => civMenu(battle, B.current(battle), B.U(battle, id)), end: () => showEnd(), play: () => PLAY, ico: id => iconOf(id), paint: r => paintIcons(r), playDraw: () => drawField(true), cam: (c, r) => { camFollow({c, r}, true); drawField(true); }, geo: () => geo, hall: o => showHall(o), kpub: (h, r) => kPub(h, r), camp: id => newGame(id, null), menu: () => showMenu(), scene: id => { closeModal(); showScene(id); }, create: f => { closeModal(); showCreate(f); }, shop: () => showShop('map'), bop: (op, a) => bop(op, a), party: id => { renderTop(); showParty(id); }, close: () => closeModal(), g: () => g, map: () => showMap(), walk: (c, r) => walkTo(W.world(g).cells[W.key(c, r)]), fight: (foes, field) => startBattle({title: 'Проба', foes, field}), bstart: spec => { closeModal(); startBattle(spec); }, meet: foes => meetBattle({title: 'Проба', foes, field: C.fieldFor('forest'), win: 'map', lose: 'map'}), mode: m => { mode = m; redraw(); }, px: (c, r) => hexXY(c, r), inter: (ch, n) => showInterlude(ch, n), battle: () => battle, hover: (c, r) => { hover = {c, r}; drawField(); }, panel: () => { drawPanel(); redraw(); }, drawHero: (c, u, x, y, H) => { const keep = [ctx, geo]; ctx = c.getContext('2d'); geo = {s: H / 2.15}; ctx.save(); drawHero(u, {x, y}, H); ctx.restore(); [ctx, geo] = keep; },
   /* картинка для сайта: фигура бойца целиком и значок вещи */
   fig: (c, u) => { const x = c.getContext('2d'), W = c.width, Hc = c.height; x.clearRect(0, 0, W, Hc);
     const fit = (img, a, flip, filt) => { const k = Math.min(W * 0.94 / a[2], Hc * 0.94 / a[3]), w = a[2] * k, h = a[3] * k; x.save(); if (filt) x.filter = filt; x.translate(W / 2, Hc * 0.97); if (flip) x.scale(-1, 1); x.drawImage(img, a[0], a[1], a[2], a[3], -w / 2, -h, w, h); x.restore(); return true; };

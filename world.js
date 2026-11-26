@@ -76144,7 +76144,7 @@ const isDg = F => F && F.bf && F.bf.kind === 'dungeon';
 if (BF.dungeon) { const d0 = BF.dungeon; BF.dungeon = function (d) { const F = d0.apply(this, arguments); try { if (F && F.bf && d) F.bf.dk = d.kind; } catch (e) {} return F; }; }
 /* пол */
 BF.dgGround = function (X, c, p, s, F, img) {
-  if (!isDg(F) || !ok() || !img || c.t !== 'floor' || !BF.texPat) return false;
+  if (!isDg(F) || !ok() || !img || c.t === 'wall' || !BF.texPat) return false;
   const m = matOf(F), n = m.floor[hs(c.c >> 1, c.r >> 1, 3) % m.floor.length], P = BF.texPat(X, img, n, p, c, s, 2.4);
   if (!P) return false; X.fillStyle = P; X.fill(); X.fillStyle = 'rgba(14,10,6,.28)'; X.fill(); return true;
 };
@@ -76194,4 +76194,60 @@ BF.dgDecor = function (X, c, p, s, S, img) {
   const W = {p_d_bones: 1.0, p_d_skeleton: 1.25, p_d_goods: 1.05, p_d_mush: 0.7, p_d_web: 1.0, p_d_props: 1.15}[n] || 1;
   return BF.hSpr(X, img, n, p.x, p.y + s * 0.5, Math.sqrt(3) * s * W * 0.8);
 };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* thicket.js */
+/* Колдовство — сквозь чащу (Ник 26.11: «лес как лабиринт похлеще подземелий; через лес можно ходить —
+   продираться за полное действие; видимость для стрельбы невозможная, для заклинаний плохая»).
+   • Шаг в клетку с деревом (не в крону — рядом, сквозь подлесок): основное действие и весь шаг хода.
+     Дальше из чащи можно выйти обычным шагом или продираться снова на следующий ход. Верхом — нельзя.
+   • Кто стоит в чаще — в него не выстрелить и сам он не выстрелит дальше соседней клетки (ветви).
+   • Чары: деревья на линии больше не глушат начисто — сквозь одно-два дерева (считая то, где стоит цель или колдун)
+     навести можно, сквозь три и больше — нет. Стрелы — по-прежнему только по чистой линии.
+   Свои герои (не ИИ) — враги и звери пока чащу не режут, чтобы не тратить ход впустую. */
+(function (G) {
+'use strict';
+const B = G.B, R = G.R, S_ = B && B.Spells; if (!B || !B.reach) return;
+const isTree = x => !!(x && x.t === 'tree');
+const inThicket = (S, u) => !!(u && u.c != null && !u.tree && isTree(B.cell(S, u.c, u.r)));
+B.inThicket = inThicket;
+const canPush = (S, u) => !!(u && u.side === 'party' && !u.ai && !u.mount && !u.tree && !u.lying && !(u.conds && (u.conds.rooted || u.conds.prone || u.conds.grappled)) && !S.acted && B.active(u));
+/* куда можно продраться: соседние деревья, свободные */
+const re0 = B.reach;
+B.reach = function (S, u) {
+  const res = re0.apply(this, arguments);
+  try { if (!canPush(S, u)) return res; const left = u.steps - S.moved; if (left < 1) return res;
+    const start = B.key(u.c, u.r);
+    B.neigh(u.c, u.r).forEach(n => { const x = B.cell(S, n.c, n.r), k = B.key(n.c, n.r); if (!isTree(x) || res[k] || B.unitAt(S, n.c, n.r)) return;
+      res[k] = {c: n.c, r: n.r, cost: left, prev: start, thick: 1, path: [{c: u.c, r: u.r}, {c: n.c, r: n.r}]}; }); } catch (e) {}
+  return res;
+};
+/* сам шаг: деревья — не стена, но идти — с треском и за весь ход */
+const mv0 = B.move;
+B.move = function (S, u, c, r) {
+  const x = B.cell(S, c, r);
+  if (!isTree(x) || !u || u.tree || B.dist(u, {c, r}) !== 1 || !canPush(S, u)) return mv0.apply(this, arguments);
+  const T = B.TERRAIN.tree, blk = T.block, cost = T.cost; T.block = false; T.cost = Math.max(1, u.steps - S.moved);
+  let ok; try { ok = mv0.apply(this, arguments); } finally { T.block = blk; if (cost == null) delete T.cost; else T.cost = cost; }
+  if (ok && u.c === c && u.r === r) { S.acted = true; S.moved = u.steps;
+    B.log(S, R.pick ? R.pick([`${u.name} продирается сквозь чащу — ветки хлещут по лицу.`, `${u.name} ломится через подлесок, треща сучьями.`, `${u.name} протискивается между стволами.`]) : `${u.name} продирается сквозь чащу.`, '', 'чаща: основное действие и весь шаг'); }
+  return ok;
+};
+/* стрельба: из чащи и в чащу — только вплотную */
+const rb0 = B.rangeBand;
+B.rangeBand = function (u, t) { const r = rb0.apply(this, arguments); if (r === null || !B._S || !u || !t) return r;
+  if (B.dist(u, t) > 1 && (inThicket(B._S, u) || inThicket(B._S, t))) return null; return r; };
+/* чары: сквозь одно-два дерева — можно */
+const treesOn = (S, a, t) => { const n = B.dist(a, t), A = B.toCube(a.c, a.r), T = B.toCube(t.c, t.r); let k = 0;
+  for (let i = 1; i < n; i++) { const f = i / n; let x = A[0] + (T[0] - A[0]) * f + 1e-6, y = A[1] + (T[1] - A[1]) * f + 2e-6, z = A[2] + (T[2] - A[2]) * f - 3e-6;
+    let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z); const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+    if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; if (isTree(B.cell(S, rx + (ry - (ry & 1)) / 2, ry))) k++; }
+  return k + (inThicket(S, a) ? 1 : 0) + (inThicket(S, t) ? 1 : 0); };
+const thinLos = (S, a, t, fn) => { if (B.los(S, a, t)) return fn(); if (treesOn(S, a, t) > 2) return fn();
+  const L = B.LOS_BLOCK, was = L.tree; L.tree = 0; try { return fn(); } finally { L.tree = was; } };
+B.spellLos = (S, a, t) => thinLos(S, a, t, () => B.los(S, a, t));
+if (S_) {
+  const se0 = S_.sees; if (se0) S_.sees = function (S, u, s, t) { const self = this, args = arguments; if (!t || t.c == null || !S || !S.units) return se0.apply(self, args); return thinLos(S, u, t, () => se0.apply(self, args)); };
+  const ca0 = S_.cast; if (ca0) S_.cast = function (S, u, s, t) { const self = this, args = arguments; if (!t || t === u || t.c == null || !S || !S.units) return ca0.apply(self, args); return thinLos(S, u, t, () => ca0.apply(self, args)); };
+}
 })(typeof window !== 'undefined' ? window : globalThis);
