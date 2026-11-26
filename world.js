@@ -75685,11 +75685,11 @@ const isDagger = id => { if (!id) return false; const b = R.baseId ? R.baseId(id
 C.isDagger = isDagger;
 const herbs = h => (h.inv || []).filter(x => HERB[x]);
 /* ---------- варить простую отраву ---------- */
-C.yadWhy = (g, h) => { if (!h || h.cls !== 'dushegub') return 'отраву варит душегуб'; if (herbs(h).length < 2) return 'нужно две ядовитые травы (волчья ягода, болиголов, дурман)'; if (h.busy) return C.busyText ? C.busyText(g, h) : 'занят'; if (g && g.dungeon) return 'в подземелье не до варки'; return ''; };
+C.yadWhy = (g, h) => { if (!h || !['dushegub', 'lovchiy'].includes(h.cls)) return 'отраву варят душегуб и ловчий'; if (herbs(h).length < 2) return 'нужно две ядовитые травы (волчья ягода, болиголов, дурман)'; if (h.busy) return C.busyText ? C.busyText(g, h) : 'занят'; if (g && g.dungeon) return 'в подземелье не до варки'; return ''; };
 C.yadMake = function (g, h) { const why = C.yadWhy(g, h); if (why) return {err: why}; const hs = herbs(h).slice(0, 2); hs.forEach(x => h.inv.splice(h.inv.indexOf(x), 1)); h.inv.push(YAD, YAD);
   let t = `${h.name} толчёт ${hs.map(x => HERB[x][0].toLowerCase()).join(' и ')}, выпаривает на огне — две склянки простой отравы.`; t += C.spendTime ? C.spendTime(g, h, 1, 'варит отраву') : ''; if (C.note) C.note(g, t); return {ok: true, text: t}; };
 { const am0 = C.wbActsMore, ak0 = C.wbActMore;
-  C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; if (HERB[id] && h && h.cls === 'dushegub') a.push({t: 'Сварить простую отраву (2 травы → 2 склянки)', k: 'yad_make', why: C.yadWhy(g, h)}); return a; };
+  C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; if (HERB[id] && h && ['dushegub', 'lovchiy'].includes(h.cls)) a.push({t: 'Сварить простую отраву (2 травы → 2 склянки)', k: 'yad_make', why: C.yadWhy(g, h)}); return a; };
   C.wbActMore = function (g, h, id, k) { if (k === 'yad_make') { const r = C.yadMake(g, h); return r.err ? r : {text: r.text}; } return ak0 ? ak0.apply(this, arguments) : {err: 'не выходит'}; }; }
 /* ---------- в бою: склянки — из сумы, только на кинжал ---------- */
 const weaponOf = u => (u && u.ref && u.ref.eq && u.ref.eq.weapon) || null;
@@ -75707,4 +75707,176 @@ if (C.recipesOf) { const ro0 = C.recipesOf; C.recipesOf = function (h) { const b
 ['canBrewRecipe', 'brewRecipe', 'brewChance'].forEach(k => { const f0 = C[k]; if (!f0) return; C[k] = function (a, b, c) { const h = k === 'brewRecipe' ? b : a, id = k === 'brewRecipe' ? c : b; if (h && h.cls === 'dushegub' && YADY.includes(id)) return withTier(h, () => f0.apply(this, arguments)); return f0.apply(this, arguments); }; });
 if (C.krWhy) { const kw0 = C.krWhy; C.krWhy = function (g, h, id) { const b = C.krBook && C.krBook(id); if (b && b.pot === 'yady' && h && h.cls === 'dushegub') return withTier(h, () => kw0.apply(this, arguments)); return kw0.apply(this, arguments); }; }
 if (C.krStudy) { const ks0 = C.krStudy; C.krStudy = function (g, h, id) { const b = C.krBook && C.krBook(id); if (b && b.pot === 'yady' && h && h.cls === 'dushegub') return withTier(h, () => ks0.apply(this, arguments)); return ks0.apply(this, arguments); }; }
+/* ---------- отравленные стрелы, болты и дротики (Ник 26.11: «да, можно отравить и это») ----------
+   Склянка простой отравы — десяток стрел (или болтов), пять дротиков/сулиц. h.ammoPois = {arrow, bolt, throw}: сколько из запаса отравлено.
+   Отравленные уходят первыми; попала — яд в кровь, как с клинка. */
+const THROWN = ['drotik', 'sulitsa'];
+const POIS_N = {arrow: 10, bolt: 10, throw: 5}, POIS_W = {arrow: 'стрел', bolt: 'болтов', throw: 'дротиков'};
+const kindsFor = h => { const out = []; ['arrow', 'bolt'].forEach(k => { if (C.ammoCount && C.ammoCount(h, k) > ((h.ammoPois || {})[k] || 0)) out.push(k); }); if ((h.inv || []).some(x => THROWN.includes(R.baseId ? R.baseId(x) : x))) out.push('throw'); return out; };
+C.poisAmmo = function (g, h, k) { if (!(h.inv || []).includes(YAD)) return {err: 'нет склянки простой отравы'}; if (!kindsFor(h).includes(k)) return {err: 'нечего отравлять'};
+  h.inv.splice(h.inv.indexOf(YAD), 1); h.ammoPois = h.ammoPois || {}; const cap = k === 'throw' ? POIS_N.throw : Math.min(POIS_N[k], C.ammoCount(h, k) - (h.ammoPois[k] || 0)); h.ammoPois[k] = (h.ammoPois[k] || 0) + cap;
+  const t = `${h.name} макает наконечники в отраву: ${cap} ${POIS_W[k]} — с ядом.`; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+{ const am0 = C.wbActsMore, ak0 = C.wbActMore;
+  C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; if (id === YAD && h) kindsFor(h).forEach(k => a.push({t: `Отравить ${k === 'arrow' ? 'стрелы' : k === 'bolt' ? 'болты' : 'дротики'} (склянка — ${POIS_N[k]})`, k: 'pois_' + k})); return a; };
+  C.wbActMore = function (g, h, id, k) { const m = /^pois_(arrow|bolt|throw)$/.exec(k || ''); if (m) { const r = C.poisAmmo(g, h, m[1]); return r.err ? r : {text: r.text}; } return ak0 ? ak0.apply(this, arguments) : {err: 'не выходит'}; }; }
+if (C.ammoTake) { const at0 = C.ammoTake; C.ammoTake = function (h, kind) { const r = at0.apply(this, arguments); try { if (r && h && h.ammoPois && h.ammoPois[kind] > 0) { h.ammoPois[kind]--; h._poisShot = 1; } else if (h) h._poisShot = 0; } catch (e) {} return r; }; }
+if (B.venomHit) { const vh0 = B.venomHit; B.venomHit = function (S, u, t, ranged) { const r = vh0.apply(this, arguments);
+  try { const h = u && u.ref; if (ranged && h && !t.dead) { let pois = false; if (h._poisShot) { pois = true; h._poisShot = 0; } else if (!u.ammoKind && h.ammoPois && h.ammoPois.throw > 0) { h.ammoPois.throw--; pois = true; }
+    if (pois) { if (B.venomProof(t)) B.log(S, `Яд на наконечнике не берёт ${t.name}.`, ''); else { t.conds.dot = {dice: '1d4+' + Math.max(1, Math.floor((u.level || 1) / 2)), n: 3, src: 'яд'}; B.log(S, `Отравленный наконечник сделал своё: ${t.name} бледнеет.`, 'dot', 'яд: 3 хода'); } } } } catch (e) {} return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* kn_life.js */
+/* Колдовство — книги в жизни (Ник 26.11, четвёртый этап): полка дома, опасная вязь, чтение вслух в корчме и песни гусляра,
+   писарь как ремесло (письма за неграмотных, переписать книгу, подделать подорожную), порча книг на бродах, записки.
+   • Полка дома (g.shelf[ключ семьи]): у жены (мужа) — «Книжная полка»: поставить, взять. Ночуешь дома — на ночь читают детям
+     сказы с полки (на буквице), раз в день; дети, которым много читали, вырастают грамотными: наследник — «Грамота» +2.
+   • Вязь: дозор Ока при досмотре находит писаное вязью — жжёт, и это колдовство (C.crimeAdd 'ved'). Читать вязь вслух опасно:
+     бывает, что-то и просыпается (бой с навьими), в городе — могут услышать. Иногда открывается больше.
+   • Корчма: «Почитать вслух» — сказ или летопись с полки отряда (раз в день в месте): молва и бодрость. Гусляр по прочитанному сказу
+     складывает песню (h.bookSongs) и потом поёт её в корчмах за серебро.
+   • Писарь (у книжника): писать письма за неграмотных (день, плата по «Грамоте»); переписать книгу (пергамент ×3, чернила; два дня);
+     подделать подорожную (пергамент, чернила, «Грамота» и Ловкость рук) — с ней дозор Ока пропускает без досмотра,
+     а если раскусят — подлог (C.crimeAdd 'forgery').
+   • Брод: книги и свитки могут размокнуть (8 % на каждую) — останутся «Размокшие листы»; прочитанное уже в летописи.
+     Промасленная сума (в городской лавке) бережёт всё, что несёт её хозяин.
+   • Записки: в находках на «Осмотреться» и в подземельях — записки на разных языках; иные указывают место на карте. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W;
+if (!R || !C || !C.writLang) return;
+const D = G.DATA || (typeof DATA !== 'undefined' ? DATA : null);
+const team = g => (C.alive(g) || []).concat(g.mercs || []);
+const nm = id => { try { return R.item(id).name; } catch (e) { return id; } };
+const nodeOf = g => C.CAMPS[g.camp] && C.CAMPS[g.camp].map.nodes[g.loc];
+const nodeScene = g => { const n = nodeOf(g); return n ? n.scene : 'map'; };
+const pick = a => a[Math.floor(R.rand() * a.length)];
+const isBook = id => { const it = D.items[String(id).split('~')[0]]; return !!(it && (it.category === 'книги' || /^(kn_|rcp_)/.test(it.id))); };
+const spirit = (g, d, why) => { try { if (C.spiritAdd) C.spiritAdd(g, d, why); } catch (e) {} };
+const rep = (g, d, why) => { try { if (C.repAdd) C.repAdd(g, g.loc, d, why); } catch (e) {} };
+/* ---------- предметы ---------- */
+const ADD = {
+  kn_mokrye_listy: {name: 'Размокшие листы', price: 1, weight_kg: 0.3, category: 'книги', notes: 'Было книгой, стало комом. Что успели прочесть — то в летописи, остальное поплыло.'},
+  sumka_promaslennaya: {name: 'Промасленная сума', price: 400, weight_kg: 0.8, category: 'снаряжение', notes: 'Кожа, пропитанная салом и воском: книги, свитки и рецепты в ней переживут любой брод.'},
+  podorozhnaya_lzhivaya: {name: 'Подорожная (поддельная)', price: 0, weight_kg: 0.02, category: 'безделушки', notes: 'Грамота с печатью, писанная своей рукой. Дозор Ока пропустит без досмотра — если не раскусит.'},
+};
+Object.entries(ADD).forEach(([id, x]) => { if (!D.items[id]) D.items[id] = Object.assign({_t: 'g', id}, x); });
+const NOTES = [
+  ['nolgrim', 'Записка лесоруба', ['«Митяй, на старой вырубке не ночуй. Огонь в овраге горит без дров, а кто подходил — назад не шёл. Пень с бородой обойди поклоном»'], 1],
+  ['yuzhnober', 'Записка контрабандиста', ['«Товар под рогожей с надписью „сукно“. Сдать у трёх камней у воды, дальше — сухим ходом. Если спросят — мы рыбу везём»'], 1],
+  ['nolgrim', 'Письмо без подписи', ['«Свет мой, жди к Дожинкам. Батюшке не сказывай. Колечко береги — оно с бабкиной руки, а бабка у меня, сама знаешь, непростая была»'], 0],
+  ['terak', 'Резы на бирке', ['Счёт: «пять колец за коня, три за щит, одно — тому, кто смолчит». Внизу — знак рода, перечёркнутый.'], 0],
+  ['imperets', 'Список дозора', ['«Досматривать всех, кто идёт к старым рощам. Ведовское — в огонь. Серых не досматривать: у них свой пропуск». Последнее подчёркнуто.'], 0],
+  ['gorets', 'Руны на обломке', ['На медной пластине: «здесь копали — пусто» и руна вниз. Рядом зарубки: девять, перечёркнуты все.'], 1],
+  ['loss', 'Береста с глаголью', ['«Холм своих метит. Кто с железом — тот к холму не ходи. Кто с бронзой — иди, ждут»'], 1],
+  ['nolgrim', 'Записка знахарки', ['«Сонным не молитесь над ухом — только хуже. Пойте им о простом: о хлебе, о речке. Мои просыпаются»'], 0],
+  ['podzem', 'Знаки на сланце', ['Пометка бледных: «огонь сверху виден снизу. Не жечь у провала». И стрелка — вниз, к воде.'], 1],
+  ['parnass', 'Лист из учёной тетради', ['«Безветрие опять. Таз в башне показывает лишнее. Ученика отправил домой — ему ещё жить»'], 0],
+  ['vyaz', 'Клочок с вязью', ['Три строки вязи, свёрнутые в кольцо. Холодит пальцы.'], 1],
+  ['nolgrim', 'Записка ловчего', ['«Медведь у брода не медведь. Не стреляй. Положи хлеба и уходи — он сам уйдёт»'], 0],
+];
+NOTES.forEach(([lang, name, text, rev], i) => { const id = 'kn_zap_' + (i + 1); if (!D.items[id]) D.items[id] = {_t: 'g', id, name, price: 5, weight_kg: 0.01, category: 'книги', ico: 'item:pisalo_i_beresta_10_listov', lang, text, zap: rev ? 2 : 1, notes: 'Записка, найденная в пути.'}; });
+// первое прочтение записки, что указывает место: открыть ближнее скрытое подземелье края
+if (C.knFirstRead) { const fr0 = C.knFirstRead; C.knFirstRead = function (g, id) { const was = !!((g.knRead1 || {})[String(id).split('~')[0]]); let t = fr0.apply(this, arguments); const it = D.items[String(id).split('~')[0]];
+  try { if (!was && it && it.zap === 2 && C.fdgHidden && C.fdgReveal) { const n = nodeOf(g), F = (C.fdgHidden(g, n && n.reg) || [])[0]; if (F) { C.fdgReveal(g, F.id, 'note'); t = (t ? t + ' ' : '') + `По записке ясно, где искать: ${F.name}.`; } } } catch (e) {} return t; }; }
+C.knNoteDrop = g => { const free = NOTES.map((x, i) => 'kn_zap_' + (i + 1)).filter(id => !team(g).some(h => (h.inv || []).includes(id)) && !(g.knRead1 || {})[id]); return free.length ? pick(free) : null; };
+// записки: в находках на «Осмотреться»
+if (C.walkDoX && C.walkDoX.wFind) { const wf0 = C.walkDoX.wFind; C.walkDoX.wFind = function (S, u, a, t, g) { const r = wf0.apply(this, arguments); try { if (!r && u && u.ref && R.rand() < 0.35) { const id = C.knNoteDrop(g); if (id) { u.ref.inv.push(id); G.B.log(S, `Среди прочего — ${nm(id).toLowerCase()}.`, 'buff'); } } } catch (e) {} return r; }; }
+// и в подземельях — к добыче
+if (C.knBookDrop) { const bd0 = C.knBookDrop; C.knBookDrop = function (g) { if (R.rand() < 0.3) { const id = C.knNoteDrop(g); if (id) return id; } return bd0.apply(this, arguments); }; }
+
+/* ---------- полка дома ---------- */
+C.shelf = (g, key) => { g.shelf = g.shelf || {}; return (g.shelf[key] = g.shelf[key] || []); };
+C.KN_LIT_HEIR = 3;
+const readable = (g, id) => C.isTrans(g, id) || C.writLang(id) === 'nolgrim';
+const kidsAt = (g, key) => (C.kidsOf ? C.kidsOf(g, key) : []).filter(k => k && !k.went);
+C.shelfRead = function (g, key) { g.shelfDay = g.shelfDay || {}; if (g.shelfDay[key] === g.day) return ''; const kids = kidsAt(g, key); if (!kids.length) return '';
+  const bk = C.shelf(g, key).filter(id => (D.items[id] || {}).text && readable(g, id)); if (!bk.length) return ''; g.shelfDay[key] = g.day; const b = pick(bk);
+  kids.forEach(k => { k.lit = (k.lit || 0) + 1; }); spirit(g, 1, 'читали детям'); return `Вечером детям читали с полки — «${nm(b)}». ${kids.map(k => k.n).filter(Boolean).slice(0, 3).join(', ')} слушали, не дыша.`; };
+// ночь дома: к утренней строке — чтение с полки
+if (C.homeDeed) { const hd0 = C.homeDeed; C.homeDeed = function (g, h, text, key) { const a = hd0.apply(this, arguments) || ''; let b = ''; try { b = C.shelfRead(g, key); } catch (e) {} return [a, b].filter(Boolean).join(' '); }; }
+// наследник, которому много читали, — грамотный
+if (C.ageHeirTake) { const ht0 = C.ageHeirTake; C.ageHeirTake = function (g, recId) { const rec = (g.ageHeirs || []).find(x => x.id === recId); const hh = ht0.apply(this, arguments);
+  try { const kid = rec && rec.kid && C.kidById ? C.kidById(g, rec.kid) : null; if (hh && kid && (kid.lit || 0) >= C.KN_LIT_HEIR) { hh.skills = hh.skills || {}; hh.skills['Грамота'] = (hh.skills['Грамота'] || 0) + 2; if (C.note) C.note(g, `${hh.name} вырос${hh.sex === 'f' ? 'ла' : ''} под чтение с полки: грамоте учён${hh.sex === 'f' ? 'а' : ''} с малых лет (Грамота +2).`); } } catch (e) {} return hh; }; }
+const SC = {};
+SC.kn_shelf = g => { const key = g.shelfKey, sh = key ? C.shelf(g, key) : [], lines = [['n', 'Полка над лавкой у печи: что поставишь — то и будет ждать, пока вернёшься. Читают с неё вечерами — детям и себе.']];
+  if (g.knLast) lines.push(['n', g.knLast]); lines.push(['n', sh.length ? 'На полке: ' + sh.map(id => nm(id).toLowerCase()).join(', ') + '.' : 'Полка пустая.']);
+  const ch = []; const kids = key ? kidsAt(g, key) : [];
+  if (kids.length) ch.push({t: 'Почитать детям с полки', if: g2 => (g2.shelfDay || {})[key] !== g2.day && C.shelf(g2, key).some(id => (D.items[id] || {}).text && readable(g2, id)), off: g2 => (g2.shelfDay || {})[key] === g2.day ? 'сегодня уже читали' : 'на полке нечего читать детям (нужна книга буквицей или с переводом)',
+    do: g2 => { g2.knLast = C.shelfRead(g2, key) || 'Не до чтения.'; return 'kn_shelf'; }});
+  team(g).forEach(h => [...new Set(h.inv || [])].filter(isBook).slice(0, 10).forEach(id => ch.push({t: `Поставить на полку: ${nm(id).toLowerCase()} (${h.name})`, do: g2 => { const hh = team(g2).find(x => x.id === h.id); const i = hh.inv.indexOf(id); if (i >= 0) { hh.inv.splice(i, 1); C.shelf(g2, key).push(id); g2.knLast = `${nm(id)} — на полке.`; } return 'kn_shelf'; }})));
+  [...new Set(sh)].slice(0, 12).forEach(id => ch.push({t: `Взять с полки: ${nm(id).toLowerCase()}`, do: g2 => { const s = C.shelf(g2, key), i = s.indexOf(id); if (i >= 0) { s.splice(i, 1); C.alive(g2)[0].inv.push(id); g2.knLast = `${nm(id)} — снова в суме.`; } return 'kn_shelf'; }}));
+  ch.push({t: 'Назад', do: g2 => { g2.knLast = null; return 'folk'; }}); return {title: 'Книжная полка', bg: 'hut', art: 'morning_after', lines, choices: ch}; };
+/* ---------- вязь: читать вслух ---------- */
+const NAV = [['kostyak', 3], ['nav', 3], ['mertvyak', 5], ['navya_golova', 5], ['upyr_krovopiytsa', 8], ['mertvyy_vityaz', 11]];
+const lvl = g => Math.max(1, ...C.alive(g).map(h => h.level || 1));
+C.vyazAloud = function (g, id) { g.vyazDay = g.vyazDay || {}; if (g.vyazDay[id] === g.day) return {err: 'сегодня уже читали'}; g.vyazDay[id] = g.day; const n = nodeOf(g), town = n && ['город', 'крепость', 'храм'].includes(n.kind), x = R.rand();
+  if (town && x < 0.5) { const h = C.alive(g)[0]; try { C.crimeAdd(g, h, 'ved', {seen: true, why: 'читали вязь вслух', place: 'town'}); } catch (e) {} return {text: 'Слова вязи гудят в стенах — и за стеной кто-то замолкает, а потом торопливо уходит. Донесут: в городе вязь вслух не читают.'}; }
+  if (x < 0.35) { const L = lvl(g), foes = NAV.filter(f => f[1] <= L + 2).map(f => f[0]); const list = [pick(foes), pick(foes), pick(foes)];
+    return {text: 'Последнее слово ещё висит в воздухе, а земля под ногами уже шевелится. Писанное держит, читанное будит.', battle: {title: 'Разбуженное', foes: C.fit ? C.fit(g, list, 0.9, 1) : list, field: C.fieldFor ? C.fieldFor('wasteland', true) : {}, xpBonus: 30 * L, win: nodeScene(g), lose: 'map', place: 'Разбуженное'}}; }
+  if (x < 0.65) { if (C.giveXP) C.giveXP(g, 25 * lvl(g), 'вязь вслух'); g.taleLore = (g.taleLore || []).concat({id: 'vyaz:' + id + ':' + g.day, title: 'Вязь вслух', land: n && n.reg, t: 'Вязь, прочитанная вслух, гудит, как вода подо льдом: писанное держит, читанное будит.', day: g.day}); return {text: 'Слова ложатся тяжело, как камни, — и вдруг понятно больше, чем написано. Кажется, кто-то внизу слушал и молчал.'}; }
+  return {text: 'Слова повисают в воздухе и уходят, как вода в песок. Ничего не случилось — или случилось не здесь.'}; };
+{ const camp = Object.values(C.CAMPS)[0], kr0 = camp && camp.scenes.kn_read; if (kr0) { const kr = function (g) { const sc = kr0.apply(this, arguments); try { const X = g.knRead || {};
+  if (X.id && C.writLang(X.id) === 'vyaz' && C.partyReader(g, 'vyaz')) sc.choices.unshift({t: 'Прочесть вязь вслух', do: g2 => { const r = C.vyazAloud(g2, (g2.knRead || {}).id); if (r.err) return 'kn_read'; if (C.note) C.note(g2, r.text); if (r.battle) { g2.knRead = null; return {battle: r.battle}; } g2.knAloud = r.text; return 'kn_read'; }});
+  if (g.knAloud) { sc.lines.push(['n', g.knAloud]); g.knAloud = null; } } catch (e) {} return sc; }; Object.values(C.CAMPS).forEach(c => { c.scenes.kn_read = kr; }); } }
+/* ---------- дозор Ока: вязь жгут, подорожная пропускает ---------- */
+const vyazOf = g => { const out = []; team(g).forEach(h => (h.inv || []).forEach(id => { if (C.writLang(id) === 'vyaz') out.push({h, id}); })); return out; };
+C.burnVyaz = function (g) { const L = vyazOf(g); if (!L.length) return ''; L.forEach(({h, id}) => { const i = h.inv.indexOf(id); if (i >= 0) h.inv.splice(i, 1); });
+  try { C.crimeAdd(g, L[0].h, 'ved', {seen: true, why: 'при досмотре найдено писаное вязью', place: 'road'}); } catch (e) {}
+  return `Служка вытряхивает ${L.length > 1 ? 'листы' : 'лист'} с вязью и бросает в костёр: «Ведовское». Десятник записывает имя ${L[0].h.name}. Сгорело: ${[...new Set(L.map(x => nm(x.id).toLowerCase()))].join(', ')}.`; };
+/* ---------- сцены ---------- */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (!sc || !g || !sc.choices) return sc;
+    // дозор: досмотр находит вязь; подорожная — мимо
+    if (id === 'find_dozor') { const c = sc.choices.find(x => /^Дать себя досмотреть/.test(x.t || '')); if (c && vyazOf(g).length && !c._kn) { const d0 = c.do; c._kn = 1; c.do = g2 => { const t = C.burnVyaz(g2); if (t && C.note) C.note(g2, t); return d0(g2); }; }
+      const pd = team(g).find(h => (h.inv || []).includes('podorozhnaya_lzhivaya')); if (pd) sc.choices.unshift({t: 'Показать подорожную', do: g2 => { const h = team(g2).find(x => (x.inv || []).includes('podorozhnaya_lzhivaya')); const r = C.bestCheck(g2, 'cha', 'Обман', 12); g2.lastCheck = r;
+        if (r.ok) { if (C.note) C.note(g2, 'Десятник вертит грамоту, смотрит печать на свет и отдаёт: «Проходите». Котомки даже не открыли.'); return 'map'; }
+        h.inv.splice(h.inv.indexOf('podorozhnaya_lzhivaya'), 1); try { C.crimeAdd(g2, h, 'forgery', {seen: true, caught: true, why: 'поддельная подорожная', place: 'road'}); } catch (e) {} if (C.note) C.note(g2, 'Служка ногтем подцепляет печать — та отходит, как корка. «Подлог!» Грамоту рвут, имя пишут в книгу.'); return 'find_dozor'; }}); }
+    // корчма: почитать вслух, песня по книге, спеть свою
+    if (id === 'folk_tavern') { const lore = team(g).flatMap(h => (h.inv || []).filter(x => (D.items[x] || {}).lore && C.writLang(x) !== 'vyaz' && (C.isTrans(g, x) || C.partyReader(g, C.writLang(x)))).map(x => ({h, id: x})));
+      const key = g.loc + ':' + g.day; let i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+      if (lore.length) sc.choices.push({i: i++, label: `Почитать вслух: «${nm(lore[0].id)}»`, t: `Почитать вслух: «${nm(lore[0].id)}»`, if: g2 => (g2.knAloudTav || {})[g2.loc] !== g2.day, off: 'сегодня здесь уже читали',
+        do: g2 => { g2.knAloudTav = Object.assign({}, g2.knAloudTav, {[g2.loc]: g2.day}); rep(g2, 1, 'читали вслух'); spirit(g2, 1, 'читали вслух в корчме'); if (C.passH) C.passH(g2, 1); g2.folkLast = `Вокруг стола собираются: читают «${nm(lore[0].id)}». Дослушали до конца — и долго спорят, правда это или сказка.`; return 'folk_tavern'; }});
+      const gu = C.alive(g).find(h => h.cls === 'guslyar');
+      if (gu) { const can = Object.keys(g.knRead1 || {}).filter(x => (D.items[x] || {}).lore && !(gu.bookSongs || []).includes(x));
+        if (can.length) sc.choices.push({i: i++, label: `${gu.name}: сложить песню по прочитанному («${nm(can[0])}»)`, t: '', do: g2 => { const h = C.alive(g2).find(x => x.id === gu.id); h.bookSongs = (h.bookSongs || []).concat(can[0]); rep(g2, 2, 'новая песня'); if (C.passH) C.passH(g2, 2);
+          g2.folkLast = `${h.name} два часа перебирает струны — и выходит песня по «${nm(can[0])}». Корчма подпевает уже со второго раза.`; return 'folk_tavern'; }});
+        if ((gu.bookSongs || []).length) sc.choices.push({i: i++, label: `${gu.name}: спеть свою песню (их ${gu.bookSongs.length})`, t: '', if: g2 => (g2.songTav || {})[g2.loc] !== g2.day, off: 'сегодня здесь уже пели',
+          do: g2 => { g2.songTav = Object.assign({}, g2.songTav, {[g2.loc]: g2.day}); const h = C.alive(g2).find(x => x.id === gu.id), m = 50 * (h.bookSongs || []).length + 10 * (h.level || 1); g2.purse = (g2.purse || 0) + m; rep(g2, 1, 'песня'); spirit(g2, 1, 'пели в корчме');
+            g2.folkLast = `${h.name} поёт по книге «${nm(pick(h.bookSongs))}». В шапку кидают: ${R.priceText(m)}.`; return 'folk_tavern'; }}); } }
+    // семья: полка
+    if (id === 'folk' && g.folkRole && C.relOf) { const at = g.folkAt || g.loc, r = C.relOf(g, g.folkRole, at); if (r && (r.bond === 'wed' || r.bond === 'kin') && !sc.choices.some(c => c._shelf)) { const key = g.folkRole + '@' + at, back = sc.choices.length && /^(Назад|Уйти)/.test(sc.choices[sc.choices.length - 1].label || sc.choices[sc.choices.length - 1].t || '') ? sc.choices.pop() : null;
+      const i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0)), back && typeof back.i === 'number' ? back.i : 0) + 1; sc.choices.push({i, _shelf: 1, label: 'Книжная полка', t: 'Книжная полка', do: g2 => { g2.shelfKey = key; g2.knLast = null; return 'kn_shelf'; }}); if (back) { back.i = i + 1; sc.choices.push(back); } } }
+  } catch (e) { if (C.BF_DEBUG) console.error(e); } return sc; };
+/* ---------- писарь ---------- */
+const cnt = (h, id) => (h.inv || []).filter(x => x === id).length;
+const has = (g, id, n) => team(g).reduce((s, h) => s + cnt(h, id), 0) >= (n || 1);
+const take = (g, id, n) => { let k = n || 1; team(g).forEach(h => { while (k > 0 && h.inv.includes(id)) { h.inv.splice(h.inv.indexOf(id), 1); k--; } }); };
+const scribe = g => C.alive(g).filter(h => C.readsLang(h, 'nolgrim')).sort((a, b) => R.skill(b, 'Грамота') - R.skill(a, 'Грамота'))[0] || null;
+C.scribeLetters = function (g) { const h = scribe(g); if (!h) return {err: 'писать некому'}; if (h.busy) return {err: C.busyText(g, h)}; const r = C.bestCheck(g, 'int', 'Грамота', 10); g.lastCheck = r;
+  const m = r.ok ? 150 + 50 * Math.max(0, R.skill(h, 'Грамота')) + R.d(6) * 10 : 60; g.purse = (g.purse || 0) + m; let t = `${h.name} весь день сидит у торга с пером: письма сватам, жалобы тиуну, долговые расписки. Заработано: ${R.priceText(m)}.`;
+  t += C.spendTime ? C.spendTime(g, h, 4, 'пишет письма') : ''; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+C.copyWhy = (g, id) => { const it = D.items[id]; if (!it || !isBook(id) || it.cherny || /^kn_(mokrye|zap_)/.test(id)) return 'это не переписать'; if (!has(g, 'pergament_list', 3)) return 'нужно пергамента ×3'; if (!has(g, 'chernila_puzyrek')) return 'нужны чернила';
+  const L = C.writLang(id); if (L && !C.isTrans(g, id) && !C.partyReader(g, L)) return 'переписать можно только то, что читаешь'; const h = scribe(g); if (!h) return 'переписывать некому'; if (h.busy) return C.busyText(g, h); return ''; };
+C.copyBook = function (g, id) { const why = C.copyWhy(g, id); if (why) return {err: why}; const h = scribe(g); take(g, 'pergament_list', 3); take(g, 'chernila_puzyrek', 1); h.inv.push(id);
+  let t = `${h.name} два дня переписывает «${nm(id)}» — список готов, можно продать книжнику.`; t += C.spendTime ? C.spendTime(g, h, 8, 'переписывает') : ''; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+C.forgeWhy = g => { if (!has(g, 'pergament_list')) return 'нужен пергамент'; if (!has(g, 'chernila_puzyrek')) return 'нужны чернила'; const h = scribe(g); if (!h) return 'писать некому'; return ''; };
+C.forgePass = function (g) { const why = C.forgeWhy(g); if (why) return {err: why}; const r = C.bestCheck(g, 'dex', 'Ловкость рук', 13); g.lastCheck = r; take(g, 'pergament_list', 1);
+  if (!r.ok) { const t = 'Печать вышла кривой, буквы поплыли — лист в печку. Пергамент пропал.'; if (C.note) C.note(g, t); return {ok: false, text: t}; } C.alive(g)[0].inv.push('podorozhnaya_lzhivaya');
+  const t = 'Подорожная готова: печать срисована с чужой грамоты, подпись — с размахом. Дозор Ока, может, и поверит.'; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+SC.kn_pisar = g => { const lines = [['n', 'Писарю на торгу место всегда найдётся: неграмотных больше, чем грамотных. А у книжника за спиной — чистый пергамент и чернила, только плати.']]; if (g.knLast) lines.push(['n', g.knLast]);
+  const ch = [{t: 'Писать письма за неграмотных (день)', if: g2 => !!scribe(g2), off: 'в отряде никто не пишет буквицей', do: g2 => { const r = C.scribeLetters(g2); g2.knLast = r.err || r.text; return 'kn_pisar'; }}];
+  const books = [...new Set(team(g).flatMap(h => (h.inv || []).filter(isBook)))].filter(id => !C.copyWhy(g, id) || /пергамент|чернила/.test(C.copyWhy(g, id)));
+  books.slice(0, 8).forEach(id => ch.push({t: `Переписать «${nm(id)}» (пергамент ×3, чернила; два дня)`, if: g2 => !C.copyWhy(g2, id), off: g2 => C.copyWhy(g2, id), do: g2 => { const r = C.copyBook(g2, id); g2.knLast = r.err || r.text; return 'kn_pisar'; }}));
+  if (C.alive(g).some(h => ['tat', 'dushegub'].includes(h.cls) || R.skill(h, 'Ловкость рук') > 0)) ch.push({t: 'Подделать подорожную (пергамент, чернила; Ловкость рук)', if: g2 => !C.forgeWhy(g2), off: g2 => C.forgeWhy(g2), do: g2 => { const r = C.forgePass(g2); g2.knLast = r.err || r.text; return 'kn_pisar'; }});
+  ch.push({t: 'Назад', do: g2 => { g2.knLast = null; return 'kn_scribe'; }}); return {title: 'Писарь', bg: 'town', art: 'edvin_skriptoriy', lines, choices: ch}; };
+Object.values(C.CAMPS).forEach(camp => Object.entries(SC).forEach(([k, sc]) => { camp.scenes[k] = sc; }));
+{ const ks0 = Object.values(C.CAMPS)[0].scenes.kn_scribe; if (ks0) { const ks = function (g) { const sc = ks0.apply(this, arguments); try { const back = sc.choices.pop(); sc.choices.push({t: 'Писарем: письма, списки, грамоты', do: g2 => { g2.knLast = null; return 'kn_pisar'; }}); sc.choices.push(back); } catch (e) {} return sc; };
+  Object.values(C.CAMPS).forEach(camp => { camp.scenes.kn_scribe = ks; }); } }
+/* ---------- брод: книги размокают ---------- */
+C.KN_SOAK = 0.08;
+C.soakBooks = function (g) { const lost = []; team(g).forEach(h => { if ((h.inv || []).includes('sumka_promaslennaya')) return; h.inv = h.inv.map(id => { const it = D.items[String(id).split('~')[0]]; if (it && (isBook(id) || /^sv_/.test(id)) && id !== 'kn_mokrye_listy' && R.rand() < C.KN_SOAK) { lost.push(id); return 'kn_mokrye_listy'; } return id; }); });
+  if (lost.length && C.note) C.note(g, `На броду промокли сумы: размокло — ${[...new Set(lost.map(id => nm(id).toLowerCase()))].join(', ')}. Что успели прочесть — в летописи; остальное поплыло. Книги лучше носить в промасленной суме.`); return lost; };
+if (W && W.step) { const st0 = W.step; W.step = function (g, cell) { const r = st0.apply(this, arguments); try { if (cell && cell.ford && cell.t === 'water' && !(C.riversFrozen && C.riversFrozen(g))) C.soakBooks(g); } catch (e) {} return r; }; }
+if (C.shopExtra) { const sx0 = C.shopExtra; C.shopExtra = function (g, city) { const base = sx0.apply(this, arguments) || []; return city && !base.includes('sumka_promaslennaya') ? base.concat('sumka_promaslennaya', 'pergament_list', 'chernila_puzyrek').filter((x, i, a) => a.indexOf(x) === i) : base; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
