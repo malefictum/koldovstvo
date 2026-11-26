@@ -72185,103 +72185,90 @@ G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* kv_ask.js */
-/* Колдовство — просьбы после ночи (Ник 25.11: «ночь провёл, а они ничего не говорят — ни намёков, ни просьб… это не купить
-   у торговца, это важные вещи»). Без DOM.
-   • Знакомая (знакомый) места — вдова, девица, замужняя, ушедшая от мужа, спасённая — при тёплых отношениях после ночи
-     сперва НАМЕКАЕТ: «есть у меня беда… да не сейчас». В одну из следующих ночей — ПРОСИТ: брат (сестра) пропал(а), материну
-     вещь унесли, обидчики не дают житья, мать не упокоилась. Это настоящее дело (quests.js): место на карте, препятствия, бой —
-     но без платы. Вместо платы — она сама: отношение до предела, дух, и её слова при следующей встрече.
-   • Не успел или бросил — она запомнит: отношение вниз, упрёк при встрече.
-   • Одна просьба на человека за раз; между просьбами — пауза. Числа — C.KVA (тайна мастера). */
+/* Колдовство — с кем дитя (или тайное сердце), но без венца: долгая связь со своей ценой (Ник 26.11:
+   «почему бы и нет. иногда просят подарки — даришь денег по их статусу; даришь — настроение нормальное, нет — падает до
+   холодного, и там дороже восстановить; иногда просят проведать — проведываешь, рады, если был далеко; кто в Око верит —
+   понятно, с тобой не в ладах»).
+   • Кто: местная знакомая (местный) героя — не жена, не ушла, и либо у них дитя (или ждут), либо сердце близкое.
+   • Просьбы раз в две-три седмицы, вестью или грамоткой: «пришли гостинец» (цена — по дому: мужик, мастер, купец,
+     староста, тиун, боярин; если дитя — больше) или «приезжай, проведай». Срок — около двух седмиц.
+   • Гостинец шлют с оказией из любого села или города («Послать гостинец …»); проведать — быть в её (его) селе.
+     Был долго далеко — радость больше.
+   • Не выполнил к сроку — остыла: ночевать не зовёт, ласки нет. Помириться — гостинец втрое дороже.
+   • Верящие в Око при дитяти без венца — не в ладах: ничего не просят, близости нет, только холод.
+   В окне — только слова; деньги — как везде, ценой. Состояние: rec.ask {k, sum, by}, rec.askNext, rec.cold, rec.oko, rec.seen. */
 (function (G) {
 'use strict';
-const R = G.R, C = G.C, Q = C && C.Q;
-if (!R || !C || !Q || !Q.make || !Q.GIVER || !C.kvLocOf || !C.kvAfter) return;
-C.KVA = Object.assign({REL: 60, HINT_P: 0.45, ASK_P: 0.6, GAP: 20, HINT_GAP: 2, DONE_REL: 30, LATE_REL: -20, KINDS: ['missing', 'retrieve', 'bandits', 'haunt']}, C.KVA || {});
-const K = () => C.KVA;
+const R = G.R, C = G.C; if (!R || !C || !C.KV_TICK || !C.kvLocOf) return;
 const day = g => (g && g.day) || 1;
-const pick = a => (a && a.length ? a[Math.floor(R.rand() * a.length)] : '');
-const cap = s => (s ? s[0].toUpperCase() + s.slice(1) : s);
-const vs = (p, m, f) => (p && p.sex === 'f' ? f : m);
 const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
-Q.GIVER.kvlover = {t: 'близкий человек', mul: 0, sex: 'f'};
-const HINT = {f: ['Под утро {n} долго молчит, глядя в потолок, а потом говорит: «Есть у меня беда одна… Да нет. Не сейчас. Не хочу, чтоб ты думал, будто я за этим тебя зову»',
-    '{n} провожает до калитки и вдруг хватает за рукав: «Слушай… Нет, ничего. В другой раз скажу. Иди»', 'Ночью {n} плачет тихо, отвернувшись. На вопрос только мотает головой: «Не твоя это забота. Пока — не твоя»'],
-  m: ['Под утро {n} долго молчит, а потом говорит: «Есть одно дело… Да нет. Не хочу, чтоб ты думала, будто я ради этого»', '{n} провожает до дороги и хмурится: «Потом скажу. Не сейчас»']};
-const ASK = {
-  missing: v => `${vs(v.vic, 'Брат мой', 'Сестра моя')}, ${v.vic.n}, ушл${vs(v.vic, '', 'а')} с обозом на ярмарку — и не вернул${vs(v.vic, 'ся', 'ась')}. Видели ${vs(v.vic, 'его', 'её')} ${v.place.at}, а там, говорят, ${v.thr.n}. Мне не к кому больше идти. Найди ${vs(v.vic, 'его', 'её')}. Ради меня.`,
-  retrieve: v => `У меня от матери только и осталось — ${v.item.n}. А на прошлой седмице унесли. Следы ведут ${v.place.to}, а там ${v.thr.n}. Это не про деньги. Это всё, что у меня от неё есть. Верни.`,
-  bandits: v => `${cap(v.thr.n)} повадились к нашему двору. Берут что хотят, а мне проходу не дают — смеются, руки тянут. Сидят ${v.place.at}. Я никому не говорила. Тебе — говорю. Отвадь их.`,
-  haunt: v => `Мать моя не упокоилась. ${cap(v.place.at)} ходит ночами, зовёт меня по имени — я слышу, хоть и далеко. Знахарка говорит — держит её что-то. Помоги ей уйти. Мне одной страшно.`,
+const heroById = (g, id) => heroes(g).find(x => x.id === id) || null;
+const fams = g => Object.values((g.w2kids || {}).fam || {}).filter(F => F && F.kv);
+const kidWith = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && ((F.kids || []).length || F.kvPreg));
+const placeName = (g, at) => { try { const n = C.CAMPS[g.camp].map.nodes[at]; return (n && n.name) || 'родное село'; } catch (e) { return 'родное село'; } };
+const hsh = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const she = r => r.sex === 'f', who = r => r.n, verb = (r, f, m) => (she(r) ? f : m);
+const K = {GAP: [14, 24], TERM: 14, GIFT: 20, KID: 1.5, COLD: 30, MEND: 3, REL_GIFT: 4, REL_VISIT: 5, REL_FAR: 10, FAR: 20, WARM_BACK: 50, OKO_CAP: 20};
+C.KV_ASK = K;
+const eligible = (g, r) => { if (!r || ['wed', 'gone'].includes(r.st) || (r.camp && r.camp !== g.camp)) return false; const h = heroById(g, r.hid); if (!h) return false;
+  if (h.spouse && h.spouse.n === r.n && h.spouse.at === r.at) return false; return kidWith(g, r) || (r.rel || 0) >= 40 || !!r.cold || !!r.ask; };
+const okoOf = (g, r) => { if (r.oko != null) return r.oko; const f = C.placeFaith ? C.placeFaith(g, r.at) : null; r.oko = hsh('oko|' + r.id + '|' + r.n) < (f === 'oko' ? 0.6 : 0.12) ? 1 : 0; return r.oko; };
+const sumOf = (g, r) => { const m = (C.KV_RANK && C.KV_RANK[r.rank || 'muzhik'] || {m: 1}).m || 1; return Math.round(K.GIFT * m * (kidWith(g, r) ? K.KID : 1) / 5) * 5; };
+C.kvAskSum = sumOf;
+const mail = (g, r, h, text) => { g.mail = (g.mail || []).concat({from: r.n, t: r.t || '', face: r.face, sex: r.sex, kind: 'kv', head: verb(r, 'От знакомой', 'От знакомого'), to: h.name, text, day: day(g)}).slice(-6); };
+const tick = g => {
+  const d = day(g);
+  Object.values(g.kvLoc || {}).forEach(r => { try {
+    if (!eligible(g, r)) return; const h = heroById(g, r.hid), here = g.loc === r.at && !g.folkAt;
+    // Око: дитя без венца — не в ладах
+    if (kidWith(g, r) && okoOf(g, r)) { if (!r.okoSaid) { r.okoSaid = d; C.note(g, `${who(r)} из ${placeName(g, r.at)} по вере Ока не ${verb(r, 'простила', 'простил')} ${h.name} за дитя без венца: при встрече — холод, о близости и речи нет.`); }
+      r.rel = Math.min(r.rel || 0, K.OKO_CAP); r.cold = 1; delete r.ask; return; }
+    if (here) { // приехал
+      if (r.ask && r.ask.k === 'visit') { const far = d - (r.seen || r.met || d) >= K.FAR; r.rel = Math.min(100, (r.rel || 0) + (far ? K.REL_FAR : K.REL_VISIT)); if (!r.cold) r.rel = Math.max(r.rel, 40);
+        C.note(g, far ? `${who(r)} выбегает навстречу ${h.name} — так давно не ${verb(r, 'видела', 'видел')}! Радости — на весь двор.` : `${who(r)} ${verb(r, 'рада', 'рад')}, что ${h.name} ${h.sex === 'f' ? 'заглянула' : 'заглянул'}, как ${verb(r, 'просила', 'просил')}.`);
+        delete r.ask; r.askNext = d + K.GAP[0] + Math.floor(R.rand() * (K.GAP[1] - K.GAP[0])); }
+      r.seen = d; }
+    // просьба просрочена — остыла
+    if (r.ask && d > r.ask.by) { const k = r.ask.k; delete r.ask; r.cold = 1; r.rel = Math.min(r.rel || 0, K.COLD); r.askNext = d + K.GAP[1];
+      C.note(g, k === 'gift' ? `Вести из ${placeName(g, r.at)}: ${who(r)} так и не ${verb(r, 'дождалась', 'дождался')} гостинца от ${h.name} — обиделась, говорят, и холодна.`.replace('обиделась', verb(r, 'обиделась', 'обиделся')).replace('холодна', verb(r, 'холодна', 'холоден'))
+        : `Вести из ${placeName(g, r.at)}: ${who(r)} ${verb(r, 'ждала', 'ждал')}, что ${h.name} ${h.sex === 'f' ? 'приедет' : 'приедет'}, — не ${verb(r, 'дождалась', 'дождался')}. Теперь при имени ${h.name} ${verb(r, 'отворачивается', 'отворачивается')}.`); return; }
+    // новая просьба
+    if (!r.ask && !r.cold) { if (r.askNext == null) r.askNext = d + K.GAP[0] + Math.floor(hsh('a' + r.id) * 6); if (d < r.askNext) return;
+      const visit = !here && R.rand() < 0.4, kid = kidWith(g, r);
+      if (visit) { r.ask = {k: 'visit', by: d + K.TERM}; const t = `${kid ? 'Дитя спрашивает, где ' + (h.sex === 'f' ? 'мать' : 'отец') + '. ' : ''}Приезжай, проведай — соскучил${verb(r, 'ась', 'ся')}. ${who(r)}, ${placeName(g, r.at)}.`;
+        mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); }
+      else { const sum = sumOf(g, r); r.ask = {k: 'gift', sum, by: d + K.TERM}; const t = `${kid ? 'На дитя нужно — то одёжка, то хворь. ' : 'Зима близко, а в доме пусто. '}Пришли гостинец, не забывай. ${who(r)}, ${placeName(g, r.at)}.`;
+        mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); } }
+  } catch (e) {} });
 };
-const ASK_M = {
-  missing: v => `${vs(v.vic, 'Брат мой', 'Сестра моя')}, ${v.vic.n}, пропал${vs(v.vic, '', 'а')}. Видели ${vs(v.vic, 'его', 'её')} ${v.place.at}. Я бы сам пошёл — да кто ж тогда за матерью ходить будет. Найди.`,
-  retrieve: v => `Отцовское — ${v.item.n} — унесли. Следы ${v.place.to}. Не продам я его никогда, понимаешь? Верни.`,
-  bandits: v => `${cap(v.thr.n)} обложили наш двор данью. Сидят ${v.place.at}. Один я не сдюжу. С тобой — сдюжу.`,
-  haunt: v => `Мать не упокоилась — ${v.place.at} ходит ночами. Помоги ей уйти.`,
-};
-const THANKS = {f: ['{n} бросается навстречу и долго не отпускает: «Ты сделал. Для меня. Мне никто никогда… Проси что хочешь — всё твоё»', '{n} плачет и смеётся сразу: «Я знала. Знала, что ты не бросишь»'],
-  m: ['{n} молча обнимает и долго не отпускает: «Я в долгу. На всю жизнь — в долгу»']};
-const LATE = {f: ['{n} встречает холодно: «Я просила. Один раз в жизни — просила. Ладно. Сама теперь знаю, чего ты стоишь»'], m: ['{n} смотрит мимо: «Я просил. Ладно. Понял»']};
-const fill = (s, h, r) => s.replace(/\{n\}/g, r.n).replace(/\{h\}/g, h.name);
-
-/* после ночи: намёк, потом просьба */
-C.kvAskAfter = function (g, h, r) {
-  if (!g || !h || !r || (r.rel || 0) < K().REL || !['widow', 'maid', 'wife', 'left', 'freed'].includes(r.st)) return null;
-  if (r.askJob) { const j = Q.byId ? Q.byId(g, r.askJob) : null; if (j && ['open', 'offer'].includes(j.status)) return null; }
-  if (r.askDay && day(g) - r.askDay < K().GAP) return null;
-  if (!r.hint) { if (R.rand() < K().HINT_P) { r.hint = day(g); return {hint: fill(pick(HINT[r.sex === 'f' ? 'f' : 'm']), h, r)}; } return null; }
-  if (day(g) - r.hint < K().HINT_GAP || R.rand() >= K().ASK_P) return null;
-  let j = null; for (let k = 0; k < 6 && !j; k++) { try { j = Q.make(g, 'road', {kind: pick(K().KINDS), giver: 'kvlover'}); } catch (e) { j = null; } if (j && !Q.KIND[j.kind]) j = null; }
-  if (!j) return null;
-  j.v.giver = {n: r.n, sex: r.sex, ppl: r.ppl}; j.pay = 0; j.haggled = 1; j.kvReq = r.id; j.kvHero = h.id; j.dl = day(g) + 14;
-  const say = (r.sex === 'f' ? ASK : ASK_M)[j.kind] ? (r.sex === 'f' ? ASK : ASK_M)[j.kind](j.v) : null; if (!say) return null;
-  j.kvSay = say; r.askDay = day(g); r.askJob = j.id; r.hint = null;
-  g.jobPending = j; g.jobOffer = j.id; g.jobFrom = 'road';
-  return {ask: j};
-};
-/* дело без платы: в окне — её слова, без торга */
-const ol0 = Q.offerLines;
-Q.offerLines = function (g, j) {
-  if (j && j.kvReq) { const L = [[j.v.giver.n, '«' + j.kvSay + '»']]; L.push(['n', j.v.giver.sex === 'f' ? 'Платы она не предлагает — и предложи она, вы бы не взяли. Срок — пока не поздно, недели две.' : 'Платы он не предлагает — и предложи он, вы бы не взяли. Срок — пока не поздно, недели две.']); if (j.site) L.push(['n', 'Место, куда идти, вы отмечаете на карте.']); return L; }
-  return ol0.apply(this, arguments);
-};
-const gn0 = Q.giverName;
-Q.giverName = function (j) { if (j && j.kvReq) return j.v.giver.n; return gn0.apply(this, arguments); };
-/* исполнено — она твоя без остатка; провалено — запомнит */
-const fi0 = Q.finish;
-Q.finish = function (g, j) {
-  const r0 = fi0.apply(this, arguments);
-  try { if (j && j.kvReq && !j.kvDone) { j.kvDone = 1; const r = C.kvLocOf(g, j.kvReq), h = heroes(g).find(x => x.id === j.kvHero);
-    if (r && h) { r.rel = Math.min(100, (r.rel || 0) + K().DONE_REL); r.askThanks = 1; if (C.spiritAdd) C.spiritAdd(g, 2, '', h); C.note(g, `${r.n} ждёт с вестью: дело, о котором ${r.sex === 'f' ? 'она' : 'он'} просил${r.sex === 'f' ? 'а' : ''}, сделано.`); } } } catch (e) {}
-  return r0;
-};
-{ const ps0 = C.pass; if (ps0) C.pass = function (g) { const r0 = ps0.apply(this, arguments);
-  try { (g && g.jobs || []).forEach(j => { if (j.kvReq && !j.kvDone && ['late', 'gone', 'failed'].includes(j.status)) { j.kvDone = 1; const r = C.kvLocOf(g, j.kvReq); if (r) { r.rel = Math.max(0, (r.rel || 0) + K().LATE_REL); r.askLate = 1; } } }); } catch (e) {}
-  return r0; }; }
-/* встреча после: её слова — спасибо или упрёк */
-const so0 = C.sceneOf;
-C.sceneOf = function (g, id) {
-  const sc = so0.apply(this, arguments);
-  try { if (sc && id === 'kv_local' && g.kvCur) { const r = C.kvLocOf(g, g.kvCur), h = r && heroes(g).find(x => x.id === r.hid);
-    if (r && h && (r.askThanks || r.askLate)) { const t = fill(pick((r.askThanks ? THANKS : LATE)[r.sex === 'f' ? 'f' : 'm']), h, r); sc.lines = [['n', t]].concat(sc.lines || []); C.note(g, t); r.askThanks = 0; r.askLate = 0; } } } catch (e) {}
-  return sc;
-};
-/* встроено в ночь у знакомой: kvAfter (kind local) → намёк в утро; просьба — окно дела вместо утренней сцены */
-const ka0 = C.kvAfter;
-C.kvAfter = function (g, h, o) {
-  const out = ka0.apply(this, arguments);
-  try { if (o && o.kind === 'local' && o.loc && Array.isArray(out) && !(C.kvTooDrunk && C.kvTooDrunk(h))) { const r = C.kvLocOf(g, o.loc); const a = C.kvAskAfter(g, h, r);
-    if (a && a.hint) out.push(a.hint); if (a && a.ask) g.kvAskGo = 1; } } catch (e) {}
-  return out;
-};
-const ch0 = C.choose;
-C.choose = function (g) {
-  const r = ch0.apply(this, arguments);
-  try { if (g && g.kvAskGo && r && r.scene === 'kv_local') { g.kvAskGo = 0; return Object.assign({}, r, {scene: 'q_offer'}); } if (g && g.kvAskGo && r && r.scene && r.scene !== 'kv_husb') g.kvAskGo = 0; } catch (e) {}
-  return r;
-};
-G.C = C;
+C.KV_TICK.push(tick);
+/* послать гостинец с оказией / помириться — из любого села или города */
+const send = (g, r, mend) => { const h = heroById(g, r.hid); const sum = mend ? sumOf(g, r) * K.MEND : (r.ask && r.ask.sum) || sumOf(g, r);
+  if ((g.purse || 0) < sum) return 'не хватает денег'; g.purse -= sum;
+  if (mend) { r.cold = 0; r.rel = Math.max(r.rel || 0, K.WARM_BACK); delete r.ask; r.askNext = day(g) + K.GAP[0];
+    C.note(g, `${h ? h.name : 'Герой'} шлёт в ${placeName(g, r.at)} богатый гостинец с повинной. ${who(r)} ${verb(r, 'оттаяла', 'оттаял')}: обида прошла.`); }
+  else { r.rel = Math.min(100, (r.rel || 0) + K.REL_GIFT); delete r.ask; r.askNext = day(g) + K.GAP[0] + Math.floor(R.rand() * (K.GAP[1] - K.GAP[0]));
+    C.note(g, `С оказией в ${placeName(g, r.at)} уходит гостинец от ${h ? h.name : 'героя'}. ${who(r)} будет ${verb(r, 'рада', 'рад')}.`); }
+  return ''; };
+C.kvAskSend = send;
+const SETTLE = ['село', 'город', 'деревня', 'погост', 'хутор', 'подворье'];
+const inj0 = C.Q && C.Q.inject;
+if (inj0) C.Q.inject = function (g, sceneId, choices) {
+  let out = inj0.apply(this, arguments);
+  try { const n = C.CAMPS[g.camp].map.nodes[g.loc]; if (!n || n.scene !== sceneId || g.folkAt || !SETTLE.includes(n.kind)) return out;
+    const add = [];
+    Object.values(g.kvLoc || {}).forEach(r => { if (!eligible(g, r) || (r.oko && kidWith(g, r))) return; const h = heroById(g, r.hid); if (!h) return;
+      if (r.ask && r.ask.k === 'gift') { const sum = r.ask.sum; add.push({own: h.id, label: `${h.name}: послать гостинец ${decl(r.n, r.sex).d} (${placeName(g, r.at)}) · ${R.priceText ? R.priceText(sum) : sum + ' зм'}`, dis: (g.purse || 0) < sum ? 'не хватает денег' : undefined, do: g2 => { const x = C.kvLocOf(g2, r.id); if (x) send(g2, x, false); return n.scene; }}); }
+      else if (r.cold) { const sum = sumOf(g, r) * K.MEND; add.push({own: h.id, label: `${h.name}: помириться с ${decl(r.n, r.sex).i} — богатый гостинец · ${R.priceText ? R.priceText(sum) : sum + ' зм'}`, dis: (g.purse || 0) < sum ? 'не хватает денег' : undefined, do: g2 => { const x = C.kvLocOf(g2, r.id); if (x) send(g2, x, true); return n.scene; }}); } });
+    if (!add.length) return out;
+    out = out.slice(); let i = out.length ? Math.max(...out.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1 : 0;
+    const leave = out.findIndex(c => /^Уйти на карту|^Уйти$/.test(c.label || ''));
+    out.splice(leave < 0 ? out.length : leave, 0, ...add.map(c => Object.assign({i: i++}, c)));
+  } catch (e) {}
+  return out; };
+/* холодна — ночевать не зовёт (поверх порога близости) */
+if (C.kvLocalWhy) { const lw0 = C.kvLocalWhy; C.kvLocalWhy = function (g, r, what) { if (r && r.cold && what === 'night') return r.oko && kidWith(g, r) ? 'по вере Ока не простит' : verb(r, 'обижена — сперва помириться', 'обижен — сперва помириться'); return lw0.apply(this, arguments); }; }
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* town_folk.js */
@@ -76197,57 +76184,161 @@ BF.dgDecor = function (X, c, p, s, S, img) {
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* thicket.js */
-/* Колдовство — сквозь чащу (Ник 26.11: «лес как лабиринт похлеще подземелий; через лес можно ходить —
-   продираться за полное действие; видимость для стрельбы невозможная, для заклинаний плохая»).
-   • Шаг в клетку с деревом (не в крону — рядом, сквозь подлесок): основное действие и весь шаг хода.
-     Дальше из чащи можно выйти обычным шагом или продираться снова на следующий ход. Верхом — нельзя.
-   • Кто стоит в чаще — в него не выстрелить и сам он не выстрелит дальше соседней клетки (ветви).
-   • Чары: деревья на линии больше не глушат начисто — сквозь одно-два дерева (считая то, где стоит цель или колдун)
-     навести можно, сквозь три и больше — нет. Стрелы — по-прежнему только по чистой линии.
-   Свои герои (не ИИ) — враги и звери пока чащу не режут, чтобы не тратить ход впустую. */
+/* Колдовство — лес по-новому (Ник 26.11: «лес как лабиринт похлеще подземелий»; «через небольшие деревья герои могут
+   перемещаться; видимость через лес плохая; стрельба и чары — сложно; разные кроны — разная густота; скрытность в лесу
+   выше, в темноте ещё; кусты — моделька скрыта наполовину»).
+   • ДЕРЕВЬЯ. Редкие (берёзы, липа, яблоня) — проходимы, шаг вдвое дороже.
+     Густые (дуб, сосна, ель, пихта) — стена; сквозь него можно только продраться: основное действие
+     и весь шаг (свои герои; ИИ в чащу не лезет).
+   • ГУСТОТА КРОН (B.treeW): берёза, липа, яблоня — 1, дуб — 2 (зимой голый — 1), хвойное — 3. Линия взгляда копит густоту:
+     глазам — до 2, чарам — до 3, стреле — до 1 (и сквозь ветви — с помехой). Кто стоит в чаще — в него и из него стрелять
+     только вплотную.
+   • СКРЫТНОСТЬ: у деревьев и в чаще — подспорье (bf_stealth.js, BF.cellHide), ночью — ещё.
+   • КУСТЫ: фигурка стоит в кустах по пояс — низ спрятан (ui.js рисует куст поверх ног). */
 (function (G) {
 'use strict';
-const B = G.B, R = G.R, S_ = B && B.Spells; if (!B || !B.reach) return;
+const B = G.B, R = G.R, S_ = B && B.Spells; if (!B || !B.reach || !B.BF) return;
+const BF = B.BF;
 const isTree = x => !!(x && x.t === 'tree');
-const inThicket = (S, u) => !!(u && u.c != null && !u.tree && isTree(B.cell(S, u.c, u.r)));
+const YOUNG = {birch1: 1, birch2: 1, linden: 1}; // берёзы и липы — редкий лес, пройти можно
+const big = x => !!(x && x.t === 'tree' && x.vy !== 'apple' && !YOUNG[BF.treeKind ? BF.treeKind(x) : '']);
+const EVER = {pine: 1, fir: 1, spruce: 1};
+const winter = S => !!((S.field && S.field.hbStyle && S.field.hbStyle.season === 'winter') || S.wxSeason === 'winter');
+B.treeW = (S, x) => { if (!isTree(x)) return 0; if (!big(x)) return 1; const k = BF.treeKind ? BF.treeKind(x) : ''; if (EVER[k]) return 3; return winter(S) ? 1 : 2; };
+B.smallTree = x => isTree(x) && !big(x);
+/* молодой лес — проходим, шаг вдвое */
+const cb0 = B.cellBlock, cc0 = B.cellCost;
+B.cellBlock = (S, x) => (B.smallTree(x) ? false : cb0 ? cb0(S, x) : B.TERRAIN[x.t].block);
+B.cellCost = (S, x) => (B.smallTree(x) ? 2 : cc0 ? cc0(S, x) : B.TERRAIN[x.t].cost);
+const inThicket = (S, u) => !!(u && u.c != null && !u.tree && isTree(B.cell(S, u.c, u.r)) && big(B.cell(S, u.c, u.r)));
 B.inThicket = inThicket;
 const canPush = (S, u) => !!(u && u.side === 'party' && !u.ai && !u.mount && !u.tree && !u.lying && !(u.conds && (u.conds.rooted || u.conds.prone || u.conds.grappled)) && !S.acted && B.active(u));
-/* куда можно продраться: соседние деревья, свободные */
+/* продраться в большое дерево рядом */
 const re0 = B.reach;
 B.reach = function (S, u) {
   const res = re0.apply(this, arguments);
   try { if (!canPush(S, u)) return res; const left = u.steps - S.moved; if (left < 1) return res;
     const start = B.key(u.c, u.r);
-    B.neigh(u.c, u.r).forEach(n => { const x = B.cell(S, n.c, n.r), k = B.key(n.c, n.r); if (!isTree(x) || res[k] || B.unitAt(S, n.c, n.r)) return;
+    B.neigh(u.c, u.r).forEach(n => { const x = B.cell(S, n.c, n.r), k = B.key(n.c, n.r); if (!isTree(x) || !big(x) || res[k] || B.unitAt(S, n.c, n.r)) return;
       res[k] = {c: n.c, r: n.r, cost: left, prev: start, thick: 1, path: [{c: u.c, r: u.r}, {c: n.c, r: n.r}]}; }); } catch (e) {}
   return res;
 };
-/* сам шаг: деревья — не стена, но идти — с треском и за весь ход */
 const mv0 = B.move;
 B.move = function (S, u, c, r) {
   const x = B.cell(S, c, r);
-  if (!isTree(x) || !u || u.tree || B.dist(u, {c, r}) !== 1 || !canPush(S, u)) return mv0.apply(this, arguments);
-  const T = B.TERRAIN.tree, blk = T.block, cost = T.cost; T.block = false; T.cost = Math.max(1, u.steps - S.moved);
-  let ok; try { ok = mv0.apply(this, arguments); } finally { T.block = blk; if (cost == null) delete T.cost; else T.cost = cost; }
+  if (!isTree(x) || !big(x) || !u || u.tree || B.dist(u, {c, r}) !== 1 || !canPush(S, u)) return mv0.apply(this, arguments);
+  const keep = B.cellBlock, kc = B.cellCost, left = Math.max(1, u.steps - S.moved);
+  B.cellBlock = (S2, y) => (y === x ? false : keep(S2, y)); B.cellCost = (S2, y) => (y === x ? left : kc(S2, y));
+  let ok; try { ok = mv0.apply(this, arguments); } finally { B.cellBlock = keep; B.cellCost = kc; }
   if (ok && u.c === c && u.r === r) { S.acted = true; S.moved = u.steps;
     B.log(S, R.pick ? R.pick([`${u.name} продирается сквозь чащу — ветки хлещут по лицу.`, `${u.name} ломится через подлесок, треща сучьями.`, `${u.name} протискивается между стволами.`]) : `${u.name} продирается сквозь чащу.`, '', 'чаща: основное действие и весь шаг'); }
   return ok;
 };
-/* стрельба: из чащи и в чащу — только вплотную */
+/* стрельба: густота на линии до 1, сквозь ветви — помеха; из чащи и в чащу — только вплотную */
+const withTree = (lim, fn) => { const k = B._losTree; B._losTree = lim; try { return fn(); } finally { B._losTree = k; } };
 const rb0 = B.rangeBand;
-B.rangeBand = function (u, t) { const r = rb0.apply(this, arguments); if (r === null || !B._S || !u || !t) return r;
-  if (B.dist(u, t) > 1 && (inThicket(B._S, u) || inThicket(B._S, t))) return null; return r; };
-/* чары: сквозь одно-два дерева — можно */
-const treesOn = (S, a, t) => { const n = B.dist(a, t), A = B.toCube(a.c, a.r), T = B.toCube(t.c, t.r); let k = 0;
-  for (let i = 1; i < n; i++) { const f = i / n; let x = A[0] + (T[0] - A[0]) * f + 1e-6, y = A[1] + (T[1] - A[1]) * f + 2e-6, z = A[2] + (T[2] - A[2]) * f - 3e-6;
-    let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z); const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
-    if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; if (isTree(B.cell(S, rx + (ry - (ry & 1)) / 2, ry))) k++; }
-  return k + (inThicket(S, a) ? 1 : 0) + (inThicket(S, t) ? 1 : 0); };
-const thinLos = (S, a, t, fn) => { if (B.los(S, a, t)) return fn(); if (treesOn(S, a, t) > 2) return fn();
-  const L = B.LOS_BLOCK, was = L.tree; L.tree = 0; try { return fn(); } finally { L.tree = was; } };
-B.spellLos = (S, a, t) => thinLos(S, a, t, () => B.los(S, a, t));
+B.rangeBand = function (u, t) { const self = this, args = arguments; if (!B._S || !u || !t) return rb0.apply(self, args);
+  if (B.dist(u, t) > 1 && (inThicket(B._S, u) || inThicket(B._S, t))) return null;
+  return withTree(1, () => rb0.apply(self, args)); };
+B.shotW = (S, a, t) => { B._losW = null; const ok = withTree(1, () => B.los(S, a, t)); const w = B._losW; B._losW = null; return ok ? (w || 0) : 99; };
+if (B.advOf) { const ad0 = B.advOf; B.advOf = function (S, u, t, ranged) { const r = ad0.apply(this, arguments);
+  try { if (ranged && S && u && t && B.dist(u, t) > 1 && B.shotW(S, u, t) === 1 && !r.D.includes('сквозь ветви')) return Object.assign({}, r, {D: r.D.concat(['сквозь ветви'])}); } catch (e) {} return r; }; }
+/* чары: густота до 3 */
 if (S_) {
-  const se0 = S_.sees; if (se0) S_.sees = function (S, u, s, t) { const self = this, args = arguments; if (!t || t.c == null || !S || !S.units) return se0.apply(self, args); return thinLos(S, u, t, () => se0.apply(self, args)); };
-  const ca0 = S_.cast; if (ca0) S_.cast = function (S, u, s, t) { const self = this, args = arguments; if (!t || t === u || t.c == null || !S || !S.units) return ca0.apply(self, args); return thinLos(S, u, t, () => ca0.apply(self, args)); };
+  const se0 = S_.sees; if (se0) S_.sees = function () { const self = this, args = arguments; return withTree(3, () => se0.apply(self, args)); };
+  const ca0 = S_.cast; if (ca0) S_.cast = function () { const self = this, args = arguments; return withTree(3, () => ca0.apply(self, args)); };
 }
+B.spellLos = (S, a, t) => withTree(3, () => B.los(S, a, t));
+/* скрытность: у деревьев и в чаще */
+if (BF.cellHide) { const ch0 = BF.cellHide; BF.cellHide = function (S, u, x) { let v = ch0.apply(this, arguments);
+  try { if (isTree(x)) v += big(x) ? 5 : 3; else { const n = B.neigh(x.c, x.r).filter(p => isTree(B.cell(S, p.c, p.r))).length; if (n >= 3) v += 2; } } catch (e) {} return v; }; }
+/* укрытие: в молодом лесу — лёгкое, в чаще — плотное */
+if (B.hitMods) { const hm0 = B.hitMods; B.hitMods = function (S, u, t) { const r = hm0.apply(this, arguments); return r; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* kv_ask.js */
+/* Колдовство — с кем дитя (или тайное сердце), но без венца: долгая связь со своей ценой (Ник 26.11:
+   «почему бы и нет. иногда просят подарки — даришь денег по их статусу; даришь — настроение нормальное, нет — падает до
+   холодного, и там дороже восстановить; иногда просят проведать — проведываешь, рады, если был далеко; кто в Око верит —
+   понятно, с тобой не в ладах»).
+   • Кто: местная знакомая (местный) героя — не жена, не ушла, и либо у них дитя (или ждут), либо сердце близкое.
+   • Просьбы раз в две-три седмицы, вестью или грамоткой: «пришли гостинец» (цена — по дому: мужик, мастер, купец,
+     староста, тиун, боярин; если дитя — больше) или «приезжай, проведай». Срок — около двух седмиц.
+   • Гостинец шлют с оказией из любого села или города («Послать гостинец …»); проведать — быть в её (его) селе.
+     Был долго далеко — радость больше.
+   • Не выполнил к сроку — остыла: ночевать не зовёт, ласки нет. Помириться — гостинец втрое дороже.
+   • Верящие в Око при дитяти без венца — не в ладах: ничего не просят, близости нет, только холод.
+   В окне — только слова; деньги — как везде, ценой. Состояние: rec.ask {k, sum, by}, rec.askNext, rec.cold, rec.oko, rec.seen. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C; if (!R || !C || !C.KV_TICK || !C.kvLocOf) return;
+const day = g => (g && g.day) || 1;
+const heroes = g => (g && g.heroes ? C.alive(g) : []).filter(h => h.kind !== 'merc');
+const heroById = (g, id) => heroes(g).find(x => x.id === id) || null;
+const fams = g => Object.values((g.w2kids || {}).fam || {}).filter(F => F && F.kv);
+const kidWith = (g, r) => fams(g).some(F => F.kv.pid === 'loc:' + r.id && ((F.kids || []).length || F.kvPreg));
+const placeName = (g, at) => { try { const n = C.CAMPS[g.camp].map.nodes[at]; return (n && n.name) || 'родное село'; } catch (e) { return 'родное село'; } };
+const hsh = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0) / 4294967296; };
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n, g: n, d: n, a: n, i: n, p: n};
+const she = r => r.sex === 'f', who = r => r.n, verb = (r, f, m) => (she(r) ? f : m);
+const K = {GAP: [14, 24], TERM: 14, GIFT: 20, KID: 1.5, COLD: 30, MEND: 3, REL_GIFT: 4, REL_VISIT: 5, REL_FAR: 10, FAR: 20, WARM_BACK: 50, OKO_CAP: 20};
+C.KV_ASK = K;
+const eligible = (g, r) => { if (!r || ['wed', 'gone'].includes(r.st) || (r.camp && r.camp !== g.camp)) return false; const h = heroById(g, r.hid); if (!h) return false;
+  if (h.spouse && h.spouse.n === r.n && h.spouse.at === r.at) return false; return kidWith(g, r) || (r.rel || 0) >= 40 || !!r.cold || !!r.ask; };
+const okoOf = (g, r) => { if (r.oko != null) return r.oko; const f = C.placeFaith ? C.placeFaith(g, r.at) : null; r.oko = hsh('oko|' + r.id + '|' + r.n) < (f === 'oko' ? 0.6 : 0.12) ? 1 : 0; return r.oko; };
+const sumOf = (g, r) => { const m = (C.KV_RANK && C.KV_RANK[r.rank || 'muzhik'] || {m: 1}).m || 1; return Math.round(K.GIFT * m * (kidWith(g, r) ? K.KID : 1) / 5) * 5; };
+C.kvAskSum = sumOf;
+const mail = (g, r, h, text) => { g.mail = (g.mail || []).concat({from: r.n, t: r.t || '', face: r.face, sex: r.sex, kind: 'kv', head: verb(r, 'От знакомой', 'От знакомого'), to: h.name, text, day: day(g)}).slice(-6); };
+const tick = g => {
+  const d = day(g);
+  Object.values(g.kvLoc || {}).forEach(r => { try {
+    if (!eligible(g, r)) return; const h = heroById(g, r.hid), here = g.loc === r.at && !g.folkAt;
+    // Око: дитя без венца — не в ладах
+    if (kidWith(g, r) && okoOf(g, r)) { if (!r.okoSaid) { r.okoSaid = d; C.note(g, `${who(r)} из ${placeName(g, r.at)} по вере Ока не ${verb(r, 'простила', 'простил')} ${h.name} за дитя без венца: при встрече — холод, о близости и речи нет.`); }
+      r.rel = Math.min(r.rel || 0, K.OKO_CAP); r.cold = 1; delete r.ask; return; }
+    if (here) { // приехал
+      if (r.ask && r.ask.k === 'visit') { const far = d - (r.seen || r.met || d) >= K.FAR; r.rel = Math.min(100, (r.rel || 0) + (far ? K.REL_FAR : K.REL_VISIT)); if (!r.cold) r.rel = Math.max(r.rel, 40);
+        C.note(g, far ? `${who(r)} выбегает навстречу ${h.name} — так давно не ${verb(r, 'видела', 'видел')}! Радости — на весь двор.` : `${who(r)} ${verb(r, 'рада', 'рад')}, что ${h.name} ${h.sex === 'f' ? 'заглянула' : 'заглянул'}, как ${verb(r, 'просила', 'просил')}.`);
+        delete r.ask; r.askNext = d + K.GAP[0] + Math.floor(R.rand() * (K.GAP[1] - K.GAP[0])); }
+      r.seen = d; }
+    // просьба просрочена — остыла
+    if (r.ask && d > r.ask.by) { const k = r.ask.k; delete r.ask; r.cold = 1; r.rel = Math.min(r.rel || 0, K.COLD); r.askNext = d + K.GAP[1];
+      C.note(g, k === 'gift' ? `Вести из ${placeName(g, r.at)}: ${who(r)} так и не ${verb(r, 'дождалась', 'дождался')} гостинца от ${h.name} — обиделась, говорят, и холодна.`.replace('обиделась', verb(r, 'обиделась', 'обиделся')).replace('холодна', verb(r, 'холодна', 'холоден'))
+        : `Вести из ${placeName(g, r.at)}: ${who(r)} ${verb(r, 'ждала', 'ждал')}, что ${h.name} ${h.sex === 'f' ? 'приедет' : 'приедет'}, — не ${verb(r, 'дождалась', 'дождался')}. Теперь при имени ${h.name} ${verb(r, 'отворачивается', 'отворачивается')}.`); return; }
+    // новая просьба
+    if (!r.ask && !r.cold) { if (r.askNext == null) r.askNext = d + K.GAP[0] + Math.floor(hsh('a' + r.id) * 6); if (d < r.askNext) return;
+      const visit = !here && R.rand() < 0.4, kid = kidWith(g, r);
+      if (visit) { r.ask = {k: 'visit', by: d + K.TERM}; const t = `${kid ? 'Дитя спрашивает, где ' + (h.sex === 'f' ? 'мать' : 'отец') + '. ' : ''}Приезжай, проведай — соскучил${verb(r, 'ась', 'ся')}. ${who(r)}, ${placeName(g, r.at)}.`;
+        mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); }
+      else { const sum = sumOf(g, r); r.ask = {k: 'gift', sum, by: d + K.TERM}; const t = `${kid ? 'На дитя нужно — то одёжка, то хворь. ' : 'Зима близко, а в доме пусто. '}Пришли гостинец, не забывай. ${who(r)}, ${placeName(g, r.at)}.`;
+        mail(g, r, h, t); C.note(g, `Гонец с грамоткой для ${h.name}: ${t}`); } }
+  } catch (e) {} });
+};
+C.KV_TICK.push(tick);
+/* послать гостинец с оказией / помириться — из любого села или города */
+const send = (g, r, mend) => { const h = heroById(g, r.hid); const sum = mend ? sumOf(g, r) * K.MEND : (r.ask && r.ask.sum) || sumOf(g, r);
+  if ((g.purse || 0) < sum) return 'не хватает денег'; g.purse -= sum;
+  if (mend) { r.cold = 0; r.rel = Math.max(r.rel || 0, K.WARM_BACK); delete r.ask; r.askNext = day(g) + K.GAP[0];
+    C.note(g, `${h ? h.name : 'Герой'} шлёт в ${placeName(g, r.at)} богатый гостинец с повинной. ${who(r)} ${verb(r, 'оттаяла', 'оттаял')}: обида прошла.`); }
+  else { r.rel = Math.min(100, (r.rel || 0) + K.REL_GIFT); delete r.ask; r.askNext = day(g) + K.GAP[0] + Math.floor(R.rand() * (K.GAP[1] - K.GAP[0]));
+    C.note(g, `С оказией в ${placeName(g, r.at)} уходит гостинец от ${h ? h.name : 'героя'}. ${who(r)} будет ${verb(r, 'рада', 'рад')}.`); }
+  return ''; };
+C.kvAskSend = send;
+const SETTLE = ['село', 'город', 'деревня', 'погост', 'хутор', 'подворье'];
+const inj0 = C.Q && C.Q.inject;
+if (inj0) C.Q.inject = function (g, sceneId, choices) {
+  let out = inj0.apply(this, arguments);
+  try { const n = C.CAMPS[g.camp].map.nodes[g.loc]; if (!n || n.scene !== sceneId || g.folkAt || !SETTLE.includes(n.kind)) return out;
+    const add = [];
+    Object.values(g.kvLoc || {}).forEach(r => { if (!eligible(g, r) || (r.oko && kidWith(g, r))) return; const h = heroById(g, r.hid); if (!h) return;
+      if (r.ask && r.ask.k === 'gift') { const sum = r.ask.sum; add.push({own: h.id, label: `${h.name}: послать гостинец ${decl(r.n, r.sex).d} (${placeName(g, r.at)}) · ${R.priceText ? R.priceText(sum) : sum + ' зм'}`, dis: (g.purse || 0) < sum ? 'не хватает денег' : undefined, do: g2 => { const x = C.kvLocOf(g2, r.id); if (x) send(g2, x, false); return n.scene; }}); }
+      else if (r.cold) { const sum = sumOf(g, r) * K.MEND; add.push({own: h.id, label: `${h.name}: помириться с ${decl(r.n, r.sex).i} — богатый гостинец · ${R.priceText ? R.priceText(sum) : sum + ' зм'}`, dis: (g.purse || 0) < sum ? 'не хватает денег' : undefined, do: g2 => { const x = C.kvLocOf(g2, r.id); if (x) send(g2, x, true); return n.scene; }}); } });
+    if (!add.length) return out;
+    out = out.slice(); let i = out.length ? Math.max(...out.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1 : 0;
+    const leave = out.findIndex(c => /^Уйти на карту|^Уйти$/.test(c.label || ''));
+    out.splice(leave < 0 ? out.length : leave, 0, ...add.map(c => Object.assign({i: i++}, c)));
+  } catch (e) {}
+  return out; };
+/* холодна — ночевать не зовёт (поверх порога близости) */
+if (C.kvLocalWhy) { const lw0 = C.kvLocalWhy; C.kvLocalWhy = function (g, r, what) { if (r && r.cold && what === 'night') return r.oko && kidWith(g, r) ? 'по вере Ока не простит' : verb(r, 'обижена — сперва помириться', 'обижен — сперва помириться'); return lw0.apply(this, arguments); }; }
 })(typeof window !== 'undefined' ? window : globalThis);

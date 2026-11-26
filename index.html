@@ -1341,7 +1341,10 @@ B.makeField = function (spec) {
   return {w: W, h: H, cells, objs, bg: spec.bg || 'meadow', night: !!spec.night, spawn: {party: pc, foe: fc, mid}, noHorse: !!spec.noHorse, dense: !!spec.dense};
 };
 B.cell = (S, c, r) => S.field.cells[B.key(c, r)];
-B.passable = (S, c, r) => { const x = B.cell(S, c, r); return x && !B.TERRAIN[x.t].block; };
+/* клетка преграда? цена шага? — поверх вида местности (молодой лес — проходим: thicket.js) */
+B.blockAt = (S, x) => (B.cellBlock ? B.cellBlock(S, x) : B.TERRAIN[x.t].block);
+B.costAt = (S, x) => (B.cellCost ? B.cellCost(S, x) : B.TERRAIN[x.t].cost) || 1;
+B.passable = (S, c, r) => { const x = B.cell(S, c, r); return x && !B.blockAt(S, x); };
 B.unitAt = (S, c, r) => S.units.find(u => u.c === c && u.r === r && !u.gone && !u.dead);
 
 /* ---------- юниты ---------- */
@@ -1845,9 +1848,9 @@ B.reachDir = function (S, u, left, tc) {
   while (q.length) {
     q.sort((a, b) => a.cost - b.cost); const x = q.shift();
     B.neigh(x.c, x.r).forEach((n, d) => {
-      const cell = B.cell(S, n.c, n.r); if (!cell || B.TERRAIN[cell.t].block) return;
+      const cell = B.cell(S, n.c, n.r); if (!cell || B.blockAt(S, cell)) return;
       const occ = B.unitAt(S, n.c, n.r); if (occ && occ.side !== u.side && !occ.down) return;
-      const cost = x.cost + (B.TERRAIN[cell.t].cost || 1) + (x.d >= 0 && x.d !== d ? tc : 0); if (cost > left) return;
+      const cost = x.cost + B.costAt(S, cell) + (x.d >= 0 && x.d !== d ? tc : 0); if (cost > left) return;
       const k = sk(n.c, n.r, d), zoc = !occ && foes.some(e => B.dist(e, n) === 1 && B.holdsZone(e));
       if (!st[k] || st[k].cost > cost) { st[k] = {c: n.c, r: n.r, d, cost, prev: x, occ: !!occ}; if (!zoc) q.push(st[k]); }
     });
@@ -1870,10 +1873,10 @@ B.reach = function (S, u) {
     for (const n of B.neigh(x.c, x.r)) {
       const cell = B.cell(S, n.c, n.r); if (!cell) continue;
       // полёт: над деревьями, камнями, водой и оградами — можно, сквозь стены и крыши — нет; встать на преграду нельзя (Ник 25.11)
-      const blk = B.TERRAIN[cell.t].block, over = blk && fly && !B.FLY_NO.has(cell.t) && cell.hb == null; if (blk && !over) continue;
+      const blk = B.blockAt(S, cell), over = blk && fly && !B.FLY_NO.has(cell.t) && cell.hb == null; if (blk && !over) continue;
       const occ = B.unitAt(S, n.c, n.r), meek = occ && S.walk && occ.side === 'civ' && u.side === 'party'; /* и в драке: мирные (дети, бабы) не держат проход — Ник 25.11 */ // на прогулке мирные расступаются: сквозь них идти можно, вставать на них — нет
       if (occ && occ.side !== u.side && !occ.down && !meek) continue;
-      const cost = x.cost + (fly ? 1 : (B.TERRAIN[cell.t].cost || 1));
+      const cost = x.cost + (fly ? 1 : B.costAt(S, cell));
       if (cost > left) continue;
       const k = B.key(n.c, n.r);
       // зона боя: шагнул к врагу вплотную — дальше не идёшь (мимо бойца не проскочить)
@@ -2486,8 +2489,8 @@ B.walkDist = function (S, t) {
   const d = {}, bk = [[{c: t.c, r: t.r, v: 0}]]; d[B.key(t.c, t.r)] = 0;
   for (let v0 = 0; v0 < bk.length; v0++) { const q = bk[v0]; if (!q) continue;
     for (let i = 0; i < q.length; i++) { const x = q[i]; if (d[B.key(x.c, x.r)] < x.v) continue;
-      for (const n of B.neigh(x.c, x.r)) { const cell = B.cell(S, n.c, n.r); if (!cell || B.TERRAIN[cell.t].block) continue;
-        const v = x.v + (B.TERRAIN[cell.t].cost || 1), k = B.key(n.c, n.r); if (d[k] == null || d[k] > v) { d[k] = v; (bk[v] = bk[v] || []).push({c: n.c, r: n.r, v}); } } } }
+      for (const n of B.neigh(x.c, x.r)) { const cell = B.cell(S, n.c, n.r); if (!cell || B.blockAt(S, cell)) continue;
+        const v = x.v + B.costAt(S, cell), k = B.key(n.c, n.r); if (d[k] == null || d[k] > v) { d[k] = v; (bk[v] = bk[v] || []).push({c: n.c, r: n.r, v}); } } } }
   return d;
 };
 B.goNear = function (S, u, t) {
@@ -30810,16 +30813,17 @@ S_.cast = function (S, u, s, target) {
 const R = G.R, C = G.C, B = G.B, S_ = B.Spells;
 B.LOS_BLOCK = {tree: 1, rock: 1, wall: 1, house: 1, idol: 1};
 const line = (S, a, t, e) => {
-  const n = B.dist(a, t), A = B.toCube(a.c, a.r), T = B.toCube(t.c, t.r);
+  const n = B.dist(a, t), A = B.toCube(a.c, a.r), T = B.toCube(t.c, t.r); let w = 0;
   for (let i = 1; i < n; i++) {
     const k = i / n; let x = A[0] + (T[0] - A[0]) * k + e, y = A[1] + (T[1] - A[1]) * k + e * 2, z = A[2] + (T[2] - A[2]) * k - e * 3;
     let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
     const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
     if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz;
     const c = rx + (ry - (ry & 1)) / 2, r = ry, cell = B.cell(S, c, r);
+    if (cell && cell.t === 'tree' && B.treeW) { w += B.treeW(S, cell); if (w > (B._losTree != null ? B._losTree : 2)) return false; continue; } // лес: густота крон (thicket.js)
     if (cell && B.LOS_BLOCK[cell.t]) return false;
   }
-  return true;
+  B._losW = Math.min(B._losW == null ? 99 : B._losW, w); return true;
 };
 /* видит ли a клетку/бойца t */
 B.los = function (S, a, t) {
@@ -44507,7 +44511,7 @@ BF.blank = function (W, H, base, bg) {
 };
 BF.at = (F, c, r) => F.cells[key(c, r)];
 BF.free = (F, x) => x && x.o == null && !B.TERRAIN[x.t].block;
-BF.passable = (F, x) => !!x && !B.TERRAIN[x.t].block;
+BF.passable = (F, x) => !!x && !(B.blockAt ? B.blockAt(null, x) : B.TERRAIN[x.t].block);
 /* клетки по прямой (кубическая интерполяция) */
 BF.line = function (a, b) {
   const n = B.dist(a, b), A = B.toCube(a.c, a.r), T = B.toCube(b.c, b.r), out = [];
@@ -44786,16 +44790,17 @@ B.bfFog = isFog;
 const dark = S => !!(S && S.field && (S.field.night || (S.wx && S.wx.night)));
 /* сырая линия видимости: деревья, камни, стены (как в sight.js) */
 const line = (S, a, t, e) => {
-  const n = B.dist(a, t), A = B.toCube(a.c, a.r), T = B.toCube(t.c, t.r);
+  const n = B.dist(a, t), A = B.toCube(a.c, a.r), T = B.toCube(t.c, t.r); let w = 0;
   for (let i = 1; i < n; i++) {
     const k = i / n; let x = A[0] + (T[0] - A[0]) * k + e, y = A[1] + (T[1] - A[1]) * k + e * 2, z = A[2] + (T[2] - A[2]) * k - e * 3;
     let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
     const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
     if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz;
     const cell = B.cell(S, rx + (ry - (ry & 1)) / 2, ry);
+    if (cell && cell.t === 'tree' && B.treeW) { w += B.treeW(S, cell); if (w > (B._losTree != null ? B._losTree : 2)) return false; continue; } // лес: густота крон (thicket.js)
     if (cell && B.LOS_BLOCK[cell.t]) return false;
   }
-  return true;
+  B._losW = Math.min(B._losW == null ? 99 : B._losW, w); return true;
 };
 BF.lineOK = (S, a, t) => B.dist(a, t) <= 1 || line(S, a, t, 1e-6) || line(S, a, t, -1e-6);
 
@@ -48422,7 +48427,7 @@ const canDoors = u => !(u.kind === 'monster' && u.ref && u.ref.group === 'зве
 BF.doorOnPath = function (S, u, t) {
   const wd = B.walkDist(S, t); let x = {c: u.c, r: u.r}, v = wd[key(x.c, x.r)];
   for (let i = 0; i < 60; i++) {
-    let best = null; B.neigh(x.c, x.r).forEach(n => { const k = key(n.c, n.r), w = wd[k], z = B.cell(S, n.c, n.r); if (w == null || !z) return; if (B.TERRAIN[z.t].block && z.t !== 'hdoor_c') return; if (best == null || w < best.w) best = {c: n.c, r: n.r, w, z}; });
+    let best = null; B.neigh(x.c, x.r).forEach(n => { const k = key(n.c, n.r), w = wd[k], z = B.cell(S, n.c, n.r); if (w == null || !z) return; if (B.blockAt(S, z) && z.t !== 'hdoor_c') return; if (best == null || w < best.w) best = {c: n.c, r: n.r, w, z}; });
     if (!best || (v != null && best.w >= v)) return null;
     if (best.z.t === 'hdoor_c' && best.z.hb != null) { const h = BF.houseById(S.field, best.z.hb); return h ? {h, d: h.doors[best.z.hd], id: h.id + ':' + best.z.hd} : null; }
     if (B.dist(best, t) <= 1) return null;
@@ -50315,7 +50320,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611262114"></script><script>
+</script><script src="world.js?v=202611262155"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54075,6 +54080,8 @@ function drawField(noFollow) {
   const HBX = {fprop, cur, img: IMG.house};
   // павшие враги остаются на поле: кровь и тело под живыми
   const DU = S.units.map(dispUnit);
+  TREEFADE = null; if (F.big) { TREEFADE = {}; S.units.forEach(u => { if (u.dead || u.gone || u.c == null || (F.fog && bfFogOf(S, u) < 2)) return; TREEFADE[u.c + ',' + u.r] = 1; B.neigh(u.c, u.r).forEach(q => { if (q.r > u.r || (q.r === u.r)) TREEFADE[q.c + ',' + q.r] = 1; }); }); }
+  if (F.big) S.units.forEach(u => { if (u.dead || u.gone || u.c == null || u.tree) return; const x = B.cell(S, u.c, u.r); if (x && (x.t === 'brush' || x.t === 'reeds' || x.t === 'rye')) { const p = hexXY(u.c, u.r); if (!off(p)) things.push({y: p.y + 0.2, c: x, over: 1}); } }); // в кустах — по пояс
   dieInit(); drawHorseCorpses(); DU.filter(u => !u.gone && u.dead && u.kind === 'monster').forEach(drawCorpse);
   DU.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => { const up = unitXY(u); if (F.big && (up.x < -s * 4 || up.x > geo.W + s * 4 || up.y < -s * 4 || up.y > geo.H + s * 6)) return; things.push({y: unitXY(u).y + 0.1 + (u.tree && B.BF.treeLift ? B.BF.treeLift(u, geo.s) + 1 : 0), u}); });
   LABELQ = []; try { things.sort((a, b) => a.y - b.y).forEach(t => { const dim = F.fog && (t.o || t.c) && bfFogOf(S, t.c || t.o.cells[0]) === 1; if (dim) { ctx.save(); ctx.globalAlpha = 0.5; } try { t.hr ? B.BF.hbRoof(ctx, t.hr, geo.s, hexXY, S, IMG.house) : t.dgw ? B.BF.dgWall(ctx, t.dgw, hexXY(t.dgw.c, t.dgw.r), geo.s, S, IMG.house) : t.dgd ? B.BF.dgDecor(ctx, t.dgd, hexXY(t.dgd.c, t.dgd.r), geo.s, S, IMG.house) : t.o ? drawObj(t.o) : t.c ? ((t.c.vy != null && B.BF.vyThing && B.BF.vyThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (t.c.hb != null && B.BF.hbThing && B.BF.hbThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (BF_PROPS.has(t.c.t) && F.big ? bfProp(t.c) : drawProp(t.c))) : (drawUnit(t.u), t.u.tree && B.BF.treeLeaves && B.BF.treeLeaves(ctx, t.u, unitXY(t.u), geo.s, S)); } finally { if (dim) ctx.restore(); } }); if (F.big) bfOver(S, cur); } finally { const q = LABELQ; LABELQ = null; ctx.save(); q.forEach(f => f()); ctx.restore(); }
@@ -54520,12 +54527,15 @@ function drawObj(o) {
   else if (o.t === 'log') { const a = ATLAS.spr && ATLAS.spr.log_summer, w = SQ3 * s * 1.9; if (a) sprite('log_summer', cx, cy + s * 0.45, w * a[3] / a[2]); }
 }
 const F_WATTLE = c => battle && battle.field.bg !== 'plain' && fprop('fp_wattle', hexXY(c.c, c.r).x, hexXY(c.c, c.r).y + geo.s * 0.5, {w: SQ3 * geo.s * 1.1});
+let TREEFADE = null;
 function drawProp(c) {
   if (FP_ONE[c.t]) { const p = hexXY(c.c, c.r), [nm, hk] = FP_ONE[c.t]; if (fprop(nm, p.x, p.y + geo.s * 0.55, {h: geo.s * hk})) return; }
   if (c.t === 'rye') { const p = hexXY(c.c, c.r); fprop('fp_rye', p.x, p.y + geo.s * 0.62, {w: SQ3 * geo.s * 1.08}); return; }
   if (c.t === 'log') { const a = ATLAS.spr && ATLAS.spr.log_summer, p = hexXY(c.c, c.r); if (a) sprite('log_summer', p.x, p.y + s0(0.45), SQ3 * geo.s * a[3] / a[2]); return; }
   const p = hexXY(c.c, c.r), s = geo.s, k = cellHash(c);
-  if (c.t === 'tree') sprite(TREES[k % TREES.length], p.x, p.y + s * 0.55, s * 2.6);
+  if (c.t === 'tree') { // лес: не по центру клетки — каждое дерево чуть сдвинуто; молодое — меньше; кто стоит за деревом — дерево полупрозрачно (thicket.js)
+    const jx = (((k >> 3) % 5) - 2) * s * 0.13, jy = (((k >> 6) % 3) - 1) * s * 0.1, sm = B.smallTree && B.smallTree(c), fade = TREEFADE && TREEFADE[c.c + ',' + c.r];
+    if (fade) { ctx.save(); ctx.globalAlpha *= 0.42; } sprite(TREES[k % TREES.length], p.x + jx, p.y + s * 0.55 + jy, s * (sm ? 2.05 : 2.6)); if (fade) ctx.restore(); }
   else if (c.t === 'rock') sprite(['boulder_summer', 'crag_summer', 'stones_summer'][k % 3], p.x, p.y + s * 0.5, s * 1.4);
   else if (c.t === 'wall') sprite(['crag_summer', 'crag_summer', 'stones_summer'][k % 3], p.x, p.y + s * 0.55, s * (k % 3 === 2 ? 1.2 : 1.7));
   else if (c.t === 'brush') sprite(['shrub_summer', 'fern_summer', 'juniper_summer'][k % 3], p.x, p.y + s * 0.5, s * 1.2);
