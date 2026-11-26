@@ -48602,7 +48602,25 @@ const STYLE = (S, h) => {
     : south || reg === 'ber' || cen === 'sand' ? 'tile' : h.k === 'korchma' || (h.k === 'izba' && k % 3 === 0) ? 'tes' : 'straw';
   const floor = {izba: 'planks', korchma: 'planks', terem: 'planks', banya: 'soot', ambar: 'earth', klet: 'hay', hram: 'flags', dlin: 'mats', kuznya: 'earth', sklad: 'earth', konyushnya: 'hay', hlev: 'hay', saray: 'earth', melnitsa: 'planks', masterskaya: 'planks', kupec: 'planks', boyar: 'planks', korchma_big: 'planks', starosta: 'planks'}[h.k] || 'planks';
   const yard = ['korchma', 'terem', 'hram'].includes(h.k) || south ? 'cobble' : 'earth';
-  return {wall, roof, floor, yard};
+  const o = {wall, roof, floor, yard};
+  if (S.field && S.field.cityQ) cityRoof(S, h, o, k, south);
+  return o;
+};
+/* город: крыши разные — тёс, черепица, солома, дёрн; и тон подкрашен у каждого двора (Ник 26.11: «крыши разных цветов, подкрасить тон») */
+const ROOF_TINT = {
+  tes: ['#8a8f96', '#a0522d', '#6b7f4a', '#c8953c', '#3a2c22', '#7d5a3c', '#9a6b4f', '#5f6f7d'], // серебро старого тёса, сурик, ярь-медянка, охра, смолёный, свежий, ржавый, сизый
+  tile: ['#b0482a', '#c2703a', '#8c3a24', '#a8865a', '#6e3b2a'],
+  straw: ['#c9a55a', '#8f8a78', '#a88a4a'],
+  dern: ['#5d7a3a', '#7a8a4a']};
+const cityRoof = (S, h, o, k, south) => {
+  const q = S.field.cityQ, r = k % 100;
+  if (['hram', 'terem', 'boyar'].includes(h.k)) o.roof = 'tes';
+  else if (q === 'detinets' || q === 'torg') o.roof = south ? 'tile' : r < 55 ? 'tes' : r < 80 ? 'tile' : 'straw';
+  else if (q === 'pristan') o.roof = r < 45 ? 'tes' : r < 70 ? 'straw' : r < 88 ? 'tile' : 'dern';
+  else o.roof = south ? (r < 70 ? 'tile' : 'straw') : r < 40 ? 'tes' : r < 78 ? 'straw' : r < 90 ? 'dern' : 'tile';
+  if (h.k === 'hram') { o.tint = '#4f7f8a'; o.tintA = 0.42; return; } // медная зелень над храмом
+  const pal = ROOF_TINT[o.roof] || ROOF_TINT.tes, j = Math.floor(k / 100) % (pal.length + 2);
+  if (j < pal.length) { o.tint = pal[j]; o.tintA = o.roof === 'tes' ? 0.38 : 0.3; }
 };
 const STC = new WeakMap();
 const styleOf = (S, h) => { let m = STC.get(h); if (!m) { m = STYLE(S, h); STC.set(h, m); } return m; };
@@ -48890,11 +48908,26 @@ const SKH = {kupec: [2.1, 0.9], boyar: [2.2, 1.0], korchma_big: [2.1, 0.85], sta
 const INSM = {"log_win_c":[0.287,0.873,0.337],"log_win_o":[0.287,0.834,0.565],"log_door_c":[0,0.86,0.442],"log_door_o":[0,0.936,0.548],"log_door_b":[0,0.879,0.587],"log_door_p":[0,0.879,0.442],"log_door_l":[0,0.936,0.567],"stone_win":[0.413,0.84,0.176],"stone_door_c":[0,0.84,0.278],"stone_door_o":[0,0.861,0.405],"maz_win":[0.285,0.871,0.454],"maz_door_c":[0,0.896,0.293],"maz_door_o":[0,0.871,0.298]};
 const insKey = (S, h, cell, st) => { const k = wallKey(S, h, cell.t === 'hwin' ? {t: 'hwin'} : {t: cell.t, hd: cell.hd}, st).slice(2); return INSM[k] ? k : null; };
 /* проём поверх стены: g — точка низа на линии грани, (ux, uy) — направление грани, L — длина клетки по грани, hh — высота стены */
+/* косая вставка рисуется один раз в свой холст и дальше кладётся ровно — косой drawImage под срезом ряда дорог (город тормозил) */
+const INSC = new Map();
+const skewDraw = (X, img, a, g, ux, uy, dx, dy, dw, dh) => {
+  const m = typeof document !== 'undefined' && X.getTransform ? X.getTransform() : null;
+  if (!m || Math.abs(m.b) > 1e-6 || Math.abs(m.c) > 1e-6) { X.save(); X.transform(ux, uy, 0, 1, g.x, g.y); X.drawImage(img, a[0], a[1], a[2], a[3], dx, dy, dw, dh); X.restore(); return; }
+  const sc = m.a, key = a.join(',') + '|' + [ux, uy, dx, dy, dw, dh, sc].map(v => v.toFixed(2)).join(',');
+  let e = INSC.get(key);
+  if (!e) { const xs = [dx, dx + dw].map(x => ux * x), ys = [];
+    [dx, dx + dw].forEach(x => [dy, dy + dh].forEach(y => ys.push(uy * x + y)));
+    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+    const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.ceil((x1 - x0) * sc) + 2); cv.height = Math.max(1, Math.ceil((y1 - y0) * sc) + 2);
+    const c2 = cv.getContext('2d'); c2.setTransform(sc, 0, 0, sc, -x0 * sc + 1, -y0 * sc + 1); c2.transform(ux, uy, 0, 1, 0, 0); c2.drawImage(img, a[0], a[1], a[2], a[3], dx, dy, dw, dh);
+    if (INSC.size > 600) INSC.clear(); e = {cv, x0: x0 - 1 / sc, y0: y0 - 1 / sc, w: cv.width / sc, h: cv.height / sc}; INSC.set(key, e); }
+  X.drawImage(e.cv, g.x + e.x0, g.y + e.y0, e.w, e.h);
+};
 const insert = (X, img, key, g, ux, uy, L, hh, mirror) => { const r = AT()['r_' + key + (mirror ? '_m' : '')];
   if (r) { const win = /win/.test(key), w = L * (win ? 1.05 : 1.4), ih = hh * (win ? 0.52 : 1), y0 = win ? hh * 0.3 : 0; // дверь — в рост стены и в клетку шириной; окно — на уровне глаз
-    X.save(); X.transform(ux, uy, 0, 1, g.x, g.y); X.drawImage(img, r[0], r[1], r[2], r[3], -w / 2, -y0 - ih, w, ih); X.restore(); return; }
+    skewDraw(X, img, r, g, ux, uy, -w / 2, -y0 - ih, w, ih); return; }
   const a = AT()['i_' + key + (mirror ? '_m' : '')], m = INSM[key]; if (!a || !m) return;
-  const w = L * m[2] * 1.05; X.save(); X.transform(ux, uy, 0, 1, g.x, g.y); X.drawImage(img, a[0], a[1], a[2], a[3], -w / 2, -hh * m[1], w, hh * (m[1] - m[0])); X.restore(); };
+  const w = L * m[2] * 1.05; skewDraw(X, img, a, g, ux, uy, -w / 2, -hh * m[1], w, hh * (m[1] - m[0])); };
 /* все проёмы стены (ряд y или столбец x) — вставками по линии грани */
 const openings = (X, img, S, h, st, base, s, side, hh) => {
   const cells = side === 'S' ? Array.from({length: h.W}, (_, x) => [x, h.H - 1]) : side === 'N' ? Array.from({length: h.W}, (_, x) => [x, 0]) : Array.from({length: h.H - 2}, (_, i) => [side === 'W' ? 0 : h.W - 1, i + 1]);
@@ -49019,11 +49052,11 @@ const hexXY0 = (base, h, p, s) => PT(h, base, s, p.x, p.y);
 /* кусок дома для ряда k (рисование по глубине): всё, что над полосой ряда k (столбом вверх), кроме того, что над рядами ниже (ближе к нам).
    Так у косой западной стены фигура снаружи стоит перед своим рядом стены и за рядами, что южнее; у северо-западного угла — тоже. */
 const sliceClip = (X, h, base, s, k) => {
-  const K = h.H - 1, mx = 0.22, mr = 1.4, TOP = -1e5, P = (u, v) => PT(h, base, s, u, v);
+  const K = h.H - 1, mx = 0.22, mr = 1.4, TOP = -50, P = (u, v) => PT(h, base, s, u, v);
   const TL = P(-0.5 - mx, k === 0 ? -4 : k - 0.5), BL = P(-0.5 - mx, k === K ? K + 4 : k + 0.5), BR = P(h.W - 0.5 + mr, k === K ? K + 4 : k + 0.5);
   X.beginPath(); X.moveTo(TL.x, TL.y); X.lineTo(BL.x, BL.y); X.lineTo(BR.x, BR.y); X.lineTo(BR.x, TOP); X.lineTo(TL.x, TOP); X.closePath(); X.clip();
   if (k < K) { const T1 = P(-0.5 - mx, k + 0.5), B1 = P(-0.5 - mx, K + 4), B2 = P(h.W - 0.5 + mr, K + 4);
-    X.beginPath(); X.rect(-1e5, -1e5, 2e5, 2e5); X.moveTo(T1.x, T1.y); X.lineTo(B1.x, B1.y); X.lineTo(B2.x, B2.y); X.lineTo(B2.x, TOP); X.lineTo(T1.x, TOP); X.closePath(); X.clip('evenodd'); }
+    const cw = (X.canvas && X.canvas.width) || 4000, ch = (X.canvas && X.canvas.height) || 4000; X.beginPath(); X.rect(-50, -50, cw + 100, ch + 100); X.moveTo(T1.x, T1.y); X.lineTo(B1.x, B1.y); X.lineTo(B2.x, B2.y); X.lineTo(B2.x, TOP); X.lineTo(T1.x, TOP); X.closePath(); X.clip('evenodd'); }
 };
 const hbRoof2 = BF.hbRoof;
 BF.hbRoof = function (X, hr, s, hexXY, S, img) {
@@ -49051,7 +49084,7 @@ BF.hbRoof = function (X, hr, s, hexXY, S, img) {
   const P0 = pattern(X, img, st.roof), mv = (h.H - 1) / 2, ov = 0.15;
   const L = up(PT(h, base, s, -0.5 - ov, mv), Hw + Hr), Rr = up(PT(h, base, s, h.W - 0.5 + ov, mv), Hw + Hr);
   const A2 = up(PT(h, base, s, -0.5 - ov, -0.5 - ov * 0.3), Hw), B2 = up(PT(h, base, s, h.W - 0.5 + ov, -0.5 - ov * 0.3), Hw), C2 = up(PT(h, base, s, h.W - 0.5 + ov, h.H - 0.5), Hw), D2 = up(PT(h, base, s, -0.5 - ov, h.H - 0.5), Hw);
-  const roofFill = (pts, shade) => { X.beginPath(); pts.forEach((q, i) => i ? X.lineTo(q.x, q.y) : X.moveTo(q.x, q.y)); X.closePath(); X.fillStyle = P0 ? skewPat(P0, base, s, 2.4) : '#7a6440'; X.fill(); X.fillStyle = shade; X.fill(); X.strokeStyle = 'rgba(25,15,5,.75)'; X.lineWidth = 1.2; X.stroke(); };
+  const roofFill = (pts, shade) => { X.beginPath(); pts.forEach((q, i) => i ? X.lineTo(q.x, q.y) : X.moveTo(q.x, q.y)); X.closePath(); X.fillStyle = P0 ? skewPat(P0, base, s, 2.4) : '#7a6440'; X.fill(); if (st.tint) { const op = X.globalCompositeOperation, ga = X.globalAlpha; X.globalCompositeOperation = 'color'; X.globalAlpha = ga * st.tintA; X.fillStyle = st.tint; X.fill(); X.globalCompositeOperation = op; X.globalAlpha = ga; } X.fillStyle = shade; X.fill(); X.strokeStyle = 'rgba(25,15,5,.75)'; X.lineWidth = 1.2; X.stroke(); };
   roofFill([A2, B2, Rr, L], 'rgba(255,240,200,.16)');
   const gw = pattern(X, img, wallTex(st)), Aw = up(A, Hw), Dw = up(D, Hw), Lw = up(PT(h, base, s, -0.5, mv), Hw + Hr * 0.92);
   X.beginPath(); X.moveTo(Aw.x, Aw.y); X.lineTo(Dw.x, Dw.y); X.lineTo(Lw.x, Lw.y); X.closePath(); X.fillStyle = gw ? facePat(gw, Aw, Dw, s, 1.5) : '#6e4b2b'; X.fill(); X.fillStyle = 'rgba(10,6,2,.3)'; X.fill(); X.strokeStyle = 'rgba(25,15,5,.7)'; X.lineWidth = 1; X.stroke();
@@ -49070,6 +49103,26 @@ BF.hbRoof = function (X, hr, s, hexXY, S, img) {
   h.doors.forEach(d => { if (d.r !== h.r0) return; const ux = d.c - hc(h, 0, 0).c, gp = up(PT(h, base, s, ux, -0.5 - ov * 0.6), Hw);
     if (!spr(X, img, 'f_porch', gp.x, gp.y + s * 0.1, s * 0.95)) return; X.fillStyle = d.st === 'shut' ? 'rgba(42,26,12,.9)' : 'rgba(10,6,3,.9)'; X.fillRect(gp.x - s * 0.17, gp.y - s * 0.6, s * 0.34, s * 0.4); });
   X.restore();
+};
+/* дом снаружи рисуется один раз в свой холст на масштаб и кладётся готовым (в каждый срез ряда — тот же холст под срезом).
+   Перерисовка — когда сменились двери, дым, подсветка двери у того, чей ход. В городе это и было самое дорогое. */
+const HRC = new Map(); let HR_IN = false;
+const hbRoof3 = BF.hbRoof;
+BF.hbRoof = function (X, hr, s, hexXY, S, img) {
+  if (HR_IN || !hr || !hr.sk3 || !img || !AT() || typeof document === 'undefined' || (hr.part !== 'a' && hr.part !== 'c') || !X.getTransform) return hbRoof3.apply(this, arguments);
+  const m = X.getTransform(); if (m.b || m.c || !m.a) return hbRoof3.apply(this, arguments);
+  const h = hr.house, sc = Math.abs(m.a), cur = B.current(S), base = baseOf(h, hexXY);
+  const near = !!(cur && cur.side === 'party' && !cur.ai && (h.doors || []).some(d => B.dist(cur, d) <= 1));
+  const dk = (h.doors || []).map(d => { const c = B.cell(S, d.c, d.r); return (c ? c.t : '') + (d.st || '') + (d.lock ? 'l' : ''); }).join(',');
+  const key = [h.id, hr.part, s.toFixed(2), sc.toFixed(2), h.lit ? 1 : 0, dk, near ? 1 : 0, h.burnt ? 1 : 0].join('|');
+  let e = HRC.get(key);
+  if (!e) { const g = SKH[h.k] || SKH.izba, ps = [[-0.5, -0.5], [h.W - 0.5, -0.5], [h.W - 0.5, h.H - 0.5], [-0.5, h.H - 0.5]].map(q => PT(h, base, s, q[0], q[1]));
+    const x0 = Math.min(...ps.map(q => q.x)) - s * 1.2, x1 = Math.max(...ps.map(q => q.x)) + s * 1.4, y0 = Math.min(...ps.map(q => q.y)) - s * (g[0] + g[1] + 2.6), y1 = Math.max(...ps.map(q => q.y)) + s * 0.8;
+    const W = Math.ceil((x1 - x0) * sc), Hh = Math.ceil((y1 - y0) * sc); if (W * Hh > 6e6) return hbRoof3.apply(this, arguments);
+    const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const c2 = cv.getContext('2d'); c2.setTransform(sc, 0, 0, sc, -x0 * sc, -y0 * sc);
+    HR_IN = true; try { hbRoof3.call(this, c2, Object.assign({}, hr, {slice: null}), s, hexXY, S, img); } finally { HR_IN = false; }
+    if (HRC.size > 260) HRC.clear(); e = {cv, dx: x0 - base.x, dy: y0 - base.y, w: W / sc, h: Hh / sc}; HRC.set(key, e); }
+  X.save(); if (hr.slice != null) sliceClip(X, h, base, s, hr.slice); X.drawImage(e.cv, base.x + e.dx, base.y + e.dy, e.w, e.h); X.restore();
 };
 G.B = B;
 })(typeof window !== 'undefined' ? window : globalThis);
@@ -50201,7 +50254,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261405"></script><script>
+</script><script src="world.js?v=202611261526"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53581,7 +53634,7 @@ const TREES = ['oak1_summer', 'birch1_summer', 'birch2_summer', 'pine_summer', '
 function sprite(name, x, y, h, opts) {
   const sv = seasonal(name); if (sv !== name && IMG.world) { const a = ATLAS.world[sv]; const w = h * a[2] / a[3]; ctx.drawImage(IMG.world, a[0], a[1], a[2], a[3], x - w / 2, y - h, w, h); return; }
   const p = ATLAS.spr[name]; if (!p || !IMG.spr) return;
-  const w = h * p[2] / p[3]; ctx.drawImage(IMG.spr, p[0], p[1], p[2], p[3], x - w / 2, y - h, w, h);
+  const w = h * p[2] / p[3]; blitAt(IMG.spr, p, x - w / 2, y - h, w, h);
 }
 function prop(name, x, y, h) { const p = (ATLAS.props || {})[name]; if (!p || !IMG.props) return false; const w = h * p[2] / p[3]; ctx.drawImage(IMG.props, p[0], p[1], p[2], p[3], x - w / 2, y - h, w, h); return true; }
 function cellHash(c) { return Math.abs((c.c * 73856093) ^ (c.r * 19349663)) % 997; }
@@ -53859,6 +53912,41 @@ function drawFx() {
   S.fxq.forEach(f => { if (f.kind === 'shout' && !held(f)) drawShout(f, (now - f.t0) / fxDur(f), s); });
   if (S.fxq.some(f => !held(f)) && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
 }
+/* большое поле (город — тысячи клеток): земля рисуется кусками в свои холсты и дальше кладётся готовой;
+   кусок перерисовывается, только если поменялся масштаб, ночь или что-то на его клетках. Дома, туман, подсветка — поверх, каждый раз. */
+const GT = {key: '', m: new Map()}, GT_PX = 512;
+function sortedCells(F) { const n = Object.keys(F.cells).length; let sc = F._sortC; if (!sc || sc.n !== n || sc.cells !== F.cells) { sc = {n, cells: F.cells, a: Object.values(F.cells).sort((a, b) => a.r - b.r || a.c - b.c)}; try { Object.defineProperty(F, '_sortC', {value: sc, writable: true, configurable: true, enumerable: false}); } catch (e) {} } return sc.a; }
+const cellSig = c => (c.t || '') + '.' + (c.vy || '') + '.' + (c.hb != null ? c.hb : '') + '.' + (c.hyard != null ? c.hyard : '') + (c.hd != null ? 'd' + c.hd : '') + ';';
+const isDynCell = c => c.hb != null; // дом: подсветка дверей у того, чей ход — рисуем каждый раз
+function groundTiles(S, F, s, cells, off, cellBase, cellOver, UNK) {
+  const dpr = Math.min(2, window.devicePixelRatio || 1), key = [F._tileId || (F._tileId = Math.random().toString(36).slice(2)), s.toFixed(3), dpr, F.night ? 1 : 0].join('|');
+  if (GT.key !== key) { GT.key = key; GT.m.clear(); }
+  const T = GT_PX, sx = SQ3 * s, fx = c => sx * (c.c + 0.5 + (c.r & 1) * 0.5), fy = c => s * (1 + c.r * 1.5);
+  // клетки по кускам (кусок — квадрат T×T в координатах поля); клетка попадает во все куски, которые задевает
+  const byT = new Map(), add = (i, j, c) => { const k = i + ',' + j; let a = byT.get(k); if (!a) byT.set(k, a = []); a.push(c); };
+  const vis = [];
+  cells.forEach(c => { const x = fx(c), y = fy(c), p = {x: geo.ox + x, y: geo.oy + y}; if (off(p)) return; vis.push([c, p]);
+    if (isDynCell(c)) return; const i0 = Math.floor((x - s) / T), i1 = Math.floor((x + s) / T), j0 = Math.floor((y - s) / T), j1 = Math.floor((y + s) / T);
+    for (let i = i0; i <= i1; i++) for (let j = j0; j <= j1; j++) add(i, j, c); });
+  const main = ctx, keepSmooth = main.imageSmoothingEnabled;
+  byT.forEach((list, k) => { const [i, j] = k.split(',').map(Number); const sig = list.map(cellSig).join('');
+    let t = GT.m.get(k);
+    if (!t || t.sig !== sig) { if (!t) { const cv = document.createElement('canvas'); cv.width = Math.ceil(T * dpr); cv.height = Math.ceil(T * dpr); t = {cv, x: cv.getContext('2d')}; GT.m.set(k, t); }
+      t.sig = sig; const X = t.x; X.setTransform(1, 0, 0, 1, 0, 0); X.clearRect(0, 0, t.cv.width, t.cv.height);
+      X.setTransform(dpr, 0, 0, dpr, -(geo.ox + i * T) * dpr, -(geo.oy + j * T) * dpr);
+      ctx = X; try { list.forEach(c => cellBase(c, {x: geo.ox + fx(c), y: geo.oy + fy(c)})); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; list.forEach(c => { if (F.fog || isDynCell(c)) return; const p = {x: geo.ox + fx(c), y: geo.oy + fy(c)}; hexPath(p.x, p.y, s * 0.98); ctx.stroke(); }); } finally { ctx = main; } }
+    // в ровный пиксель экрана: без размытия и без швов между кусками
+    const px = Math.round((geo.ox + i * T) * dpr) / dpr, py = Math.round((geo.oy + j * T) * dpr) / dpr;
+    main.imageSmoothingEnabled = false; main.drawImage(t.cv, px, py, T, T); main.imageSmoothingEnabled = keepSmooth; });
+  if (GT.m.size > 160) { const keep = new Set(byT.keys()); [...GT.m.keys()].forEach(k => { if (!keep.has(k)) GT.m.delete(k); }); }
+  // дома (каждый раз: подсветка дверей), туман одним путём, сетка под туманом
+  vis.forEach(([c, p]) => { if (!isDynCell(c)) return; if (F.fog && fogShow(S, c) === 0) return; cellBase(c, p); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(); });
+  if (F.fog) { const dark = new Path2D(), dim = new Path2D(), grid = new Path2D();
+    const hp = (P2, x, y, r) => { for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i - 30), qx = x + r * Math.cos(a), qy = y + r * Math.sin(a); i ? P2.lineTo(qx, qy) : P2.moveTo(qx, qy); } P2.closePath(); };
+    vis.forEach(([c, p]) => { const fv = bfFogOf(S, c); if (fv === 0) hp(dark, p.x, p.y, s * 1.03); else { if (fv === 1) hp(dim, p.x, p.y, s * 0.98); if (!isDynCell(c)) hp(grid, p.x, p.y, s * 0.98); } });
+    ctx.fillStyle = 'rgba(10,8,5,.58)'; ctx.fill(dim); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(grid); ctx.fillStyle = UNK; ctx.fill(dark); }
+  vis.forEach(([c, p]) => { if (F.fog && bfFogOf(S, c) === 0) return; cellOver(c, p); });
+}
 function drawField(noFollow) {
   if (!battle || !cv) return;
   layout();
@@ -53876,15 +53964,14 @@ function drawField(noFollow) {
   const P = pat ? pin(ctx.createPattern(pat, 'repeat')) : '#4a5a32';
   const cur = B.current(S);
   const reach = cur && cur.side === 'party' && !cur.ai && !busy && !S.over ? B.reach(S, cur) : {};
-  const cells = Object.values(F.cells).sort((a, b) => a.r - b.r || a.c - b.c);
+  const cells = sortedCells(F);
   const off = p => p.x < -s * 2 || p.x > geo.W + s * 2 || p.y < -s * 2 || p.y > geo.H + s * 4;
   FOGC = false; // bfFogOf заполнит на эту отрисовку
   const UNK = '#0d0a07'; if (F.fog) { ctx.fillStyle = UNK; ctx.fillRect(0, 0, geo.W, geo.H); }
-  cells.forEach(c => {
-    const p = hexXY(c.c, c.r); if (off(p)) return;
-    if (F.fog && fogShow(S, c) === 0) return; // неразведанное — сплошная темень без сетки (фон уже залит)
+  const tex = n => { const im = gImg(n); return im ? (TEXP[n] = TEXP[n] && TEXP[n].im === im ? TEXP[n] : {im, p: ctx.createPattern(im, 'repeat')}).p && pin(TEXP[n].p) : null; };
+  // земля клетки: узор, местность, подложка домов, ночь, сетка
+  const cellBase = (c, p) => {
     hexPath(p.x, p.y, s * 0.98);
-    const tex = n => { const im = gImg(n); return im ? (TEXP[n] = TEXP[n] && TEXP[n].im === im ? TEXP[n] : {im, p: ctx.createPattern(im, 'repeat')}).p && pin(TEXP[n].p) : null; };
     const k = cellHash(c);
     ctx.fillStyle = c.t === 'water' || c.t === 'shallow' || c.t === 'bridge' || c.t === 'deep' ? (tex('water') || '#3f5f73') : c.t === 'mud' ? (tex('marsh') || '#4a4128') : c.t === 'floor' ? (tex(F.bg === 'cave' ? 'cave' : k % 9 ? 'rock' : 'sand') || '#3b342a') : c.t === 'wall' ? (tex(F.bg === 'cave' ? 'cave' : 'rock') || '#3b342a') : c.t === 'road' ? (tex('road') || '#7a6a4a') : P;
     ctx.fill();
@@ -53896,13 +53983,26 @@ function drawField(noFollow) {
     else if (c.t === 'shallow') { ctx.fillStyle = 'rgba(205,190,140,.38)'; ctx.fill(); ctx.fillStyle = 'rgba(120,110,95,.75)'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(p.x + (i - 1) * s * 0.45, p.y + ((k >> i) % 3 - 1) * s * 0.2, s * 0.17, s * 0.1, 0, 0, 7); ctx.fill(); } }
     if (c.t === 'wall') { ctx.fillStyle = 'rgba(20,16,12,.55)'; ctx.fill(); }
     if (F.big) bfCell(c, p, s, F, k, tex);
-    if ((c.hb != null || c.hyard != null) && B.BF && B.BF.hbCell) B.BF.hbCell(ctx, c, p, s, S, IMG.house); // дома: пол и подложка стен (bf_house.js)
+    if ((c.hb != null || c.hyard != null || c.vy != null) && B.BF && B.BF.hbCell) { B.BF.hbCell(ctx, c, p, s, S, IMG.house); hexPath(p.x, p.y, s * 0.98); } // дома: пол и подложка стен (bf_house.js)
     if (F.night) { ctx.fillStyle = 'rgba(10,14,40,.35)'; ctx.fill(); }
+  };
+  const cellDyn = (c, p) => {
     if (F.fog) { const fv = bfFogOf(S, c); if (fv === 1) { ctx.fillStyle = 'rgba(10,8,5,.58)'; ctx.fill(); } }
     ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke();
     if (reach[B.key(c.c, c.r)] && !(c.c === cur.c && c.r === cur.r)) { ctx.fillStyle = 'rgba(231,201,131,.18)'; ctx.fill(); }
     if (hover && hover.c === c.c && hover.r === c.r) { ctx.strokeStyle = '#e7c983'; ctx.lineWidth = 2; ctx.stroke(); }
+  };
+  const tiled = F.big && cells.length > 900 && typeof document !== 'undefined';
+  if (!tiled) cells.forEach(c => {
+    const p = hexXY(c.c, c.r); if (off(p)) return;
+    if (F.fog && fogShow(S, c) === 0) return; // неразведанное — сплошная темень без сетки (фон уже залит)
+    cellBase(c, p); cellDyn(c, p);
   });
+  else groundTiles(S, F, s, cells, off, cellBase, (c, p) => {
+    hexPath(p.x, p.y, s * 0.98);
+    if (reach[B.key(c.c, c.r)] && !(c.c === cur.c && c.r === cur.r)) { ctx.fillStyle = 'rgba(231,201,131,.18)'; ctx.fill(); }
+    if (hover && hover.c === c.c && hover.r === c.r) { ctx.strokeStyle = '#e7c983'; ctx.lineWidth = 2; ctx.stroke(); }
+  }, UNK);
   // предметы местности и юниты в порядке глубины
   const things = [];
   const seenObj = {};
@@ -53914,7 +54014,7 @@ function drawField(noFollow) {
   // павшие враги остаются на поле: кровь и тело под живыми
   const DU = S.units.map(dispUnit);
   dieInit(); drawHorseCorpses(); DU.filter(u => !u.gone && u.dead && u.kind === 'monster').forEach(drawCorpse);
-  DU.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => things.push({y: unitXY(u).y + 0.1 + (u.tree && B.BF.treeLift ? B.BF.treeLift(u, geo.s) + 1 : 0), u}));
+  DU.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => { const up = unitXY(u); if (F.big && (up.x < -s * 4 || up.x > geo.W + s * 4 || up.y < -s * 4 || up.y > geo.H + s * 6)) return; things.push({y: unitXY(u).y + 0.1 + (u.tree && B.BF.treeLift ? B.BF.treeLift(u, geo.s) + 1 : 0), u}); });
   LABELQ = []; try { things.sort((a, b) => a.y - b.y).forEach(t => { const dim = F.fog && (t.o || t.c) && bfFogOf(S, t.c || t.o.cells[0]) === 1; if (dim) { ctx.save(); ctx.globalAlpha = 0.5; } try { t.hr ? B.BF.hbRoof(ctx, t.hr, geo.s, hexXY, S, IMG.house) : t.o ? drawObj(t.o) : t.c ? ((t.c.vy != null && B.BF.vyThing && B.BF.vyThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (t.c.hb != null && B.BF.hbThing && B.BF.hbThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (BF_PROPS.has(t.c.t) && F.big ? bfProp(t.c) : drawProp(t.c))) : (drawUnit(t.u), t.u.tree && B.BF.treeLeaves && B.BF.treeLeaves(ctx, t.u, unitXY(t.u), geo.s, S)); } finally { if (dim) ctx.restore(); } }); if (F.big) bfOver(S, cur); } finally { const q = LABELQ; LABELQ = null; ctx.save(); q.forEach(f => f()); ctx.restore(); }
   // таблички у дверей на прогулке: что за дом, кто живёт (bf_house.js, town_walk.js; Ник 25.11)
   if (S.walk && B.BF && B.BF.houseSign && B.BF.signAt && B.BF.houses) { try { B.BF.houses(S.field).forEach(h => { const d = (h.doors || []).find(x => !x.inner); if (!d) return; if (F.fog && fogShow(S, d) === 0 && !B.neigh(d.c, d.r).some(n => B.cell(S, n.c, n.r) && fogShow(S, n) > 0)) return; const t = B.BF.houseSign(S, h); if (!t) return;
@@ -54145,7 +54245,22 @@ const HELM_BK = {}; let HELM_K = 1.0;
    chin — овал лица в долях картинки [x, y, ширина, высота к ширине]: внутри него лицо и борода рисуются поверх обмотки.
    Платок, наголовник и куколь нарисованы вполоборота вправо с вырезом под лицо: их крупнее и назад, чтобы лицо легло в вырез. */
 const HELM_FIT = {monkhood: {k: 1.7, dx: -0.16, up: 0.32, chin: [0.72, 0.82, 0.42, 0.36]}, scarf: {k: 1.7, dx: -0.14, up: 0.28}, volhvhood: {k: 1.7, dx: -0.14, up: 0.3}}; window.__kldvFit = {HELM_FIT, GRIP, REST_ROT, FIST, natFace: u => natFace(u)}; /* для стенда кукол */
+/* горожане (их в квартале до сотни) — фигурка собирается из слоёв один раз и дальше кладётся готовой */
+const HEROC = new Map(); let HEROC_IN = false;
+function heroCached(u, p, H0) {
+  const m = ctx.getTransform ? ctx.getTransform() : null; if (!m || m.b || m.c || typeof document === 'undefined') return null;
+  const sc = Math.abs(m.a), s = geo.s, flip = (u.face || (u.side === 'foe' ? -1 : 1)) < 0;
+  const key = JSON.stringify(u.look) + '|' + (u.pose || '') + '|' + (flip ? 1 : 0) + '|' + Math.round(H0 * sc) + '|' + Math.round(s * sc);
+  let e = HEROC.get(key);
+  if (!e) { const W = Math.ceil(H0 * 2.4 * sc), Hh = Math.ceil(H0 * 1.7 * sc), cv = document.createElement('canvas'); cv.width = W; cv.height = Hh;
+    const c2 = cv.getContext('2d'), keep = ctx; c2.setTransform(sc, 0, 0, sc, 0, 0); ctx = c2; HEROC_IN = true; let ok = false;
+    try { c2.save(); ok = drawHero(u, {x: W / 2 / sc, y: Hh * 0.86 / sc - s * 0.5}, H0); c2.restore(); } finally { ctx = keep; HEROC_IN = false; }
+    if (HEROC.size > 400) HEROC.clear(); e = {cv, ok, W: W / sc, H: Hh / sc}; HEROC.set(key, e); }
+  if (!e.ok) return false;
+  ctx.drawImage(e.cv, p.x - e.W / 2, p.y + s * 0.5 - e.H * 0.86, e.W, e.H); return true;
+}
 function drawHero(u, p, H0) {
+  if (!HEROC_IN && u.civ && u.side !== 'party' && !u.dead && !u.down && !(u._red > 0.02) && (!u.pose || u.pose === 'stand' || u.pose === 'walk')) { const r = heroCached(u, p, H0); if (r != null) return r; }
   const L = u.look, A = ATLAS.heroes, s = geo.s;
   const dead = u.dead || u.down;
   let pose = dead ? 'dead' : (u.pose === 'cast' ? 'cast' : u.pose === 'atk' ? 'atk' : u.pose === 'walk' ? 'walk' : 'stand');
@@ -54167,8 +54282,8 @@ function drawHero(u, p, H0) {
     ctx.drawImage(IMG.cloaks, ca[0], ca[1], ca[2], ca[3], hx - cw * CLOAK.ox, y0 + an0.head[1] * H + w0 * CLOAK.oy, cw, Math.min(ch, H * CLOAK.maxh)); ctx.restore(); }
   const tc = L.tint && TINT_BASE.test(L.base) ? tintSprite(fname, a, L.tint) : null;
   const hc = headComp(u, L, fname, a, tc);
-  const body = () => { if (hc) ctx.drawImage(hc.cv, x0 - hc.px * Wd / a[2], y0 - hc.py * H / a[3], hc.cv.width * Wd / a[2], hc.cv.height * H / a[3]);
-    else if (tc) ctx.drawImage(tc, 0, 0, a[2], a[3], x0, y0, Wd, H); else ctx.drawImage(IMG.heroes, a[0], a[1], a[2], a[3], x0, y0, Wd, H); };
+  const body = () => { if (hc) blitAt(hc.cv, [0, 0, hc.cv.width, hc.cv.height], x0 - hc.px * Wd / a[2], y0 - hc.py * H / a[3], hc.cv.width * Wd / a[2], hc.cv.height * H / a[3]);
+    else if (tc) blitAt(tc, [0, 0, a[2], a[3]], x0, y0, Wd, H); else blitAt(IMG.heroes, a, x0, y0, Wd, H); };
   body();
   if (dead) return true;
   const an = ATLAS.anchors[fname] || {head: [0.5, 0.02], headW: 0.3, hand: [0.9, 0.5]};
@@ -54319,7 +54434,23 @@ const s0 = k => geo.s * k;
 /* вещи большого поля (набор 8): по ширине (на две клетки) или по высоте */
 const FP_OBJ = {cart: ['fp_cart', 1.9], cart_over: ['fp_cart_over', 1.9], ruin: ['fp_ruin', 1.9], uproot: ['fp_uproot', 2.0]};
 const FP_ONE = {hay: ['fp_hay', 2.3], wood: ['fp_wood', 1.15], barrels: ['fp_barrels', 1.35], well: ['fp_well', 2.2], fire: ['fp_fire', 1.35], shelter: ['fp_shelter', 1.5]};
-function fprop(name, x, y, o) { const a = ATLAS.field && ATLAS.field[name]; if (!a || !IMG.field) return false; const h = o.h || o.w * a[3] / a[2], w = h * a[2] / a[3]; ctx.drawImage(IMG.field, a[0], a[1], a[2], a[3], x - w / 2, y - h, w, h); return true; }
+/* картинка из атласа, уменьшенная до нужного размера заранее (свой холст на размер): сжимать большой лист каждый кадр — дорого */
+const SCALEC = new Map(), SRCID = new WeakMap(); let SRCN = 0;
+const srcId = im => { let v = SRCID.get(im); if (!v) { v = ++SRCN; SRCID.set(im, v); } return v; };
+function blitAt(img, a, x, y, w, h) {
+  const m = ctx.getTransform ? ctx.getTransform() : null, sx = m ? Math.abs(m.a) : 0, sy = m ? Math.abs(m.d) : 0;
+  if (!m || m.b || m.c || !sx || !sy || w * sx > 900 || h * sy > 900 || w < 0 || h < 0) { ctx.drawImage(img, a[0], a[1], a[2], a[3], x, y, w, h); return; }
+  const flt = ctx.filter && ctx.filter !== 'none' ? ctx.filter : '';
+  const dw = Math.max(1, Math.round(w * sx)), dh = Math.max(1, Math.round(h * sy)), key = srcId(img) + ':' + a.join(',') + '|' + dw + 'x' + dh + flt;
+  let cv = SCALEC.get(key);
+  if (!cv) { if (!flt && dw * 3 > a[2] && dh * 3 > a[3]) { ctx.drawImage(img, a[0], a[1], a[2], a[3], x, y, w, h); return; } // почти в свой размер и без окраски — и так быстро
+    cv = document.createElement('canvas'); cv.width = dw; cv.height = dh; const c2 = cv.getContext('2d'); c2.imageSmoothingQuality = 'high'; if (flt) c2.filter = flt; c2.drawImage(img, a[0], a[1], a[2], a[3], 0, 0, dw, dh);
+    if (SCALEC.size > 900) SCALEC.clear(); SCALEC.set(key, cv); }
+  if (flt) ctx.filter = 'none';
+  ctx.drawImage(cv, x, y, dw / sx, dh / sy);
+  if (flt) ctx.filter = flt;
+}
+function fprop(name, x, y, o) { const a = ATLAS.field && ATLAS.field[name]; if (!a || !IMG.field) return false; const h = o.h || o.w * a[3] / a[2], w = h * a[2] / a[3]; blitAt(IMG.field, a, x - w / 2, y - h, w, h); return true; }
 function drawObj(o) {
   const s = geo.s, ps = o.cells.map(x => hexXY(x.c, x.r)), cx = ps.reduce((a, p) => a + p.x, 0) / ps.length, by = Math.max(...ps.map(p => p.y)), cy = ps.reduce((a, p) => a + p.y, 0) / ps.length;
   if (o.t === 'house') { ctx.save(); ctx.fillStyle = 'rgba(20,14,8,.28)'; ctx.beginPath(); ctx.ellipse(cx, by + s * 0.25, s * 1.9, s * 0.7, 0, 0, 7); ctx.fill(); ctx.restore(); sprite(['house1_summer', 'house2_summer', 'house3_summer'][o.v % 3], cx, by + s * 0.75, s * 3.7); }
@@ -54711,7 +54842,7 @@ function drawUnit0(u) {
     else if (dk === 'slump') { const hh = h * 0.42; ctx.rotate(0.06); ctx.drawImage(BIMG, a[0], a[1], a[2], a[3], -w * 0.5, -hh, w, hh); }
     else if (dk === 'rubble') { const hh = h * 0.3; ctx.drawImage(BIMG, a[0], a[1], a[2], a[3], -w * 0.55, -hh, w * 1.1, hh); }
     else if (dk === 'vanish') { /* бесплотное: ничего не остаётся, кроме пепла */ }
-    else ctx.drawImage(BIMG, a[0], a[1], a[2], a[3], -w / 2, -h, w, h);
+    else blitAt(BIMG, a, -w / 2, -h, w, h);
   } else {
     // у «гонца» в атласе вместо лежачего — стоящая фигурка: такие кладём набок сами
     const deadOk = n => { const d = ATLAS.units[n]; return d && (!/_dead$/.test(n) || (d[2] > d[3] && !/^worker/.test(n))); };
@@ -54730,7 +54861,7 @@ function drawUnit0(u) {
     } else if (a && IMG.units) {
       const h = s * 2.0 * (u.scale || 1) * (u.down ? 0.6 : 1), w = h * a[2] / a[3];
       ctx.translate(p.x, 0); if (mirrorOf(u)) ctx.scale(-1, 1);
-      ctx.drawImage(IMG.units, a[0], a[1], a[2], a[3], -w / 2, p.y + s * 0.5 - h, w, h);
+      blitAt(IMG.units, a, -w / 2, p.y + s * 0.5 - h, w, h);
     } else {
       ctx.filter = 'none';
       ctx.beginPath(); ctx.arc(p.x, p.y - s * 0.2, s * 0.55, 0, Math.PI * 2);

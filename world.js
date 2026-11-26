@@ -71066,7 +71066,7 @@ const TX2 = C.TW_TX2 = {
   climbOk: ['{h} подтягивается и бесшумно переваливается через подоконник.', '{h} ныряет в окно, как в омут.'], climbNo: ['{h} срывается с подоконника и с грохотом падает в лопухи.', 'Рама трещит — {h} отступает, пока не услышали.'],
   vaultLog: ['{h} одним махом перелезает через плетень.', '{h} перемахивает через плетень, только прутья скрипнули.'],
   hayLog: ['{h} зарывается в стог — торчит одна макушка, да и ту не видно.'], drinkLog: ['{h} пьёт студёную воду из колодезного ведра — на душе светлее.', '{h} умывается у колодца и пьёт вдоволь.'],
-  askBtn: 'Выслушать: {n}', askersLog: 'Кто-то в селе ищет помощи — у таких людей дело к вам.',
+  askBtn: 'Выслушать: {n}', askersLog: 'Кто-то здесь ищет помощи — у таких людей дело к вам.',
   gait: {walk: 'Шагом', sneak: 'Крадучись', run: 'Бегом'}, gaitNow: 'Уже так идёшь.',
   gaitLog: {walk: ['{h} идёт обычным шагом.', '{h} выпрямляется и идёт как все.'], sneak: ['{h} пригибается и ступает тихо.', '{h} крадётся, держась тени.'], run: ['{h} пускается бегом.', '{h} срывается с места и бежит.']},
   crouchOn: 'Пригнуться', crouchOff: 'Выпрямиться', hide: 'Затаиться', dash: 'Рывок', knock: 'Постучать',
@@ -73654,13 +73654,16 @@ const houses = S => (BF.houses ? BF.houses(S.field) : []);
 const houseById = (S, id) => (id == null ? null : BF.houseById(S.field, id));
 const occ = (S, x) => !!B.unitAt(S, x.c, x.r);
 const okCell = (S, x) => x && B.passable(S, x.c, x.r) && !occ(S, x) && !(B.TERRAIN[x.t] || {}).block;
-const inCells = (S, h) => Object.values(S.field.cells).filter(x => x && x.hb === h.id && x.hin);
+/* быстрые выборки (большой город: тысячи клеток, сотня жителей) — клетки дома и клетки вида кешируются на поле, округа — перебором окрестности */
+const cache = S => { const F = S.field; if (!F._wdc || F._wdc.n !== Object.keys(F.cells).length) Object.defineProperty(F, '_wdc', {value: {n: Object.keys(F.cells).length, inH: {}, byT: {}}, enumerable: false, configurable: true, writable: true}); return F._wdc; };
+const around = (S, at, rad) => { const out = []; for (let r = at.r - rad; r <= at.r + rad; r++) for (let c = at.c - rad - 1; c <= at.c + rad + 1; c++) { const x = B.cell(S, c, r); if (x && B.dist(x, at) <= rad) out.push(x); } return out; };
+const inCells = (S, h) => { const K = cache(S); if (!K.inH[h.id]) K.inH[h.id] = Object.values(S.field.cells).filter(x => x && x.hb === h.id && x.hin); return K.inH[h.id]; };
 const freeIn = (S, h) => inCells(S, h).filter(x => okCell(S, x));
-const yardOf = (S, h, r0, r1) => { const d = doorOut(h); if (!d) return []; return Object.values(S.field.cells).filter(x => x && x.hb == null && okCell(S, x) && B.dist(x, d) >= (r0 || 1) && B.dist(x, d) <= (r1 || 3)); };
-const cellsT = (S, ts) => Object.values(S.field.cells).filter(x => x && ts.includes(x.t));
+const yardOf = (S, h, r0, r1) => { const d = doorOut(h); if (!d) return []; return around(S, d, r1 || 3).filter(x => x && x.hb == null && okCell(S, x) && B.dist(x, d) >= (r0 || 1) && B.dist(x, d) <= (r1 || 3)); };
+const cellsT = (S, ts) => { const K = cache(S), k = ts.join(','); if (!K.byT[k]) K.byT[k] = Object.values(S.field.cells).filter(x => x && ts.includes(x.t)); return K.byT[k]; };
 const pickH = (a, k) => (a && a.length ? a[hsh(k) % a.length] : null);
 /* ближайшая свободная клетка к цели (по прямой), с фильтром */
-const nearFree = (S, at, f, maxD) => { if (!at) return null; let best = null, bd = 1e9; Object.values(S.field.cells).forEach(x => { if (!x || !okCell(S, x) || (f && !f(x))) return; const d = B.dist(x, at); if (d <= (maxD || 6) && d < bd) { bd = d; best = x; } }); return best; };
+const nearFree = (S, at, f, maxD) => { if (!at) return null; let best = null, bd = 1e9; around(S, at, maxD || 6).forEach(x => { if (!x || !okCell(S, x) || (f && !f(x))) return; const d = B.dist(x, at); if (d <= (maxD || 6) && d < bd) { bd = d; best = x; } }); return best; };
 const doorAdj = (S, x) => B.neigh(x.c, x.r).some(q => { const y = B.cell(S, q.c, q.r); return y && /^hdoor/.test(y.t); });
 const place = (u, x) => { if (u && x) { u.c = x.c; u.r = x.r; } };
 const isPerson = u => u && u.side === 'civ' && u.civ && B.active(u) && u.c != null && !u.horseOnly && (PEOPLE.includes(u.civ.k) || u.civ.folk || u.civ.kin);
@@ -73712,7 +73715,7 @@ C.walkDayArrange = function (S, g, soft) {
   const hs = houses(S), inn = hs.find(h => h.k === 'korchma_big') || hs.find(h => h.k === 'korchma'), banya = hs.find(h => h.k === 'banya');
   const well = cellsT(S, ['well'])[0] || null;
   const field = cellsT(S, ['ogorod', 'rye', 'garden']).filter(x => x.hb == null && B.passable(S, x.c, x.r));
-  const roads = Object.values(S.field.cells).filter(x => x && x.hb == null && (x.t === 'road' || x.vy === 'pave'));
+  const roads = cellsT(S, ['road']).filter(x => x.hb == null);
   // места игры детей: у колодца и на широкой улице (2–3 места)
   const hero = S.units.filter(u => u.side === 'party' && u.c != null), far = x => !hero.some(h => B.dist(h, x) < 5); // у места, где стоят свои, — не толпиться
   const play = []; [well].concat([0.25, 0.5, 0.75].map(q => roads[Math.floor(q * roads.length)])).forEach(r => { if (r && far(r) && !play.some(p => B.dist(p, r) < 6)) play.push(r); });
@@ -74475,6 +74478,190 @@ C.walkFinish = function (g, S) { if (!(S && S.walk && S.walk.dg)) return wf0.app
   const E = S.walk.end || {k: 'back'}; try { C.walkClose(g, S); } catch (e) {} delete g.twalk;
   if (E.k === 'dg') { const res = E.res; if (res && typeof res === 'object' && res.battle) return res; if (res === 'next' || res === 'again') return C.dgWalkBegin(g) || {scene: 'dungeon'}; if (res === 'map') return {map: 1}; return {scene: typeof res === 'string' ? res : 'dungeon'}; }
   return {scene: DG(g) ? 'dungeon' : 'map'}; };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* city.js */
+/* Колдовство — большой город из частей (Ник 26.11: «город большой и красивый по планировке; жителей сотни, домов очень много;
+   строить из частей; селения статичные — здания можно заранее сложить и оставить пустые места для доп. построек»).
+   • Город = кварталы, у каждого своё поле: Торг (площадь, ряды лавок, гостиный двор), Детинец (храм Ока на площади, хоромы, стража),
+     Посад (тесные улицы изб с дворами, бани, колодцы, огороды по краю), Слобода (кузни, мастерские, склады), Пристань (у воды: склады, мостки, лодки).
+   • Планировка — ряды: улица, дома дверью на улицу, за домами дворы и плетни, до следующей улицы; поперёк — переулки.
+     Считается в косых (осевых) координатах — дома на поле косые, так ряды и переулки ложатся ровно.
+   • Квартал обнесён частоколом, в нём ворота: в соседние кварталы и из города. На воротах — «Пройти: в Посад», «Выйти из города».
+   • Раскладка от места и квартала — всегда одна и та же (статичный город); пустые участки (F.lots) — под будущие постройки.
+   • Жителей — по домам: в избе 2–5, у купца 2–4, в хоромах — челядь; в квартале 60–100 человек, в городе — сотни. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C, W = G.W;
+if (!B || !B.BF || !C || !C.walkSpec) return;
+const BF = B.BF, key = BF.key;
+const L = () => BF._hbLib;
+const HT = BF.HOUSE_T;
+const Q = C.CITY_Q = {
+  torg: {n: 'Торг', w: 'на Торг', gen: 'торга'},
+  detinets: {n: 'Детинец', w: 'в Детинец', gen: 'детинца'},
+  posad: {n: 'Посад', w: 'в Посад', gen: 'посада'},
+  sloboda: {n: 'Слобода', w: 'в Слободу', gen: 'слободы'},
+  pristan: {n: 'Пристань', w: 'на Пристань', gen: 'пристани'},
+};
+C.CITY_W = 108; C.CITY_H = 62;
+const hsh = s => [...String(s)].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
+const nodes = g => C.CAMPS[g.camp].map.nodes;
+/* какой город — кварталами: настоящий город (не теракская ставка) */
+C.isCity = g => { try { const n = nodes(g)[g.loc]; if (!n || n.kind !== 'город') return false; const w = W && W.isHex && W.isHex(g) ? W.world(g) : null, x = w && g.pos ? w.cells[W.key(g.pos.c, g.pos.r)] : null; return !(g.camp === 'terak' || (x && x.reg === 'tk') || n.reg === 'tk'); } catch (e) { return false; } };
+/* кварталы города: торг всегда; детинец, посад, слобода; пристань — если город у воды */
+C.cityQuarters = g => { const n = nodes(g)[g.loc] || {}; const wet = /гавань|пристан|порт|река|брод|мост/i.test((n.name || '') + ' ' + (n.desc || n.text || '')) || ['ber'].includes(n.reg); return ['torg', 'detinets', 'posad', 'sloboda'].concat(wet ? ['pristan'] : []); };
+// ворота: стороны квартала → куда ведут
+const GATES = {torg: {w: 'posad', e: 'sloboda', n: 'detinets', s: 'pristan|out'}, detinets: {s: 'torg', w: 'out'}, posad: {e: 'torg', w: 'out', s: 'out'}, sloboda: {w: 'torg', e: 'out'}, pristan: {n: 'torg', e: 'out'}};
+const gateTarget = (g, q, side) => { const t = (GATES[q] || {})[side]; if (!t) return null; const qs = C.cityQuarters(g); const opts = t.split('|'); return opts.find(x => x === 'out' || qs.includes(x)) || null; };
+
+/* ======================= раскладка квартала ======================= */
+BF.cityQuarter = function (F, q, seed) {
+  const {foot, distMap} = L();
+  let st = (hsh('city|' + seed + '|' + q) || 1) >>> 0; const rnd = () => { st = (Math.imul(st, 1664525) + 1013904223) >>> 0; return st / 4294967296; };
+  const pick = a => a[Math.floor(rnd() * a.length)];
+  const off = (qq, r) => ({c: qq + (r - (r & 1)) / 2, r}); // осевые → смещённые
+  const cellQ = (qq, r) => { const p = off(qq, r); return F.cells[key(p.c, p.r)]; };
+  // чистое поле: всё — трава, вещи прочь, реки нет (пристань — своя вода)
+  Object.values(F.cells).forEach(x => { x.t = 'grass'; delete x.o; delete x.hb; delete x.hin; delete x.hd; delete x.hyard; delete x.vy; delete x.river; delete x.lot; delete x.gateTo; delete x.hpv; delete x.hp; });
+  F.objs = []; F.houses = []; F.lots = []; F.cityQ = q;
+  const H = F.h, Wd = F.w;
+  // осевой прямоугольник квартала: q от qa до qb — годится для всех рядов от ra до rb
+  const ra = 3, rb = H - 4, qa = 3, qb = Wd - Math.ceil(rb / 2) - 4;
+  const inQ = (qq, r) => qq >= qa && qq <= qb && r >= ra && r <= rb;
+  const setQ = (qq, r, t, vy) => { const x = cellQ(qq, r); if (!x) return null; x.t = t; if (vy) x.vy = vy; else delete x.vy; return x; };
+  // окраина: деревья и кусты за стеной
+  Object.values(F.cells).forEach(x => { const qq = x.c - (x.r - (x.r & 1)) / 2; if (!inQ(qq, x.r) && rnd() < 0.12) x.t = rnd() < 0.6 ? 'tree' : 'brush'; });
+  // пристань: вода внизу, за стеной
+  const wet = q === 'pristan';
+  if (wet) Object.values(F.cells).forEach(x => { if (x.r >= rb - 3) { x.t = 'water'; x.river = 1; } });
+  const rbIn = wet ? rb - 5 : rb;
+  // стена (частокол) по краю осевого прямоугольника
+  const wallCells = [];
+  for (let r = ra; r <= rbIn; r++) for (let qq = qa; qq <= qb; qq++) { if (r === ra || r === rbIn || qq === qa || qq === qb) { const x = setQ(qq, r, 'pali', 'pali'); if (x) { x.hyard = '~'; wallCells.push({qq, r, x}); } } }
+  // главные улицы: поперёк (середина) и вдоль (середина) — по две клетки, мощёные
+  const rm = Math.floor((ra + rbIn) / 2), qm = Math.floor((qa + qb) / 2);
+  const road = (qq, r) => { if (qq <= qa || qq >= qb || r <= ra || r >= rbIn) return; const x = setQ(qq, r, 'road', 'pave'); if (x) x.hyard = '~'; };
+  for (let qq = qa + 1; qq < qb; qq++) { road(qq, rm); road(qq, rm + 1); }
+  for (let r = ra + 1; r < rbIn; r++) { road(qm, r); road(qm + 1, r); }
+  // ворота: концы главных улиц, куда есть путь
+  const gate = (qq, r, side) => { const to = gateTarget(G_, q, side); if (!to) return; const x = setQ(qq, r, 'road', 'gate'); if (x) { x.gateTo = to; x.hyard = '~'; }
+    // за воротами — дорога до края поля
+    const dir = {w: [-1, 0], e: [1, 0], n: [0, -1], s: [0, 1]}[side]; for (let k = 1; k < 8; k++) { const y = cellQ(qq + dir[0] * k, r + dir[1] * k); if (!y || y.river) break; y.t = 'road'; y.vy = 'pave'; } };
+  gate(qa, rm, 'w'); gate(qa, rm + 1, 'w'); gate(qb, rm, 'e'); gate(qb, rm + 1, 'e'); gate(qm, ra, 'n'); gate(qm + 1, ra, 'n'); if (!wet) { gate(qm, rbIn, 's'); gate(qm + 1, rbIn, 's'); }
+  // площадь в середине: торг и детинец — шире
+  const sq = q === 'torg' ? [12, 4] : q === 'detinets' ? [10, 4] : [3, 2];
+  for (let r = rm - sq[1]; r <= rm + 1 + sq[1]; r++) for (let qq = qm - sq[0]; qq <= qm + 1 + sq[0]; qq++) road(qq, r);
+  // улицы рядами: поперёк через каждые P рядов; переулки вдоль — через каждые ~3 двора
+  const P = q === 'posad' ? 9 : q === 'torg' || q === 'detinets' ? 11 : 10, streets = [];
+  // улицы рядами: сверху вниз от стены — через P; последняя над площадью оставляет место большим домам (до 9 рядов)
+  const bigQ = q === 'torg' || q === 'detinets', topEdge = bigQ ? rm - sq[1] : rm, lastAbove = topEdge - (bigQ ? 12 : P);
+  for (let r = ra + 10; r <= lastAbove; r += P) streets.push(r);
+  if (streets.length && lastAbove - streets[streets.length - 1] >= 7) streets.push(lastAbove);
+  for (let r = rm + 1 + (bigQ ? sq[1] + 1 : 0) + 10; r < rbIn - 1; r += P) streets.push(r);
+  streets.forEach(r => { for (let qq = qa + 1; qq < qb; qq++) road(qq, r); });
+  // улица — одна клетка; дома ставятся над ней (дверью вниз), через клетку крыльца
+  const LG = q === 'posad' ? 26 : 30; const lanes = []; for (let qq = qm - LG; qq > qa + 6; qq -= LG) lanes.push(qq); for (let qq = qm + 1 + LG; qq < qb - 6; qq += LG) lanes.push(qq);
+  lanes.forEach(qq => { for (let r = ra + 1; r < rbIn; r++) road(qq, r); });
+  const roads = Object.values(F.cells).filter(x => x.t === 'road');
+  const wayD = distMap(F, roads, 8), busy = {}; roads.forEach(x => { busy[key(x.c, x.r)] = 1; }); wallCells.forEach(({x}) => { busy[key(x.c, x.r)] = 1; });
+  // дома: в каждой полосе над улицей — дверью вниз, к улице. Улицы: главная поперечная и рядовые (+ нижний край площади)
+  const isRoadQ = (qq, r) => { const x = cellQ(qq, r); return !!(x && x.t === 'road'); };
+  const rowsBelow = [rm].concat(streets).filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b); // улица, НАД которой ряд домов
+  const CAP = {korchma: 1, korchma_big: 1, banya: q === 'posad' ? 4 : 1, hram: 1, boyar: 1, konyushnya: 1, hlev: 2, kuznya: q === 'sloboda' ? 4 : 1, terem: 3}, cnt = {};
+  const place = (k, q0, rStreet) => { const T = HT[k]; if (!T) return null; if (CAP[k] != null && (cnt[k] || 0) >= CAP[k]) k = q === 'torg' ? 'kupec' : 'izba'; const r0 = rStreet - 1 - T.H; if (r0 <= ra) return null;
+    const c0 = q0 + (r0 - (r0 & 1)) / 2, cen = {c: c0 + Math.floor(T.W / 2), r: r0 + Math.floor(T.H / 2)};
+    // housePlace считает от середины: середина — в осевых тоже (сдвиг рядов учтён в hc)
+    const z = F.cells[key(cen.c, cen.r)]; if (!z) return null; // housePlace берёт левый верх как середина − W/2: середину считаем от смещённого левого верха
+    const h = BF.housePlace(F, k, [z], null, Object.assign({}, busy), rnd); if (h) cnt[h.k] = (cnt[h.k] || 0) + 1; return h; }; // свой «занято» на каждый дом: дома встают тесно, через клетку
+  const MIX = {
+    torg: {front: ['kupec', 'kupec', 'izba', 'korchma', 'kupec', 'banya', 'kupec', 'izba', 'masterskaya', 'sklad'], big: ['korchma_big', 'konyushnya', 'banya', 'kupec', 'sklad'], lot: 0.06},
+    detinets: {front: ['terem', 'izba', 'sklad', 'starosta', 'kupec', 'izba', 'masterskaya'], big: ['hram', 'boyar', 'dlin', 'kuznya'], lot: 0.05},
+    posad: {front: ['izba', 'izba', 'izba', 'hlev', 'izba', 'banya', 'klet', 'izba', 'ambar', 'izba'], big: ['korchma', 'konyushnya', 'banya', 'starosta'], lot: 0.12},
+    sloboda: {front: ['kuznya', 'masterskaya', 'izba', 'masterskaya', 'sklad', 'izba', 'kuznya', 'saray', 'izba', 'hlev'], big: ['konyushnya', 'sklad', 'kuznya', 'korchma'], lot: 0.1},
+    pristan: {front: ['sklad', 'izba', 'ambar', 'korchma', 'sklad', 'izba', 'klet'], big: ['sklad', 'korchma', 'sklad'], lot: 0.08},
+  }[q];
+  // большие дома — на площадь (верхний ряд над площадью смотрит на неё)
+  const sqTop = rm - sq[1], sqBot = rm + 1 + sq[1];
+  let bi = 0; for (let qq = qm - sq[0]; qq + 6 <= qm + 1 + sq[0] && bi < MIX.big.length; ) { const k = MIX.big[bi]; const h = place(k, qq, sqTop); if (h) { qq += HT[k].W + 2; bi++; } else qq += 2; }
+  // ряды: вдоль каждой улицы — дворы
+  const lotCells = [];
+  rowsBelow.forEach(rs => { if (rs === sqTop) return; let qq = qa + 2, i = 0;
+    while (qq < qb - 3) { if (lanes.some(l => qq <= l + 1 && qq + 7 >= l) || (qq <= qm + 2 && qq + 7 >= qm - 1)) { qq += 1; continue; }
+      if (rnd() < MIX.lot) { // пустой участок под будущую постройку
+        const w = 7, r0 = rs - 6; if (r0 > ra + 1) { const id = 'lot' + F.lots.length; const cs = []; for (let y = r0; y < rs - 1; y++) for (let x = qq; x < qq + w; x++) { const c = cellQ(x, y); if (c && c.t === 'grass' && !busy[key(c.c, c.r)]) { c.lot = id; cs.push(c); } }
+          if (cs.length > 20) { F.lots.push({id, q, cells: cs.map(c => [c.c, c.r])}); [cs[0], cs[w - 1], cs[cs.length - w], cs[cs.length - 1]].forEach(c => { if (c) c.t = 'fence'; }); cs.forEach(c => { busy[key(c.c, c.r)] = 1; }); lotCells.push(...cs); } }
+        qq += w + 2; continue; }
+      const k = MIX.front[(i + Math.floor(rnd() * 3)) % MIX.front.length]; const h = place(k, qq, rs);
+      if (h) { i++; qq += HT[k].W + 1; yard(h); } else { const h2 = k !== 'izba' && k !== 'klet' ? place(q === 'torg' ? 'kupec' : 'izba', qq, rs) : null; if (h2) { i++; qq += HT[h2.k].W + 1; yard(h2); } else qq += 1; } } });
+  // дворы за избами: плетень с задней стороны, поленница, бочки
+  function yard(h) { if (!['izba', 'starosta', 'kupec', 'terem', 'kuznya', 'masterskaya'].includes(h.k)) return;
+    const fp = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(Boolean), top = Math.min(...fp.map(x => x.r));
+    fp.filter(x => x.r === top).forEach(x => { const up = B.neigh(x.c, x.r).map(p => F.cells[key(p.c, p.r)]).filter(y => y && y.r < top && y.t === 'grass' && y.hb == null && !busy[key(y.c, y.r)]); up.forEach(y => { if (rnd() < 0.55) y.t = 'fence'; }); });
+    const side = fp.filter(x => x.r === top + 1).map(x => B.neigh(x.c, x.r).map(p => F.cells[key(p.c, p.r)]).find(y => y && y.t === 'grass' && y.hb == null && !busy[key(y.c, y.r)])).filter(Boolean)[0];
+    if (side && rnd() < 0.6) side.t = h.k === 'kuznya' ? 'barrels' : pick(['wood', 'wood', 'barrels']); }
+  // площадь: колодец, лобное место, прилавки торга; детинец — звезда Ока у храма
+  const sqC = off(qm, rm), wellX = F.cells[key(sqC.c + 1, sqC.r + 2)] || F.cells[key(sqC.c, sqC.r)];
+  if (wellX) { wellX.t = 'well'; delete wellX.vy; }
+  if (q === 'torg') { // ряды прилавков: телеги и бочки в два ряда по площади
+    for (let qq = qm - sq[0] + 2; qq <= qm + sq[0] - 1; qq += 3) [rm - 2, rm + 3].forEach((r, j) => { const x = cellQ(qq, r); if (x && x.t === 'road' && !(x.c === wellX.c && x.r === wellX.r)) { x.t = (qq + j) % 2 ? 'cart' : 'barrels'; delete x.vy; } }); }
+  // посад: огороды по краю у стены; колодцы на улицах
+  if (q === 'posad' || q === 'sloboda') Object.values(F.cells).forEach(x => { if (x.t !== 'grass' || x.hb != null || x.lot || busy[key(x.c, x.r)]) return; const qq = x.c - (x.r - (x.r & 1)) / 2; if (inQ(qq, x.r) && (qq <= qa + 2 || qq >= qb - 2 || x.r <= ra + 2) && rnd() < 0.7) { x.t = 'ogorod'; x.vy = 'og'; x.hyard = '~'; } });
+  streets.forEach((r, i) => { if (i % 2) return; const x = cellQ(qm + 6 + (i * 7) % 15, r - 1); if (x && x.t === 'grass' && x.hb == null) x.t = 'well'; });
+  // деревца на улицах (рябина у дворов) и кусты по углам — живость
+  Object.values(F.cells).forEach(x => { if (x.t !== 'grass' || x.hb != null || x.lot) return; const qq = x.c - (x.r - (x.r & 1)) / 2; if (inQ(qq, x.r) && rnd() < 0.035 && B.neigh(x.c, x.r).every(p => { const y = F.cells[key(p.c, p.r)]; return !y || (y.t !== 'road' && y.hb == null); })) x.t = rnd() < 0.5 ? 'tree' : 'brush'; });
+  // пристань: мостки и лодки
+  if (wet) { const bank = Object.values(F.cells).filter(x => x.r === rb - 4 && x.t === 'water'); bank.forEach((x, i) => { if (i % 9 === 3) { x.t = 'bridge'; const y = F.cells[key(x.c, x.r + 1)]; if (y && y.t === 'water') y.vy = 'boat'; } }); }
+  F.bf.village = true; F.vKind = 'town'; F.noHorse = true; F.bg = 'road'; F.hbGrow = 'village'; F.vEst = BF.houses(F).filter(h => ['izba', 'kupec', 'starosta', 'terem', 'boyar'].includes(h.k)).map(h => ({h: h.id, items: []}));
+  F.mid = {c: sqC.c, r: sqC.r};
+  return F;
+};
+let G_ = null;
+/* поле прогулки по кварталу: прежнее поле нужного размера без домов, затем — раскладка квартала */
+const fp0 = BF.fromPlace;
+BF.fromPlace = function (o) { const cq = BF._cityQ; if (!cq) return fp0.apply(this, arguments);
+  const off0 = BF.HOUSE_OFF, keep = R.curRng ? R.curRng() : null; BF.HOUSE_OFF = 1; let F;
+  try { if (R.useRng) R.useRng(R.rng(hsh('cityfield|' + cq.seed + '|' + cq.q) || 1)); F = fp0.call(this, Object.assign({}, o, {w: C.CITY_W, h: C.CITY_H, kind: 'village'})); } finally { BF.HOUSE_OFF = off0; if (keep && R.useRng) R.useRng(keep); }
+  delete F._hbV; BF.cityQuarter(F, cq.q, cq.seed); return F; };
+const fb0 = BF.forBattle;
+BF.forBattle = function (g, spec) { if (spec && spec.cityQ && g) { G_ = g; BF._cityQ = {q: spec.cityQ, seed: g.loc + '|' + (g.seed || '')}; try { return fb0.apply(this, arguments); } finally { BF._cityQ = null; } } return fb0.apply(this, arguments); };
+/* какой квартал: g.twalk.cq; вход — Торг */
+const ws0 = C.walkSpec;
+C.walkSpec = function (g) { const s = ws0.apply(this, arguments); try { if (s && g && C.isCity(g) && !(g.twalk && (g.twalk.wild || g.twalk.dg))) { const T = g.twalk = g.twalk || {}; const qs = C.cityQuarters(g); if (!T.cq || !qs.includes(T.cq)) T.cq = 'torg';
+  s.cityQ = T.cq; s.title = `${s.title}: ${Q[T.cq].n}`; s.place = `${s.place} — ${Q[T.cq].n}`; } } catch (e) {} return s; };
+{ const so0 = BF.seedOf; if (so0) BF.seedOf = function (g, spec) { const v = so0.apply(this, arguments); return spec && spec.cityQ ? (hsh(v + '|' + spec.cityQ) || 1) : v; }; }
+/* ======================= жители: по домам, сотни на город ======================= */
+const RES = {izba: [2, 5], starosta: [3, 5], kupec: [2, 4], terem: [3, 5], boyar: [5, 8], korchma: [2, 3], korchma_big: [3, 5], kuznya: [1, 2], masterskaya: [1, 2], sklad: [0, 1], banya: [0, 1], konyushnya: [1, 1]};
+C.CITY_POP_MAX = 100;
+const bsC = C.battleStart;
+C.battleStart = function (g, spec) { const S = bsC.apply(this, arguments);
+  try { if (S && spec && spec.cityQ && S.field && S.field.cityQ) { const F = S.field, have = new Set(S.units.filter(u => u.civ && u.civ.home).map(u => u.civ.home)), {foot, distMap} = L();
+    const night = !!(S.walk && S.walk.night); let n = S.units.filter(u => u.civ).length;
+    const add = (k, x, home) => { const m = C.MON[BF.CIV_ID[k]]; if (!m || !x) return null; const u = B.fromMonster(m, 'civ', {}); u.c = x.c; u.r = x.r; u.civ = {k, home: home || null}; u.ai = true; u.morale = false; u.init = R.d(20); u.id = 'cz' + S.units.length + '_' + x.c + '_' + x.r; S.units.push(u); try { if (C.civDress) C.civDress(u); } catch (e) {} return u; };
+    const freeIn = h => foot(h).map(p => B.cell(S, p.c, p.r)).filter(x => x && x.hin && !B.TERRAIN[x.t].block && !B.unitAt(S, x.c, x.r));
+    const freeOut = h => { const d = distMap(F, foot(h).map(p => ({c: p.c, r: p.r})), 2); return Object.keys(d).map(k => F.cells[k]).filter(x => x && x.hb == null && d[key(x.c, x.r)] >= 1 && B.passable(S, x.c, x.r) && !B.unitAt(S, x.c, x.r)); };
+    BF.houses(F).forEach(h => { if (n >= C.CITY_POP_MAX || have.has(h.id)) return; const rr = RES[h.k]; if (!rr) return; const cnt = rr[0] + Math.floor(R.rand() * (rr[1] - rr[0] + 1));
+      for (let i = 0; i < cnt && n < C.CITY_POP_MAX; i++) { const k = h.k === 'kuznya' || h.k === 'masterskaya' || h.k === 'konyushnya' ? 'muzhik' : R.pick(['muzhik', 'muzhik', 'baba', 'baba', 'starik', 'child', 'child']); const inside = night || R.rand() < 0.45;
+        const xs = inside ? freeIn(h) : freeOut(h); const x = xs[Math.floor(R.rand() * xs.length)]; if (add(k, x, h.id)) n++; } });
+    // псы по дворам
+    for (let i = 0; i < 6 && !night; i++) { const h = R.pick(BF.houses(F)); const xs = h ? freeOut(h) : []; if (xs.length) add('dog', R.pick(xs), null); }
+    try { if (C.walkDayArrange) C.walkDayArrange(S, g, false); } catch (e) {}
+    S.walk.city = {q: spec.cityQ}; lg(S, `${Q[spec.cityQ].n}: ${qLine(spec.cityQ, night)}`); } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return S; };
+const lg = (S, t) => { try { B.log(S, t, 'round'); } catch (e) {} };
+const QL = {torg: ['гомон рядов, зазывалы, скрип возов — город торгует.', 'ряды лавок вокруг площади, у колодца толчея.'], detinets: ['за частоколом тише: храм Ока, хоромы, стража у ворот.', 'на площади детинца шаги стражи гулко отдаются в стенах.'],
+  posad: ['тесные улицы изб, дым из труб, дети гоняют собак.', 'дворы, плетни, бельё на верёвках — посад живёт своим.'], sloboda: ['звон молотов, дым кузен, запах окалины и стружки.', 'мастерские дверь в дверь, у складов — возы.'], pristan: ['плеск воды, скрип мостков, крики грузчиков.', 'склады у воды, лодки у мостков, пахнет рыбой и смолой.']};
+const qLine = (q, night) => night ? 'ночь, ставни закрыты, редкие огни.' : QL[q][Math.floor(R.rand() * QL[q].length)];
+/* ======================= ворота: пройти в другой квартал или выйти из города ======================= */
+C.walkActsX = C.walkActsX || []; C.walkDoX = C.walkDoX || {};
+C.walkActsX.push((S, u, out, g) => { const Wk = S.walk; if (!Wk || !Wk.city || Wk.fight) return; const gx = [{c: u.c, r: u.r}].concat(B.neigh(u.c, u.r)).map(p => B.cell(S, p.c, p.r)).find(x => x && x.gateTo); if (!gx) return;
+  const to = gx.gateTo; out.push({v: 'cityGo', p: to, label: to === 'out' ? 'Выйти из города' : 'Пройти ' + Q[to].w, title: to === 'out' ? 'За ворота — к дороге.' : `Ворота ${Q[Wk.city.q].gen} — ${Q[to].w}.`, grp: 'Здесь'}); });
+C.walkDoX.cityGo = (S, u, a, t, g) => { const to = a.p; if (to === 'out') { if (C.walkDo) return C.walkDo(S, u, {v: 'back'}); return ''; } S.walk.end = {k: 'cityQ', to}; S.over = 'walk'; return ''; };
+const wf0 = C.walkFinish;
+if (wf0) C.walkFinish = function (g, S) { const E = S && S.walk && S.walk.end; if (E && E.k === 'cityQ' && g && g.twalk) { const keep = Object.assign({}, g.twalk); const r = C.walkClose(g, S) || {}; if (r.court) return r;
+  g.twalk = Object.assign(keep, {cq: E.to, snap: null}); delete g.twalk.ret; return {battle: C.walkSpec(g)}; } return wf0.apply(this, arguments); };
+// метки на миникарте: ворота
+C.cityGates = S => Object.values((S && S.field && S.field.cells) || {}).filter(x => x.gateTo).map(x => ({c: x.c, r: x.r, to: x.gateTo}));
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* svatba.js */
