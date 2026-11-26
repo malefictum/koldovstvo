@@ -75363,3 +75363,83 @@ Q.offerLines = function (g, j) { const L = ol0.apply(this, arguments); const T =
 if (Q.SCENES && Q.SCENES.q_offer) { const qo0 = Q.SCENES.q_offer; Q.SCENES.q_offer = function (g) { const sc = qo0.apply(this, arguments); try { const j = Q.offerJob(g); if (j && C.jobTongue(g, j) && sc && sc.choices) sc.choices = sc.choices.map(c => /^Поторговаться/.test(c.t || '') ? Object.assign({}, c, {if: () => false, off: 'языка не понимаете — не сторговаться'}) : c); } catch (e) {} return sc; };
   Object.values(C.CAMPS).forEach(camp => { if (camp.scenes && camp.scenes.q_offer) camp.scenes.q_offer = Q.SCENES.q_offer; }); }
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* kn_books.js */
+/* Колдовство — книги-наставления и азбуковники (Ник 26.11: «книги изучения навыков — прочесть и выучить навык без учителя»).
+   • Наставление (kn_nast_<профессия>_<ступень>): та же ступень профессии, что у наставника, но без наставника и без платы за учёбу.
+     Нужно: прочесть книгу самому (её письмо или перевод книжника), очки профессий, характеристика и предел класса — как у наставника.
+     Учёба вдвое дольше (вечерами) и с проверкой: d20 + Интеллект + «Грамота» против 8 + 3·ступень. Не далось — полдня потеряно, книга цела.
+     Книга остаётся: можно продать, отдать товарищу. Телесного и дарованного (вера, стойкость, регенерация…) по книгам не выучить.
+   • Азбуковник (kn_azbuk_<язык>): писан буквицей, с чужим словом рядом. У кого в суме — язык учит вдвое быстрее, и можно учить самому,
+     где угодно, без толмача и платы: день за днём (C.azbukStudy).
+   • Книжник продаёт книги (сцена kn_books): наставления первых двух ступеней, азбуковники; в городе изредка — «мастер». */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.PROF || !C.learnProf) return;
+const D = G.DATA || (typeof DATA !== 'undefined' ? DATA : null); if (!D) return;
+const NO_BOOK = ['vera', 'fanatizm', 'bog_ataka', 'bog_zashch', 'bog_spec', 'regen', 'aura', 'pokrov', 'bol', 'stoykost', 'soprot'];
+C.KN_NO_BOOK = NO_BOOK;
+const hsh = s => [...String(s)].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
+const wpick = (tab, x) => { const tot = Object.values(tab).reduce((s, v) => s + v, 0); let v = x % tot; for (const k in tab) { v -= tab[k]; if (v < 0) return k; } return Object.keys(tab)[0]; };
+const LANG_BODY = {nolgrim: 50, gorets: 20, yuzhnober: 15, imperets: 15}, LANG_MIND = {nolgrim: 40, parnass: 20, imperets: 20, yuzhnober: 20}, LANG_HIGH = {parnass: 40, imperets: 30, yuzhnober: 15, nolgrim: 15};
+const TIERW = ['', 'для начинающих', 'для знающих', 'мастерское', 'тайное, для немногих'];
+Object.values(C.PROF).forEach(p => { if (NO_BOOK.includes(p.id)) return; for (let t = 1; t <= 4; t++) { const id = `kn_nast_${p.id}_${t}`; if (D.items[id]) continue;
+  const lang = t >= 3 ? wpick(LANG_HIGH, hsh(id)) : wpick(['str', 'dex', 'con'].includes(p.stat) ? LANG_BODY : LANG_MIND, hsh(id));
+  D.items[id] = {_t: 'g', id, name: `Наставление: ${p.name} (${C.TIER_NAME[t]})`, price: Math.round(C.TIER_FEE[t] * 0.8), weight_kg: 1 + (t >= 3 ? 0.5 : 0), category: 'книги', ico: 'item:kniga_po_remeslu', lang,
+    notes: `Книга ${TIERW[t]}: «${p.name}», ступень «${C.TIER_NAME[t]}». Учиться по ней можно без наставника — вдвое дольше и не с первого раза. Книга после учёбы остаётся.`, nast: {prof: p.id, t}}; } });
+Object.keys(C.LANG || {}).forEach(L => { const id = 'kn_azbuk_' + L; if (D.items[id]) return; const nm = C.LANG[L][0];
+  D.items[id] = {_t: 'g', id, name: `Азбуковник: ${nm}`, price: (C.LANG[L][1] || 3) * 400, weight_kg: 1, category: 'книги', ico: 'item:kniga_po_remeslu', lang: 'nolgrim',
+    notes: `Слова буквицей, а рядом — по-чужому, и как сказать. У кого в суме — ${nm} учится вдвое быстрее, и учить можно самому, где угодно, день за днём.`, azbuk: L}; });
+C.nastOf = id => { const it = D.items[String(id).split('~')[0]]; return it && it.nast ? it.nast : null; };
+C.azbukOf = id => { const it = D.items[String(id).split('~')[0]]; return it && it.azbuk ? it.azbuk : null; };
+/* ---------- учёба по наставлению ---------- */
+C.NAST_DC = t => 8 + 3 * t;
+C.nastWhy = function (g, h, id) { const n = C.nastOf(id); if (!n) return 'это не наставление'; if (!h || h.kind === 'merc') return 'наёмники по книгам не учатся';
+  if (!(h.inv || []).includes(id)) return 'книги нет в суме'; if (C.canReadWrit && !C.canReadWrit(g, h, id)) return 'книга ' + C.writWhy(id, h.name);
+  if (h.busy) return C.busyText(g, h); C.profInit(h); const cur = C.profTier(h, n.prof); if (cur >= n.t) return 'это уже знакомо'; if (cur < n.t - 1) return `сперва нужна ступень «${C.TIER_NAME[n.t - 1]}»`;
+  const nx = C.profNext(h, n.prof); return nx.err || ''; };
+C.nastStudy = function (g, h, id) { const why = C.nastWhy(g, h, id); if (why) return {err: why}; const n = C.nastOf(id), P = C.PROF[n.prof];
+  const roll = R.d ? R.d(20) : 1 + Math.floor(R.rand() * 20), tot = roll + R.mod(h.stats.int || 10) + R.skill(h, 'Грамота'), dc = C.NAST_DC(n.t), q = Math.max(2, Math.round((C.TIER_DAYS[n.t] || 1) * 2 * 4));
+  let text;
+  if (tot >= dc) { const r = C.learnProf(g, h, n.prof, {free: true}); if (r.err) return r; text = `${h.name} сидит над книгой «${P.name}» вечер за вечером — и наука даётся: ${C.TIER_NAME[n.t]} (${tot} против ${dc}).`; text += C.spendTime ? C.spendTime(g, h, q, 'книга: ' + P.name) : ''; }
+  else { text = `${h.name} бьётся над «${P.name}», но мудрёные места не даются (${tot} против ${dc}). Полдня потеряно; книга цела — можно сесть снова.`; text += C.spendTime ? C.spendTime(g, h, 2, 'книга: ' + P.name) : ''; }
+  if (C.note) C.note(g, text); return {ok: tot >= dc, text}; };
+/* ---------- азбуковник ---------- */
+const hasAzbuk = (h, L) => !!(h && (h.inv || []).includes('kn_azbuk_' + L));
+if (C.dtTrainLeft) { const tl0 = C.dtTrainLeft; C.dtTrainLeft = function (h, key) { const [k, L] = String(key).split(':'); if (k === 'lang' && hasAzbuk(h, L)) return Math.max(0, Math.ceil(C.dtNeed(key) / 2) - (((h.dtProg || {})[key]) || 0)); return tl0.apply(this, arguments); }; }
+C.azbukWhy = (g, h, L) => { if (!h || h.kind === 'merc') return 'наёмники учатся сами'; if (!hasAzbuk(h, L)) return 'азбуковника нет в суме'; if (C.speaks(h, L)) return 'уже говорит'; if (h.busy) return C.busyText(g, h); if (g.dungeon) return 'в подземелье не до книг'; return ''; };
+C.azbukStudy = function (g, h, L) { const why = C.azbukWhy(g, h, L); if (why) return {err: why}; const key = 'lang:' + L; h.dtProg = h.dtProg || {}; h.dtProg[key] = (h.dtProg[key] || 0) + 1;
+  const nm = C.LANG[L][0]; let text; if (C.dtTrainLeft(h, key) <= 0) { delete h.dtProg[key]; h.langs = [...new Set((h.langs || []).concat(L))]; text = `${h.name} закрывает азбуковник: ${nm} теперь понятна — и в речи, и на письме.`; }
+  else text = `${h.name} день учит ${nm} по азбуковнику. Осталось ${C.dayText ? C.dayText(C.dtTrainLeft(h, key)) : C.dtTrainLeft(h, key) + ' дн.'}.`;
+  text += C.spendTime ? C.spendTime(g, h, 4, 'азбуковник') : ''; if (C.note) C.note(g, text); return {ok: true, text}; };
+/* ---------- кнопки в карточке предмета ---------- */
+{ const am0 = C.wbActsMore, ak0 = C.wbActMore;
+  C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; if (C.nastOf(id)) a.push({t: 'Учиться по книге', k: 'kn_nast', why: C.nastWhy(g, h, id)}); const L = C.azbukOf(id); if (L) a.push({t: 'Учить язык по азбуковнику (день)', k: 'kn_azbuk', why: C.azbukWhy(g, h, L)}); return a; };
+  C.wbActMore = function (g, h, id, k) { if (k === 'kn_nast') { const r = C.nastStudy(g, h, id); return r.err ? r : {text: r.text}; } if (k === 'kn_azbuk') { const r = C.azbukStudy(g, h, C.azbukOf(id)); return r.err ? r : {text: r.text}; } return ak0 ? ak0.apply(this, arguments) : {err: 'не выходит'}; }; }
+/* ---------- книжная лавка у книжника ---------- */
+const nodeOf = g => C.CAMPS[g.camp].map.nodes[g.loc];
+C.knStock = function (g) { const n = nodeOf(g); if (!n) return []; const wk = Math.floor((g.day || 1) / 7); let st = hsh(g.camp + ':' + g.loc + ':' + wk + ':' + (g.seed || 0)) || 1; const rnd = k => { st = (Math.imul(st, 1103515245) + 12345) >>> 0; return (st >>> 8) % k; };
+  const profs = Object.keys(C.PROF).filter(p => !NO_BOOK.includes(p)), out = new Set(), big = n.kind === 'город';
+  const N = big ? 6 : 4; for (let i = 0; i < N * 3 && out.size < N; i++) out.add(`kn_nast_${profs[rnd(profs.length)]}_${1 + rnd(2)}`);
+  if (big && rnd(4) === 0) out.add(`kn_nast_${profs[rnd(profs.length)]}_3`);
+  const langs = Object.keys(C.LANG || {}); out.add('kn_azbuk_' + langs[rnd(langs.length)]); if (big) out.add('kn_azbuk_' + langs[rnd(langs.length)]);
+  const sold = ((g.knSold || {})[g.loc + ':' + wk]) || []; return [...out].filter(id => D.items[id] && !sold.includes(id)); };
+C.knBuy = function (g, id, h) { const it = D.items[id]; if (!it || !C.knStock(g).includes(id)) return {err: 'этого уже нет'}; if ((g.purse || 0) < it.price) return {err: 'не хватает серебра'};
+  h = h || C.alive(g)[0]; g.purse -= it.price; h.inv = h.inv || []; h.inv.push(id); const wk = Math.floor((g.day || 1) / 7), k = g.loc + ':' + wk; g.knSold = g.knSold || {}; g.knSold[k] = (g.knSold[k] || []).concat(id);
+  const t = `${h.name} покупает книгу: ${it.name.toLowerCase()}.`; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+const SC = {};
+SC.kn_books = g => { const L = C.knStock(g), lines = [['n', 'Книжник снимает с полки то, что есть: «Наставления — для тех, кто учится сам. Азбуковники — для тех, кто хочет понимать чужих. Остальное — не про вас»'.replace('»', '».')]];
+  if (g.knLast) lines.push(['n', g.knLast]);
+  const ch = L.map(id => { const it = D.items[id], lang = C.writLang(id), rd = C.partyReader ? C.partyReader(g, lang) : true;
+    return {t: `${it.name} — ${R.priceText(it.price)}${lang && !rd ? ` (${C.SCRIPT[lang].n}: в отряде не прочтут)` : ''}`, if: g2 => (g2.purse || 0) >= it.price, off: 'не хватает серебра', do: g2 => { const r = C.knBuy(g2, id); g2.knLast = r.err || r.text; return 'kn_books'; }}; });
+  ch.push({t: 'Назад', do: g2 => { g2.knLast = null; return 'kn_scribe'; }});
+  return {title: 'Книжная полка', bg: 'town', art: 'edvin_skriptoriy', lines, choices: ch}; };
+Object.values(C.CAMPS).forEach(camp => Object.entries(SC).forEach(([k, sc]) => { camp.scenes[k] = sc; }));
+// у книжника — «Посмотреть книги»; сам книжник теперь в городе всегда
+if (C.TRANS_KINDS && C.Q && C.Q.inject) { const in0 = C.Q.inject; C.Q.inject = function (g, sceneId, choices) { let out = in0.apply(this, arguments);
+  try { const n = nodeOf(g); if (!n || n.scene !== sceneId || !C.TRANS_KINDS.includes(n.kind) || out.some(c => c.go === 'kn_scribe')) return out;
+    out = out.slice(); const i = out.length ? Math.max(...out.map(c => c.i)) + 1 : 0; out.push({i, label: 'Книжник: книги и переводы', go: 'kn_scribe'}); } catch (e) {} return out; }; }
+{ const ks0 = Object.values(C.CAMPS)[0].scenes.kn_scribe; if (ks0) { const ks = function (g) { const sc = ks0.apply(this, arguments); try { const back = sc.choices.pop(); sc.choices.push({t: 'Посмотреть книги', do: g2 => { g2.knLast = null; return 'kn_books'; }}); sc.choices.push(back); } catch (e) {} return sc; };
+  Object.values(C.CAMPS).forEach(camp => { camp.scenes.kn_scribe = ks; }); } }
+})(typeof window !== 'undefined' ? window : globalThis);

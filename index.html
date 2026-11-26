@@ -30269,7 +30269,14 @@ C.RECIPES = {
   solonina: {name: 'Засолка мяса', need: [['meat', 2], ['salt', 1]], out: 3, item: 'solonina_funt', base: 1},
   zasol_ryby: {name: 'Засолка рыбы', need: [['fish', 2], ['salt', 1]], out: 3, item: 'ryba_solenaya_funt', base: 1},
   kulesh: {name: 'Кулеш', need: [['grain', 1], ['meat', 1], ['veg', 1]], out: 5, hp: 6},
+  kulebyaka: {name: 'Кулебяка', need: [['flour', 2], ['fish', 2], ['fat', 1]], out: 6, hp: 9},
+  gus_yabl: {name: 'Гусь с яблоками', need: [['meat', 3], ['veg', 1], ['fat', 1]], out: 6, hp: 10, pw: 1},
 };
+/* сложность стряпни (Ник 26.11: «рецепты разделить по сложности кулинарии, лимит числа убрать»):
+   0 — всякий, 1 — «Поварское искусство» обучен, 2 — профессионал, 3 — мастер, 4 — эксперт */
+C.RECIPE_TIER = {lepeshki: 0, gribnaya: 0, vyalenoe: 0, zharkoe: 1, uha: 1, shchi: 1, kulesh: 2, pirog: 2, kulebyaka: 3, gus_yabl: 4};
+C.recipeTier = rid => C.RECIPE_TIER[rid] || 0;
+C.RECIPE_TIER_W = ['простое — по силам всякому', 'для умелого повара (Поварское искусство: обучен)', 'для хорошего повара (Поварское искусство: профессионал)', 'мастерское (Поварское искусство: мастер)', 'праздничное, для лучших (Поварское искусство: эксперт)'];
 Object.entries(C.RECIPES).forEach(([rid, r]) => {
   const id = r.item || (r.harch ? 'harch_v_dorogu_na_den_suhari_vyalenoe_myaso' : 'dish_' + rid); r.item = id;
   if (!r.harch && !DATA.items[id]) { DATA.items[id] = {_t: 'g', id, name: r.name, price: 20 + 15 * (r.hp || 0), category: 'еда', notes: `Своя стряпня.`}; C.FOOD[id] = 1; C.FOOD_FX[id] = {hp: r.hp || 0, pw: r.pw || 0}; }
@@ -30280,7 +30287,7 @@ Object.keys(C.FOOD_FX).forEach(id => { const x = DATA.items[id], f = C.FOOD_FX[i
   x.notes = (x.notes || '').replace(/\s*На ночлеге:[^.]*\./, '') + ` На ночлеге: +${f.hp || 0} хитов${f.pw ? `, +${f.pw} Силы` : ''}.`; });
 
 /* ---------- стряпня ---------- */
-C.recipeCap = h => 4 + 1 + 2 * T(h, 'povar'); // четыре общие (похлёбка, каша, две засолки) + одна своя, «Поварское искусство» — ещё по 2
+C.recipeCap = h => 999; // предела нет (Ник 26.11): что по силам — то и запоминай
 C.recipesOfHero = h => Object.keys(C.RECIPES).filter(rid => C.RECIPES[rid].base || (h.cookbook || []).includes(rid));
 const rawOf = (h, grp) => h.inv.filter(id => grp.split('|').includes(C.RAW[id]));
 C.fireHere = g => !!(g.fire && g.fire.day === g.day && g.pos && g.fire.c === g.pos.c && g.fire.r === g.pos.r);
@@ -30301,7 +30308,7 @@ C.cook = function (g, h, rid) {
 C.learnRecipe = function (g, h, itemId) {
   const rid = itemId.replace(/^rcp_/, ''); if (!C.RECIPES[rid] || !h.inv.includes(itemId)) return {err: 'нет рецепта'};
   if ((h.cookbook || []).includes(rid)) return {err: 'этот рецепт уже знаком'};
-  if (C.recipesOfHero(h).length >= C.recipeCap(h)) return {err: `больше не упомнить: рецептов ${C.recipeCap(h)}, «Поварское искусство» даёт ещё по 2`};
+  if (T(h, 'povar') < C.recipeTier(rid)) return {err: `рецепт ${C.RECIPE_TIER_W[C.recipeTier(rid)]}`};
   h.inv.splice(h.inv.indexOf(itemId), 1); h.cookbook = (h.cookbook || []).concat(rid);
   const t = `${h.name} запоминает, как готовить: ${C.RECIPES[rid].name.toLowerCase()}.`; C.note(g, t); return {ok: true, text: t};
 };
@@ -30309,9 +30316,10 @@ C.learnRecipe = function (g, h, itemId) {
 C.cookWhere = () => `Рецепты берут в городской лавке (раздел «Рецепты»), у кухарки в корчме («Поучиться у кухарки», 3 зм) и изредка с поверженных людей; запомнить — здесь, в листе героя. Больше рецептов упомнит тот, кто знает «Поварское искусство»: учит ${C.profWhere ? C.profWhere('povar') : 'купец (гостиный двор)'}, «Чему можно научиться».`;
 C.cookHint = function (g) {
   const no = C.alive(g).filter(h => !T(h, 'povar')), where = C.profWhere ? C.profWhere('povar') : 'купец (гостиный двор)';
-  return `Кухарка: «Рецепт расскажу — за три золотых, мне не жалко. Только голова у всякого одна: больше пяти рецептов не упомнить, коли поварскому делу не учен. Учит ему ${where.replace(/ \(/, ', ').replace(/\)$/, '')} — спросите там, чему можно научиться»${no.length ? `. Поварскому искусству пока не учились: ${no.map(h => h.name).join(', ')}.` : '.'}`;
+  return `Кухарка: «Рецепт расскажу — за три золотых, мне не жалко. Простое — запомнит всякий, а мудрёное, вроде пирога или кулебяки, — только тот, кто поварскому делу учен. Учит ему ${where.replace(/ \(/, ', ').replace(/\)$/, '')} — спросите там, чему можно научиться»${no.length ? `. Поварскому искусству пока не учились: ${no.map(h => h.name).join(', ')}.` : '.'}`;
 };
-C.unknownRecipes = h =>Object.keys(C.RECIPES).filter(rid => !C.RECIPES[rid].base && !(h.cookbook || []).includes(rid));
+C.unknownRecipes = h =>Object.keys(C.RECIPES).filter(rid => !C.RECIPES[rid].base && !(h.cookbook || []).includes(rid) && T(h, 'povar') >= C.recipeTier(rid));
+Object.keys(C.RECIPES).forEach(rid => { const x = DATA.items['rcp_' + rid]; if (!x || x._tier) return; x._tier = 1; const t = C.recipeTier(rid); x.price = 300 + 500 * t; x.notes = String(x.notes || '').replace(/Запомнить может[^.]*\./, '').trim() + ' Сложность: ' + C.RECIPE_TIER_W[t] + '.'; });
 
 /* ---------- охота: дичь по местности, мясо по умению разделать ---------- */
 const GAME = {forest: [['заяц', 2], ['глухарь', 2], ['косуля', 5], ['кабан', 8]], meadow: [['заяц', 2], ['куропатки', 1], ['косуля', 5]], hills: [['заяц', 2], ['горный козёл', 5]],
@@ -50193,7 +50201,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261217"></script><script>
+</script><script src="world.js?v=202611261230"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51330,7 +51338,7 @@ function heroSheet(h) {
       return `<div class="info hunt">${esc(h.name)} ${(h.hunger || 0) > 0 ? 'голодает' : 'без еды'}. ${donors.map(x => `<button class="btn small" data-feed="${h.id}" data-from="${x.id}">Накормить из сумы ${esc(x.name)}</button>`).join(' ')}</div>`; })()}
     ${C.ABIL_TEXT && (C.ABIL_TEXT[h.cls] || (C.abilOpts && C.abilOpts(g, h).length)) ? `<h4 class="jh">Умения вне боя</h4><p class="note" style="margin:0 0 4px">${esc(C.ABIL_TEXT[h.cls] || '')}</p>${(mineH(h) || hostMw(h)) && !battle ? `<div class="row" style="gap:4px;flex-wrap:wrap">${abilList(h).map(o => `<button class="btn small" data-abil="${esc(o.arg)}" data-h="${h.id}" ${o.why ? `disabled title="${esc(o.why)}"` : ''}>${esc(o.t)}${o.why ? ` — ${esc(o.why)}` : ''}</button>`).join('')}</div>` : ''}` : ''}
     ${C.RECIPES ? (() => { const rcps = [...new Set(h.inv.filter(x => /^rcp_/.test(x)))], ops = C.cookOpts(g, h), known = C.recipesOfHero(h).length;
-      return `<h4 class="jh">Стряпня · рецептов ${known} из ${C.recipeCap(h)}</h4><p class="note" style="margin:0 0 4px">${C.fireHere(g) ? 'Костёр горит — можно готовить.' : 'Готовят у костра: «Встать на привал» на карте.'} Продуктов в суме: ${h.inv.filter(x => C.RAW[x]).length}.${C.keepText && C.keepText(g) ? ' ' + esc(C.keepText(g)) + '.' : ''}</p>${C.cookWhere ? `<p class="note" style="margin:0 0 4px">${esc(C.cookWhere())}</p>` : ''}
+      return `<h4 class="jh">Стряпня · рецептов ${known}</h4><p class="note" style="margin:0 0 4px">${C.fireHere(g) ? 'Костёр горит — можно готовить.' : 'Готовят у костра: «Встать на привал» на карте.'} Продуктов в суме: ${h.inv.filter(x => C.RAW[x]).length}.${C.keepText && C.keepText(g) ? ' ' + esc(C.keepText(g)) + '.' : ''}</p>${C.cookWhere ? `<p class="note" style="margin:0 0 4px">${esc(C.cookWhere())}</p>` : ''}
       ${mineH(h) && !battle ? `<div class="row" style="gap:4px;flex-wrap:wrap">${ops.map(o => `<button class="btn small" data-cook="${o.rid}" data-h="${h.id}" ${o.why ? `disabled title="${esc(o.why)}"` : ''}>${esc(o.t)}${o.why && C.fireHere(g) ? ` <small>— ${esc(o.why)}</small>` : ''}</button>`).join('')}${rcps.map(id => `<button class="btn small" data-rcp="${id}" data-h="${h.id}">Запомнить: ${esc(R.item(id).name.replace(/^Рецепт: /, ''))}</button>`).join('')}</div>` : ''}`; })() : ''}
     ${C.PROF ? profSection(h) : ''}
     ${(() => { const cv = C.caravan && C.caravan(g); if (!cv) return ''; return `<h4 class="jh">Обоз · кони и упряжь · везёт ${cv.cap} кг</h4>
