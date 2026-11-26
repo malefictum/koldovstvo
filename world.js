@@ -75333,3 +75333,33 @@ if (C.Q && C.Q.inject) { const in0 = C.Q.inject; C.Q.inject = function (g, scene
   C.wbActsMore = function (g, h, id) { const a = am0 ? am0.apply(this, arguments) || [] : []; return C.isWrit(id) ? a.concat({t: 'Прочесть', k: 'kn_read'}) : a; };
   C.wbActMore = function (g, h, id, k) { if (k === 'kn_read') { g.knRead = {hid: h.id, id, back: g.scene || null}; return {go: 'kn_read'}; } return ak0 ? ak0.apply(this, arguments) : {err: 'не выходит'}; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* speech.js */
+/* Колдовство — чужая речь у простого люда (Ник 26.11: «местные некоторые могут говорить на чужом — пока ты его не выучишь;
+   иначе понимай с трудом, а поторговаться за задание не выйдет; торговцы и прочие язык знать могут — они выше сословием»).
+   • Заказчик из простых (вдова, знахарка, пастух, бортник, рыбак, лесоруб, возница, паломница, раненый ратник, девка с хутора)
+     говорит только на родном (j.v.giver.ppl). Староста, тиун, корчмарь, кузнец, купец, человек Ока, жрица, гонец, путник — и на общем.
+   • Если в отряде никто не говорит на его языке (C.interpreter): слова в его речи понятны через одно — остальное слышится чужим письмом
+     (C.gibberish того языка); цифры и цена понятны — на пальцах. «Поторговаться» нельзя.
+   • Сюжетные сказания и подземелья — на общем наречии: их это не касается. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !Q || !Q.offerLines || !C.gibberish) return;
+C.SPEECH_LOW = ['vdova', 'znakharka', 'pastukh', 'bortnik', 'rybak', 'lesorub', 'voznitsa', 'palomnitsa', 'ranenyy', 'devka'];
+const LW = {nolgrim: 'по-нолгримски', yuzhnober: 'по-южнобережски', loss: 'по-лосски', terak: 'по-теракски', gorets: 'по-горски', stepnyak: 'по-степному', imperets: 'по-имперски', parnass: 'по-пар-насски', podzem: 'на речи Подземья'};
+C.jobTongue = function (g, j) { try { if (!j || !j.v || !j.v.giver || !C.SPEECH_LOW.includes(j.giverId)) return null; const L = j.v.giver.ppl; if (!L || !(C.LANG || {})[L]) return null;
+  return C.interpreter && C.interpreter(g, L) ? null : L; } catch (e) { return null; } };
+const hsh = s => [...String(s)].reduce((h, ch) => (Math.imul(h, 31) + ch.charCodeAt(0)) >>> 0, 7);
+// через слово: часть слов — понятны, прочие — чужим письмом; цифры и цена — понятны
+C.garble = function (lang, text, seed) { let st = hsh(seed + ':' + text) || 1; const rnd = () => { st = (Math.imul(st, 1103515245) + 12345) >>> 0; return (st >>> 8) / 16777216; };
+  return String(text).split(/(\s+)/).map((w, i) => { if (/^\s+$/.test(w) || !w) return w; if (/\d|зм|см|мм/.test(w)) return w; const pre = (w.match(/^[«"(]+/) || [''])[0], post = (w.match(/[.,!?;:»")…]+$/) || [''])[0];
+    const core = w.slice(pre.length, w.length - post.length); if (!core || rnd() < 0.45) return w; return pre + C.gibberish(lang, seed + i + core, 1) + post; }).join(''); };
+const ol0 = Q.offerLines;
+Q.offerLines = function (g, j) { const L = ol0.apply(this, arguments); const T = C.jobTongue(g, j); if (!T) return L;
+  const who = j.v.giver.n; const out = L.map(l => (l[0] === who ? [l[0], C.garble(T, l[1], j.id)] : l));
+  out.splice(1, 0, ['n', `${who} говорит только ${LW[T] || 'на своём'}. В отряде этого языка никто не знает: понятно через слово, остальное — руками да на пальцах.`]);
+  return out; };
+if (Q.SCENES && Q.SCENES.q_offer) { const qo0 = Q.SCENES.q_offer; Q.SCENES.q_offer = function (g) { const sc = qo0.apply(this, arguments); try { const j = Q.offerJob(g); if (j && C.jobTongue(g, j) && sc && sc.choices) sc.choices = sc.choices.map(c => /^Поторговаться/.test(c.t || '') ? Object.assign({}, c, {if: () => false, off: 'языка не понимаете — не сторговаться'}) : c); } catch (e) {} return sc; };
+  Object.values(C.CAMPS).forEach(camp => { if (camp.scenes && camp.scenes.q_offer) camp.scenes.q_offer = Q.SCENES.q_offer; }); }
+})(typeof window !== 'undefined' ? window : globalThis);
