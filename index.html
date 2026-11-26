@@ -48603,7 +48603,7 @@ const STYLE = (S, h) => {
   const floor = {izba: 'planks', korchma: 'planks', terem: 'planks', banya: 'soot', ambar: 'earth', klet: 'hay', hram: 'flags', dlin: 'mats', kuznya: 'earth', sklad: 'earth', konyushnya: 'hay', hlev: 'hay', saray: 'earth', melnitsa: 'planks', masterskaya: 'planks', kupec: 'planks', boyar: 'planks', korchma_big: 'planks', starosta: 'planks'}[h.k] || 'planks';
   const yard = ['korchma', 'terem', 'hram'].includes(h.k) || south ? 'cobble' : 'earth';
   const o = {wall, roof, floor, yard};
-  if (S.field && S.field.cityQ) cityRoof(S, h, o, k, south);
+  if (S.field && (S.field.cityQ || (S.field.bf && S.field.bf.village))) cityRoof(S, h, o, k, south);
   return o;
 };
 /* город: крыши разные — у каждого двора свой материал (лист 104: лемех, крашеный тёс, черепица, медь, солома, кора)
@@ -48613,11 +48613,13 @@ const CITY_ROOFS = {
   torg: ['r_tesr', 'r_tesg', 'r_tesb', 'r_new', 'r_saw', 'r_tile2', 'r_tiley', 'tes', 'tile', 'r_lemg'],
   posad: ['straw', 'r_strawo', 'r_reed', 'tes', 'r_tar', 'r_bark', 'r_patch', 'dern', 'r_new'],
   sloboda: ['r_tar', 'tes', 'r_strawo', 'r_patch', 'r_bark', 'dern', 'r_tile2', 'straw'],
+  selo: ['straw', 'r_strawo', 'r_reed', 'tes', 'straw', 'r_bark', 'r_new', 'r_strawo', 'tes'],
   pristan: ['r_tar', 'r_reed', 'r_strawo', 'tes', 'r_patch', 'r_bark', 'r_tesb']};
 const CITY_ROOFS_S = ['tile', 'r_tile2', 'r_tiley', 'r_tileg', 'straw', 'r_reed']; // юг — черепица и камыш
 const ROOF_TINT = ['#8a8f96', '#a0522d', '#6b7f4a', '#c8953c', '#5f6f7d'];
 const cityRoof = (S, h, o, k, south) => {
-  const q = S.field.cityQ, has = n => !!(AT() && AT()['t_' + n]);
+  const q = S.field.cityQ || 'selo', has = n => !!(AT() && AT()['t_' + n]);
+  if (q === 'selo' && (o.roof === 'dern' || o.roof === 'tile')) { cityDress(S, h, o, k, south, q, has); return; } // север — дёрн, юг — черепица: как было
   if (h.k === 'hram') { o.roof = has('r_copper') ? (k % 2 ? 'r_copper' : 'r_lemy') : 'tes'; if (!has('r_copper')) { o.tint = '#4f7f8a'; o.tintA = 0.42; } cityDress(S, h, o, k, south, q, has); return; }
   let pool = (south ? CITY_ROOFS_S : CITY_ROOFS[q] || CITY_ROOFS.posad).filter(has);
   if (['terem', 'boyar'].includes(h.k)) pool = ['r_lemg', 'r_lemy', 'r_tesr', 'r_lemg', 'r_copper'].filter(has);
@@ -48635,14 +48637,14 @@ const cityDress = (S, h, o, k, south, q, has) => {
     else if (K === 'sklad' && ['torg', 'detinets', 'pristan'].includes(q)) o.wall = r % 3 ? 'brick' : 'log';
     else if (K === 'kupec' && q === 'torg') o.wall = r < 3 ? 'brick' : r < 5 ? 'white' : 'log';
     else if (K === 'kupec' && q === 'detinets') o.wall = r < 6 ? 'white' : 'brick'; }
-  if (K === 'hram' && has('s_white')) o.wall = 'white';
+  if (K === 'hram' && has('s_white') && q !== 'selo') o.wall = 'white';
   if (o.wall === 'log') {
     if (has('s_ochre') && ['torg', 'detinets'].includes(q) && ['izba', 'kupec', 'terem', 'starosta'].includes(K) && r % 4 === 1) o.skin = 'ochre';
     if (['kupec', 'masterskaya'].includes(K) && q !== 'posad') o.shop = 1;
-    else if (['izba', 'terem', 'starosta', 'kupec', 'korchma', 'korchma_big', 'boyar'].includes(K)) o.win = K === 'terem' ? (r % 2 ? 'w' : 'b') : ['n', 'w', 'b', 'n', '', 'n'][r % 6] || null;
+    else if (['izba', 'terem', 'starosta', 'kupec', 'korchma', 'korchma_big', 'boyar'].includes(K)) o.win = K === 'terem' ? (r % 2 ? 'w' : 'b') : (q === 'selo' ? ['n', '', 'n', 'w', '', 'n', 'b', ''] : ['n', 'w', 'b', 'n', '', 'n'])[r % (q === 'selo' ? 8 : 6)] || null;
     if (['sklad', 'konyushnya', 'hlev', 'saray', 'ambar'].includes(K)) o.gate = 1; }
   o.sign = {kupec: ['p_sign_bread', 'p_sign_fish', 'p_sign_boot'][r % 3], masterskaya: 'p_sign_boot', kuznya: 'p_sign_shoe', korchma: 'p_sign_bread', korchma_big: 'p_sign_bread'}[K] || null;
-  o.chim = o.wall === 'brick' || o.wall === 'white' ? 'p_chim_brick' : r % 2 ? 'p_chim_clay' : 'p_chim_brick';
+  o.chim = o.wall === 'brick' || o.wall === 'white' ? 'p_chim_brick' : q === 'selo' || r % 2 ? 'p_chim_clay' : 'p_chim_brick';
   o.konyok = o.wall === 'log' && ['izba', 'terem', 'kupec', 'starosta', 'boyar'].includes(K) && r % 3 !== 0;
 };
 const STC = new WeakMap();
@@ -49375,7 +49377,7 @@ BF.carve = function (F) { if (!F || !F.houses || !F.houses.length) return carve0
 /* ======================= рисование: огород, лодка, мостовая, частокол (ui.js зовёт через hbCell / vyThing) ======================= */
 /* город: мостовая по кварталу (лист 105) — торг и посад на плахах, детинец на камне, площадь — плиты, пристань — мокрые плахи */
 const cityPave = (q, c) => c.sq ? ({torg: 'g_flag', detinets: 'g_flag', posad: 'g_cobble', sloboda: 'g_cobble', pristan: 'g_logswet'}[q] || 'g_cobble')
-  : ({torg: 'g_logs', detinets: 'g_cobble', posad: 'g_logs', sloboda: 'g_road', pristan: 'g_logswet'}[q] || 'g_logs');
+  : ({torg: 'g_logs', detinets: 'g_cobble', posad: 'g_logs', sloboda: 'g_logsbroken', pristan: 'g_logswet'}[q] || 'g_logs');
 const hbCellV = BF.hbCell;
 BF.hbCell = function (X, c, p, s, S, img) {
   if (c.vy == null || c.hb != null) return hbCellV.apply(this, arguments);
@@ -49393,7 +49395,7 @@ BF.hbCell = function (X, c, p, s, S, img) {
   X.restore();
 };
 BF.vyThing = function (X, c, p, s, S, U) {
-  if (c.vp && U && U.img && BF.hSpr) { const W = {p_stall_cloth: 1.7, p_stall_baskets: 1.7, p_trough: 1.2, p_woodpile: 1.3}[c.vp] || 1.1; if (BF.hSpr(X, U.img, c.vp, p.x, p.y + s * 0.62, Math.sqrt(3) * s * W)) return true; } // лист 108: прилавки, колода, поленница
+  if (c.vp && U && U.img && BF.hSpr) { const W = {p_stall_cloth: 1.7, p_stall_baskets: 1.7, p_trough: 1.2, p_woodpile: 1.3, p_turret: 1.5}[c.vp] || 1.1; if (BF.hSpr(X, U.img, c.vp, p.x, p.y + s * 0.62, Math.sqrt(3) * s * W)) return true; } // лист 108: прилавки, колода, поленница
   if (c.vy === 'pali') { if (U && U.fprop && U.fprop('fp_palisade', p.x, p.y + s * 0.6, {w: Math.sqrt(3) * s * 1.15})) return true;
     X.save(); X.fillStyle = '#6a4a28'; for (let i = -2; i <= 2; i++) { X.fillRect(p.x + i * s * 0.32 - s * 0.12, p.y - s * 1.5, s * 0.24, s * 1.9); X.beginPath(); X.moveTo(p.x + i * s * 0.32 - s * 0.12, p.y - s * 1.5); X.lineTo(p.x + i * s * 0.32, p.y - s * 1.75); X.lineTo(p.x + i * s * 0.32 + s * 0.12, p.y - s * 1.5); X.fill(); } X.restore(); return true; }
   if (c.vy === 'gate') { X.save(); X.fillStyle = '#5a3a1c'; X.fillRect(p.x - s * 0.8, p.y - s * 1.9, s * 0.22, s * 2.2); X.fillRect(p.x + s * 0.58, p.y - s * 1.9, s * 0.22, s * 2.2); X.fillRect(p.x - s * 0.9, p.y - s * 2.0, s * 1.8, s * 0.22); X.restore(); return true; }
@@ -50298,7 +50300,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611261823"></script><script>
+</script><script src="world.js?v=202611261934"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

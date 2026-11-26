@@ -74618,6 +74618,8 @@ BF.cityQuarter = function (F, q, seed) {
   Object.values(F.cells).forEach(x => { if (x.t !== 'grass' || x.hb != null || x.lot) return; const qq = x.c - (x.r - (x.r & 1)) / 2; if (inQ(qq, x.r) && rnd() < 0.035 && B.neigh(x.c, x.r).every(p => { const y = F.cells[key(p.c, p.r)]; return !y || (y.t !== 'road' && y.hb == null); })) x.t = rnd() < 0.5 ? 'tree' : 'brush'; });
   // пристань: мостки и лодки
   if (wet) { const bank = Object.values(F.cells).filter(x => x.r === rb - 4 && x.t === 'water'); bank.forEach((x, i) => { if (i % 9 === 3) { x.t = 'bridge'; const y = F.cells[key(x.c, x.r + 1)]; if (y && y.t === 'water') y.vy = 'boat'; } }); }
+  // вышки по сторонам ворот (лист 108)
+  Object.values(F.cells).filter(x => x.gateTo).forEach(g => B.neigh(g.c, g.r).forEach(q => { const y = F.cells[key(q.c, q.r)]; if (y && y.vy === 'pali' && !y.vp && !B.neigh(y.c, y.r).some(z => { const w = F.cells[key(z.c, z.r)]; return w && w.vp === 'p_turret'; })) y.vp = 'p_turret'; }));
   F.bf.village = true; F.vKind = 'town'; F.noHorse = true; F.bg = 'road'; F.hbGrow = 'village'; F.vEst = BF.houses(F).filter(h => ['izba', 'kupec', 'starosta', 'terem', 'boyar'].includes(h.k)).map(h => ({h: h.id, items: []}));
   F.mid = {c: sqC.c, r: sqC.r};
   return F;
@@ -74625,7 +74627,12 @@ BF.cityQuarter = function (F, q, seed) {
 let G_ = null;
 /* поле прогулки по кварталу: прежнее поле нужного размера без домов, затем — раскладка квартала */
 const fp0 = BF.fromPlace;
-BF.fromPlace = function (o) { const cq = BF._cityQ; if (!cq) return fp0.apply(this, arguments);
+/* село: колода у конюшни и корчмы — как в городе (лист 108) */
+const villageTroughs = F => { try { if (!F || !F.bf || !F.bf.village || !BF.houses) return; BF.houses(F).forEach(h => { if (!['konyushnya', 'korchma', 'hlev'].includes(h.k)) return;
+  const fp = foot(h).map(p => F.cells[key(p.c, p.r)]).filter(Boolean), bot = Math.max(...fp.map(x => x.r));
+  const y = fp.filter(x => x.r === bot).flatMap(x => B.neigh(x.c, x.r).map(p => F.cells[key(p.c, p.r)])).find(y => y && y.t === 'grass' && y.hb == null && y.hyard == null && y.o == null && !(h.doors || []).some(d => B.dist(d, y) <= 1));
+  if (y) { y.t = 'trough'; y.vp = 'p_trough'; y.vy = y.vy || 'prop'; } }); } catch (e) {} };
+BF.fromPlace = function (o) { const cq = BF._cityQ; if (!cq) { const F = fp0.apply(this, arguments); villageTroughs(F); return F; }
   const off0 = BF.HOUSE_OFF, keep = R.curRng ? R.curRng() : null; BF.HOUSE_OFF = 1; let F;
   try { if (R.useRng) R.useRng(R.rng(hsh('cityfield|' + cq.seed + '|' + cq.q) || 1)); F = fp0.call(this, Object.assign({}, o, {w: C.CITY_W, h: C.CITY_H, kind: 'village'})); } finally { BF.HOUSE_OFF = off0; if (keep && R.useRng) R.useRng(keep); }
   delete F._hbV; BF.cityQuarter(F, cq.q, cq.seed); return F; };
@@ -76072,4 +76079,39 @@ C.soakBooks = function (g) { const lost = []; team(g).forEach(h => { if ((h.inv 
   if (lost.length && C.note) C.note(g, `На броду промокли сумы: размокло — ${[...new Set(lost.map(id => nm(id).toLowerCase()))].join(', ')}. Что успели прочесть — в летописи; остальное поплыло. Книги лучше носить в промасленной суме.`); return lost; };
 if (W && W.step) { const st0 = W.step; W.step = function (g, cell) { const r = st0.apply(this, arguments); try { if (cell && cell.ford && cell.t === 'water' && !(C.riversFrozen && C.riversFrozen(g))) C.soakBooks(g); } catch (e) {} return r; }; }
 if (C.shopExtra) { const sx0 = C.shopExtra; C.shopExtra = function (g, city) { const base = sx0.apply(this, arguments) || []; return city && !base.includes('sumka_promaslennaya') ? base.concat('sumka_promaslennaya', 'pergament_list', 'chernila_puzyrek').filter((x, i, a) => a.indexOf(x) === i) : base; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* wild_dress.js */
+/* Колдовство — лес и луг живее (Ник 26.11: «оцени открытые места» → «делай что можешь по спискам»).
+   • Ручей: в лесу, на лугу и в холмах — иногда через поле течёт мелкий ручей (брод — проходим, но вязко).
+   • Поляна: в лесу — одна-две прогалины; посреди — старый пень-колода, валун, борть или идол.
+   Случайность — своя, от вида поля и места: общий генератор не трогается, бои воспроизводимы. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B; if (!B || !B.BF || !B.BF.fromPlace) return;
+const BF = B.BF, key = BF.key || ((c, r) => c + ',' + r);
+const fp0 = BF.fromPlace;
+const seedOf = F => { let h = 2166136261; Object.values(F.cells).slice(0, 400).forEach(x => { const s = x.t + x.c + ',' + x.r; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } }); return h >>> 0; };
+const mk = seed => { let a = seed || 1; return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; }; };
+const SOFT = ['tree', 'brush', 'grass', 'uproot', 'log', 'rock', 'hill', 'reeds'];
+const free = x => x && x.o == null && x.hb == null && x.hyard == null && x.vy == null && SOFT.includes(x.t);
+BF.wildDress = function (F, center) {
+  if (!F || !F.cells || (F.bf && (F.bf.village || F.bf.kind === 'dungeon')) || F.cityQ) return;
+  if (!['forest', 'meadow', 'hills'].includes(center)) return;
+  const cs = Object.values(F.cells); if (cs.length < 300) return;
+  const rnd = mk(seedOf(F)), W = Math.max(...cs.map(x => x.c)), H = Math.max(...cs.map(x => x.r));
+  // поляны в лесу
+  if (center === 'forest') { const n = 1 + (rnd() < 0.5 ? 1 : 0);
+    for (let k = 0; k < n; k++) { const c0 = 4 + Math.floor(rnd() * (W - 8)), r0 = 4 + Math.floor(rnd() * (H - 8)), rad = 3 + Math.floor(rnd() * 2), mid = F.cells[key(c0, r0)];
+      cs.forEach(x => { if (B.dist(x, {c: c0, r: r0}) <= rad && free(x) && x.t !== 'rock') x.t = 'grass'; });
+      if (mid && free(mid)) mid.t = ['log', 'boulder', 'hive', 'idol', 'uproot'][Math.floor(rnd() * 5)]; } }
+  // ручей сверху вниз, петляя
+  if (rnd() < (center === 'meadow' ? 0.6 : 0.5)) { let c = 3 + Math.floor(rnd() * (W - 6));
+    for (let r = 0; r <= H; r++) { const x = F.cells[key(c, r)]; if (x && free(x)) x.t = 'shallow';
+      const y = F.cells[key(c + (rnd() < 0.5 ? -1 : 1), r)]; if (y && free(y) && rnd() < 0.35) y.t = 'shallow';
+      const d = rnd(); c += d < 0.3 ? -1 : d > 0.7 ? 1 : 0; c = Math.max(1, Math.min(W - 1, c)); }
+    // по берегам — камыш и кусты
+    cs.forEach(x => { if (x.t === 'grass' && B.neigh(x.c, x.r).some(q => { const y = F.cells[key(q.c, q.r)]; return y && y.t === 'shallow'; }) && rnd() < 0.18) x.t = 'reeds'; }); }
+};
+BF.fromPlace = function (o) { const F = fp0.apply(this, arguments); try { if (!BF.HOUSE_OFF && o && !o.kind) BF.wildDress(F, o.center); } catch (e) {} return F; };
 })(typeof window !== 'undefined' ? window : globalThis);
