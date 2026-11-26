@@ -35921,8 +35921,8 @@ function SCN(g) {
         return;
       }
       const lab = `${DIRS[k][2]}${d.seen[to] ? (to === 0 ? ' — к выходу' : to === d.from ? ' — назад' : '') : ''}`;
-      if (!d.seen[to] && ((foes.length && !friendly) || blocked)) { ch.push({t: lab, if: () => false, off: foes.length ? 'путь заступают' : 'путь через ловушку'}); return; }
-      ch.push({t: lab, do: act((g2, dd) => enter(g2, dd, to), 1)});
+      if (!d.seen[to] && ((foes.length && !friendly) || blocked)) { ch.push({t: lab, dgTo: to, if: () => false, off: foes.length ? 'путь заступают' : 'путь через ловушку'}); return; }
+      ch.push({t: lab, dgTo: to, do: act((g2, dd) => enter(g2, dd, to), 1)});
     });
   }
   // выходы видны всегда — строками описания, с приметами
@@ -36189,6 +36189,12 @@ C.dgPaint = function (cv, d, anim, big) {
   const ox = padL + ((W - padL - padR) - (x1 - x0) * sc) / 2 - x0 * sc, oy = padT + ((H - padT - padB) - (y1 - y0) * sc) / 2 - y0 * sc;
   const PX = (gx, gy) => [ox + gx * sc, oy + gy * sc];
   const center = id => { const g = geo.rooms[id]; return PX(g.x + g.w / 2, g.y + g.h / 2); };
+  // куда ведёт щелчок: ход из нынешней каморы (его клетки) или соседняя камора (Ник 26.11: «перейти на соседний тайл по карте нельзя»)
+  cv._dgHit = (mx, my) => { let best = null, bd = 1e9;
+    d.edges.filter(e => vis(e) && (e.a === d.at || e.b === d.at)).forEach(e => { const to = e.a === d.at ? e.b : e.a, c = geo.cors[e.id], pts = (c ? c.cells.map(([cx, cy]) => PX(cx + 0.5, cy + 0.5)) : []);
+      const g2 = geo.rooms[to]; if (g2 && (seen(to) || d.known[to])) { const [ax, ay] = PX(g2.x, g2.y), [bx, by] = PX(g2.x + g2.w, g2.y + g2.h); if (mx >= ax && mx <= bx && my >= ay && my <= by) { bd = 0; best = to; } }
+      pts.forEach(([px, py]) => { const dd = Math.hypot(px - mx, py - my); if (dd < bd && dd < Math.max(14, sc * 1.4)) { bd = dd; best = to; } }); });
+    return best; };
   const draw = (mx, my, arrow) => {
     x.clearRect(0, 0, W, H);
     // пергаментная сетка саженей — тонко, чтобы можно было считать
@@ -36258,7 +36264,13 @@ C.dgPaint = function (cv, d, anim, big) {
   };
   const [tx, ty] = center(d.at), from = d.from != null && d.from !== d.at && seen(d.from) && R0[d.from] ? center(d.from) : null;
   const same = LAST && LAST.seed === d.seed;
-  if (!big) { cv.style.cursor = 'zoom-in'; cv.title = 'Развернуть карту'; cv.onclick = () => C.dgMapOpen(); }
+  const goTo = to => { if (typeof document === 'undefined') return false; const g = window.__kldv && window.__kldv.g ? window.__kldv.g() : null; if (!g || !g.dungeon) return false; let sc0 = null; try { sc0 = C.sceneOf(g, 'dungeon'); } catch (e) {}
+    const c = sc0 && (sc0.choices || []).find(o => o.dgTo === to); if (!c) return false; const b = document.querySelector(`[data-ch="${c.i}"]`); if (b && !b.disabled) { b.click(); return true; } if (b && b.disabled) { b.title && C.toast && C.toast(b.title); } return !!b; };
+  C.dgGoByMap = goTo;
+  const hitOf = e => { const r = cv.getBoundingClientRect(); return cv._dgHit ? cv._dgHit(e.clientX - r.left, e.clientY - r.top) : null; };
+  cv.onmousemove = e => { const t = hitOf(e); cv.style.cursor = t != null ? 'pointer' : big ? 'zoom-out' : 'zoom-in'; };
+  if (!big) { cv.title = 'Щелчок по ходу — идти туда; по карте — развернуть'; cv.onclick = e => { const t = hitOf(e); if (t != null && goTo(t)) return; C.dgMapOpen(); }; }
+  else { cv.onclick = e => { const t = hitOf(e); if (t == null) return; e.stopPropagation(); const ov = document.getElementById('dgbig'); if (ov) ov.click(); goTo(t); }; }
   if (big) { draw(tx, ty, from); return true; }
   if (anim && same && LAST.at !== d.at && LAST.at != null && R0[LAST.at] && typeof requestAnimationFrame !== 'undefined') { const [sx, sy] = center(LAST.at), t0 = performance.now(), dur = 520;
     const step = now => { if (!cv.isConnected) return; const k = Math.min(1, (now - t0) / dur), e = k < 0.5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2; draw(sx + (tx - sx) * e, sy + (ty - sy) * e, [sx, sy]); if (k < 1) requestAnimationFrame(step); };
@@ -50323,7 +50335,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611262330"></script><script>
+</script><script src="world.js?v=202611262333"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
