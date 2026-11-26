@@ -76930,3 +76930,230 @@ C.sceneOf = function (g, id) {
 if (C.SPLIT && C.SPLIT.CTX && !C.SPLIT.CTX.includes('spTopic')) C.SPLIT.CTX.push('spTopic');
 C.SP_CHAT = {WF, WM};
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* bf_search.js */
+/* Колдовство — враги теряют отряд из виду и ищут его (Ник 27.11: «если они тебя потеряли из виду и не слышат — если среди них нет
+   следопытов, начинают ходить тебя искать аккуратно, пытаются гадать, и если не нашли четыре хода — бой тоже окончен. А не бегут на тебя по радару»).
+   Большое поле, после тревоги (скрытный подход — bf_stealth, до тревоги не трогаем). Без DOM.
+   • Враг бьёт и стреляет только того, кого видит сам (bf_escape: BF.foeSees — обзор, туман, укрытия, темнота, затаился, невидим,
+     ослеп), кого чует (следопыт, три шага от потерянного следа) или кто стоит вплотную.
+   • Шум: каждый шаг, удар, выстрел, заклинание слышно на сколько-то шагов (BF.noiseOf). Шаги — от доспеха и обуви: мягкие сапоги
+     тише, кольчуга и чешуя громче; рывок вдвое громче, затаившийся — вдвое тише, конь — громко. Удар — 6, выстрел — 4,
+     чары — 8. Оглохший (u.conds.deaf) не слышит ничего, ослепший (blind) не видит.
+   • Услышал — идёт туда, где шумели, быстро; не видит и не слышит — идёт к последнему месту осторожно (вполовину шага),
+     дойдя — гадает, обходит соседние места.
+   • Увидел — кричит своим на своём наречии (раз за круг): кто в двенадцати шагах — знает, где герой был.
+   • Ударил того, кто тебя не видит и не знает, где ты, — застал врасплох: преимущество.
+   • Четыре круга никто из врагов не видит, не слышит и не чует отряд, и следопытов среди них нет — враги расходятся, бой окончен,
+     погони нет. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!B || !B.BF || !B.ai) return;
+const BF = B.BF, S_ = B.Spells;
+const big = S => !!(S && S.field && S.field.big);
+const on = S => big(S) && !S.over && !(S.stealth && S.stealth.on && !S.stealth.alarm);
+const pick = a => a[Math.floor(R.rand() * a.length)];
+const nameOf = u => String((u && u.name) || '').split(',')[0];
+const tick = S => S.bfTick || 0;
+BF.SRCH = {lost: 4, shout: 12, melee: 6, shot: 4, spell: 8};
+/* ---------- шум ---------- */
+const itemOf = id => (id && R.item ? R.item(id) : null);
+BF.stepNoise = function (u) {
+  let n = 2; const h = u.ref || {}, eq = h.eq || {};
+  const body = itemOf(eq.body), kg = body ? (body.weight_kg || 0) : 0;
+  if (kg >= 14) n += 3; else if (kg >= 9) n += 1; else if (!body && BF.loud && BF.loud(u)) n += 3;
+  const feet = String(eq.feet || '');
+  if (/myagk/.test(feet)) n -= 1; else if (/yuft|pohod/.test(feet)) n += 0.5;
+  if (u.mount) n += 3;
+  return n; };
+/* чары: слова слышно (шесть шагов); бьющие — громче; гром, молния, пожар, смерч, крик — на всё поле (Ник 27.11) */
+BF.spellNoise = function (sp) { if (!sp) return BF.SRCH.spell; const nm = String(sp.name || ''), k = (sp.kind || []).join ? sp.kind.join(' ') : String(sp.kind || ''), ef = String(sp.effect || '');
+  if (/молчание/i.test(nm)) return 1;
+  if (!/^Защита/.test(nm) && /Молни|Гроз|Гром|Землетряс|Смерч|Пожар|Перун|Разряд|Крик|песнь|Шок/i.test(nm)) return 18;
+  if (/damage/.test(k)) return /огн|пламя|жар|взрыв/i.test(nm + ef) ? 14 : 10;
+  return 6; };
+BF.noiseOf = function (S, u, kind, sp) {
+  let n = kind === 'melee' ? BF.SRCH.melee : kind === 'shot' ? BF.SRCH.shot : kind === 'spell' ? BF.spellNoise(sp) : BF.stepNoise(u) * (kind === 'dash' ? 2 : 1);
+  if (kind !== 'spell' && u.conds && u.conds.hidden) n = n / 2;
+  return Math.max(1, Math.round(n)); };
+const noise = (S, u, kind, at, sp) => { if (!on(S) || !u || u.side !== 'party' || u.c == null) return;
+  const p = at || u; (S.bfSnd = S.bfSnd || []).push({hid: u.id, c: p.c, r: p.r, rad: BF.noiseOf(S, u, kind, sp), t: tick(S)}); if (S.bfSnd.length > 40) S.bfSnd = S.bfSnd.slice(-40); };
+BF.sndPush = noise;
+/* ---------- что враг знает ---------- */
+const deaf = f => !!(f.conds && (f.conds.deaf || f.conds.sleep));
+const seesAny = (S, f) => S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null && (BF.foeSees(S, f, h) || (BF.smells && BF.smells(S, f, h))));
+const fresh = (S, f) => { const since = f.bfSrchT != null ? f.bfSrchT : tick(S) - 1, out = [];
+  if (!deaf(f)) (S.bfSnd || []).forEach(n => { if (n.t >= since && B.dist(f, n) <= n.rad) out.push(n); });
+  (S.bfShout || []).forEach(n => { if (n.t >= since && n.by !== f.id && B.dist(f, n) <= BF.SRCH.shout && !deaf(f)) out.push(n); });
+  return out; };
+BF.foeKnows = function (S, f, h) { return BF.foeSees(S, f, h) || (BF.smells && BF.smells(S, f, h)) || B.dist(f, h) <= 1; };
+/* крик своим — на своём наречии */
+const SHOUT = {
+  def: ['«Вон он! Сюда!»', '«Здесь они! Ко мне!»', '«Вижу! За кустами!»', '«Эй! Сюда, сюда!»'],
+  nolgrim: ['«Вон он! Сюда, братцы!»', '«Тут они! Обходи!»', '«Вижу! Держи его!»'],
+  ruski: ['«Вон он! Сюда, братцы!»', '«Тут они! Обходи!»'],
+  north: ['«Хер! Хер эр хан!» — на северном наречии: «Здесь он!»', '«Хит! Комид хит!» — по-северному: «Сюда!»'],
+  steppe: ['«Мунда! Мунда!» — по-степному: «Здесь!»', '«Кель! Кель бери!» — по-степному: «Сюда!»'],
+  beast: ['Протяжный вой — стая отзывается.', 'Рык — и остальные поворачивают головы.']};
+const shoutOf = f => { const m = f.ref || {}, ppl = String(m.people || m.ppl || f.people || '');
+  if (f.kind === 'monster' && /beast|зве/i.test(String(m.type || m.group || f.group || ''))) return pick(SHOUT.beast);
+  if (/north|nord|var|svei|урман|север/i.test(ppl)) return pick(SHOUT.north);
+  if (/step|kip|polov|печен|степ/i.test(ppl)) return pick(SHOUT.steppe);
+  return pick(SHOUT[ppl] || SHOUT.def); };
+const shout = (S, f, h) => { if (f.bfShoutR === S.round || f.reacted) return; f.bfShoutR = S.round;
+  const others = S.units.filter(x => x !== f && x.side === 'foe' && B.active(x) && !x.bfRout && B.dist(x, f) <= BF.SRCH.shout && !BF.foeSees(S, x, h)); if (!others.length) return;
+  f.reacted = true; (S.bfShout = S.bfShout || []).push({by: f.id, c: h.c, r: h.r, t: tick(S)}); if (S.bfShout.length > 20) S.bfShout = S.bfShout.slice(-20);
+  B.log(S, `${nameOf(f)} кричит своим: ${shoutOf(f)}`, '', 'крик: свои в двенадцати шагах узнали, где герой (реакция)'); };
+/* ---------- ход врага ---------- */
+const ai0 = B.ai;
+B.ai = function (S, u) {
+  if (!on(S) || !u || u.side !== 'foe' || u.bfRout || u.enthralled || u.conds.charm || u.conds.fear) return ai0.apply(this, arguments);
+  let seen;
+  try { if (!u.bfSpot && !u.bfSpot0) { u.bfSpot0 = 1; const ps = S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null).sort((a, b) => B.dist(a, u) - B.dist(b, u)); if (ps[0]) u.bfSpot = {c: ps[0].c, r: ps[0].r}; } // к началу боя знают, где отряд
+    seen = seesAny(S, u); } catch (e) { return ai0.apply(this, arguments); }
+  const fr = fresh(S, u); u.bfSrchT = tick(S);
+  if (seen.length) u.bfSeenN = 0; else u.bfSeenN = (u.bfSeenN || 0) + 1;
+  if (!seen.length && u.bfSeenN <= 2) return ai0.apply(this, arguments); // только что видел, куда ушёл: идёт следом (к двери, за угол)
+  if (!seen.length && u.bfSpot) { const sx = B.cell(S, u.bfSpot.c, u.bfSpot.r); if (sx && sx.hb != null) return ai0.apply(this, arguments); } // засели в избе — знают где: к двери
+  if (!seen.length) { // своё дело (конокрад — к коню, дверь, огонь) — пусть делает; бить некого
+    const c0 = u.c, r0 = u.r, ve0 = B.visibleEnemies, eo0 = B.enemiesOf;
+    B.visibleEnemies = function (S2, x) { const r = ve0.apply(this, arguments); return x === u ? r.filter(e => e.side !== 'party') : r; };
+    B.enemiesOf = function (S2, x) { const r = eo0.apply(this, arguments); return x === u ? r.filter(e => e.side !== 'party') : r; };
+    try { ai0.apply(this, arguments); } catch (e) {} finally { B.visibleEnemies = ve0; B.enemiesOf = eo0; }
+    if (S.acted || S.over || !B.active(u) || u.c !== c0 || u.r !== r0) { S.acted = true; return; } }
+  if (seen.length) { const h = seen.slice().sort((a, b) => B.dist(a, u) - B.dist(b, u))[0]; u.bfSpot = {c: h.c, r: h.r}; u.bfGuess = 0; try { shout(S, u, h); } catch (e) {}
+    // бить и стрелять — только тех, кого видит: остальных для этого хода нет
+    const ids = new Set(seen.map(x => x.id)), ve0 = B.visibleEnemies, eo0 = B.enemiesOf;
+    B.visibleEnemies = function (S2, x) { const r = ve0.apply(this, arguments); return x === u ? r.filter(e => e.side !== 'party' || ids.has(e.id) || B.dist(e, u) <= 1) : r; };
+    B.enemiesOf = function (S2, x) { const r = eo0.apply(this, arguments); return x === u ? r.filter(e => e.side !== 'party' || ids.has(e.id) || e.down || B.dist(e, u) <= 1) : r; };
+    try { return ai0.apply(this, arguments); } finally { B.visibleEnemies = ve0; B.enemiesOf = eo0; } }
+  // не видит: шум или крик — туда, бегом
+  try {
+    if (fr.length) { const n = fr.slice().sort((a, b) => B.dist(a, u) - B.dist(b, u))[0]; u.bfSpot = {c: n.c, r: n.r}; u.bfGuess = 0;
+      if (!u.bfHeardSaid || u.bfHeardSaid < S.round - 2) { u.bfHeardSaid = S.round; B.log(S, pick([`${nameOf(u)} оборачивается на шум.`, `${nameOf(u)} прислушивается — и идёт туда, где шумели.`, `${nameOf(u)} что-то услышал${/а$/.test(nameOf(u)) ? 'а' : ''}.`]), '', 'услышал шум: идёт на звук, но не видит'); }
+      B.goNear(S, u, u.bfSpot); S.acted = true; return; }
+    // ни видит, ни слышит: осторожно к последнему месту, там — гадать
+    if (u.bfSpot) {
+      if (B.dist(u, u.bfSpot) <= 1) { u.bfGuess = (u.bfGuess || 0) + 1;
+        const cand = []; for (let dc = -3; dc <= 3; dc++) for (let dr = -3; dr <= 3; dr++) { const x = B.cell(S, u.bfSpot.c + dc, u.bfSpot.r + dr); if (x && !B.LOS_BLOCK[x.t] && B.passable && B.passable(S, x.c, x.r) !== false && B.dist(x, u) >= 2) cand.push({c: x.c, r: x.r}); }
+        if (cand.length) u.bfSpot = pick(cand); if (u.bfGuess === 1 || R.rand() < 0.3) B.log(S, pick([`${nameOf(u)} озирается и шарит по кустам.`, `${nameOf(u)} ходит кругами — ищет.`, `${nameOf(u)} тычет копьём в заросли наугад.`, `${nameOf(u)} замирает и вслушивается.`]), '', 'потерял из виду: ищет наугад'); }
+      const half = Math.ceil((u.steps || 6) / 2); S.moved = (S.moved || 0) + half; // осторожно — вполшага
+      B.goNear(S, u, u.bfSpot); S.acted = true; return; }
+    // и не знает, где искать: стоит, сторожит
+    S.acted = true; return;
+  } catch (e) { return ai0.apply(this, arguments); }
+};
+/* ---------- шум от действий героя ---------- */
+const mv0 = B.move;
+B.move = function (S, u, c, r) { const from = u ? {c: u.c, r: u.r} : null; const res = mv0.apply(this, arguments);
+  try { if (on(S) && u && u.side === 'party' && from && (u.c !== from.c || u.r !== from.r)) noise(S, u, u.conds && u.conds.running ? 'dash' : 'step'); } catch (e) {} return res; };
+const dash0 = B.dash;
+if (dash0) B.dash = function (S, u) { const r = dash0.apply(this, arguments); try { if (on(S) && u && u.side === 'party') noise(S, u, 'dash'); } catch (e) {} return r; };
+const at0 = B.attack;
+B.attack = function (S, u, t, ranged) { let sur = false;
+  try { sur = on(S) && u && t && u.side === 'party' && t.side === 'foe' && !t.bfUnaware && !BF.foeSees(S, t, u) && B.dist(u, t) > 0; if (sur) t._bfSurp = u.id; } catch (e) {}
+  try { return at0.apply(this, arguments); } finally { try { if (t) delete t._bfSurp; noise(S, u, ranged ? 'shot' : 'melee');
+      if (on(S) && t && t.side === 'foe' && B.active(t) && u && u.c != null) { t.bfSpot = {c: u.c, r: u.r}; if (B.dist(t, u) <= 1 || ranged) (S.bfSnd = S.bfSnd || []).push({hid: u.id, c: u.c, r: u.r, rad: 1, t: tick(S)}); } } catch (e) {} } };
+if (S_ && S_.cast) { const cs0 = S_.cast; S_.cast = function (S, u, sp) { const r = cs0.apply(this, arguments); try { noise(S, u, 'spell', null, sp); if (on(S) && BF.spellNoise(sp) >= 14) B.log(S, pick(['Грохот слышно на всё поле.', 'Такое слышно издалека.']), '', 'громкие чары: слышно далеко'); } catch (e) {} return r; }; }
+/* застал врасплох — преимущество */
+const ad0 = B.advOf;
+B.advOf = function (S, u, t) { const r = ad0.apply(this, arguments);
+  try { if (t && u && t._bfSurp === u.id && !r.A.includes('застал врасплох')) { const A = r.A.concat(['застал врасплох']), D = r.D, a = A.length && !D.length ? 1 : D.length && !A.length ? -1 : 0;
+    return Object.assign({}, r, {a, A, why: a > 0 ? 'преимущество: ' + A.join(', ') : a < 0 ? 'помеха: ' + D.join(', ') : 'преимущество и помеха гасят друг друга'}); } } catch (e) {}
+  return r; };
+/* ---------- круг кончился: никто не видит, не слышит, не чует — счёт потерянных кругов ---------- */
+const nx0 = B.next;
+B.next = function (S) { const r0 = S.round; const res = nx0.apply(this, arguments);
+  try { if (on(S) && S.round !== r0) {
+    const foes = S.units.filter(f => f.side === 'foe' && B.active(f) && !f.bfRout && !f.conds.charm), ps = S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null);
+    const known = foes.some(f => ps.some(h => BF.foeKnows(S, f, h))) || (S.bfSnd || []).some(n => n.t >= (S.bfRoundT || 0) && foes.some(f => !deaf(f) && B.dist(f, n) <= n.rad));
+    S.bfRoundT = tick(S);
+    S.bfLostR = known ? 0 : (S.bfLostR || 0) + 1;
+    if (S.bfLostR === 2) B.log(S, 'Враги потеряли отряд из виду и рыщут наугад.', '', 'не видят и не слышат: ищут; четыре круга — разойдутся');
+  } } catch (e) {}
+  return res; };
+const ce0 = B.checkEnd;
+B.checkEnd = function (S) {
+  try { if (on(S) && (S.bfLostR || 0) >= BF.SRCH.lost) { const foes = S.units.filter(f => f.side === 'foe' && B.active(f) && !f.bfRout);
+    if (foes.length && !foes.some(f => BF.tracker && BF.tracker(f))) {
+      S.units.filter(x => x.side === 'party' && !x.dead && !x.gone && x.c != null).forEach(x => { x.escaped = true; x.bfTracked = false; });
+      S.over = 'fled'; S.bfSlipped = 1; S.bfLostEnd = 1; B.log(S, pick(['Враги так и не нашли отряд: побродили, поругались — и разошлись.', 'Поиски ни к чему не привели: враги плюнули и ушли.']), 'loss'); return true; } } } catch (e) {}
+  return ce0.apply(this, arguments); };
+/* ---------- свои: наёмники и союзники тоже не ходят по «радару» (Ник 27.11: «чтобы союзники побежали — кричи малым действием,
+   или они сами на шум бегут, или просто за тобой идут»). Видит врага — бьёт его; не видит: позвали — бегом на голос;
+   слышит бой — туда; велели ждать — стоит; иначе идёт за ближним героем. ---------- */
+const mercs = S => S.units.filter(x => x.side === 'party' && x.ai && B.active(x) && x.c != null && !x.pet);
+B.callWhy = function (S, u) { if (!on(S) || !u || u.side !== 'party') return null; if (!mercs(S).length) return null; return S.bonus ? 'Малое действие уже потрачено.' : ''; };
+const CALL = {call: ['ко мне! Живо!', 'ко мне!', 'сюда, ко мне!'], stay: ['стойте, где стоите!', 'ни с места! Ждать!'], follow: ['за мной! Не отставать!', 'идите следом!'], search: ['ищите их! Прочешите кусты!', 'ищите! Далеко не ушли!']};
+const HELP = {call: 'бегут на голос; крик слышат и враги', stay: 'стоят, где стоят, бьют с места', follow: 'идут следом', search: 'идут туда, где последний раз видели врага, и шарят вокруг'};
+B.ORDERS = [['call', 'Ко мне'], ['follow', 'За мной'], ['stay', 'Стойте'], ['search', 'Ищите их']];
+B.orderMercs = S => mercs(S).map(m => ({id: m.id, n: nameOf(m), ord: m.bfStay ? 'stay' : m.bfHunt ? 'search' : m.bfGo ? 'call' : 'follow'}));
+const bo0 = B.bfOp;
+B.bfOp = function (S, u, a) {
+  if (a && B.ORDERS.some(o => o[0] === a.v)) { const w = B.callWhy(S, u); if (w == null) return 'Звать некого.'; if (w) return w;
+    const all = mercs(S), ms = a.who && a.who !== 'all' ? all.filter(m => m.id === a.who) : all; if (!ms.length) return 'Его нет на поле.';
+    B.spend(S, true);
+    ms.forEach(m => { delete m.bfStay; delete m.bfGo; delete m.bfHunt;
+      if (a.v === 'call') m.bfGo = {c: u.c, r: u.r}; if (a.v === 'stay') m.bfStay = 1; if (a.v === 'search') m.bfHunt = 1; });
+    if (a.v === 'call') S.bfCall = {c: u.c, r: u.r, t: tick(S), by: u.id};
+    (S.bfSnd = S.bfSnd || []).push({hid: u.id, c: u.c, r: u.r, rad: a.v === 'call' ? BF.SRCH.shout : 6, t: tick(S)}); // окрик слышат и враги
+    const to = ms.length === all.length && all.length > 1 ? 'Все' : ms.map(nameOf).join(', ');
+    B.log(S, `${nameOf(u)}: «${to} — ${pick(CALL[a.v])}»`, '', 'малое действие: ' + HELP[a.v]);
+    return ''; }
+  return bo0 ? bo0.apply(this, arguments) : 'Так нельзя.'; };
+const fight = (S, at, rad) => { if (!on(S) || !at || at.c == null) return; (S.bfFight = S.bfFight || []).push({c: at.c, r: at.r, rad, t: tick(S)}); if (S.bfFight.length > 30) S.bfFight = S.bfFight.slice(-30); };
+const at1 = B.attack;
+B.attack = function (S, u, t, ranged) { try { return at1.apply(this, arguments); } finally { try { fight(S, u, ranged ? BF.SRCH.shot + 2 : BF.SRCH.melee + 4); } catch (e) {} } };
+const foeSpot = S => { try { const ps = S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null);
+  S.units.filter(f => f.side === 'foe' && B.active(f) && f.c != null).forEach(f => { if (ps.some(h => B.dist(h, f) <= 1 || BF.foeSees(S, Object.assign({}, h, {side: 'foe', bfRout: 0}), f))) S.bfFoeSeen = {c: f.c, r: f.r, t: tick(S)}; }); } catch (e) {} };
+const ai1 = B.ai;
+B.ai = function (S, u) {
+  if (!on(S) || !u || u.side !== 'party' || !u.ai || u.enthralled || u.conds.charm || u.conds.fear) return ai1.apply(this, arguments);
+  let seen; try { seen = S.units.filter(f => f.side === 'foe' && B.active(f) && f.c != null && !f.bfUnaware && (B.dist(f, u) <= 1 || BF.foeSees(S, Object.assign({}, u, {bfRout: 0, side: 'foe'}), f))); } catch (e) { return ai1.apply(this, arguments); }
+  if (!seen.length && !u.bfStay && !u.bfGo && !u.bfHunt) { try { const ps = S.units.filter(h => h.side === 'party' && B.active(h) && h.c != null && h !== u);
+      if (S.units.some(f => f.side === 'foe' && B.active(f) && f.c != null && ps.some(h => B.dist(h, u) <= 12 && (B.dist(h, f) <= 1 || BF.foeSees(S, Object.assign({}, h, {side: 'foe', bfRout: 0}), f))))) return ai1.apply(this, arguments); } catch (e) {} } // свои рядом видят врага — слышат и идут на подмогу
+  if (seen.length && !u.bfStay) { delete u.bfGo; const ids = new Set(seen.map(x => x.id)), ve0 = B.visibleEnemies, eo0 = B.enemiesOf;
+    B.visibleEnemies = function (S2, x) { const r = ve0.apply(this, arguments); return x === u ? r.filter(e => e.side !== 'foe' || ids.has(e.id)) : r; };
+    B.enemiesOf = function (S2, x) { const r = eo0.apply(this, arguments); return x === u ? r.filter(e => e.side !== 'foe' || ids.has(e.id) || e.down) : r; };
+    try { return ai1.apply(this, arguments); } finally { B.visibleEnemies = ve0; B.enemiesOf = eo0; } }
+  if (seen.length && u.bfStay) { // велели ждать — бьёт и стреляет с места
+    const ve0 = B.visibleEnemies, mv = B.move, gn = B.goNear; B.move = function (S2, x) { return x === u ? false : mv.apply(this, arguments); }; B.goNear = function (S2, x, t) { return x === u ? B.dist(x, t) <= 1 : gn.apply(this, arguments); };
+    try { return ai1.apply(this, arguments); } finally { B.move = mv; B.goNear = gn; } }
+  try {
+    if (u.bfStay) { S.acted = true; return; }
+    const since = u.bfSrchT != null ? u.bfSrchT : tick(S) - 1; u.bfSrchT = tick(S);
+    if (S.bfCall && S.bfCall.t >= since && B.dist(u, S.bfCall) <= 15) u.bfGo = {c: S.bfCall.c, r: S.bfCall.r};
+    const f = (S.bfFight || []).filter(n => n.t >= since && B.dist(u, n) <= n.rad).sort((a, b) => B.dist(a, u) - B.dist(b, u))[0];
+    if (f && !u.bfGo) { u.bfGo = {c: f.c, r: f.r}; B.log(S, `${nameOf(u)} слышит бой и спешит туда.`, '', 'наёмник идёт на шум боя'); }
+    if (u.bfGo) { B.goNear(S, u, u.bfGo); if (B.dist(u, u.bfGo) <= 1) delete u.bfGo; S.acted = true; return; }
+    if (u.bfHunt) { foeSpot(S); if (!u.bfHuntAt && S.bfFoeSeen) u.bfHuntAt = {c: S.bfFoeSeen.c, r: S.bfFoeSeen.r};
+      if (u.bfHuntAt) { if (B.dist(u, u.bfHuntAt) <= 1) { const cand = []; for (let dc = -3; dc <= 3; dc++) for (let dr = -3; dr <= 3; dr++) { const x = B.cell(S, u.bfHuntAt.c + dc, u.bfHuntAt.r + dr); if (x && B.passable(S, x.c, x.r) && B.dist(x, u) >= 2) cand.push({c: x.c, r: x.r}); } if (cand.length) u.bfHuntAt = pick(cand); }
+        B.goNear(S, u, u.bfHuntAt); }
+      S.acted = true; return; }
+    const hs = S.units.filter(h => h.side === 'party' && h.kind === 'hero' && B.active(h) && h.c != null).sort((a, b) => B.dist(a, u) - B.dist(b, u));
+    if (hs[0] && B.dist(hs[0], u) > 2) B.goNear(S, u, hs[0]); S.acted = true; return;
+  } catch (e) { return ai1.apply(this, arguments); }
+};
+B.SEARCH = true;
+G.B = B;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* enc_tone.js */
+/* Колдовство — кого встречаешь на дороге (Ник 27.11: «нежить — словно просто прохожие; сказочных тварей не надо много;
+   люди опасны и так, немного диких зверей — естественнее; сказки и нежить — действительно необычное»).
+   Случайная встреча с нечистью, нежитью или чудищем чаще всего переигрывается: выпадает обычная (люди, звери).
+   Особые встречи (порча, недруги, война — с иным видом) не трогаем: только обычные засады. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C; if (!R || !C || !C.encounter) return;
+const D = () => (G.DATA || {});
+const SKIP = {'нечисть': 0.65, 'нежить': 0.7, 'чудовища': 0.55};
+const groupOf = e => { try { const f = ((e.battle || {}).foes || [])[0], id = typeof f === 'string' ? f : f && (f.id || f.ref); const b = id && ((D().beast || {})[id] || (D().bestiary || []).find(x => x.id === id)); return b ? b.group : null; } catch (er) { return null; } };
+const plain = e => e && e.battle && Object.keys(e).length === 1 && e.battle.waRoad != null;
+const en0 = C.encounter;
+C.encounter = function (g) { let e = en0.apply(this, arguments);
+  for (let k = 0; k < 3 && plain(e); k++) { const p = SKIP[groupOf(e)]; if (!p || R.rand() >= p) break; const e2 = en0.apply(this, arguments); if (!plain(e2)) break; e = e2; }
+  return e; };
+C.ENC_SKIP = SKIP;
+})(typeof window !== 'undefined' ? window : globalThis);

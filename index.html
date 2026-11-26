@@ -658,6 +658,8 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .acts .bmore summary:hover{opacity:1}
 .acts .bmore summary i{font-style:normal;display:inline-block;min-width:16px;margin-left:4px;padding:0 5px;border-radius:8px;border:1px solid var(--brass);color:var(--brass-2);text-align:center;letter-spacing:0}
 .acts .bmore-g{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:6px;margin-top:4px}
+.acts #b-ord .bmore-g{display:grid;grid-template-columns:1fr;gap:4px}
+.ordrow{display:flex;flex-wrap:wrap;align-items:center;gap:4px}.ordrow b{min-width:5.5em;font-size:13px}.ordrow .btn.small{padding:3px 7px;font-size:12px}
 /* низ панели: «Отмена» и «Конец хода» всегда на виду */
 .acts .bfoot{grid-column:1/-1;display:flex;gap:6px;position:sticky;bottom:-10px;z-index:2;margin:4px -12px -10px;padding:8px 12px 10px;background:linear-gradient(rgba(24,18,12,.92),rgba(24,18,12,.96)),url(img/oak.webp) center/256px;border-top:1px solid var(--rim)}
 .acts .bfoot .btn{flex:1;justify-content:center}
@@ -3982,6 +3984,11 @@ Q.foes = function (g, threatId, diff) {
   const out = C.compose(ids.slice(), budget);
   return out.length ? out : [ids[0]];
 };
+/* кто чаще: люди опасны и так, немного диких зверей; нежить и сказочные твари — редкость, с ними дела реже и труднее (Ник 27.11) */
+Q.THREAT_W = {bandits: 5, deserters: 4, steppe: 3, cult: 1.2, wolves: 4, boar: 2.5, bear: 1.5, snakes: 1, spiders: 0.8,
+  undead: 0.35, ghost: 0.35, imps: 0.4, swamp: 0.5, forestkin: 0.5, liho: 0.25, dogheads: 0.3, giants: 0.2, serpent: 0.15};
+Q.KIND_W = {haunt: 0.4, ritual: 0.5, clear: 0.6, cure: 0.7};
+Q.wPick = (a, W) => { if (!a.length) return undefined; const w = a.map(k => (W && W[k] != null ? W[k] : 1)), sum = w.reduce((x, y) => x + y, 0); let r = R.rand() * sum; for (let i = 0; i < a.length; i++) { r -= w[i]; if (r <= 0) return a[i]; } return a[a.length - 1]; };
 Q.threatsFor = (g, kinds) => Object.keys(Q.THREAT).filter(k => (!kinds || kinds.includes(k)) && (Q.THREAT[k].min || 1) <= Q.lvl(g) + 1);
 
 /* ---------- места ---------- */
@@ -4251,9 +4258,9 @@ Q.make = function (g, src, opt) {
   if (giverId === 'devka') kinds = ['missing', 'haunt', 'hunt'];
   if (src === 'road') kinds = kinds.filter(k => k !== 'peace' && k !== 'investigate');
   if (!hex) kinds = kinds.filter(k => !['escort'].includes(k));
-  const kind = opt.kind || R.pick(kinds);
+  const kind = opt.kind || Q.wPick(kinds, Q.KIND_W);
   const K = Q.KIND[kind];
-  const thr = R.pick(Q.threatsFor(g, K.threats).length ? Q.threatsFor(g, K.threats) : ['bandits']);
+  const thr = Q.wPick(Q.threatsFor(g, K.threats).length ? Q.threatsFor(g, K.threats) : ['bandits'], Q.THREAT_W);
   const T = Q.THREAT[thr];
   const lv = Q.lvl(g), diff = opt.diff || (R.rand() < 0.3 ? 'easy' : R.rand() < 0.7 ? 'mid' : 'hard');
   // место
@@ -50338,7 +50345,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270101"></script><script>
+</script><script src="world.js?v=202611270132"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52803,7 +52810,7 @@ function feedKeep(id, i) { try { const box = $('#main .scene .lines'); if (!box 
 function feedShow(id, sc) { const F = FEED; FEED = null; try { const box = $('#main .scene .lines');
   if (!F || !box || F.until < Date.now() || id === 'kv_local' || !(F.id === id || (F.title && F.title === sc.title))) return;
   const d = document.createElement('div'); d.className = 'feed-old'; d.innerHTML = F.html;
-  d.querySelectorAll('button, .people, .votebar, .split-bar, .news').forEach(e => e.remove());
+  d.querySelectorAll('button, .people, .votebar, .split-bar, .splitbar, .news, .newsbox, details, canvas').forEach(e => e.remove());
   const now = new Set([...box.querySelectorAll('.line, .check')].map(e => e.textContent));
   d.querySelectorAll('.line, .check').forEach(e => { if (now.has(e.textContent)) e.remove(); });
   let n = d.querySelectorAll('.line, .check').length; while (n > 30 && d.firstElementChild) { d.firstElementChild.remove(); n = d.querySelectorAll('.line, .check').length; }
@@ -55180,6 +55187,8 @@ function drawPanel() {
       ${u.cls === 'dushegub' && B.markWhy ? btn('b-mark', 'Метка', !!B.markWhy(S, u), tip(B.markWhy(S, u), 'Малое действие: по выбранному врагу +2 к попаданию и крит с 19. Пала цель — перенести даром'), mode === 'mark' ? 'on' : '')  : ''}
       ${B.hasPotion(u) && !pots.length ? btn('b-pot', 'Выпить зелье' + bl('zele_lecheniya'), !!bw('zele_lecheniya', true) || u.hp >= u.hpMax, tip(u.hp >= u.hpMax ? 'Ты не ранен.' : bw('zele_lecheniya', true), B.onBelt && !B.onBelt(u, 'zele_lecheniya') ? '2d4+2 хитов; не на поясе — из сумы уйдёт целое действие' : '2d4+2 хитов, малое действие')) : ''}
       ${windWhy !== null ? btn('b-wind', 'Второе дыхание', !!windWhy, tip(windWhy, `Раз за бой: вернуть 1d10 + ${u.level} (уровень) хитов`)) : ''}
+      ${B.callWhy && B.callWhy(S, u) != null ? (() => { const cw = B.callWhy(S, u), ms = B.orderMercs(S), row = (who, n, cur) => `<div class="ordrow"><b>${esc(n)}</b>${B.ORDERS.map(([v, t]) => `<button class="btn small ${cur === v ? 'on' : ''}" data-ord="${v}" data-who="${who}" ${cw ? 'disabled' : ''} title="${esc(cw || 'Малое действие: приказ словами. Окрик слышат и враги')}">${t}</button>`).join('')}</div>`;
+        return `<details class="bmore" id="b-ord"><summary>Приказ своим</summary><div class="bmore-g">${ms.length > 1 ? row('all', 'Все', null) : ''}${ms.map(m => row(m.id, m.n, m.ord)).join('')}</div></details>`; })() : ''}
       ${tat || (B.shadowHide && B.shadowHide(u)) ? btn('b-thide', tat ? 'Хитрость: затаиться' : 'В тень', Bn || !!hideWhy, tip(hideWhy || usedB, 'Затаиться малым действием')) : ''}
       ${u.cls === 'dushegub' || u.offhand ? btn('b-off', 'Вторая рука' + (u.offhand ? ': ' + esc(u.offhand.name) : ''), Bn || !!afterHitWhy, tip(afterHitWhy || usedB, `После удара основным оружием — ещё удар левой рукой (${u.offhand ? u.offhand.dmg : '1d4'})`), mode === 'offhand' ? 'on' : '') : ''}
       ${poisonWhy !== null ? btn('b-poison', `Яд на клинок (${u.poison})`, !!poisonWhy, tip(poisonWhy, 'Следующий удачный удар вблизи отравит цель: урон в начале её хода три хода подряд. Нежить, духов и истуканов яд не берёт')) : ''}
@@ -55228,6 +55237,7 @@ function drawPanel() {
     on('#b-tdash', () => go('dash', {cun: 1}, true));
     on('#b-tdis', () => go('dis', {cun: 1}, true));
     on('#b-thide', () => go('hide', {cun: 1}, true));
+    $('#acts').querySelectorAll('[data-ord]').forEach(b => b.onclick = () => go('bf', {v: b.dataset.ord, who: b.dataset.who}, true));
     on('#b-off', () => { mode = mode === 'offhand' ? null : 'offhand'; redraw(); });
     on('#b-shove', () => { mode = mode === 'shove' ? null : 'shove'; redraw(); });
     on('#b-song', () => { mode = mode === 'songs' ? null : 'songs'; redraw(); });
