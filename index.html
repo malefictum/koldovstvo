@@ -700,7 +700,7 @@ body.hastip #modal{padding-bottom:var(--tiph,16px)}body.hastip #modal .paper{max
 .campw .cw-foot{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;padding-top:10px;border-top:1px solid rgba(107,85,55,.35)}
 @media (max-width:760px){.campw .cw-grid{grid-template-columns:1fr}.campw .cw-foot{flex-direction:column}.campw .cw-foot .btn{width:100%}}
 .scard .sc-talk{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin:2px 0}.scard .sc-talk .btn{padding:2px 8px;font-size:12px;min-height:0}.scard .sc-want{color:#e7b866;font-size:12px}
-.pmap-wrap{width:100%;overflow:auto;border:1px solid rgba(107,85,55,.5);border-radius:6px;background:#e8dcc0}.pmap-wrap canvas{display:block;cursor:pointer}
+.pmap-bar{display:flex;gap:6px;justify-content:flex-end;margin:0 0 6px}.pmap-wrap{width:100%;max-height:68vh;overflow:auto;border:1px solid rgba(107,85,55,.5);border-radius:6px;background:#e8dcc0}.pmap-wrap canvas{display:block;cursor:pointer}
 .trade2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:8px}.tside{min-width:0;display:grid;gap:6px;align-content:start;border:1px solid rgba(107,85,55,.35);border-radius:8px;padding:8px;background:rgba(43,33,23,.05)}
 .thead{display:flex;gap:10px;align-items:center}.thead .tface{width:44px;height:44px;border-radius:6px;border:1px solid var(--rim)}.thead b{display:block;font:700 15px var(--t-label)}.thead small{color:var(--ink-2);font-size:12.5px}
 .tfilt{display:flex;flex-wrap:wrap;gap:4px}.tfilt .btn{padding:3px 8px;font-size:11.5px}.tfilt .btn.on{background:var(--brass);color:#1b140c}
@@ -50323,7 +50323,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611262245"></script><script>
+</script><script src="world.js?v=202611262301"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52989,7 +52989,7 @@ function weatherFx(host, target) {
   const puff = kind === 'fog' ? (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const q = c.getContext('2d'), gr = q.createRadialGradient(128, 128, 5, 128, 128, 128); gr.addColorStop(0, 'rgba(225,228,230,.30)'); gr.addColorStop(1, 'rgba(225,228,230,0)'); q.fillStyle = gr; q.fillRect(0, 0, 256, 256); return c; })() : null;
   const step = now => {
     if (!cv.isConnected) { cancelAnimationFrame(WFX && WFX.raf); return; }
-    if (now - last < GAP) { WFX.raf = requestAnimationFrame(step); return; }
+    if (now - last < (typeof playActive === 'function' && battle && playActive() ? GAP * 2 : GAP)) { WFX.raf = requestAnimationFrame(step); return; } // пока бойцы ходят — дождь вдвое реже (лаги при ходе в дождь)
     const dt = Math.min(120, now - last) / 16; last = now;
     if (now - lastFit > 500) { lastFit = now; const r = target.getBoundingClientRect(); if (Math.abs(r.width - cv.width) > 2 || Math.abs(r.height - cv.height) > 2) fit(); }
     const W0 = cv.width, H0 = cv.height; x.clearRect(0, 0, W0, H0);
@@ -53119,35 +53119,46 @@ function showPaperMap() {
   if (!g || !W.isHex(g)) return;
   const w = W.world(g), seen = g.seen || {}, camp = CAMP_OF();
   openModal(`<h3 class="ttl"><span class="ui-i i-minimap"></span>Карта: ${esc(camp.map.title || camp.name)}</h3>
+    <div class="pmap-bar"><button class="btn sm" id="pm-out" title="Дальше">−</button><button class="btn sm" id="pm-in" title="Ближе">+</button><button class="btn sm" id="pm-me">Где мы</button></div>
     <div class="pmap-wrap"><canvas id="pmap"></canvas></div>
     <p class="note" id="pm-hint">Видно только то, где бывали и что разглядели. Нажмите на знакомое место — отряд пойдёт туда.</p>`, 'lg');
   const cv = $('#pmap'), wrap = cv.parentElement, dpr = Math.min(2, window.devicePixelRatio || 1);
-  const k = Math.max(6, Math.max(300, wrap.clientWidth) / (Math.sqrt(3) * (w.cols + 0.5))), Wd = Math.sqrt(3) * k * (w.cols + 0.5), Ht = 1.5 * k * w.rows + k;
-  cv.width = Wd * dpr; cv.height = Ht * dpr; cv.style.width = Wd + 'px'; cv.style.height = Ht + 'px';
-  const x = cv.getContext('2d'); x.setTransform(dpr, 0, 0, dpr, 0, 0);
+  // масштаб: колесом мыши или кнопками; помнится между открытиями (Ник 26.11: «зум для карты — ближе, дальше»)
+  let Z = 1; try { Z = +localStorage.getItem('kldv-pmz') || 1; } catch (e) {}
+  const k0 = Math.max(6, Math.max(300, wrap.clientWidth) / (Math.sqrt(3) * (w.cols + 0.5)));
+  let k, Wd, Ht; const x = cv.getContext('2d');
   const P = (c, r) => ({x: Math.sqrt(3) * k * (c + 0.5 * (r & 1)) + Math.sqrt(3) * k / 2, y: 1.5 * k * r + k});
+  const size = () => { k = k0 * Z; Wd = Math.sqrt(3) * k * (w.cols + 0.5); Ht = 1.5 * k * w.rows + k; const dd = Z > 2 ? 1 : dpr;
+    cv.width = Wd * dd; cv.height = Ht * dd; cv.style.width = Wd + 'px'; cv.style.height = Ht + 'px'; x.setTransform(dd, 0, 0, dd, 0, 0); };
+  size();
   const img = new Image(); img.src = 'img/parchment.webp';
   const draw = () => {
     x.fillStyle = '#e8dcc0'; x.fillRect(0, 0, Wd, Ht); if (img.complete && img.naturalWidth) { x.globalAlpha = 0.55; x.drawImage(img, 0, 0, Wd, Ht); x.globalAlpha = 1; }
     const hex = (p, rr) => { x.beginPath(); for (let i = 0; i < 6; i++) { const a = Math.PI / 180 * (60 * i - 30); x.lineTo(p.x + rr * Math.cos(a), p.y + rr * Math.sin(a)); } x.closePath(); };
-    Object.values(w.cells).forEach(c => { if (!seen[W.key(c.c, c.r)]) return; const p = P(c.c, c.r); hex(p, k * 1.02); x.fillStyle = PM_INK[c.t] || '#c9b98c'; x.globalAlpha = 0.75; x.fill(); x.globalAlpha = 1;
-      if (c.t === 'mountains') { x.strokeStyle = '#5a4a36'; x.lineWidth = 1; x.beginPath(); x.moveTo(p.x - k * 0.6, p.y + k * 0.4); x.lineTo(p.x, p.y - k * 0.6); x.lineTo(p.x + k * 0.6, p.y + k * 0.4); x.stroke(); }
-      else if (c.t === 'hills') { x.strokeStyle = '#7a6648'; x.lineWidth = 1; x.beginPath(); x.arc(p.x, p.y + k * 0.3, k * 0.5, Math.PI * 1.1, Math.PI * 1.9); x.stroke(); }
-      else if (c.t === 'forest') { x.fillStyle = '#4e5a36'; x.beginPath(); x.arc(p.x, p.y, k * 0.28, 0, Math.PI * 2); x.fill(); }
-      else if (c.t === 'marsh') { x.strokeStyle = '#5d6b55'; x.lineWidth = 1; x.beginPath(); x.moveTo(p.x - k * 0.4, p.y); x.lineTo(p.x + k * 0.4, p.y); x.stroke(); } });
-    // дороги
-    x.strokeStyle = 'rgba(110,70,30,.85)'; x.lineWidth = Math.max(1, k * 0.25); x.setLineDash([k * 0.6, k * 0.4]);
+    Object.values(w.cells).forEach(c => { if (!seen[W.key(c.c, c.r)]) return; const p = P(c.c, c.r); hex(p, k * 1.02); x.fillStyle = PM_INK[c.t] || '#c9b98c'; x.globalAlpha = 0.5; x.fill(); x.globalAlpha = 1; // размыв акварелью, знаки — чернилами
+      x.lineCap = 'round'; const ink = '#21160c', jit = ((c.c * 7 + c.r * 13) % 5 - 2) * k * 0.04;
+      if (c.t === 'mountains') { x.strokeStyle = ink; x.lineWidth = Math.max(1, k * 0.11); x.beginPath(); x.moveTo(p.x - k * 0.6, p.y + k * 0.4); x.lineTo(p.x + jit, p.y - k * 0.6); x.lineTo(p.x + k * 0.6, p.y + k * 0.4); x.stroke(); x.lineWidth = Math.max(0.6, k * 0.05); x.beginPath(); x.moveTo(p.x + jit, p.y - k * 0.6); x.lineTo(p.x + k * 0.15, p.y + k * 0.35); x.stroke(); }
+      else if (c.t === 'hills') { x.strokeStyle = ink; x.lineWidth = Math.max(0.8, k * 0.08); x.beginPath(); x.arc(p.x, p.y + k * 0.3, k * 0.5, Math.PI * 1.1, Math.PI * 1.9); x.stroke(); }
+      else if (c.t === 'forest') { x.strokeStyle = ink; x.lineWidth = Math.max(0.8, k * 0.08); x.beginPath(); x.arc(p.x + jit, p.y - k * 0.1, k * 0.26, Math.PI * 0.9, Math.PI * 2.1); x.moveTo(p.x + jit, p.y + k * 0.1); x.lineTo(p.x + jit, p.y + k * 0.42); x.stroke(); }
+      else if (c.t === 'marsh') { x.strokeStyle = ink; x.lineWidth = Math.max(0.6, k * 0.06); x.beginPath(); x.moveTo(p.x - k * 0.4, p.y); x.lineTo(p.x + k * 0.4, p.y); x.stroke(); } });
+    // берег разведанного — чернильная кромка
+    x.strokeStyle = 'rgba(33,22,12,.7)'; x.lineWidth = Math.max(1, k * 0.09); Object.values(w.cells).forEach(c => { if (!seen[W.key(c.c, c.r)]) return; const p = P(c.c, c.r), nb = W.neigh(c.c, c.r);
+      for (let i = 0; i < 6; i++) { const a1 = Math.PI / 180 * (60 * i - 30), a2 = Math.PI / 180 * (60 * i + 30), mx = p.x + k * Math.cos((a1 + a2) / 2) * 1.7, my = p.y + k * Math.sin((a1 + a2) / 2) * 1.7;
+        const o = nb.find(n => { const q = P(n.c, n.r); return Math.abs(q.x - mx) < k * 0.5 && Math.abs(q.y - my) < k * 0.5; }); if (o && seen[W.key(o.c, o.r)]) continue;
+        x.beginPath(); x.moveTo(p.x + k * Math.cos(a1), p.y + k * Math.sin(a1)); x.lineTo(p.x + k * Math.cos(a2), p.y + k * Math.sin(a2)); x.stroke(); } });
+    // дороги — красными чернилами
+    x.strokeStyle = 'rgba(139,36,24,.8)'; x.lineWidth = Math.max(1, k * 0.25); x.setLineDash([k * 0.6, k * 0.4]);
     Object.values(w.cells).forEach(c => { if (!c.road || !seen[W.key(c.c, c.r)]) return; const a = P(c.c, c.r); W.neigh(c.c, c.r).forEach(n => { const d = w.cells[W.key(n.c, n.r)]; if (d && d.road && seen[W.key(d.c, d.r)] && (d.r > c.r || (d.r === c.r && d.c > c.c))) { const b = P(d.c, d.r); x.beginPath(); x.moveTo(a.x, a.y); x.lineTo(b.x, b.y); x.stroke(); } }); });
     x.setLineDash([]);
     // края: подписи над разведанным
     (C.FREE_REGIONS || []).forEach(z => { const cs = Object.values(w.cells).filter(c => c.reg === z.id && seen[W.key(c.c, c.r)]); if (cs.length < 6) return; const cx = cs.reduce((s2, c) => s2 + c.c, 0) / cs.length, cy = cs.reduce((s2, c) => s2 + c.r, 0) / cs.length, p = P(cx, Math.round(cy));
-      x.font = `italic 600 ${Math.max(11, k * 1.4)}px Alegreya, serif`; x.textAlign = 'center'; x.fillStyle = 'rgba(70,45,20,.55)'; x.fillText(`${z.name} · ${z.lv[0]}–${z.lv[1]}${C.frontOf && z.id !== 'sea' ? ' · ' + C.frontShort(C.frontOf(g, z.id)) : ''}`, p.x, p.y); });
+      x.font = `italic 600 ${Math.min(22, Math.max(11, k * 1.4))}px Alegreya, serif`; x.textAlign = 'center'; x.fillStyle = 'rgba(139,36,24,.5)'; x.fillText(`${z.name} · ${z.lv[0]}–${z.lv[1]}${C.frontOf && z.id !== 'sea' ? ' · ' + C.frontShort(C.frontOf(g, z.id)) : ''}`, p.x, p.y); });
     // места
     Object.entries(w.nodeAt).forEach(([id, c]) => { if (!W.visibleNode(g, c)) return; const p = P(c.c, c.r), n = camp.map.nodes[id], big = ['город', 'крепость'].includes(n.kind);
       const sym = MS_KIND[n.kind] && ATLAS.mapsym && ATLAS.mapsym['ms_' + (n.kind === 'стан' && /step/.test(id) ? 'yurt' : MS_KIND[n.kind])];
       if (sym && IMG.mapsym) { const hh = k * (big ? 2.4 : 1.8), ww = hh * sym[2] / sym[3]; x.drawImage(IMG.mapsym, sym[0], sym[1], sym[2], sym[3], p.x - ww / 2, p.y - hh * 0.75, ww, hh); }
       else { x.fillStyle = big ? '#7a2a1a' : '#3a2410'; x.beginPath(); if (big) x.rect(p.x - k * 0.6, p.y - k * 0.6, k * 1.2, k * 1.2); else x.arc(p.x, p.y, k * 0.45, 0, Math.PI * 2); x.fill(); }
-      x.font = `600 ${Math.max(10, k * 1.05)}px Alegreya, serif`; x.textAlign = 'left'; x.lineWidth = 3; x.strokeStyle = 'rgba(232,220,192,.9)'; x.strokeText(n.name, p.x + k * 0.8, p.y + k * 0.35); x.fillStyle = '#2b1a0c'; x.fillText(n.name, p.x + k * 0.8, p.y + k * 0.35); });
+      x.font = `600 ${Math.max(10, k * 1.05)}px Alegreya, serif`; x.textAlign = 'left'; x.lineWidth = 3; x.strokeStyle = 'rgba(232,220,192,.9)'; x.strokeText(n.name, p.x + k * 0.8, p.y + k * 0.35); x.fillStyle = big ? '#8b2418' : '#21160c'; x.fillText(n.name, p.x + k * 0.8, p.y + k * 0.35); }); // города — красными чернилами
     // поручения своих — метка и название, даже в тумане
     try { (C.heErrands ? C.heErrands(g) : []).forEach(E => { const c = E.at && w.nodeAt[E.at]; if (!c) return; const p = P(c.c, c.r), nm = (camp.map.nodes[E.at] || {}).name || '';
       x.beginPath(); x.arc(p.x, p.y - k * 1.2, k * 0.75, 0, Math.PI * 2); x.fillStyle = '#3f6e4a'; x.fill(); x.lineWidth = 2; x.strokeStyle = '#f3e3bd'; x.stroke();
@@ -53158,7 +53169,17 @@ function showPaperMap() {
       x.font = `700 ${Math.max(10, k * 1.1)}px Alegreya, serif`; x.textAlign = 'center'; x.fillText('вы здесь', p.x, p.y - k * 1.6); }
   };
   draw(); img.onload = draw;
-  cv.onclick = e => { const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top; let best = null, bd = 1e9;
+  const zoomTo = (z2, mx, my) => { z2 = Math.max(0.6, Math.min(5, z2)); if (Math.abs(z2 - Z) < 1e-3) return; const ax = (wrap.scrollLeft + (mx != null ? mx : wrap.clientWidth / 2)) / Wd, ay = (wrap.scrollTop + (my != null ? my : wrap.clientHeight / 2)) / Ht;
+    Z = z2; try { localStorage.setItem('kldv-pmz', String(Z)); } catch (e) {} size(); draw(); wrap.scrollLeft = ax * Wd - (mx != null ? mx : wrap.clientWidth / 2); wrap.scrollTop = ay * Ht - (my != null ? my : wrap.clientHeight / 2); };
+  const toMe = () => { if (!g.pos) return; const p = P(g.pos.c, g.pos.r); wrap.scrollLeft = p.x - wrap.clientWidth / 2; wrap.scrollTop = p.y - wrap.clientHeight / 2; };
+  wrap.addEventListener('wheel', e => { e.preventDefault(); const r = wrap.getBoundingClientRect(); zoomTo(Z * (e.deltaY < 0 ? 1.2 : 1 / 1.2), e.clientX - r.left, e.clientY - r.top); }, {passive: false});
+  const atMe = z2 => { if (!g.pos) return zoomTo(z2); const q = P(g.pos.c, g.pos.r); zoomTo(z2, q.x - wrap.scrollLeft, q.y - wrap.scrollTop); toMe(); };
+  if ($('#pm-in')) $('#pm-in').onclick = () => atMe(Z * 1.3); if ($('#pm-out')) $('#pm-out').onclick = () => atMe(Z / 1.3); if ($('#pm-me')) $('#pm-me').onclick = toMe;
+  if (Z > 1.05) toMe();
+  { let dr = null; cv.onpointerdown = e => { dr = {x: e.clientX, y: e.clientY, sl: wrap.scrollLeft, st: wrap.scrollTop, moved: false}; };
+    window.addEventListener('pointermove', e => { if (!dr) return; const dx = e.clientX - dr.x, dy = e.clientY - dr.y; if (Math.abs(dx) + Math.abs(dy) > 6) dr.moved = true; if (dr.moved) { wrap.scrollLeft = dr.sl - dx; wrap.scrollTop = dr.st - dy; } });
+    window.addEventListener('pointerup', () => { if (dr && dr.moved) cv._drag = Date.now(); dr = null; }); } // тянуть карту мышью
+  cv.onclick = e => { if (cv._drag && Date.now() - cv._drag < 300) return; const r = cv.getBoundingClientRect(), mx = e.clientX - r.left, my = e.clientY - r.top; let best = null, bd = 1e9;
     Object.entries(w.nodeAt).forEach(([id, c]) => { if (!W.visibleNode(g, c)) return; const p = P(c.c, c.r), d = (p.x - mx) ** 2 + (p.y - my) ** 2; if (d < bd) { bd = d; best = id; } });
     if (!best || bd > (k * 3) ** 2) return; if (best === g.loc) return toast('Вы и так здесь.');
     closeModal(); if (NET()) return act({a: 'goto', node: best}); walkTo(W.world(g).nodeAt[best]); };
@@ -54039,6 +54060,7 @@ function drawField(noFollow) {
   FOGC = false; // bfFogOf заполнит на эту отрисовку
   const UNK = '#0d0a07'; if (F.fog) { ctx.fillStyle = UNK; ctx.fillRect(0, 0, geo.W, geo.H); }
   const tex = n => { const im = gImg(n); return im ? (TEXP[n] = TEXP[n] && TEXP[n].im === im ? TEXP[n] : {im, p: ctx.createPattern(im, 'repeat')}).p && pin(TEXP[n].p) : null; };
+  const RFC = {}, roofed = id => { if (RFC[id] == null) { let r = false; try { const h = B.BF.houseById && B.BF.houseById(F, id); r = !!(h && F.big && B.BF.houseOpen && !B.BF.houseOpen(S, h) && !(F.fog && B.BF.explored && h.cells && false)); } catch (e) {} RFC[id] = r; } return RFC[id]; };
   // земля клетки: узор, местность, подложка домов, ночь, сетка
   const cellBase = (c, p) => {
     hexPath(p.x, p.y, s * 0.98);
@@ -54053,7 +54075,7 @@ function drawField(noFollow) {
     else if (c.t === 'shallow') { ctx.fillStyle = 'rgba(205,190,140,.38)'; ctx.fill(); ctx.fillStyle = 'rgba(120,110,95,.75)'; for (let i = 0; i < 3; i++) { ctx.beginPath(); ctx.ellipse(p.x + (i - 1) * s * 0.45, p.y + ((k >> i) % 3 - 1) * s * 0.2, s * 0.17, s * 0.1, 0, 0, 7); ctx.fill(); } }
     if (c.t === 'wall') { ctx.fillStyle = 'rgba(20,16,12,.55)'; ctx.fill(); }
     if (F.big) bfCell(c, p, s, F, k, tex);
-    if ((c.hb != null || c.hyard != null || c.vy != null) && B.BF && B.BF.hbCell) { B.BF.hbCell(ctx, c, p, s, S, IMG.house); hexPath(p.x, p.y, s * 0.98); } // дома: пол и подложка стен (bf_house.js)
+    if ((c.hb != null || c.hyard != null || c.vy != null) && B.BF && B.BF.hbCell && !(c.hb != null && roofed(c.hb))) { B.BF.hbCell(ctx, c, p, s, S, IMG.house); hexPath(p.x, p.y, s * 0.98); } // под крышей пол не виден — не рисуем (лаги в селе) // дома: пол и подложка стен (bf_house.js)
     if (F.night) { ctx.fillStyle = 'rgba(10,14,40,.35)'; ctx.fill(); }
   };
   const cellDyn = (c, p) => {
@@ -54135,7 +54157,7 @@ function drawField(noFollow) {
   if (S.walk && S.walk.noise && S.walk.noise.rnd >= S.walk.rnd - 1) { const N = S.walk.noise, p0 = hexXY(N.c, N.r), rr = N.rad * geo.s * 1.6; ctx.save(); ctx.setLineDash([6, 5]); ctx.lineWidth = 2;
     ctx.strokeStyle = N.lv >= 2 ? 'rgba(255,110,80,.75)' : N.lv >= 1 ? 'rgba(255,190,90,.7)' : 'rgba(220,220,200,.55)'; ctx.beginPath(); ctx.arc(p0.x, p0.y, rr, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     ctx.font = `600 ${Math.max(10, Math.round(geo.s * 0.3))}px "Alegreya SC", Georgia, serif`; ctx.fillStyle = ctx.strokeStyle; ctx.textAlign = 'center'; ctx.fillText(N.lv >= 2 ? 'грохот' : N.lv >= 1 ? 'шум' : 'шорох', p0.x, p0.y - rr - 4); ctx.restore(); }
-  drawFx(); drawPlayTop(); drawBubbles(); drawMini(); FOGC = null; speedBtn(); auraTick(); playKick();
+  drawFx(); drawPlayTop(); drawBubbles(); { const now = performance.now(); if (!playActive() || now - (drawMini._t || 0) > 350) { drawMini._t = now; drawMini(); } } FOGC = null; // во время хода миникарта — не каждый кадр (лаги при ходе) speedBtn(); auraTick(); playKick();
 }
 /* твари: старый лист beasts и новый beasts2 (люди-враги, нежить, духи, именные) */
 const beastRect = k => k ? (ATLAS.beasts && ATLAS.beasts[k]) || (ATLAS.beasts2 && ATLAS.beasts2[k]) || (ATLAS.figs2 && ATLAS.figs2[k]) || null : null;
