@@ -4591,6 +4591,8 @@ Q.tick = function (g) {
   (g.jobs || []).forEach(j => { if (j.status === 'open' && g.day > j.dl) { j.status = 'late'; g.fame = (g.fame || 0) - 1; C.note(g, Q.say(g, 'late', Q.TXT.LATE, j)); } });
 };
 Q.active = g => (g.jobs || []).filter(j => j.status === 'open');
+/* сколько рук занято: нити заданий идут своими слотами и в счёт четырёх дел не входят (Ник 27.11) */
+Q.busyN = g => Q.active(g).filter(j => !j.thread).length;
 /* дела из старых сохранений: дописать то, чего в них не было */
 Q.fix = function (g, j) { if (!j || j.v.kind) return j; const T = Q.THREAT[j.thr]; j.v.kind = j.kind; j.v.thrId = j.thr; j.v.ttype = T.human ? 'human' : T.undead ? 'undead' : T.nechist ? 'nechist' : j.thr === 'spiders' ? 'spiders' : T.beast ? 'beast' : 'monster'; j.v.thr.i = T.i; j.v.rcp = j.v.rcp || Q.person(g); j.v.herb = j.v.herb || Q.TXT.HERBS[0]; if (typeof j.v.place === 'string') j.v.place = Q.PLACE.meadow[0]; return j; };
 Q.byId = (g, id) => Q.fix(g, (g.jobs || []).find(j => j.id === id));
@@ -4633,9 +4635,9 @@ Q.SCENES = {
   q_offer: g => {
     const j = Q.offerJob(g); if (!j) return {title: 'Работа', lines: [L('n', 'Человек, что искал вас, уже ушёл — не дождался.')], choices: [{t: 'Дальше', go: g2 => backTo(g2)}]};
     const lines = Q.offerLines(g, j);
-    if (Q.active(g).length >= 4) lines.push(L('n', 'У отряда и так на руках четыре чужие беды. Пятую уже не потянуть — сперва бы с этими разделаться.'));
+    if (Q.busyN(g) >= 4) lines.push(L('n', 'У отряда и так на руках четыре чужие беды. Пятую уже не потянуть — сперва бы с этими разделаться.'));
     const ch = [];
-    if (Q.active(g).length < 4) ch.push({t: Q.GIVER[j.giverId].omen ? 'Пойти туда' : 'Взяться', do: g2 => { const jj = Q.offerJob(g2); Q.accept(g2, jj); g2.jobOffer = null; return W() && W().isHex(g2) ? backTo(g2) : 'q_site_go'; }});
+    if (Q.busyN(g) < 4) ch.push({t: Q.GIVER[j.giverId].omen ? 'Пойти туда' : 'Взяться', do: g2 => { const jj = Q.offerJob(g2); Q.accept(g2, jj); g2.jobOffer = null; return W() && W().isHex(g2) ? backTo(g2) : 'q_site_go'; }});
     if (!Q.GIVER[j.giverId].omen && !j.haggled) ch.push({t: 'Поторговаться (Очарование, Торговля)', do: g2 => { const jj = Q.offerJob(g2); jj.haggled = 1; const r = C.bestCheck(g2, 'cha', 'Торговля', Q.dc(g2, jj, 0)); g2.lastCheck = r;
       const V = Q.voice(jj); const was = jj.pay; jj.payBase = was; if (r.ok) { jj.pay = Math.round(jj.pay * 1.3 / 10) * 10; jj.note = '«' + R.pick(V.haggleOk) + '» Сошлись на ' + R.priceText(jj.pay) + ' вместо ' + R.priceText(was) + '.'; } else if (r.total - r.dc <= -5) { jj.pay = Math.round(jj.pay * 0.9 / 10) * 10; jj.note = '«' + R.pick(V.haggleNo) + '» Заказчик обиделся и сбавил цену: теперь только ' + R.priceText(jj.pay) + ' вместо ' + R.priceText(was) + '.'; } else jj.note = '«' + R.pick(V.haggleNo) + '»'; return 'q_offer'; }});
     ch.push({t: 'Отказаться', do: g2 => { const jj = Q.offerJob(g2); if (jj && jj.src !== 'town') jj.status = 'gone'; g2.jobOffer = null; return backTo(g2); }});
@@ -4715,13 +4717,13 @@ Q.resolve = function (g, j, o) {
 };
 
 /* ---------- встреча на дороге ---------- */
-Q.meetChance = (g, cell) => !!(cell.road) && Q.active(g).length < 4 && (g.day - (g.lastMeet || -9)) >= 2 && R.rand() < 0.08;
+Q.meetChance = (g, cell) => !!(cell.road) && Q.busyN(g) < 4 && (g.day - (g.lastMeet || -9)) >= 2 && R.rand() < 0.08;
 Q.meet = function (g, omen) {
   const j = Q.make(g, omen ? 'omen' : 'road');
   g.jobPending = j; g.jobOffer = j.id; g.jobFrom = 'road'; g.lastMeet = g.day;
   return 'q_offer';
 };
-Q.omenChance = (g, cell) => !cell.road && Q.active(g).length < 4 && (g.day - (g.lastOmen || -9)) >= 4 && R.rand() < (C.isNight(g) ? 0.04 : 0.015);
+Q.omenChance = (g, cell) => !cell.road && Q.busyN(g) < 4 && (g.day - (g.lastOmen || -9)) >= 4 && R.rand() < (C.isNight(g) ? 0.04 : 0.015);
 
 /* вставка в сцену узла: работа и отчёты */
 Q.inject = function (g, sceneId, choices) {
@@ -34073,7 +34075,7 @@ if (C.abil) {
       const cost = Math.max(100, 100 * (h.level || 1));
       if (C.wageDue(g, h)) out.push({t: `Заплатить жалованье за неделю: ${R.priceText(C.wageOf(h))}`, arg: 'comp_wage', why: g.purse < C.wageOf(h) ? 'в кошеле не хватает серебра' : ''});
       out.push({t: `Дать наградных: ${R.priceText(cost)}`, arg: 'comp_gift', why: g.purse < cost ? 'в кошеле не хватает серебра' : h.giftDay != null && g.day - h.giftDay < 3 ? 'недавно уже давали' : ''});
-      if (h.ask && !h.ask.job && !h.askDone) { out.push({t: 'Выслушать просьбу и обещать помощь', arg: 'comp_yes', why: Q && Q.active(g).length >= 4 ? 'и так взялись за четыре дела' : ''}); out.push({t: 'Отказать в просьбе', arg: 'comp_no', why: ''}); } }
+      if (h.ask && !h.ask.job && !h.askDone) { out.push({t: 'Выслушать просьбу и обещать помощь', arg: 'comp_yes', why: Q && Q.busyN(g) >= 4 ? 'и так взялись за четыре дела' : ''}); out.push({t: 'Отказать в просьбе', arg: 'comp_no', why: ''}); } }
     return out; };
   C.abil = function (g, h, arg) {
     if (arg === 'comp_wage') { if (!C.payWage(g, h)) return {err: 'нельзя'}; return {ok: true, text: `${h.name} получает жалованье.`}; }
@@ -36720,7 +36722,7 @@ const resolve = (g, m, cell) => {
   g.marks = marks(g).filter(x => x !== m);
   if (m.kind === 'tale' && W.taleOpen) return W.taleOpen(g, m);
   const T = W.T[cell.t] || W.T.meadow;
-  if (m.kind === 'job' && Q && Q.meet && Q.active(g).length < 5) return {poi: Q.meet(g)};
+  if (m.kind === 'job' && Q && Q.meet && Q.busyN(g) < 5) return {poi: Q.meet(g)};
   if (m.kind === 'fight' || m.kind === 'job') { const enc = C.encounter(g, T.enc);
     if (enc && enc.battle) { enc.battle.place = T.word[0].toUpperCase() + T.word.slice(1); enc.battle.field = enc.battle.field || C.fieldFor(T.enc === 'swamp' ? 'swamp' : T.enc, C.isNight(g)); return {enc}; }
     if (enc) return {enc}; }
@@ -36892,7 +36894,7 @@ SC.find_bezhentsy = g => ({title: 'Беженцы', bg: 'road', art: 'village', 
         return done(g2, 'Беженцы', 'Старший долго не берёт — гордость не велит, — потом берёт и прячет за пазуху. «Будем живы — отплатим».'); }},
     {t: lbl('Расспросить, кто их сжёг', 'cha', 'Дипломатия', 11), do: g2 => { const r = chk(g2, 'cha', 'Дипломатия', 11);
       if (!r.ok) return done(g2, 'Беженцы', 'Беженцы молчат и прячут глаза. Чужим, да ещё с оружием, они больше не верят.');
-      if (Q && Q.meet && Q.active(g2).length < 5 && R.rand() < 0.6) { xp(g2, 20, 'расспросили беженцев'); C.note(g2, `${r.hero.name} садится со стариком у телеги. Тот сперва отмалчивается, потом рассказывает всё как было — а под конец, пряча глаза, просит о помощи.`); return Q.meet(g2); }
+      if (Q && Q.meet && Q.busyN(g2) < 5 && R.rand() < 0.6) { xp(g2, 20, 'расспросили беженцев'); C.note(g2, `${r.hero.name} садится со стариком у телеги. Тот сперва отмалчивается, потом рассказывает всё как было — а под конец, пряча глаза, просит о помощи.`); return Q.meet(g2); }
       xp(g2, 40, 'расспросили беженцев');
       return done(g2, 'Беженцы', `${r.hero.name} слушает долго. Жгли конные, в чужой броне, а вёл их человек с серебряной серьгой — он и в соседних хуторах был. Беженцы показывают дорогу, по которой ушли поджигатели.`); }},
     {t: 'Проводить до жилья (полдня)', do: g2 => { pass(g2, 2);
@@ -37107,7 +37109,7 @@ SC.find_pepel = g => ({title: 'Пепелище', bg: 'village', art: 'village',
         winTitle: 'Пепелище', winText: `${r.hero.name} вывел отряд по следам к стоянке в овраге. Поджигатели делили хуторское добро — тут их и взяли.`}); }},
     {t: 'Поискать выживших (четверть дня)', do: g2 => { pass(g2, 1);
       if (R.rand() < 0.5) { fame(g2, 1); xp(g2, 40, 'выживший с пепелища');
-        if (Q && Q.meet && Q.active(g2).length < 5 && R.rand() < 0.5) { C.note(g2, 'В погребе нашёлся живой — старик-хуторянин. Он плачет, цепляется за рукава и просит, чтобы за его хутор кто-нибудь спросил с виноватых.'); return Q.meet(g2); }
+        if (Q && Q.meet && Q.busyN(g2) < 5 && R.rand() < 0.5) { C.note(g2, 'В погребе нашёлся живой — старик-хуторянин. Он плачет, цепляется за рукава и просит, чтобы за его хутор кто-нибудь спросил с виноватых.'); return Q.meet(g2); }
         return done(g2, 'Пепелище', 'В погребе, под обгорелыми досками, — старуха с внуком. Живы. Их выводят к дороге и показывают, куда идти к людям.'); }
       return done(g2, 'Пепелище', 'Живых не нашли ни в погребе, ни в овраге за огородом. Только собака увязалась за отрядом и шла следом до самой опушки.'); }},
     back]});
@@ -50378,7 +50380,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611272307"></script><script>
+</script><script src="world.js?v=202611272339"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

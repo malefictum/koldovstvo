@@ -49136,7 +49136,7 @@ C.mtView = function (g, h) {
   return {id: h.id, name: h.name, face: h.portrait || '', sex: h.sex, sub: subOf(h), stage: st, left,
     hero: hero ? {id: hero.id, name: hero.name, face: hero.portrait || '', sex: hero.sex} : null,
     intro: fillM(g, h, hero, intro, {}, b === 'top'), qs,
-    offer: A ? {key: A.key, say: A.a.say, why: Q && Q.active(g).length >= 4 ? 'дел на руках и так через край — сперва управьтесь' : ''} : null};
+    offer: A ? {key: A.key, say: A.a.say, why: Q && Q.busyN(g) >= 4 ? 'дел на руках и так через край — сперва управьтесь' : ''} : null};
 };
 C.mtAsk = function (g, h, qid) {
   if (!C.mtCan(g, h)) return {err: 'не сейчас'};
@@ -49205,7 +49205,7 @@ C.mtAskAnswer = function (g, h, yes) {
   if (!yes) { A[key] = Object.assign(A[key], {st: 'no', dayNo: dayOf(g)}); bump(g, h, K().NO, 'отказали в его просьбе');
     const t = fillM(g, h, hero, T.hurt || pickH(HURT[nr], h.id + key), {}, top); if (C.compTalkPush) C.compTalkPush(g, h, t, {up: false, code: 'mtno', force: true}); return {ok: true, text: t, words: t}; }
   if (!Q || askOff(g)) return {err: 'здесь это дело не сделать'};
-  if (Q.active(g).length >= 4) return {err: 'дел на руках и так через край — сперва управьтесь'};
+  if (Q.busyN(g) >= 4) return {err: 'дел на руках и так через край — сперва управьтесь'};
   const V = Object.assign(pieceVars(g, h, slot), {m: Object.assign(decl(h.name, h.sex), {sex: h.sex})});
   const j = Q.make(g, 'road', {kind: T.kind || 'deliver', giver: 'naemnik', diff: 'mid'});
   j.twist = null; j.pay = 0; j.basePay = 0; j.treasure = 0; j.v.giver = Object.assign(decl(h.name, h.sex), {sex: h.sex, ppl: h.people});
@@ -49240,7 +49240,7 @@ if (ao0 && ab0) {
     try { if (h && h.kind === 'merc' && mercs(g).includes(h) && !K().off) {
       if (!h.loyal && !(g && g.net)) out.push({t: 'Поговорить по душам', arg: 'mt_talk', why: !C.mtLeft(g, h) ? 'сегодня уже говорили' : ''});
       if (h.loyal) { const o = out.find(x => x.arg === 'mw_talk'); if (o && !(g && g.net)) o.why = C.mtLeft(g, h) ? '' : 'сегодня уже говорили'; }
-      const O = offerOf(h); if (O) { out.push({t: 'Выслушать просьбу и обещать помощь', arg: 'mw_mtyes', why: Q && Q.active(g).length >= 4 ? 'дел на руках и так через край' : ''}); out.push({t: 'Отказать в просьбе', arg: 'mw_mtno', why: ''}); } } } catch (e) {}
+      const O = offerOf(h); if (O) { out.push({t: 'Выслушать просьбу и обещать помощь', arg: 'mw_mtyes', why: Q && Q.busyN(g) >= 4 ? 'дел на руках и так через край' : ''}); out.push({t: 'Отказать в просьбе', arg: 'mw_mtno', why: ''}); } } } catch (e) {}
     return out;
   };
   C.abil = withStep(function (g, h, arg) {
@@ -52527,13 +52527,13 @@ const HSAY = {yes: ['Помогу, {m}. Говори, куда идти.', 'Св
 const hsay = (g, m, hero, k) => ({who: 'h', text: C.mrFill(g, m, hero, pickH(HSAY[k], m.id + k + dayOf(g)))});
 C.MR_KIND.q_offer = {pick(g, m, hero, P, O) {
   const M = mqOf(m), S = storyById(M.id), X = X_(g, m, hero), out = [hsay(g, m, hero, O.c === 'yes' ? 'yes' : O.c === 'later' ? 'later' : 'no')];
-  if (O.c === 'yes') { if (Q.active(g).length >= 4) { Object.assign(M, {st: 'later', at: dayOf(g) + 2}); out.push({who: 'a', text: C.mrFill(g, m, hero, 'Дел у нас и так через край, {a}. Управимся — тогда и о моём поговорим.')}); return out; }
+  if (O.c === 'yes') { if (Q.busyN(g) >= 4) { Object.assign(M, {st: 'later', at: dayOf(g) + 2}); out.push({who: 'a', text: C.mrFill(g, m, hero, 'Дел у нас и так через край, {a}. Управимся — тогда и о моём поговорим.')}); return out; }
     holdAsk(m); const j = makeJob(g, m, S, 0); out.push({who: 'a', text: C.mrFill(g, m, hero, ACCEPT[nravOf(m)] || ACCEPT.chestny)}, {who: 'n', text: `Новое дело: «${Q.title(j)}».`}); if (C.mrBig) C.mrBig(g, m, 0.5); return out; }
   if (O.c === 'later') { Object.assign(M, {st: 'later', at: dayOf(g) + K().LATER}); out.push({who: 'a', text: C.mrFill(g, m, hero, LATER[nravOf(m)] || LATER.chestny)}); return out; }
   Object.assign(M, {st: 'no', at: dayOf(g) + K().NO}); if (C.mwAdd) C.mwAdd(g, m, -0.5); out.push({who: 'a', text: C.mrFill(g, m, hero, REFUSE[nravOf(m)] || REFUSE.chestny)}); return out; }};
 C.MR_KIND.q_next = {pick(g, m, hero, P, O) {
   const M = mqOf(m), S = storyById(M.id), out = [hsay(g, m, hero, O.c === 'go' ? 'go' : 'wait')];
-  if (O.c === 'go') { if (Q.active(g).length >= 4) { M.at = dayOf(g) + 2; out.push({who: 'a', text: C.mrFill(g, m, hero, 'Дел через край, {a}. Разгребём — и пойдём.')}); return out; }
+  if (O.c === 'go') { if (Q.busyN(g) >= 4) { M.at = dayOf(g) + 2; out.push({who: 'a', text: C.mrFill(g, m, hero, 'Дел через край, {a}. Разгребём — и пойдём.')}); return out; }
     const j = makeJob(g, m, S, M.step || 0); out.push({who: 'a', text: C.mrFill(g, m, hero, pickH(['Идём. Не будем тянуть.', 'Тогда в путь, {a}.', 'Собираемся.'], m.id + M.step))}, {who: 'n', text: `Новое дело: «${Q.title(j)}».`}); return out; }
   M.at = dayOf(g) + K().LATER; out.push({who: 'a', text: C.mrFill(g, m, hero, LATER[nravOf(m)] || LATER.chestny)}); return out; }};
 C.MR_KIND.q_end = {pick(g, m, hero, P, O) {
@@ -53943,7 +53943,7 @@ SC.w2_rival_tale = g => {
   if (!r || r.end || !T) return {title: 'Дело', bg: 'village', lines: [['n', 'Чужие кони у плетня уже ушли, а с ними — и чужие люди.']], choices: [{t: 'Назад', free: 1, go: 'free_place'}]};
   const tt = T.title || 'дело', lines = [['n', fmt(g, r, cl.t || TX.tale[0], {T: tt})], ['n', pplEnd(g, r, fmt(g, r, pick(g, r, TX.say[r.nrav].tale, 'say_tale'), {T: tt}))]];
   if (cl.say) lines.push(['n', cl.say]);
-  const ch = [], take = (g2, mul, race) => { const T2 = C.TALES[cl.tale]; if (!T2 || Q.active(g2).length >= 4) return false; const j = C.taleJob(g2, T2); if (mul) j.pay = r10(j.pay * mul); Q.accept(g2, j); if (race) j.w2race = r.id; return j; };
+  const ch = [], take = (g2, mul, race) => { const T2 = C.TALES[cl.tale]; if (!T2 || Q.busyN(g2) >= 4) return false; const j = C.taleJob(g2, T2); if (mul) j.pay = r10(j.pay * mul); Q.accept(g2, j); if (race) j.w2race = r.id; return j; };
   const free = g2 => { S(g2).claim = null; };
   ch.push({t: 'Перехватить дело: уговорить хозяина (Очарование, Дипломатия)', nrav: 'l', do: g2 => { const rr = byId(g2, r.id); const x = C.bestCheck(g2, 'cha', 'Дипломатия', 12 + Math.floor(C.rivalLevel(g2, rr) / 2)); g2.lastCheck = x;
     if (x.ok && take(g2)) { free(g2); histAdd(g2, rr, 'talk'); rr.off = Math.min(2, (rr.off || 0) + 1); return end(g2, rr, fmt(g2, rr, 'Хозяин, помявшись, возвращает задаток ватаге. {R} уходит, не прощаясь, — но вы видите, как [он|она] сжимает кулаки.'), 'free_place'); }
@@ -54046,7 +54046,7 @@ C.battleEnd = function (g, Sx, spec) {
         else if (f.k === 'final' && !res.won) { r.wins = (r.wins || 0) + 1; const t = fmt(g, r, pick(g, r, TX.triumph, 'triumph')); finish(g, r, 'triumph'); g.fame = (g.fame || 0) - 1; if (C.alive(g).length) C.note(g, t); }
         else if (res.won) {
           r.losses = (r.losses || 0) + 1; histAdd(g, r, 'lost'); r.off = Math.min(2, (r.off || 0) + (r.losses === 1 ? 1 : 0));
-          if (f.k === 'tale' && f.tale && C.TALES[f.tale] && Q.active(g).length < 4) { const j = C.taleJob(g, C.TALES[f.tale]); Q.accept(g, j); s.claim = null; }
+          if (f.k === 'tale' && f.tale && C.TALES[f.tale] && Q.busyN(g) < 4) { const j = C.taleJob(g, C.TALES[f.tale]); Q.accept(g, j); s.claim = null; }
           const down = r.losses >= 2 || f.k === 'final' || f.k === 'duel' && r.losses >= 1 && (r.meets || 0) >= 3;
           s.after = {id: r.id, k: f.k, down, back: f.back, t: down ? fmt(g, r, pick(g, r, TX.down, 'down')) : fmt(g, r, pick(g, r, TX.fledHe[r.nrav], 'fled'))};
           if (!down) s.next = Math.max(s.next || 0, (g.day || 1) + nextGap(g, r));
@@ -58453,7 +58453,7 @@ SC.wa_capt = g => {
   const fid = C.waFacFriend(g), F = fid && C.FACTIONS[fid];
   if (F) ch.push({t: `Назваться людьми «${F.name}»: пусть выкупают`, do: g2 => { const id = C.waFacFriend(g2), FF = id && C.FACTIONS[id]; if (!FF) return 'wa_capt'; C.pass(g2, 4 * 2);
     let job = null;
-    try { const T = (C.facJobsOpen ? C.facJobsOpen(g2, id) : [])[0]; if (T && Q && Q.active(g2).length < 4) { job = C.taleJob(g2, T); job.pay = 0; job.waDebt = 1; Q.accept(g2, job); } } catch (x) { job = null; }
+    try { const T = (C.facJobsOpen ? C.facJobsOpen(g2, id) : [])[0]; if (T && Q && Q.busyN(g2) < 4) { job = C.taleJob(g2, T); job.pay = 0; job.waDebt = 1; Q.accept(g2, job); } } catch (x) { job = null; }
     if (!job) C.waDebtAdd(g2, {to: `«${FF.name}»`, kind: 'fac', fac: id, sum: ransomSum(g2)});
     return captFree(g2, `Вожак долго торгуется с посланцем «${FF.name}». Наконец вас отпускают и отдают добро. ${job ? 'Долг отработаете делом: за него вам не заплатят ни гроша.' : 'Серебро за выкуп придётся вернуть.'}`, true); }});
   const rs = C.waRescuer(g);
@@ -71367,7 +71367,7 @@ SC.tw_talk = g => {
     talkLine(X, 'o', r ? r.replace(/^«|»$/g, '') : pickH(TX.talk.rumorNo, X.name + g2.day)); return 'tw_talk'; }});
   if (!T.job && T.k !== 'guard') ch.push({t: TX.talk.job, do: g2 => { const X = g2.twalk.talk; X.job = 1; talkLine(X, 'h', TX.talk.job); let offers = []; try { offers = Q.board(g2) || []; } catch (e) {}
     // дело даёт не тот, с кем говоришь, — он сводит с нужным человеком (Ник 25.11)
-    if (offers.length && Q.active(g2).length < 4) { const j0 = offers[0]; let gv = ''; try { gv = Q.giverName ? Q.giverName(j0) : ''; } catch (e) {} X.jobRef = j0.id; X.jobRefN = gv;
+    if (offers.length && Q.busyN(g2) < 4) { const j0 = offers[0]; let gv = ''; try { gv = Q.giverName ? Q.giverName(j0) : ''; } catch (e) {} X.jobRef = j0.id; X.jobRefN = gv;
       talkLine(X, 'o', gv ? `Мне-то помощь не нужна. А вот ${gv}${gv.includes(',') ? ',' : ''} людей ищет — сходи, скажи, что от меня.` : TX.talk.jobYes); return 'tw_talk'; }
     talkLine(X, 'o', TX.talk.jobNo); return 'tw_talk'; }});
   if (T.jobRef) ch.push({t: T.jobRefN ? `Отыскать: ${T.jobRefN}` : 'Отыскать того человека', do: g2 => { const X = g2.twalk.talk; g2.jobOffer = X.jobRef; g2.jobFrom = 'town'; delete X.jobRef; return 'q_offer'; }});
@@ -80006,18 +80006,23 @@ if (B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(
 const R = G.R, C = G.C, Q = C && C.Q;
 if (!R || !C || !Q) return;
 const QT = C.QT = C.QT || {T: {}};
-QT.P = Object.assign({START: 0.45, OPEN: 2, KEEP: 9}, QT.P || {});
+const QP = () => QT.P;
+/* Ник 27.11: время почти не давит — главное разгадать историю; нитей можно вести несколько, у них свои слоты */
+QT.P = Object.assign({START: 0.5, OPEN: 3, KEEP: 9, DAYS: 180}, QT.P || {});
+QT.D = {};
 const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
 const arr = x => Array.isArray(x) ? x : [x];
 const call = (f, c) => typeof f === 'function' ? f(c) : f;
 const pickT = (g, L, salt) => { L = arr(L); return L.length < 2 ? L[0] : L[(g.day * 7 + (salt || 0)) % L.length]; };
 QT.st = g => (g.threads = g.threads || {});
-QT.def = t => QT.T[String(t.tid).split('#')[0]];
+QT.defOf = (tid, gen) => gen ? (QT.D[tid] || (QT.GEN && (QT.D[tid] = QT.GEN.build(gen)))) : QT.T[String(tid).split('#')[0]];
+QT.def = t => QT.defOf(t.tid, t.gen);
 QT.ctx = (g, t) => Object.assign({}, t.cast, {f: t.f, at: t.at || '', g, t});
 /* имя села в падежах: «в Ольшанке», «из Ольшанки», «к Ольшанке» */
 QT.atF = c => { const n = (c.t && c.t.atName) || ''; if (!n) return null; return Q.decl(n, /[ая]$/.test(n) ? 'f' : 'm'); };
 QT.inAt = c => { const f = QT.atF(c); return f ? 'в ' + f.p : 'в селе'; };
 QT.fromAt = c => { const f = QT.atF(c); return f ? 'из ' + f.g : 'из села'; };
+QT.intoAt = c => { const f = QT.atF(c); return f ? 'в ' + f.a : 'в село'; };
 QT.toAt = c => { const f = QT.atF(c); return f ? 'к ' + f.d : 'к селу'; };
 QT.nodeName = (g, at) => { try { const n = C.CAMPS[g.camp].map.nodes[at]; return n ? n.name : ''; } catch (e) { return ''; } };
 /* люди нити: имя по роли, без повторов; fixed — имя задано нитью */
@@ -80041,11 +80046,11 @@ QT.make = function (g, t, sid) {
   ['giver', 'vic', 'wit', 'rcp'].forEach(k => { const ck = S[k === 'giver' ? 'giver' : k]; if (ck && t.cast[ck]) j.v[k] = t.cast[ck]; });
   if (S.item) j.v.item = call(S.item, c);
   j.pay = Math.round(j.pay * (S.pay == null ? 1 : S.pay) / 10) * 10; if (j.bonus) { j.pay -= j.bonus; j.bonus = 0; }
-  if (S.days) j.dl = g.day + S.days;
-  j.thread = {tid: t.tid, sid}; j.node = t.at; if (typeof S.title === 'function') j.qtTitle = S.title(c); j.twist = null; j.txt = {payKey: 'town'};
+  j.dl = g.day + QP().DAYS; j.src = 'road';
+  j.thread = {tid: t.tid, sid}; if (t.gen) j.thread.gen = t.gen; j.node = t.at; if (typeof S.title === 'function') j.qtTitle = S.title(c); j.twist = null; j.txt = {payKey: 'town'};
   return j;
 };
-QT.stepOf = j => { if (!j || !j.thread) return null; const t = j.thread, T = QT.T[String(t.tid).split('#')[0]]; return T && T.steps[t.sid] ? {T, S: T.steps[t.sid]} : null; };
+QT.stepOf = j => { if (!j || !j.thread) return null; const t = j.thread, T = QT.defOf(t.tid, t.gen); return T && T.steps[t.sid] ? {T, S: T.steps[t.sid]} : null; };
 QT.of = (g, j) => QT.st(g)[j.thread.tid];
 
 /* враги нитей: стража дознавателя, водяная нечисть, серые. В обычные дела не попадают (вес 0) */
@@ -80069,7 +80074,8 @@ Q.offerLines = function (g, j) {
   if (x.S.ask) L.push([j.v.giver.n, '«' + call(x.S.ask, c) + '»']);
   const days = Math.max(1, j.dl - g.day), pays = Q.TXT.PAY.town;
   const pf = pays[(j.hook || 0) % pays.length], df = Q.TXT.DEADLINE[(j.hook || 0) % Q.TXT.DEADLINE.length];
-  L.push([j.v.giver.n, '«' + (typeof pf === 'function' ? pf(R.priceText(j.payBase || j.pay)) : pf) + ' ' + (x.S.when ? call(x.S.when, c) : typeof df === 'function' ? df(days) : df) + '»']);
+  const dl = x.S.when ? call(x.S.when, c) : days <= 30 ? (typeof df === 'function' ? df(days) : df) : '';
+  if (j.pay) L.push([j.v.giver.n, '«' + (typeof pf === 'function' ? pf(R.priceText(j.payBase || j.pay)) : pf) + (dl ? ' ' + dl : '') + '»']);
   if (j.site) L.push(['n', 'Место, куда идти, вы отмечаете на карте.']);
   return L;
 };
@@ -80122,9 +80128,11 @@ QT.after = function (g, t, j, E, c) {
   t.log.push({sid: j.thread.sid, end: j.thread.end, ok: ok ? 1 : 0, day: g.day});
   if (E.log) { const line = call(E.log, c); C.note(g, line); if (g.chron) g.chron.threads = (g.chron.threads || []).concat({t: QT.def(t).title, line, day: g.day}).slice(-40); }
   try { const gv = t.cast[(QT.def(t).steps[j.thread.sid] || {}).giver]; if (gv && gv.rid) { g.tf = g.tf || {}; const A = g.tf[g.camp + '|' + t.at] = g.tf[g.camp + '|' + t.at] || {}; const r = A[gv.rid] = A[gv.rid] || {rel: 0, met: 0}; r.met = r.met || g.day; r.rel = Math.max(0, Math.min(100, r.rel + (E.rel != null ? E.rel : ok ? 20 : 8))); } } catch (e) {}
-  if (E.rep) j.repText = [call(E.rep[0], c), call(E.rep[1], c)];
+  const rp = ok ? E.rep : (E.badRep || E.rep); if (rp) j.repText = [call(rp[0], c), call(rp[1], c)];
   const nx = arr((ok ? E.next : (E.badNext || E.next)) || []).filter(Boolean);
-  nx.forEach(n => t.pending.push({sid: n.s, due: g.day + (n.d || 3), via: n.via || 'mail', from: n.from}));
+  /* следующее звено — сразу, своим слотом (Ник 27.11: «выполненное задание сразу создаёт следующее») */
+  t.fresh = null;
+  nx.forEach(n => { try { const jn = QT.make(g, t, n.s); Q.accept(g, jn); t.fresh = jn.id; t.freshFrom = j.id; } catch (e) { t.pending.push({sid: n.s, due: g.day, via: n.via || 'meet', from: n.from}); } });
   if (!nx.length && !t.pending.length && !t.ready.length) { t.status = 'done'; if (E.end !== false) C.note(g, `Нить «${QT.def(t).title}» завершена.`); }
 };
 /* просрочка звена — тоже исход */
@@ -80142,7 +80150,7 @@ Q.tick = function (g) {
 /* хвосты: грамотка, слух или человек ищет вас */
 QT.deliver = function (g) {
   Object.values(QT.st(g)).forEach(t => {
-    if (t.status === 'offer' && g.day - t.day > QP().KEEP) { delete QT.st(g)[t.tid]; return; }
+    if (t.status === 'offer' && g.day - t.day > QP().KEEP) { try { if (t.gen) { Object.keys(g.qtUsed || {}).forEach(k => { if (g.qtUsed[k] === t.tid) delete g.qtUsed[k]; }); QT.away(g, t, 'zh', false); } } catch (e) {} delete QT.st(g)[t.tid]; return; }
     if (t.status !== 'on' || !t.pending.length) return;
     const due = t.pending.filter(p => g.day >= p.due); if (!due.length) return;
     t.pending = t.pending.filter(p => g.day < p.due);
@@ -80154,7 +80162,6 @@ QT.deliver = function (g) {
     });
   });
 };
-const QP = () => QT.P;
 /* где взять звено: заказчик сам ищет отряд — первым в селе и на доске */
 QT.offersAt = function (g, at) {
   const out = [];
@@ -80204,7 +80211,9 @@ Q.board = function (g) {
   try {
     if (!b.qt && offers.length && QT.open(g).length < QP().OPEN && R.rand() < QP().START) { b.qt = 1;
       const cand = Object.values(QT.T).filter(T => QT.canStart(g, T) && (!T.where || T.where(g, g.loc)));
-      if (cand.length) { const T = R.pick(cand), t = QT.start(g, T, g.loc); t.offer = QT.make(g, t, T.start); }
+      const waiting = Object.values(QT.st(g)).some(t => t.status === 'offer' && t.at === g.loc && t.camp === g.camp && !QT.def(t).manual);
+      if (!waiting) { if (cand.length && (R.rand() < 0.35 || !QT.GEN)) { const T = R.pick(cand), t = QT.start(g, T, g.loc); t.offer = QT.make(g, t, T.start); }
+        else if (QT.GEN) QT.GEN.start(g, g.loc); }
     }
     b.qt = 1;
     b.offers = QT.offersAt(g, g.loc).concat(b.offers.filter(o => !o.thread));
@@ -80231,8 +80240,33 @@ Q.inject = function (g, sceneId, choices) {
   } catch (e) {}
   return out;
 };
+/* ---------- «Что дальше»: звено закрыто — следующее уже на руках, рассказываем его сразу ---------- */
+QT.SC = {
+  qt_next: g => {
+    const t = Object.values(QT.st(g)).find(x => x.fresh && x.freshFrom === g.curJob) || Object.values(QT.st(g)).find(x => x.fresh === g.qtNext);
+    const j = t && Q.byId(g, t.fresh); if (!j) return {title: 'Дальше', bg: 'road', lines: [['n', 'Нить пока молчит.']], choices: [{t: 'Дальше', go: 'map'}]};
+    const prev = (g.jobs || []).find(x => x.id === t.freshFrom), L = [];
+    if (prev && prev.repText) { L.push(['n', prev.repText[0]]); L.push([prev.v.giver.n, '«' + prev.repText[1] + '»']); }
+    L.push(['n', `— ${Q.title(j)} —`]);
+    Q.offerLines(g, j).forEach(l => L.push(l));
+    L.push(['n', 'Дело записано в нити — браться можно когда угодно, спешить некуда. Важно не когда, а как.']);
+    return {title: Q.title(j), bg: 'village', lines: L, choices: [{t: 'Дальше', do: g2 => { g2.qtNext = null; return (W() && W().isHex(g2)) || !g2.jobFrom ? 'map' : 'map'; }}]};
+  },
+};
+const W = () => G.W;
+Object.values(C.CAMPS || {}).forEach(cp => { if (cp && cp.scenes) Object.assign(cp.scenes, QT.SC); });
+if (C.register) { const rg0 = C.register; C.register = function (camp) { const r = rg0.apply(this, arguments); try { Object.assign((C.CAMPS[camp.id] || camp).scenes, QT.SC); } catch (e) {} return r; }; }
+if (C.sceneOf) { const so0 = C.sceneOf; C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try { if (sc && (id === 'q_done' || id === 'q_win') && g.curJob) { const t = Object.values(QT.st(g)).find(x => x.fresh && x.freshFrom === g.curJob);
+      if (t) { const jn = Q.byId(g, t.fresh); const i = sc.choices.length ? Math.max(...sc.choices.map(c => c.i || 0)) + 1 : 0;
+        sc.choices.unshift({i, label: `Что дальше: ${Q.title(jn)}`, t: `Что дальше: ${Q.title(jn)}`, do: () => 'qt_next'}); } } } catch (e) {}
+  return sc; }; }
+/* кого увели или кто пропал — того нет на улице, пока нить не вернёт */
+if (C.tfHere) { const th0 = C.tfHere; C.tfHere = function (g) { const r = th0.apply(this, arguments); try { const A = g.qtAway || {}; return r.filter(p => !A[g.camp + '|' + g.loc + '|' + p.id]); } catch (e) { return r; } }; }
+QT.away = (g, t, k, on) => { const p = t.cast[k]; if (!p || !p.rid) return; g.qtAway = g.qtAway || {}; const key = g.camp + '|' + t.at + '|' + p.rid; if (on) g.qtAway[key] = 1; else delete g.qtAway[key]; };
 /* летопись нитей — для свитка и проверок */
-QT.story = (g, tid) => { const t = QT.st(g)[tid]; if (!t) return []; const T = QT.def(t); return t.log.map(l => ({step: (T.steps[l.sid] || {}).title || T.title, end: l.end >= 0 ? call(T.steps[l.sid].ends[l.end].t, QT.ctx(g, t)) : 'не успели', ok: l.ok})); };
+QT.story = (g, tid) => { const t = QT.st(g)[tid]; if (!t) return []; const T = QT.def(t); return t.log.map(l => ({step: call((T.steps[l.sid] || {}).title, QT.ctx(g, t)) || T.title, end: l.end >= 0 ? call(T.steps[l.sid].ends[l.end].t, QT.ctx(g, t)) : 'не успели', ok: l.ok})); };
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
@@ -80781,5 +80815,348 @@ if (C.folkMakeJob) { const mk0 = C.folkMakeJob;
     } catch (e) {}
     return j;
   }; }
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* qt_gen.js */
+/* Колдовство — генератор нитей (Ник 27.11: «универсальный генератор: ты как ГМ тайно строишь историю и её исходы, но продумываешь цепочки»;
+   «важен смысл разгадывания и прохождения истории, а не тайминг»; «нарративу уделить внимание»).
+   Как работает ГМ:
+   1. Берёт настоящих жителей села (общая база town_folk): жертву, предателя, того, кто просит помощи, свидетеля.
+   2. Тайно решает правду: беда (что случилось) × мотив (почему предал) × хозяин (кто стоит за предателем) × родство (кем приходятся).
+   3. Строит граф из семи звеньев: «Беда» → три пути («Ответ», «Цена молчания», «Совесть») → три развязки («Хозяин», «Суд», «Расплата»).
+      Игрок видит только то, до чего докопался: улики, слова людей, поворот. Правда открывается по кускам.
+   4. Каждое звено закрывается выбором, и выбор сразу открывает следующее звено. Сроки — полгода: главное разгадать, а не успеть.
+   Тексты собраны из авторских кусков с падежами и родом; у каждого человека свой голос. Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q, QT = C && C.QT;
+if (!QT || !Q) return;
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const v = (p, m, f) => p && p.sex === 'f' ? f : m;          // род: v(p, 'пришёл', 'пришла')
+const a = p => v(p, '', 'а');                               // окончание прошедшего: ушёл/ушла → уш{ёл}: пишем «ушёл» вручную, a() — для «пропал{а}»
+const nego = p => v(p, 'него', 'неё'), nemu = p => v(p, 'нему', 'ней'), nim = p => v(p, 'ним', 'ней');
+const on = p => v(p, 'он', 'она'), ego = p => v(p, 'его', 'её'), emu = p => v(p, 'ему', 'ей'), nem = p => v(p, 'нём', 'ней'), im = p => v(p, 'им', 'ей');
+const hsh = s => { let h = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const pk = (c, L, salt) => L[hsh((c.t && c.t.tid) + (salt || '')) % L.length];
+
+/* ============ БЕДЫ: что случилось на виду у всех ============ */
+const I = {
+  propal: {deedPl: c => `заманили ${c.zh.a} на гарь и заперли в смолокурне`, title: c => `Где ${c.zh.n}?`, away: 1, kind: 'missing', thr: ['bandits', 'wolves'], stages: ['tracks', 'witness'], place: c => ({n: 'старая гарь за выгоном', at: 'на старой гари за выгоном'}),
+    open: c => `${cap(QT.inAt(c))} третий день ищут ${c.zh.a}. Мужики ходили с собаками в лес, бабы гадали на воске, ребятня лазила по оврагам. Нашли только ${v(c.zh, 'шапку', 'платок')} у брода — сухой, аккуратно сложенный, будто положили нарочно.`,
+    plea: c => `«${c.zh.n} — ${c.dvRel} ${v(c.dv, 'мой', 'моя')}. ${cap(on(c.zh))} не из тех, кто уходит, не сказавшись. Все говорят — волки. А я волков знаю: волки платков не складывают»`,
+    talk: c => `«Леший увёл, — уверенно говорит ${c.sv.n}, ${c.sv.t}. — В ночь перед тем над гарью огоньки ходили. Я сам${a(c.sv)} видел${a(c.sv)}»`,
+    deed: c => `заманил${a(c.pr)} ${c.zh.a} на гарь и запер${v(c.pr, '', 'ла')} в старой смолокурне`,
+    clue1: c => `На гари, у развалин смолокурни, трава примята, а на двери — новый замок. Старый, ржавый, валяется рядом, сбитый. Замок купленный, городской, с клеймом: такие продают на торгу, и покупали его недавно.`,
+    clue2: c => `${c.sv.n} вдруг вспоминает: «Огоньки-то огоньками… а утром у брода я ${c.pr.a} видел${a(c.sv)}. Сапоги мокрые до колен, а дождя не было»`,
+    found: c => `За новым замком, в смолокурне, на куче старой коры сидит ${c.zh.n} — живой, но худой и чёрный от сажи.`},
+  pozhar: {deedPl: c => `подожгли овин ${c.zh.g}`, title: c => `Чей огонь`, kind: 'peace', thr: 'bandits', stages: ['crowd', 'witness'], place: c => ({n: 'пепелище на дворе', at: 'у пепелища'}),
+    open: c => `${cap(QT.inAt(c))} ещё пахнет гарью. Ночью сгорел овин ${c.zh.g} — со всем зерном, что ${on(c.zh)} засыпал${a(c.zh)} на зиму. Головешки ещё тлеют, бабы носят воду вёдрами, хотя тушить уже нечего.`,
+    plea: c => `«${c.zh.n} ходит по пепелищу и молчит. Третий час молчит. Это не молния была — небо чистое стояло. Узнайте, кто. Я ${c.dvRel} ${ego(c.zh)}, мне можно спрашивать»`,
+    talk: c => `«Сам${a(c.zh)} и сжёг${v(c.zh, '', 'ла')}, — шепчет ${c.sv.n}, ${c.sv.t}. — Лучину в овине оставил${a(c.zh)}. Сам${a(c.zh)} виноват${a(c.zh)}, а теперь чужих ищет»`,
+    deed: c => `поджёг${v(c.pr, '', 'ла')} овин ${c.zh.g}`,
+    clue1: c => `На пепелище, у задней стены, куда ветер не доставал, — черепок горшка, а в нём застывшая смола с паклей. Лучиной так не жгут. Так жгут, когда хотят, чтобы занялось наверняка.`,
+    clue2: c => `${c.sv.n} мнёт передник: «Ну… ночью-то собаки лаяли у ${c.pr.g}. А у ${c.pr.g} собаки на своих не лают. Только мне что, я не видел${a(c.sv)} ничего»`,
+    found: c => ``},
+  kolodets: {deedPl: c => `бросили в колодец волчий корень`, title: c => `Горький колодец`, kind: 'cure', thr: 'bandits', stages: ['sick', 'witness'], place: c => ({n: 'колодец на дворе', at: 'у колодца'}),
+    open: c => `У колодца на дворе ${c.zh.g} никого нет, и ведро валяется на боку. Третий день, кто пьёт оттуда, ложится с горячкой. Двое детей уже в жару. Говорят, вода стала горькой, как полынь.`,
+    plea: c => `«Люди шепчутся — ${c.zh.n} колдует, мол, ${v(c.zh, 'его', 'её')} колодец, ${v(c.zh, 'его', 'её')} и порча. А ${c.zh.n} сам${a(c.zh)} из того колодца пил${a(c.zh)} и слёг${v(c.zh, '', 'ла')}. Найдите, кто это сделал, пока ${ego(c.zh)} не сожгли вместе с колодцем»`,
+    talk: c => `«Ведьмин колодец, — машет рукой ${c.sv.n}, ${c.sv.t}. — Я давно говорил${a(c.sv)}: не к добру ${on(c.zh)} по ночам за водой ходит»`,
+    deed: c => `бросил${a(c.pr)} в колодец ${c.zh.g} мешок с волчьим корнем`,
+    clue1: c => `Колодец вычерпали до ила. На дне — холщовый мешочек, развязанный, а в нём остатки корней. Знахарка узнаёт сразу: волчий корень. На мешке вышита метка — такими метят мешки на мельнице, чтобы не путать зерно соседей.`,
+    clue2: c => `${c.sv.n} вспоминает неохотно: «Мешки с меткой… такие у ${c.pr.g} есть. ${cap(on(c.pr))} на мельнице мелет, все знают»`,
+    found: c => ``},
+  skot: {deedPl: c => `потравили скотину ${c.zh.g}`, title: c => `Падёж на дворе`, kind: 'peace', thr: 'wolves', stages: ['blight', 'tracks'], place: c => ({n: 'выгон', at: 'на выгоне'}),
+    open: c => `На выгоне лежат три коровы ${c.zh.g}, раздутые, с пеной на губах. Четвёртая стоит, шатаясь. Пастух божится, что паслись, как всегда, и ничего чужого не ели.`,
+    plea: c => `«Это всё, что у ${nego(c.zh)} было. ${c.zh.n} теперь зиму не переживёт — ни молока, ни мяса, ни на торг. Узнайте, что это. Если мор — так и скажите. А если не мор…»`,
+    talk: c => `«Мор идёт, — качает головой ${c.sv.n}, ${c.sv.t}. — За рекой, говорят, тоже падёж. Божий гнев, не иначе»`,
+    deed: c => `подсыпал${a(c.pr)} коровам ${c.zh.g} в пойло болиголов`,
+    clue1: c => `У поилки на выгоне трава вытоптана, а в корыте на дне — зелёная кашица. Пахнет мышами. Болиголов. Его не жуют коровы сами: его кто-то натолок и подмешал.`,
+    clue2: c => `Следы от поилки ведут через межу — прямо к плетню ${c.pr.g}. Лапти, и левый стоптан внутрь: так ходит только ${c.pr.n}.`,
+    found: c => ``},
+  kazna: {deedPl: c => `украли общинный ларец`, title: c => `Пустой ларец`, kind: 'peace', thr: 'bandits', stages: ['tracks', 'locked'], place: c => ({n: 'изба старосты', at: 'у избы старосты', in: 1}),
+    open: c => `Ночью из избы старосты пропал ларец с общинным серебром — то, что всем селом копили на подать. Утром ларец нашли пустым в сарае у ${c.zh.g}. Теперь ${c.zh.n} сидит запертый${v(c.zh, '', 'ая')} в бане, а у бани стоят мужики с кольями.`,
+    plea: c => `«${cap(on(c.zh))} не брал${a(c.zh)}! Кто ворует, тот ларец у себя в сарае не бросает. Его подкинули. Найдите, кто, — до схода, а то сход решит по-своему»`,
+    talk: c => `«А чего искать, — сплёвывает ${c.sv.n}, ${c.sv.t}. — Ларец у ${nego(c.zh)} в сарае. Чего тут ещё надо?»`,
+    deed: c => `украл${a(c.pr)} общинный ларец и подкинул${a(c.pr)} его в сарай к ${c.zh.d}`,
+    clue1: c => `Замок на сарае ${c.zh.g} не сломан — открыт ключом. Ключ от сарая висит у ${c.zh.g} на гвозде в сенях, и висел там всегда. Взять его мог тот, кто бывает в доме запросто. Свой.`,
+    clue2: c => `В избе старосты, под лавкой, — серебряная монета, расплющенная, будто на неё наступили. И отпечаток лаптя — с заплатой на пятке. ${c.sv.n} видит его и бледнеет: такие заплаты кладёт только одна мастерица ${QT.inAt(c)} — и кладёт она их ${c.pr.d}.`,
+    found: c => ``},
+  donos: {deedPl: c => `написали донос на ${c.zh.a}`, title: c => `Донос`, away: 1, kind: 'peace', thr: 'oko_guard', stages: ['witness', 'locked'], place: c => ({n: 'двор старосты, где стоит стража Ока', at: 'у двора старосты'}),
+    open: c => `Утром ${QT.intoAt(c)} приехали двое стражей Ока и увели ${c.zh.a}. Не били, не кричали — показали бумагу с печатью: «по доносу о ведовстве». Дознаватель приедет через седмицу. До того ${c.zh.n} будет сидеть в погребе у старосты.`,
+    plea: c => `«${c.zh.n} — ведьм${v(c.zh, 'ак', 'а')}? ${cap(on(c.zh))} травы от кашля собирает, вот и всё ведовство. Кто-то написал на ${nego(c.zh)}. Узнайте кто. Пока дознаватель не приехал»`,
+    talk: c => `«Значит, было за что, — пожимает плечами ${c.sv.n}, ${c.sv.t}. — Око зря не берёт»`,
+    deed: c => `написал${a(c.pr)} на ${c.zh.a} донос Оку`,
+    clue1: c => `Стражник за медяк показывает бумагу. Донос написан не писарем — рука корявая, буквы скачут, «ведовство» написано через «ять». Так пишут те, кого учили грамоте на бересте у старого гусляра. Таких ${QT.inAt(c)} трое.`,
+    clue2: c => `В погребе ${c.zh.n} шепчет через решётку: «Про травы знали только свои. Я ${c.pr.d} отвар носил${a(c.zh)}, когда у ${nego(c.pr)} дитя кашляло»`,
+    found: c => ``},
+};
+/* ============ МОТИВЫ: почему свой предал своего ============ */
+const M = {
+  zemlya: {fit: ['tiun', 'tihie'],
+    why: c => `${c.pr.n} давно глядит на надел ${c.zh.g} у реки — лучшую землю ${QT.inAt(c)}. Если ${c.zh.n} пропадёт, сопьётся или пойдёт под суд, надел достанется ${c.pr.d}: ${c.rel} — первая родня по старому счёту.`,
+    voice: c => `«Земля должна быть у того, кто на ней пашет! ${c.zh.n} её запустил${a(c.zh)}, бурьян по пояс, а я десять лет на чужом спину гну»`,
+    voice2: c => `«Я не хотел${a(c.pr)} так. Я хотел${a(c.pr)} землю. А вышло вон как»`},
+  revnost: {fit: ['tihie', 'oko'],
+    why: c => `${c.pr.n} всю жизнь ${v(c.pr, 'был', 'была')} при ${c.zh.p} ${v(c.pr, 'вторым', 'второй')}: ${c.zh.n} — любим${v(c.zh, 'ец', 'ица')} родни, первый голос на сходе, первое место за столом. Зависть копилась годами, как вода за запрудой. Прорвало.`,
+    voice: c => `«Ты не знаешь, каково это — всю жизнь слышать: "а вот ${c.zh.n}…" Всю жизнь! Хоть раз бы на меня так посмотрели. Хоть раз!»`,
+    voice2: c => `«Пусть бы ${on(c.zh)} просто ${v(c.zh, 'уехал', 'уехала')}. Я не ${v(c.pr, 'хотел', 'хотела')} беды. Я ${v(c.pr, 'хотел', 'хотела')}, чтоб ${ego(c.zh)} не было рядом. Хоть немного»`},
+  dolg: {fit: ['tihie', 'tiun'],
+    why: c => `${c.pr.n} ${v(c.pr, 'должен', 'должна')} ${c.zh.d} сорок гривен — давно, с неурожайного года. ${c.zh.n} не торопил${a(c.zh)}, но долг есть долг, и записан при свидетелях. А у ${c.pr.g} ещё и долг тихим людям, и тихие ждать не любят.`,
+    voice: c => `«Сорок гривен! У меня их нет и не будет. А тихие сказали: или к Купале, или пальцы. Что мне было делать?»`,
+    voice2: c => `«Я ${v(c.pr, 'думал', 'думала')}: нет человека — нет и долга. Глупость. Я знаю, что глупость»`},
+  strah: {fit: ['oko', 'serye'],
+    why: c => `Имя ${c.pr.g} было в списке у дознавателя — за купальский костёр. Отпустили, когда ${on(c.pr)} назвал${a(c.pr)} другое имя. Второй раз пришли — потребовали ещё. ${c.pr.n} ${v(c.pr, 'отдал', 'отдала')} ${c.zh.a}, чтобы ${v(c.pr, 'самому', 'самой')} остаться ${v(c.pr, 'чистым', 'чистой')}.`,
+    voice: c => `«У меня дети! Если бы я не назвал${a(c.pr)}… Ты знаешь, что они делают с теми, кто в списке? Ты видел${a(c.pr)}?»`,
+    voice2: c => `«Я каждую ночь вижу этот список. Своё имя в нём. Лучше бы я сам${a(c.pr)} туда ${v(c.pr, 'пошёл', 'пошла')}»`},
+  obida: {fit: ['tihie', 'tiun', 'oko', 'serye'], grey: 1,
+    why: c => `Двадцать лет назад ${c.zh.n} обманом ${v(c.zh, 'забрал', 'забрала')} у семьи ${c.pr.g} покос — ${v(c.zh, 'подкупил', 'подкупила')} межевого. Отец ${c.pr.g} от того и запил. ${cap(QT.inAt(c))} это давно забыли. ${c.pr.n} — нет.`,
+    voice: c => `«А ты спроси ${ego(c.zh)}, как ${on(c.zh)} нашу землю брал${a(c.zh)}! Спроси! Пусть при всех расскажет, как отец мой в канаве замёрз»`,
+    voice2: c => `«Я двадцать лет ждал${a(c.pr)}. И что теперь? Отец не воскреснет. А я — вот»`},
+};
+/* ============ ХОЗЯЕВА: кто стоит за предателем ============ */
+const P = {
+  tihie: {role: 'тихий человек', ppl: 'nolgrim', thr: 'bandits', lair: 'дом с закрытыми ставнями за торгом',
+    who: c => `${c.hz.n}, тихий человек`, want: c => `Тихим нужна не земля и не месть. Им нужны должники: кто раз задолжал, тот потом носит, прячет и молчит. Через ${c.pr.a} ${c.hz.n} держит ${QT.inAt(c)} половину дворов.`,
+    hint: c => `У ${c.pr.g} в сундуке — свинцовая бляха с дыркой: знак тихих людей. Так метят своих должников.`,
+    came: c => `К вечеру у околицы — трое верховых. Не разбойники: одеты чисто, оружие под плащами. Впереди ${c.hz.n}. Тихие пришли за своим.`,
+    talk: c => `«Мы не воюем с сёлами, — улыбается ${c.hz.n}. — Мы ведём счёт. ${c.pr.n} нам должен. Отдайте ${ego(c.pr)} — и уедем. Не отдадите — запишем долг на всё село»`},
+  tiun: {role: 'боярский тиун', ppl: 'nolgrim', thr: 'deserters', lair: 'боярский двор на холме',
+    who: c => `${c.hz.n}, тиун боярина`, want: c => `Боярин хочет прирезать к своей вотчине землю ${QT.atF(c) ? QT.atF(c).g : 'села'} — вольное село, где никто ему не кланяется. Нужен повод: недоимка, смута, свара. ${c.hz.n} нашёл, кому заплатить за свару.`,
+    hint: c => `У ${c.pr.g} под половицей — серебро, новенькое, с боярским клеймом. Пахарь таких денег за год не видит.`,
+    came: c => `К обеду на дороге — дюжина боярских людей с топорами и вилами. Впереди на сером мерине ${c.hz.n}, тиун. «Смута у вас, слыхал. Боярин наведёт порядок»`,
+    talk: c => `«Село, где свои на своих доносят, — разве ж это село? — ${c.hz.n} разводит руками. — Под боярином будет тихо. Подпишите — и живите»`},
+  oko: {role: 'дознаватель Ока', ppl: 'imperets', thr: 'oko_guard', lair: 'храмовый двор в городе',
+    who: c => `${c.hz.n}, дознаватель Ока`, want: c => `Дознавателю нужны имена для списка — каждый месяц, сколько велено. Чем больше «ведьм» в списке, тем выше он в Палате. ${c.pr.n} — его ухо ${QT.inAt(c)}: кормит списками, а за это сам в список не попадает.`,
+    hint: c => `У ${c.pr.g} за божницей — медная звезда о восьми лучах, тяжёлая, храмовая. Простым людям такие не дают — только тем, кто служит Оку ушами.`,
+    came: c => `К вечеру на площадь въезжает ${c.hz.n}, дознаватель, а с ним шесть стражей и писарь со свитком. «Свет видит. Мне донесли, что здесь укрывают ведовство»`,
+    talk: c => `«Я не враг вашему селу, — говорит ${c.hz.n} устало. — Мне нужно, чтобы в списке было имя. Чьё — решайте сами»`},
+  serye: {role: 'человек в сером', ppl: 'imperets', thr: 'serye', lair: 'постоялый двор на тракте',
+    who: c => `${c.hz.n}, человек в сером`, want: c => `Серые собирают старую силу — пепел капищ, воду из омутов, травниц и ведунов. Им нужно, чтобы ${QT.inAt(c)} кого-нибудь взяли «за ведовство»: живая травница стоит дороже мешка пепла. ${c.pr.n} у них на крючке.`,
+    hint: c => `У ${c.pr.g} в котомке — перстень без герба, а на печатке — круг без зрачка. Серые так платят: не серебром, а перстнем, который потом не снять.`,
+    came: c => `Ночью у колодца стоит человек в сером плаще. Никто не видел, как он пришёл. ${c.hz.n}. За его спиной в темноте ещё трое.`,
+    talk: c => `«Мне нужен один человек, — говорит ${c.hz.n} тихо. — Не ${c.pr.n}. Кто-нибудь, кто знает травы. Отдайте — и всё забудется»`},
+};
+/* родство: кем предатель приходится жертве (по полу обоих) */
+const REL = {mm: ['брат', 'кум', 'сосед', 'побратим'], ff: ['сестра', 'кума', 'соседка', 'подруга'], mf: ['кум', 'сосед', 'деверь'], fm: ['кума', 'соседка', 'невестка']};
+/* кто просит помощи: родня жертвы */
+const DV = p => p.sex === 'f' ? (p.age === 'old' ? 'мать' : p.age === 'young' ? 'дочь' : 'сестра') : (p.age === 'old' ? 'отец' : p.age === 'young' ? 'сын' : 'брат');
+
+/* ============ сборка нити по тайному замыслу ============ */
+QT.GEN = {I, M, P};
+QT.GEN.build = function (gen) {
+  const B = I[gen.i] || I.pozhar, Mo = M[gen.m] || M.zemlya, Pa = P[gen.p] || P.tihie;
+  const X = c => Object.assign(c, {rel: gen.rel, dvRel: gen.dvRel});
+  const T = {id: 'gen', title: '', steps: {}, gen: 1};
+  T.title = gen.title || 'Нить';
+  const S = T.steps;
+/* ---------- 1. Беда ---------- */
+  S.s1 = {title: c => B.title(X(c)), giver: 'dv', vic: 'zh', wit: 'sv', kind: B.kind, thr: B.thr, stages: B.stages, place: c => B.place(X(c)), pay: 0.9,
+    hook: c => { X(c); return [['n', B.open(c)], ['dv', B.plea(c)], ['sv', B.talk(c)]]; },
+    ask: c => { X(c); return pk(c, [`Я заплачу. И ещё: если это кто-то из наших — скажите сперва мне. Я ${QT.inAt(c)} ${v(c.dv, 'родился', 'родилась')}, мне тут жить.`, `Платить мне есть чем. А правду — правду я сам${a(c.dv)} решу, кому говорить.`, `Только не верьте всему, что болтают у колодца. Тут каждый своё помнит.`], 'ask'); },
+    call: c => B.title(X(c)),
+    clues: [c => B.clue1(X(c)), c => B.clue2(X(c))],
+    twist: c => { X(c); const f = B.found(c); return `${f ? f + ' ' : ''}Всё сходится на одном человеке: ${c.pr.n}, ${c.pr.t}, ${c.rel} ${c.zh.g}. ${cap(on(c.pr))} ${B.deed(c)}. ${Mo.why(c)}`; },
+    fork: c => { X(c); return `${c.pr.n} пока не знает, что вы знаете. Сказать при всех — село рассудит само, но у ${c.pr.g} есть семья, и с ${nim(c.pr)} ${c.zh.n} ещё жить по соседству. Поговорить с глазу на глаз — может, ${on(c.pr)} исправит, а может, сбежит. А ещё ${c.pr.n} может заплатить за молчание — у таких всегда находится серебро.`; },
+    ask2: 'Что делать с тем, что вы узнали?',
+    ends: [
+      {t: c => `Сказать при всём селе: это ${c.pr.n}`, check: ['cha', 'Дипломатия', 1], set: {exposed: 1}, mul: 1, badMul: 0.8, side: null,
+        ok: c => { X(c); return `Село собирается у колодца. Вы выкладываете всё: ${B.clue1(c).split('.')[0].toLowerCase()}, слова ${c.sv.g}, то, что видели сами. ${c.pr.n} сперва кричит, потом молчит, потом говорит — и лучше бы молчал${a(c.pr)}: ${Mo.voice(c)} Тишина. Потом кто-то первым отходит от ${c.pr.g}. За ним — все.`; },
+        bad: c => { X(c); return `Село собирается, но слушает вас вполуха: чужаки, мол, им-то что. ${c.pr.n} всё отрицает, и половина села верит ${emu(c.pr)}. Только ${c.dv.n} смотрит на ${c.pr.a} так, что ${on(c.pr)} отводит глаза. А ночью ${c.pr.n} уходит ${QT.fromAt(c)} — не по дороге, а огородами.`; },
+        log: c => `«${B.title(X(c))}»: ${c.pr.n} обличён${v(c.pr, '', 'а')} при всём селе.`,
+        rep: [c => `${c.dv.n} держит вас за руки и не отпускает.`, c => `Своего… своего же… Ладно. Вот ваше. А дальше — дальше страшно мне, честно скажу.`],
+        next: {s: 's2a'}},
+      {t: c => `Поговорить с ${c.pr.i} с глазу на глаз`, check: ['wis', 'Дипломатия', 2], set: {quiet: 1}, mul: 1, badMul: 0.8,
+        ok: c => { X(c); return `${c.pr.n} выслушивает вас в своих сенях, не садясь. Потом садится на пол, прямо где стоял${a(c.pr)}. ${Mo.voice2(c)} И, помолчав, добавляет то, чего вы не знали: «Я не сам${a(c.pr)} это придумал${a(c.pr)}. Мне ${Pa === P.oko ? 'велели' : 'заплатили'}. ${Pa.who(c)}. Я у ${nego(c.hz)} на крючке. Помогите — я всё верну ${c.zh.d}. Всё»`; },
+        bad: c => { X(c); return `${c.pr.n} слушает, кивает, обещает подумать до утра. Утром ${ego(c.pr)} изба пуста, а на столе — ни записки. Только запах дёгтя: ${on(c.pr)} мазал${a(c.pr)} сапоги в дальнюю дорогу.`; },
+        badNext: {s: 's2a'}, badSet: {exposed: 1, fled: 1},
+        badRep: [c => `${c.dv.n} прибегает к вам простоволос${v(c.dv, 'ый', 'ая')}.`, c => `Сбежал${a(c.pr)}! ${cap(on(c.pr))}! Значит, правда… Вот ваше. Только это ещё не конец, я чую.`],
+        log: c => `«${B.title(X(c))}»: ${c.pr.n} признал${v(c.pr, 'ся', 'ась')} вам наедине.`,
+        rep: [c => `${c.dv.n} ждёт вас у плетня.`, c => `Вы что-то знаете. По лицам вижу. Не говорите пока, раз нельзя. Вот ваше. Только не тяните.`],
+        next: {s: 's2b'}},
+      {t: c => `Взять у ${c.pr.g} серебро и промолчать`, set: {bought: 1}, mul: 1.6, ex: {fame: -1}, side: null,
+        ok: c => { X(c); return `${c.pr.n} отсчитывает серебро дрожащими руками, монету к монете, и прячет глаза. «Это всё, что есть. Скажите им… скажите, что ${B === I.propal ? 'леший' : B === I.kolodets ? 'порча' : B === I.skot ? 'мор' : B === I.donos ? 'Око разберётся' : 'чужие'}». Вы говорите. ${c.dv.n} верит. Или делает вид.`; },
+        log: c => `«${B.title(X(c))}»: правду о ${c.pr.p} вы продали за серебро.`,
+        rep: [c => `${c.dv.n} кладёт вам в руку плату и смотрит долго.`, c => `Значит, так. Ну что ж. Спасибо, что искали.`],
+        next: {s: 's2c'}},
+    ]};
+/* ---------- 2a. Ответ: предатель бежал к хозяину, хозяин пришёл за селом ---------- */
+  S.s2a = {title: c => `Те, кто кормил ${c.pr.a}`, giver: 'dv', vic: 'pr', wit: 'sv', kind: 'bandits', thr: Pa.thr, stages: ['guard'], pay: 1,
+    hook: c => { X(c); return [['n', `${c.pr.n} исчез${v(c.pr, '', 'ла')} в ту же ночь. А через три дня ${QT.intoAt(c)} пришли те, кто ${ego(c.pr)} кормил.`], ['n', Pa.came(c)], ['hz', Pa.talk(c)], ['dv', `«Это из-за нас. Из-за того, что мы правду сказали. Что теперь? Отдавать ${ego(c.pr)}? Да где ж ${ego(c.pr)} взять?»`]]; },
+    ask: c => `Помогите. Мы не воины — мы пахари. Заплатим, чем богаты.`,
+    clues: [c => { X(c); return `Дозорного у околицы удалось обойти. У костра ${c.hz.g} говорят громко: ${Pa.want(c)}`; }],
+    twist: c => { X(c); return `И самое злое: ${c.pr.n} не пропал${a(c.pr)}. ${cap(on(c.pr))} сидит у ${c.hz.g} в обозе, в тепле, и ест с ${ego(c.hz)} стола. Своё село ${on(c.pr)} продал${a(c.pr)} второй раз.`; },
+    fork: c => { X(c); return `Можно встретить людей ${c.hz.g} у околицы. Можно выкрасть ${c.pr.a} из обоза — тогда судить ${ego(c.pr)} будет село, а у ${c.hz.g} не останется повода. Можно договориться — только с такими договор дороже драки.`; },
+    ask2: 'Как быть с теми, кто пришёл?',
+    ends: [
+      {t: c => `Встретить людей ${c.hz.g} у околицы`, fight: 1.1, thr: Pa.thr, set: {fought: 1}, mul: 1.2, ex: {xp: 1.3},
+        ok: c => { X(c); return `У околицы тихо. Люди ${c.hz.g} ушли, унося раненых, а сам ${c.hz.n} уехал последним, оглянувшись. Такие не забывают. ${c.pr.n} уехал${a(c.pr)} с ${nim(c.hz)}.`; },
+        log: c => `«Те, кто кормил»: люди ${c.hz.g} отбиты у околицы.`,
+        rep: [c => `${c.dv.n} обходит дворы с ковшом мёда.`, c => `Отбились! Живы! А ${on(c.pr)} уехал${a(c.pr)} с ними… ну и пусть. Только они вернутся, да?`],
+        next: {s: 's3a'}},
+      {t: c => `Выкрасть ${c.pr.a} из обоза`, check: ['dex', 'Скрытность', 2], failFight: 1, set: {caught: 1}, mul: 1,
+        ok: c => { X(c); return `В обозе темно. ${c.pr.n} спит у телеги, укрывшись чужим плащом. Вы будите ${ego(c.pr)} ладонью по рту. ${cap(on(c.pr))} не вырывается — будто ждал${a(c.pr)}. Утром ${c.hz.n} уезжает ни с чем: товар пропал, а без товара и счёта нет.`; },
+        bad: c => `Под ногой хрустит ветка. В обозе крик, звон, огни.`,
+        won: c => { X(c); return `Пришлось пробиваться. ${c.pr.n} идёт с вами, связанный, а люди ${c.hz.g} к утру уходят. ${c.hz.n} кричит вслед, что ещё вернётся.`; },
+        log: c => `«Те, кто кормил»: ${c.pr.n} выкраден${v(c.pr, '', 'а')} из обоза и возвращён${v(c.pr, '', 'а')} на суд села.`,
+        rep: [c => `${c.dv.n} смотрит на связанного ${c.pr.a} и не знает, что сказать.`, c => `Привели. Своего. Как скотину. Вот ваше… Сход завтра.`],
+        next: {s: 's3b'}},
+      {t: c => `Договориться с ${c.hz.i}`, check: ['cha', 'Торговля', 2], set: {deal: 1}, mul: 0.6, badMul: 0.3, ex: {fame: -1}, end: true,
+        ok: c => { X(c); return `Сходятся на том, что село платит ${Pa === P.oko ? 'покаянную подать храму' : Pa === P.tiun ? 'оброк боярину — год, не больше' : 'тихим десятину с торга'}, а ${c.hz.n} уходит и ${c.pr.a} уводит с собой. ${cap(QT.inAt(c))} вздыхают с облегчением. И только ${c.dv.n} говорит вам на прощание: «Купили мы мир. Только мир этот — его, а не наш»`; },
+        bad: c => { X(c); return `${c.hz.n} торгуется, как на рынке, и выторговывает всё. Село платит вдвое, а ${c.pr.n} остаётся у ${c.hz.g} — «на всякий случай».`; },
+        log: c => `«Те, кто кормил»: с ${c.hz.i} договорились. Село платит.`,
+        rep: [c => `${c.dv.n} отдаёт вам плату молча.`, c => `Живы — и ладно. Ступайте.`]},
+    ]};
+/* ---------- 2b. Цена молчания: предатель кается — а сам ли? ---------- */
+  S.s2b = {title: c => `Цена молчания`, giver: 'pr', vic: 'hz', wit: 'sv', kind: 'peace', thr: Pa.thr, stages: ['witness', 'night'], pay: 0.8,
+    hook: c => { X(c); return [['n', `${c.pr.n} приходит к вам ночью, без огня, оглядываясь.`], ['pr', `«Я сказал${a(c.pr)}, что всё верну. Верну. Только пока ${Pa.who(c)} держит меня, мне не жить. ${Pa.want(c)}»`], ['pr', `«Помогите мне вырваться. Я покажу, где ${c.hz.n} бывает, кого держит, что прячет. Я всё про ${nego(c.hz)} знаю»`]]; },
+    ask: c => `Заплатить мне нечем — всё серебро у ${QT.GEN.P[c.t.gen.p] === P.oko ? 'храма' : 'них'}. Но я отплачу. Вот увидите.`,
+    clues: [c => { X(c); return `${c.sv.n} ловит вас у колодца: «Ты с ${c.pr.i} шепчешься? Зря. Я видел${a(c.sv)}, как ${on(c.pr)} вчера с чужим верховым говорил${a(c.pr)} у брода. И про вас говорил${a(c.pr)} — пальцем на ваш ночлег показывал${a(c.pr)}»`; },
+      c => { X(c); return `Ночью у брода — тот самый верховой. ${Pa.hint(c)} Он ждёт кого-то. Вас.`; }],
+    twist: c => { X(c); return `${c.pr.n} продал${a(c.pr)} и вас. Пока вы ${emu(c.pr)} верили, ${on(c.pr)} сторговал${v(c.pr, 'ся', 'ась')} с ${c.hz.i}: отряд, который всё знает, — в обмен на ${ego(c.pr)} долг. Предатель предаёт, сколько ни кайся.`; },
+    fork: c => { X(c); return `Засада у брода ждёт вас. ${c.pr.n} не знает, что вы знаете. Можно прийти в засаду и перевернуть её. Можно привести на брод старосту и полсела — пусть все увидят. Можно просто уйти и оставить ${c.pr.a} объясняться с ${c.hz.i}.`; },
+    ask2: 'Как ответить на второе предательство?',
+    ends: [
+      {t: 'Прийти в засаду первыми', fight: 1.1, thr: Pa.thr, set: {ambush: 1}, mul: 1.2, ex: {xp: 1.3},
+        ok: c => { X(c); return `Засаду у брода вы берёте сами: люди ${c.hz.g} лежат в осоке, а у одного в сумке — грамотка, где расписано, где и когда ${c.hz.n} ждёт «товар». ${c.pr.n}, увидев вас живыми, бледнеет и падает на колени.`; },
+        log: c => `«Цена молчания»: засада у брода перевёрнута.`,
+        next: {s: 's3a'}},
+      {t: 'Привести на брод полсела', check: ['cha', 'Дипломатия', 2], set: {shown: 1}, mul: 1, badMul: 0.7,
+        ok: c => { X(c); return `К броду вы приходите не одни: староста, мужики с кольями, ${c.dv.n}, ${c.sv.n}. Верховой ${c.hz.g}, увидев толпу, уходит в лес. А ${c.pr.n} остаётся стоять у воды — один, при всех, с перстнем ${c.hz.g} на пальце.`; },
+        bad: c => { X(c); return `Пришли только пятеро. Верховой ушёл, ${c.pr.n} успел${a(c.pr)} снять перстень и выкинуть в реку. Но пятерым и того хватило, чтобы понять.`; },
+        log: c => `«Цена молчания»: ${c.pr.n} пойман${v(c.pr, '', 'а')} при всём селе.`,
+        next: {s: 's3b'}},
+      {t: c => `Уйти и оставить ${c.pr.a} с ${c.hz.i}`, set: {left: 1}, mul: 0.5, end: true,
+        ok: c => { X(c); return `Вы не приходите на брод. ${c.hz.n} ждёт до рассвета, а потом идёт к ${c.pr.d} — спросить, где обещанное. Что было в той избе, ${QT.inAt(c)} не рассказывают. Через месяц на месте избы ${c.pr.g} растёт крапива. ${c.zh.n} никогда об этом не говорит. Только весной ${on(c.zh)} сажает на том месте рябину.`; },
+        log: c => `«Цена молчания»: ${c.pr.n} остался один на один с ${c.hz.i}.`},
+    ]};
+/* ---------- 2c. Совесть: продали правду — теперь продают вас ---------- */
+  S.s2c = {title: c => `Чужое серебро`, giver: 'dv', vic: 'pr', wit: 'sv', kind: 'peace', thr: 'bandits', stages: ['crowd'], pay: 0.5,
+    hook: c => { X(c); return [['n', `${c.dv.n} ждёт вас у ворот. За ${nim(c.dv)} — люди. Не с кольями пока, но и не с хлебом.`], ['dv', `«${c.sv.n} видел${a(c.sv)}, как ${c.pr.n} вам серебро считал${a(c.pr)}. А ${c.pr.n} теперь говорит по всему селу, что это вы ${B.deedPl(c)} — а ${on(c.pr)} вас только покрывал${a(c.pr)}, со страху. Это правда?»`]]; },
+    ask: c => `Скажите мне правду. Хоть сейчас. Я заплачу за правду больше, чем ${on(c.pr)} за молчание.`,
+    clues: [c => { X(c); return `Толпу у ворот удалось успокоить. ${c.sv.n} шепчет: «${c.pr.n} не сам${a(c.pr)} это выдумал${a(c.pr)}. Ночью у ${nego(c.pr)} был гость — чужой. ${Pa.hint(c)}»`; }],
+    twist: c => { X(c); return `${c.pr.n} сделал${a(c.pr)} с вами то же, что с ${c.zh.i}: подставил${a(c.pr)}. Только теперь у ${nego(c.pr)} есть «доказательство» — ваше серебро, которое ${on(c.pr)} вам отдал${a(c.pr)} при свидетеле.`; },
+    fork: c => { X(c); return `Признаться — потерять серебро и доброе имя, но вернуть правду. Свалить всё на ${c.pr.a} — правда на вашей стороне, только кто вам теперь поверит? Уйти — ${c.pr.n} останется хозяином и села, и правды.`; },
+    ask2: 'Чем ответить?',
+    ends: [
+      {t: c => `Признаться ${c.dv.d} и вернуть серебро`, check: ['cha', 'Дипломатия', 2], set: {confessed: 1}, mul: 0, ex: {noPay: 1, fame: 1}, badEx: {noPay: 1}, side: null,
+        ok: c => { X(c); return `Вы высыпаете серебро ${c.pr.g} на стол перед ${c.dv.i}. «Он${v(c.pr, '', 'а')} заплатил${a(c.pr)}, мы взяли. Это наш стыд. А дело — ${ego(c.pr)}». ${c.dv.n} долго молчит, потом сгребает серебро и идёт к старосте. Сход — завтра.`; },
+        bad: c => { X(c); return `${c.dv.n} слушает, но не верит до конца: «Сперва молчали, теперь говорите. Как вам верить?» Серебро ${on(c.dv)} всё же берёт — для схода, как улику.`; },
+        log: c => `«Чужое серебро»: вы признались, что взяли серебро ${c.pr.g}.`,
+        next: {s: 's3b'}},
+      {t: c => `Свалить всё на ${c.pr.a} — с уликами`, check: ['wis', 'Поиск', 3], set: {turned: 1}, mul: 1, badMul: 0.5,
+        ok: c => { X(c); return `Улики у вас остались: ${B.clue1(c).split('.')[0].toLowerCase()}. Вы выкладываете их при всех. ${c.pr.n} кричит, что вы врёте, — но про серебро забывает сказать, откуда оно у ${nego(c.pr)}. Этого хватает. Село поворачивается к ${c.pr.d}.`; },
+        bad: c => { X(c); return `Улик мало, а слов много. Село не знает, кому верить, и решает не верить никому. Сход откладывают. ${c.pr.n} ухмыляется вам вслед.`; },
+        log: c => `«Чужое серебро»: улики против ${c.pr.g} легли на стол.`,
+        next: {s: 's3b'}, badNext: {s: 's3c'}},
+      {t: 'Уйти, пока не поздно', set: {ran: 1}, mul: 0.5, ex: {fame: -1},
+        ok: c => { X(c); return `Вы уходите ночью. Вслед не гонятся. А через три дня на тракте вас догоняет слух: ${c.pr.n} всем рассказывает, что поджигатели и отравители — вы, а ${c.hz.n} уже знает ваши приметы.`; },
+        log: c => `«Чужое серебро»: вы ушли, оставив ${c.pr.a} хозяином правды.`,
+        next: {s: 's3c'}},
+    ]};
+/* ---------- 3a. Хозяин: идти туда, откуда тянутся нитки ---------- */
+  S.s3a = {title: c => `Книга должников`, giver: 'dv', vic: 'hz', wit: 'pr', kind: 'bandits', thr: Pa.thr, stages: ['guard', 'locked'], pay: 1.4, diff: 'hard',
+    place: c => ({n: Pa.lair, at: 'у входа: ' + Pa.lair, in: 1}),
+    hook: c => { X(c); return [['n', `${c.dv.n} приходит к вам сам${a(c.dv)}, в чистой рубахе, будто на праздник или на похороны.`], ['dv', `«Пока ${c.hz.n} жив${a(c.hz)} и сидит ${Pa === P.oko ? 'на храмовом дворе' : Pa === P.tiun ? 'на боярском дворе' : Pa === P.serye ? 'на постоялом дворе' : 'в своём доме за торгом'}, ${on(c.hz)} будет искать нового ${c.pr.a}. В каждом селе найдётся свой. Надо идти туда — к ${nemu(c.hz)}»`], ['n', `${c.pr.n}${c.f.ambush || c.f.quiet ? ', бледн' + v(c.pr, 'ый', 'ая') + ', стоит рядом' : ' сидит связанн' + v(c.pr, 'ый', 'ая') + ' в сарае'} и знает дорогу.`]]; },
+    ask: c => `Село собрало, что смогло. Возьмите. Не за месть — за то, чтобы больше ни у кого так не было.`,
+    clues: [c => { X(c); return `Стражу у ворот удалось миновать. ${c.pr.n} шепчет: «Там, в задней горнице, — книга. ${c.hz.n} в неё пишет всех, кого держит. Наше село — на трёх листах»`; },
+      c => { X(c); return `Книга нашлась. Имена, долги, сроки, — и не одно наше село: ещё семь, и в каждом свой ${c.pr.n}. Против каждого имени — цена. Против имени ${c.zh.g} написано: «взять за ${Pa === P.serye ? 'травы' : Pa === P.oko ? 'ведовство' : Pa === P.tiun ? 'смуту' : 'долг'}»`; }],
+    twist: c => { X(c); return `${c.hz.n} ждёт вас в горнице, у остывшего очага, — не прячется. «Вы думаете, без меня не будет таких, как ${c.pr.n}? — говорит ${on(c.hz)} спокойно. — Люди сами приходят. Я только записываю».`; },
+    fork: c => { X(c); return `Драться — здесь, среди ${ego(c.hz)} людей. Отнести книгу туда, где ${emu(c.hz)} не простят, — ${Pa === P.oko ? 'в Палату Дознания' : Pa === P.tiun ? 'князю, что боярам не друг' : Pa === P.serye ? 'дознавателю Ока: Палата серых боится и ненавидит' : 'дознавателю Ока: тихих Око ищет давно'}. Или сжечь книгу при ${nem(c.hz)} — и пусть восемь сёл забудут, кому должны.`; },
+    ask2: 'Чем кончится?',
+    ends: [
+      {t: c => `Сразиться с ${c.hz.i}`, fight: 1.3, thr: Pa.thr, mul: 1.3, ex: {xp: 1.5, fame: 1}, end: true,
+        ok: c => { X(c); return `${c.hz.n} лежит у очага. Книга горит. ${cap(QT.inAt(c))} об этом узнают через три дня — и ещё в семи сёлах. Говорят, в одном из них на радостях пекли пироги, а в другом свой ${c.pr.n} повесился в овине. Так кончается это дело.`; },
+        log: c => `«Книга должников»: ${c.hz.n} пал${a(c.hz)}, книга должников сгорела.`},
+      {t: c => `Отнести книгу ${Pa === P.oko ? 'в Палату' : Pa === P.tiun ? 'князю' : 'дознавателю Ока'}`, check: ['int', 'Грамота', 2], side: ['oko', 1], mul: 1.2, badMul: 0.7, ex: {fame: 2}, end: true,
+        ok: c => { X(c); return `Книгу читают долго, водя пальцем по строчкам. Через седмицу ${c.hz.n} едет в город уже не в седле, а в телеге, со связанными руками. Восемь сёл вычеркнуты из долгов одной строкой. ${c.pr.n} ${v(c.pr, 'отделался', 'отделалась')} ссылкой за Чёрную реку. ${c.zh.n} возвращается домой.`; },
+        bad: c => { X(c); return `Книгу берут, но читают её не те, кому надо: половину листов вырывают «до разбора». ${c.hz.n} уезжает из края — сам, не связанный. Восемь сёл должны теперь неизвестно кому.`; },
+        log: c => `«Книга должников»: книга ${c.hz.g} попала в руки суда.`},
+      {t: 'Сжечь книгу и уйти', mul: 0.8, side: ['kap', 1], end: true,
+        ok: c => { X(c); return `Листы вспыхивают один за другим. ${c.hz.n} смотрит на огонь и не мешает — понимает, что теперь у ${nego(c.hz)} ничего нет: ни долгов, ни должников, ни ${c.pr.g}. «Вы глупцы, — говорит ${on(c.hz)} напоследок. — Через год я напишу новую». Может быть. Но этот год восемь сёл будут жить вольно.`; },
+        log: c => `«Книга должников»: книга должников сожжена.`},
+    ]};
+/* ---------- 3b. Суд: село решает, что делать со своим ---------- */
+  S.s3b = {title: c => `Суд над ${c.pr.i}`, giver: 'dv', vic: 'pr', wit: 'sv', kind: 'peace', thr: 'bandits', stages: ['crowd'], pay: 0.8,
+    hook: c => { X(c); return [['n', `Сход собрался у колодца — все дворы, даже старухи с лавок. Посреди круга стоит ${c.pr.n}${c.f.caught ? ', со связанными руками' : ''}. Рядом ${c.pr.age === 'young' ? `${ego(c.pr)} мать с отцом` : `${ego(c.pr)} семья: ${v(c.pr, 'жена', 'муж')}, дети, мать`} — смотрят в землю.`], ['dv', `«Вы всё видели, всё знаете. Вам и слово. Как скажете — так сход и решит. Я так попросил${a(c.dv)}»`], ['pr', Mo.voice2(c)]]; },
+    ask: c => `Только подумайте сперва, кого вы судите. И кого — заодно.`,
+    clues: [c => { X(c); return `${c.sv.n} шепчет вам, пока шумит сход: ${M[c.t.gen.m].grey ? `«А ведь правда про покос-то. Я помню. ${c.zh.n} тогда межевого поил три дня. Все знали — и молчали»` : (c.pr.age === 'young' ? `«Молод${a(c.pr)} ещё, глуп${v(c.pr, '', 'а')}. Если ${ego(c.pr)} прогнать — пропадёт ведь, за первым же поворотом пропадёт. А мать ${ego(c.pr)} кто кормить будет?»` : `«Дети у ${nego(c.pr)} — трое. Если ${ego(c.pr)} прогнать, кто их кормить будет? ${c.zh.n}? Смешно»`)}`; }],
+    twist: c => { X(c); return M[c.t.gen.m].grey ? `${c.zh.n} стоит в кругу и молчит — не потому, что нечего сказать, а потому, что есть что. Старая обида оказалась правдой: двадцать лет назад ${on(c.zh)} сам${a(c.zh)} начал${a(c.zh)} эту вражду.` : `${c.zh.n} стоит в кругу и смотрит на ${c.pr.a}. Не со злостью — с недоумением: «${cap(c.rel)}… За что?»`; },
+    fork: c => { X(c); return `Сход ждёт. Изгнать ${c.pr.a} — ${c.pr.age === 'young' ? 'родители останутся без помощника' : `семья ${ego(c.pr)} пропадёт без кормильца`}. Отдать суду Ока — ${on(c.pr)} уже не вернётся, а Око запомнит, где искать. Простить — село будет жить с этим дальше, и неизвестно, что вырастет.`; },
+    ask2: 'Какое слово сказать сходу?',
+    ends: [
+      {t: c => `Изгнать ${c.pr.a} из села, семью оставить`, mul: 1, side: ['kap', 1], end: true,
+        ok: c => { X(c); return `Сход решает: уйти до первого снега и не возвращаться. ${c.pr.n} кланяется на четыре стороны и уходит — без вещей, без оглядки. Семью ${ego(c.pr)} село кормит до весны, по очереди, двор за двором. ${c.zh.n} носит им хлеб ${v(c.zh, 'сам', 'сама')}. Почему — никому не говорит.`; },
+        log: c => `«Суд»: ${c.pr.n} изгнан${v(c.pr, '', 'а')} из села.`},
+      {t: c => `Отдать ${c.pr.a} суду Ока`, mul: 1.2, side: ['oko', 1], ex: {fame: -1}, end: true,
+        ok: c => { X(c); return `За ${c.pr.i} приезжают двое стражей с медными звёздами. ${c.pr.n} садится в телегу, не сопротивляясь. Через месяц ${QT.inAt(c)} узнают: ${on(c.pr)} в каменоломнях за Чёрной рекой. А ещё через месяц Око присылает человека «проверить, нет ли тут других».`; },
+        log: c => `«Суд»: ${c.pr.n} отдан${v(c.pr, '', 'а')} суду Ока.`},
+      {t: 'Просить сход о милости', check: ['cha', 'Дипломатия', 3], mul: 1, badMul: 0.7, ex: {fame: 2}, end: true,
+        ok: c => { X(c); return `Вы говорите о том, что все здесь чьи-то кумовья, братья и соседи. Что ${c.hz.n} радуется каждой такой сваре. Что если гнать каждого, кто оступился, скоро гнать будет некого. Сход молчит. Потом ${c.zh.n} подходит к ${c.pr.d} и протягивает руку. ${c.pr.n} не берёт — плачет. Но и не уходит.`; },
+        bad: c => { X(c); return `Сход слушает, но слишком свежа обида. ${c.pr.a} прощают «на год»: чтоб жил${a(c.pr)} тихо, ни во что не встревал${a(c.pr)}, а там видно будет. Здороваться с ${nim(c.pr)} перестают все.`; },
+        log: c => `«Суд»: ${c.pr.n} прощён${v(c.pr, '', 'а')}.`},
+    ]};
+/* ---------- 3c. Расплата: предатель и хозяин идут за вами ---------- */
+  S.s3c = {title: c => `Свидетель`, giver: 'sv', vic: 'pr', wit: 'dv', kind: 'bandits', thr: Pa.thr, stages: ['chase'], pay: 0.6,
+    hook: c => { X(c); return [['n', `На тракте вас догоняет ${c.sv.n}, ${c.sv.t}, взмыленн${v(c.sv, 'ый', 'ая')}, на чужой лошади.`], ['sv', `«${c.pr.n} привёл${a(c.pr)} ${c.hz.g} людей. Говорит всем, что вы и есть те, кто ${B.deedPl(c)}. Они идут за вами. А я… я больше молчать не могу. Я видел${a(c.sv)}, как ${on(c.pr)} тогда — сам${a(c.pr)}. Возьмите меня свидетелем»`]]; },
+    ask: c => `Денег не надо. Надо, чтобы правда хоть раз победила.`,
+    clues: [c => { X(c); return `Погоню удалось сбить со следа. ${c.sv.n} рассказывает по дороге всё, что видел${a(c.sv)} — от первой ночи до серебра. Каждое слово — гвоздь в ${c.pr.a}.`; }],
+    twist: c => { X(c); return `В трактирной конюшне вас ждут: ${c.pr.n}, ${c.hz.n} и пятеро с ними. ${c.pr.n} показывает на вас пальцем: «Они!» — и осекается, увидев рядом с вами ${c.sv.a}.`; },
+    fork: c => { X(c); return `Можно драться. Можно поставить ${c.sv.a} перед ${c.hz.i} — пусть сам${a(c.hz)} решит, кто ${emu(c.hz)} лгал. А можно откупиться — и ${c.pr.n} так и останется правым.`; },
+    ask2: 'Чем кончится?',
+    ends: [
+      {t: 'Драться', fight: 1.2, thr: Pa.thr, mul: 1, ex: {xp: 1.4}, end: true,
+        ok: c => { X(c); return `Конюшня затихает. ${c.hz.n} уходит, бросив своих, а ${c.pr.n} остаётся — на соломе, с разбитым лицом. ${c.sv.n} везёт ${ego(c.pr)} назад, ${QT.toAt(c)}, — на суд. По дороге они не говорят ни слова.`; },
+        log: c => `«Свидетель»: ${c.pr.n} схвачен${v(c.pr, '', 'а')} в трактирной конюшне.`},
+      {t: c => `Поставить ${c.sv.a} перед ${c.hz.i}`, check: ['cha', 'Запугивание', 3], failFight: 1.2, mul: 1.3, ex: {fame: 2}, end: true,
+        ok: c => { X(c); return `${c.sv.n} говорит долго и без запинки. ${c.hz.n} слушает, потом поворачивается к ${c.pr.d}: «Ты мне лгал${a(c.pr)}». Больше ${on(c.hz)} ничего не говорит. Люди ${c.hz.g} уводят ${c.pr.a} с собой, а вас провожают до ворот с поклоном. Что сталось с ${c.pr.i}, вы так и не узнаете.`; },
+        bad: c => `${c.hz.n} слушает и смеётся: «Красиво. Только мне всё равно». Ножи выходят из-под плащей.`,
+        won: c => { X(c); return `Отбились. ${c.hz.n} ушёл, а ${c.pr.n} — нет: ${ego(c.pr)} оставили свои же, как ненужный товар.`; },
+        log: c => `«Свидетель»: свидетель сказал правду при ${c.hz.p}.`},
+      {t: 'Откупиться', cost: 1, mul: 0, ex: {noPay: 1, fame: -1}, end: true,
+        ok: c => { X(c); return `Серебро меняет хозяина. ${c.hz.n} уходит довольный, ${c.pr.n} — тоже. ${c.sv.n} смотрит на вас так, будто вы снова взяли серебро у ${c.pr.g}. В каком-то смысле так и есть.`; },
+        log: c => `«Свидетель»: вы откупились. ${c.pr.n} остался прав${v(c.pr, '', 'а')}.`},
+    ]};
+  /* что люди нити говорят на улице и что судачат соседи */
+  T.say = {
+    pr: c => [!c.f.exposed && !c.f.bought && !c.f.quiet && `Слыхал, у ${c.zh.g} беда? Ох, горе-то. Я ${ego(c.zh)} ${c.rel}, мне тяжелее всех.`, c.f.bought && 'Ты меня не знаешь. Я тебя не знаю. Так и запомни.', c.f.quiet && 'Я всё верну. Только помогите мне.'],
+    zh: c => [c.t.log.length ? 'Живу вот. Всё вспоминаю. Не понимаю — за что.' : null],
+    dv: c => [!c.t.log.length && 'Ищете? Ищите. Только правду ищите, а не виноватого.', c.f.bought && 'Здравствуйте. — И больше ничего.', c.f.exposed && 'Никак не привыкну. Свой же. Каждый день мимо ходил.'],
+    sv: c => [c.t.log.length ? 'Я всё видел, да. Только кому оно было надо — моё видел?' : null],
+  };
+  T.gossip = c => { X(c); return [`У ${c.zh.g}-то беда — слыхали? ${B.title(c)}.`, c.f.exposed && `${c.pr.n}! Кто бы мог подумать! ${cap(c.rel)} ведь родн${v(c.pr, 'ой', 'ая')}…`, c.f.bought && `Чужаки-то искали-искали и ничего не нашли. Странные чужаки.`, c.f.fought && `Люди ${c.hz.g} у околицы стояли — да ушли. Наши отбились!`, c.f.deal && `Платим теперь ${c.hz.d}. Вот и вся правда.`]; };
+  return T;
+};
+/* ============ ГМ замышляет нить: берёт жителей села и тайну ============ */
+QT.GEN.plan = function (g, at) {
+  const ppl = (C.tfPeople ? C.tfPeople(g, at) : []).filter(p => p.age !== 'kid' && !p.qt && !(g.qtUsed || {})[g.camp + '|' + at + '|' + p.id]);
+  if (ppl.length < 4) return null;
+  const sh = ppl.slice().sort(() => R.rand() - 0.5);
+  const zh = sh.find(p => p.age !== 'young') || sh[0], rest = sh.filter(p => p !== zh);
+  const pr = rest.find(p => p.age !== 'old') || rest[0], rest2 = rest.filter(p => p !== pr);
+  const dv = rest2[0], sv = rest2[1];
+  const ik = R.pick(Object.keys(I)), mk = R.pick(Object.keys(M)), Mo = M[mk], pkk = R.pick(Mo.fit);
+  const rl = REL[(pr.sex === 'f' ? 'f' : 'm') + (zh.sex === 'f' ? 'f' : 'm')];
+  const gen = {i: ik, m: mk, p: pkk, rel: R.pick(rl), dvRel: DV(dv), seed: g.day};
+  const res = p => Object.assign(Q.decl(p.n, p.sex), {sex: p.sex, ppl: p.ppl, t: p.t, age: p.age, role: p.t, rid: p.id, face: p.face});
+  const Pa = P[pkk], hz = Object.assign(Q.person(g, 'm', Pa.ppl), {role: Pa.role, t: Pa.role});
+  return {gen, cast: {zh: res(zh), pr: res(pr), dv: Object.assign(res(dv), {role: `${DV(dv)} ${Q.decl(zh.n, zh.sex).g}`}), sv: res(sv), hz}, used: [zh, pr, dv, sv].map(p => p.id)};
+};
+QT.GEN.start = function (g, at) {
+  const pl = QT.GEN.plan(g, at); if (!pl) return null;
+  const tid = 'gen#' + (g.jobSeq || 0) + '_' + g.day + '_' + at;
+  const t = QT.st(g)[tid] = {tid, gen: pl.gen, camp: g.camp, at, day: g.day, status: 'offer', cast: pl.cast, f: {}, log: [], pending: [], ready: [], offers: []};
+  t.atName = QT.nodeName(g, at);
+  g.qtUsed = g.qtUsed || {}; pl.used.forEach(id => { g.qtUsed[g.camp + '|' + at + '|' + id] = tid; });
+  const T = QT.def(t); T.title = pl.gen.title = T.steps.s1.title(Object.assign(QT.ctx(g, t), {rel: pl.gen.rel, dvRel: pl.gen.dvRel}));
+  t.offer = QT.make(g, t, 's1');
+  if (I[pl.gen.i].away) QT.away(g, t, 'zh', true);
+  return t;
+};
+/* кто пропал — возвращается, когда нить дошла до развязки звена «Беда» */
+const af0 = QT.after;
+QT.after = function (g, t, j, E, c) { af0.apply(this, arguments); try { if (t.gen && j.thread.sid === 's1' && I[t.gen.i].away && t.gen.i === 'propal') QT.away(g, t, 'zh', false); if (t.gen && t.status === 'done') QT.away(g, t, 'zh', false); } catch (e) {} };
+/* на доске: обычные поручения — односложные, на заработок; нить — особая, заводится ГМ из жителей села */
+QT.GEN.START = 0.55;
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
