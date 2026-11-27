@@ -78663,8 +78663,8 @@ C.VENOM_SLOW = true;
      те же. Наследник помнит отряд по рассказам: доброе знакомство — вполовину, узы и обиды — заново. Строка в журнале при
      первой встрече. Супругов героев правило не трогает (их век — ниже).
    • Любовницы и любовники стареют: с сорока пяти детей не будет; век — 64–84, ушла — строка в журнале, дети остаются.
-   • Супруги героев: тот же век; ушёл (ушла) — герой вдовец (вдова): узы снимаются (как при уходе, C.heLeave), детей приютила
-     родня — навещать можно; герой может жениться снова. Строка в журнале.
+   • Супруги героев: тот же век; ушёл (ушла) — герой вдовец (вдова): дом и дети остаются с ним — «Домой» в месте дома (дети,
+     повозиться, гостинцы, сундук, ночь под своей крышей). Женится снова — малых детей и сундук новая жена (муж) берёт к себе.
    • Лица стареют, если для лица есть постаревшая версия (C.FACE_AGED).
    • Только Вечный мир. Всё от хеша — одинаково у всех игроков в сети. */
 (function (G) {
@@ -78740,7 +78740,7 @@ C.kvAge = loverAge;
 if (C.kvMaybeKid) { const mk0 = C.kvMaybeKid; C.kvMaybeKid = function (g, h, o) { try { if (!K().off && o && o.loc && C.kvLocOf) { const r = C.kvLocOf(g, o.loc); if (r && loverAge(g, r) >= K().FERTILE && r.sex === 'f') return null; } } catch (e) {} return mk0.apply(this, arguments); }; }
 const heroesOf = g => (g && g.heroes ? g.heroes.filter(h => !h.dead) : []);
 function daily(g) {
-  if (K().off || !isFree(g) || !g.heroes) return; const s = S(g); if (s.day === day(g)) return; s.day = day(g);
+  if (K().off || !isFree(g) || !g.heroes) return; const s = S(g); try { remarry(g); } catch (e) {} if (s.day === day(g)) return; s.day = day(g);
   // любовники
   Object.values(g.kvLoc || {}).forEach(r => { if (!r || r.st === 'gone' || r.st === 'dead' || r.diedOld) return; const a = loverAge(g, r);
     if (a >= span('ld|' + r.id, K().LOVE_DIE)) { r.diedOld = day(g); r.st = 'gone'; r.goneDay = day(g); const f = r.sex === 'f';
@@ -78750,11 +78750,50 @@ function daily(g) {
     if (sp.born == null) { const a = Math.max(18, age0('sp|' + key + '|' + h.id, sp.face, true)); sp.born = day(g) - a * K().YEAR; }
     const a = C.npcAgeYears(g, sp.born); if (a < span('sd|' + key + '|' + h.id, K().LOVE_DIE)) return;
     const n = sp.n, f = sp.sex === 'f', heroF = h.sex === 'f'; let ok = false;
-    try { if (C.heLeave) { const jl = (g.journal || []).length; C.heLeave(g, key, 'смерть'); ok = true; if (g.journal && g.journal.length > jl) g.journal.splice(jl); const ex = (g.he && g.he.ex || []).slice(-1)[0]; if (ex && ex.n === n) { ex.dead = 1; ex.seen = 1; } } } catch (e) {}
+    // что остаётся вдовцу: сундук, дети, дом
+    const W2 = (g.w2home || {})[key], chest = W2 && Array.isArray(W2.chest) ? W2.chest.slice() : [];
+    try { if (C.heLeave) { const jl = (g.journal || []).length, ml = (g.mail || []).length; C.heLeave(g, key, 'смерть'); ok = true; if (g.journal && g.journal.length > jl) g.journal.splice(jl); if (g.mail && g.mail.length > ml) g.mail.splice(ml);
+        const ex = (g.he && g.he.ex || []).slice(-1)[0]; if (ex && ex.n === n) { ex.dead = 1; ex.seen = 1; ex.bundle = []; } } } catch (e) {}
     if (!ok) delete h.spouse;
-    if (C.note) C.note(g, `${f ? 'Умерла' : 'Умер'} ${n} — ${f ? 'жена' : 'муж'} ${decl(h.name, h.sex).g}, тихо, от старости. ${h.name} — ${heroF ? 'вдова' : 'вдовец'}. Детей приютила родня — навещать можно.`);
+    try { (C.kidsFams ? C.kidsFams(g) : []).forEach(F => { if (F.key === key && F.hero === h.id) { delete F.ex; F.widow = {n, sex: sp.sex, day: day(g)}; } }); } catch (e) {}
+    const W = s.widow = s.widow || {}; W[h.id] = {key, at: sp.at, role: sp.role, n, sex: sp.sex, day: day(g), chest};
+    if (C.note) C.note(g, `${f ? 'Умерла' : 'Умер'} ${n} — ${f ? 'жена' : 'муж'} ${decl(h.name, h.sex).g}, тихо, от старости. ${h.name} — ${heroF ? 'вдова' : 'вдовец'}. Дом и дети остаются ${heroF ? 'с ней' : 'с ним'}; ${heroF ? 'выйдет' : 'женится'} снова — малых детей ${heroF ? 'новый муж' : 'новая жена'} возьмёт к себе.`);
     h.deeds = (h.deeds || []).concat(`${heroF ? 'овдовела' : 'овдовел'}: ${n}`).slice(-12); });
 }
+/* вдовец женился снова: малые дети и сундук — в новый дом */
+function remarry(g) { const W = S(g).widow; if (!W) return;
+  Object.keys(W).forEach(hid => { const w = W[hid], h = heroesOf(g).find(x => x.id === hid); if (!h) { delete W[hid]; return; }
+    const sp = h.spouse; if (!sp || !sp.role || !sp.at) return; const nk = sp.role + '@' + sp.at; if (nk === w.key) return;
+    let moved = 0; try { (C.kidsFams ? C.kidsFams(g) : []).forEach(F => { if (F.key !== w.key || F.hero !== h.id) return; const small = (F.kids || []).filter(k => !k.went && (C.kidAge ? C.kidAge(g, k) : 0) < 16);
+        if (!small.length) return; F.key = nk; F.at = sp.at; delete F.ex; F.step = {n: sp.n, sex: sp.sex, day: day(g)}; moved += small.length; }); } catch (e) {}
+    if (w.chest && w.chest.length) { g.w2home = g.w2home || {}; const H = g.w2home[nk] = g.w2home[nk] || {}; H.chest = (H.chest || []).concat(w.chest); }
+    delete W[hid];
+    if (C.note) C.note(g, `${sp.n} ${sp.sex === 'f' ? 'берёт' : 'берёт'} к себе ${moved ? (moved === 1 ? 'малого — дитя' : 'малых детей') + ' ' + decl(h.name, h.sex).g : 'и добро'} из старого дома: «${sp.sex === 'f' ? 'Мои теперь. Не обижу' : 'Наши теперь. Вырастим'}».`); }); }
+C.npcRemarry = remarry;
+/* ---------- дом вдовца: дети, гостинцы, сундук, ночь под своей крышей ---------- */
+const FC = C.CAMPS.free;
+const WH_HI = ['Изба без хозяйки: печь холодная, пока не растопишь, на лавке — недошитая рубаха.', 'В доме тихо. На полке — её гребень, никто не решается убрать.', 'Соседка присматривает за домом: полы метены, а печь топится через день.', 'Дом встречает запахом остывшей золы и сушёных трав — ещё тех, её.'];
+const kidLn = (g, k) => { const L = (C.KID_LINES || {})[k.sex === 'f' ? 'f' : 'm']; const st = C.kidStage ? C.kidStage(g, k) : 1; const pool = L && L[st]; if (!pool || !pool.length) return null;
+  const t = pool[hsh(k.id + '|' + day(g)) % pool.length].replace(/\{k\}/g, k.n || (k.sex === 'f' ? 'малышка' : 'малыш')); return t[0].toUpperCase() + t.slice(1); };
+const wRec = g => { const W = (g.npcAge && g.npcAge.widow) || {}; const h = heroesOf(g).find(x => W[x.id] && W[x.id].at === g.loc && !x.spouse); return h ? {h, w: W[h.id]} : null; };
+const wKids = (g, w, h) => (C.kidsFams ? C.kidsFams(g) : []).filter(F => F.key === w.key && F.hero === h.id).flatMap(F => (F.kids || []).filter(k => !k.went && !k.dead));
+if (FC && FC.scenes) FC.scenes.npc_whome = g => {
+  const x = wRec(g); if (!x) return {title: 'Дом', bg: 'village', lines: [['n', 'Здесь уже не ваш дом.']], choices: [{t: 'Назад', do: () => 'free_place'}]};
+  const {h, w} = x, ks = wKids(g, w, h), lines = [['n', WH_HI[hsh(w.key + day(g)) % WH_HI.length]]];
+  if (g.npcWLast) lines.push(['n', g.npcWLast]);
+  ks.slice(0, 3).forEach(k => { const t = kidLn(g, k); if (t) lines.push(['n', t]); });
+  const ch = [], cheer = (g2, why) => { if (w.cheer !== day(g2) && C.spiritAdd) { w.cheer = day(g2); C.spiritAdd(g2, 1, why); } };
+  if (ks.length) {
+    ch.push({t: w.play === day(g) ? 'С детьми сегодня уже возились' : (ks.length === 1 ? 'Повозиться с ' + (ks[0].sex === 'f' ? 'дочкой' : 'сынишкой') : 'Повозиться с детьми'), if: g2 => w.play !== day(g2), off: 'сегодня уже', do: g2 => { w.play = day(g2); const k = ks[hsh(w.key + day(g2)) % ks.length]; g2.npcWLast = C.kidPlayLine ? C.kidPlayLine(g2, k) : ''; if (C.passH) C.passH(g2, 1); cheer(g2, 'Дети — и на душе светлее.'); return 'npc_whome'; }});
+    ch.push({t: 'Подарить детям гостинец', if: g2 => w.give !== day(g2) && (g2.purse || 0) >= 100, off: g2 => (w.give === day(g2) ? 'сегодня уже дарили' : 'в кошеле пусто'), do: g2 => { g2.purse -= 100; w.give = day(g2); g2.npcWLast = C.kidGiftLine ? C.kidGiftLine(g2, ks) : ''; cheer(g2, 'Гостинцы детям — и на душе светлее.'); return 'npc_whome'; }}); }
+  if (w.chest && w.chest.length) ch.push({t: 'Забрать всё из сундука', do: g2 => { h.inv = (h.inv || []).concat(w.chest); const n = w.chest.length; w.chest = []; g2.npcWLast = `${h.name} выгребает сундук: ${n === 1 ? 'одна вещь' : 'вещи'} — в суму.`; return 'npc_whome'; }});
+  ch.push({t: 'Переночевать под своей крышей', do: g2 => { g2.npcWLast = null; try { if (C.rest) C.rest(g2); } catch (e) {} if (C.spiritAdd) C.spiritAdd(g2, 1, 'Ночь дома.'); g2.npcWLast = ks.length ? 'Ночью дети по очереди забираются под бок. Утром в доме пахнет кашей — сварили сами, хоть и подгорело.' : 'Ночь в своём доме — тихо, только сверчок за печью.'; return 'npc_whome'; }});
+  ch.push({t: 'Назад', do: g2 => { g2.npcWLast = null; return 'free_place'; }});
+  return {title: h.sex === 'f' ? 'Дом вдовы' : 'Дом вдовца', bg: 'village', art: 'hut', lines, choices: ch}; };
+{ const so1 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so1.apply(this, arguments);
+  try { if (sc && id === 'free_place' && isFree(g) && wRec(g) && Array.isArray(sc.choices) && !sc.choices.some(c => c.npcW)) { const i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+      const c = {i, label: 'Домой: дети и сундук', npcW: 1, do: () => 'npc_whome'}; const back = sc.choices.findIndex(q => /^(Назад|Уйти|В путь)/.test(q.label || '')); sc.choices = sc.choices.slice(); sc.choices.splice(back < 0 ? sc.choices.length : back, 0, c); } } catch (e) {}
+  return sc; }; }
 C.npcAgeDaily = daily;
 ['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); try { daily(g); } catch (e) {} return r; }; });
 })(typeof window !== 'undefined' ? window : globalThis);
