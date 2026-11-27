@@ -78651,3 +78651,110 @@ if (C.abilOpts && C.abil) { const ao0 = C.abilOpts, ab0 = C.abil;
     return ab0.apply(this, arguments); }; }
 C.VENOM_SLOW = true;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* npc_age.js */
+/* Колдовство — npc_age: возраст и смена поколений у людей Вечного мира (Ник 27.11: «если кто-то проживёт 50 лет в Вечном мире —
+   ему будет прекрасно, что мир живёт: вместо одних мастеров появляются наследники, меняются ключевые персонажи; для удобства
+   они остаются с теми же репликами»). Без DOM.
+   • Возраст — от лица: юное лицо 18–24, зрелое 25–39, в годах 40–54, старик 55–70 (на первый день мира), дальше — год в 360 дней.
+     Кто может попасть в романтику — не младше 18 (лица детей сюда не попадают).
+   • Мастера (кузнец, знахарка, книжник…) и ключевые люди мест: у каждого свой век — 62–79 лет (от хеша места и ремесла).
+     Ушёл — дело держит наследник: сын, дочь, ученик или ученица (20–32 года на тот день), со своим именем и лицом. Реплики ремесла —
+     те же. Наследник помнит отряд по рассказам: доброе знакомство — вполовину, узы и обиды — заново. Строка в журнале при
+     первой встрече. Супругов героев правило не трогает (их век — ниже).
+   • Любовницы и любовники стареют: с сорока пяти детей не будет; век — 64–84, ушла — строка в журнале, дети остаются.
+   • Супруги героев: тот же век; ушёл (ушла) — герой вдовец (вдова): узы снимаются (как при уходе, C.heLeave), детей приютила
+     родня — навещать можно; герой может жениться снова. Строка в журнале.
+   • Лица стареют, если для лица есть постаревшая версия (C.FACE_AGED).
+   • Только Вечный мир. Всё от хеша — одинаково у всех игроков в сети. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!C || !C.folkPerson || !C.CAMPS) return;
+C.NPC_AGE = Object.assign({off: false, YEAR: 360, DIE: [62, 79], LOVE_DIE: [64, 84], HEIR: [20, 32], FERTILE: 45}, C.NPC_AGE || {});
+const K = () => C.NPC_AGE;
+const hsh = s => { let h = 2166136261 >>> 0; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995) >>> 0; return (h ^ (h >>> 15)) >>> 0; };
+const isFree = g => !!(g && C.CAMPS[g.camp] && C.CAMPS[g.camp].free);
+const day = g => (g && g.day) || 1;
+const span = (k, [a, b]) => a + hsh(k) % (b - a + 1);
+const STEP_AGE = {0: [6, 12], 1: [18, 24], 2: [25, 39], 3: [40, 54], 4: [55, 70]};
+const stepOf = face => { const f = C.FACE_AGE && C.FACE_AGE[face]; return f && f.a != null ? f.a : 2; };
+/* возраст на первый день мира — по лицу */
+const age0 = (key, face, adult) => { let st = stepOf(face); if (adult && st < 1) st = 1; const r = STEP_AGE[st] || STEP_AGE[2]; return span('a0|' + key, r); };
+C.npcAgeYears = (g, born) => Math.floor((day(g) - born) / K().YEAR);
+const ageFace = (face, age) => { const A = C.FACE_AGED && C.FACE_AGED[face]; if (!A || !C.faceStep) return face; const st = C.faceStep(age); return (st >= 4 && A[4]) || (st >= 3 && A[3]) || face; };
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n, sex) : {n, g: n, d: n, a: n, i: n, p: n});
+const placeName = (g, at) => { try { const n = C.CAMPS[g.camp].map.nodes[String(at).split('~')[0]]; return n ? n.name : ''; } catch (e) { return ''; } };
+const S = g => { const s = g.npcAge = (g.npcAge && typeof g.npcAge === 'object') ? g.npcAge : {}; s.seen = s.seen || {}; return s; };
+/* цепочка поколений: [{born, die}] до сегодняшнего дня */
+function chain(key, face0, today) { const Y = K().YEAR; const out = []; let born = 1 - age0(key, face0, true) * Y - (hsh('d|' + key) % Y), g = 0;
+  for (;;) { const die = born + span('die|' + key + '|' + g, K().DIE) * Y; out.push({born, die}); if (die > today || g > 40) break;
+    g++; born = die - span('heir|' + key + '|' + g, K().HEIR) * Y; }
+  return out; }
+C.npcChain = chain;
+const KIN = {m: ['сын', 'сын', 'ученик', 'племянник', 'зять'], f: ['дочь', 'дочь', 'ученица', 'племянница', 'невестка']};
+/* ---------- мастера ---------- */
+const fp0 = C.folkPerson;
+C.folkPerson = function (g, role, at) {
+  if (K().off || !isFree(g) || /^sp_/.test(role) || String(at).indexOf('~') >= 0) { const p = fp0.apply(this, arguments); return p; }
+  const key = role + '@' + at, rel = (g.folkRel || {})[key];
+  const p0 = fp0.call(this, g, role, at); if (!p0) return p0;
+  if (rel && rel.bond === 'wed') { const L = chain(key, p0.face, Infinity); p0.born = L[0].born; p0.age = C.npcAgeYears(g, p0.born); return p0; } // супруг — своим веком (см. ниже)
+  const L = chain(key, p0.face, day(g)), gen = L.length - 1, cur = L[gen];
+  let p = gen ? fp0.call(this, g, role, at + '~g' + gen) : p0; if (!p) p = p0;
+  p = Object.assign({}, p); p.born = cur.born; p.age = C.npcAgeYears(g, cur.born); p.gen = gen;
+  if (gen) { const prev = gen > 1 ? fp0.call(this, g, role, at + '~g' + (gen - 1)) : p0; p.heirOf = prev ? prev.n : ''; p.kin = KIN[p.sex === 'f' ? 'f' : 'm'][hsh('kin|' + key + gen) % 5]; }
+  p.face = ageFace(p.face, p.age);
+  try { const s = S(g); if ((s.seen[key] || 0) < gen) { s.seen[key] = gen;
+      if (rel) { const keep = Math.round((rel.rep || 0) * 0.5); Object.keys(rel).forEach(k => { if (!['camp', 'who'].includes(k)) delete rel[k]; }); rel.rep = keep; rel.heir = gen; }
+      const pl = placeName(g, at); if (C.note && (rel || g.loc === at)) C.note(g, `${pl ? pl + ': ' : ''}${p.heirOf ? 'нет больше ' + (decl(p.heirOf.split(' ')[0], p0.sex).g || p.heirOf) + ' — ' : ''}дело держит ${p.kin} — ${p.n}.${rel && rel.rep > 0 ? ' Про отряд ' + (p.sex === 'f' ? 'она' : 'он') + ' наслышан' + (p.sex === 'f' ? 'а' : '') + ': примет как знакомых.' : ''}`); } } catch (e) {}
+  return p;
+};
+/* ---------- ключевые люди мест (SPEAKERS) в Вечном мире: имя и лицо наследника, реплики те же ---------- */
+const ORIG = {};
+const nameFor = (k, gen, ppl, sex) => { const P = (C.FOLK_NAMES || {})[ppl] || (C.FOLK_NAMES || {}).nolgrim; const L = (P && P[sex]) || ['Ждан']; return L[hsh('nm|' + k + '|' + gen) % L.length]; };
+const faceFor = (k, gen, sex, age) => { const pool = (sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M) || []; const st = C.faceStep ? C.faceStep(age) : 2;
+  const ok = pool.filter(f => { const a = stepOf(f); return a === st || a === st - 1; }); const L = ok.length ? ok : pool; return L.length ? L[hsh('fc|' + k + '|' + gen) % L.length] : null; };
+C.npcSpeaker = function (g, k) {
+  const sp = ORIG[k] || C.SPEAKERS[k]; if (!sp) return null; const face = sp[1], sex = (C.PORTRAITS_F || []).includes(face) ? 'f' : 'm';
+  const L = chain('spk|' + k, face, day(g)), gen = L.length - 1, cur = L[gen], age = C.npcAgeYears(g, cur.born);
+  if (!gen) return {gen, age, sp: [sp[0], ageFace(face, age), sp[2]]};
+  const parts = String(sp[0]).split(','), title = parts.slice(1).join(',').trim(), nm = nameFor(k, gen, sp[2] || 'nolgrim', sex);
+  return {gen, age, was: parts[0], sex, sp: [nm + (title ? ', ' + title : ''), faceFor(k, gen, sex, age) || face, sp[2]]};
+};
+const so0 = C.sceneOf;
+C.sceneOf = function (g) {
+  const sc = so0.apply(this, arguments);
+  try { if (!sc || !Array.isArray(sc.lines) || !C.SPEAKERS) return sc; const free = !K().off && isFree(g);
+    const keys = new Set(); sc.lines.forEach(l => { if (Array.isArray(l) && l[0] && l[0] !== 'n' && C.SPEAKERS[l[0]]) keys.add(l[0]); }); (sc.people || []).forEach(k => { if (C.SPEAKERS[k]) keys.add(k); });
+    keys.forEach(k => { if (!ORIG[k]) ORIG[k] = C.SPEAKERS[k].slice();
+      if (!free) { C.SPEAKERS[k] = ORIG[k].slice(); return; }
+      if ((g.mercs || []).some(m => String(ORIG[k][0]).startsWith(m.name))) return;
+      const x = C.npcSpeaker(g, k); if (!x) return; C.SPEAKERS[k] = x.sp;
+      if (x.gen) { const s = S(g), sk = 'spk|' + k; if ((s.seen[sk] || 0) < x.gen) { s.seen[sk] = x.gen; if (C.note) C.note(g, `${x.was ? 'Нет больше ' + (decl(x.was, x.sex).g || x.was) + '. ' : ''}На ${x.sex === 'f' ? 'её' : 'его'} месте теперь ${x.sp[0].split(',')[0]}.`); } } }); } catch (e) {}
+  return sc;
+};
+/* ---------- любовницы и любовники; супруги ---------- */
+const loverAge = (g, r) => { if (r.born == null) { const a = Math.max(18, age0('kv|' + r.id, r.face, true)); r.born = day(g) - a * K().YEAR - hsh('kvd|' + r.id) % K().YEAR; } return C.npcAgeYears(g, r.born); };
+C.kvAge = loverAge;
+if (C.kvMaybeKid) { const mk0 = C.kvMaybeKid; C.kvMaybeKid = function (g, h, o) { try { if (!K().off && o && o.loc && C.kvLocOf) { const r = C.kvLocOf(g, o.loc); if (r && loverAge(g, r) >= K().FERTILE && r.sex === 'f') return null; } } catch (e) {} return mk0.apply(this, arguments); }; }
+const heroesOf = g => (g && g.heroes ? g.heroes.filter(h => !h.dead) : []);
+function daily(g) {
+  if (K().off || !isFree(g) || !g.heroes) return; const s = S(g); if (s.day === day(g)) return; s.day = day(g);
+  // любовники
+  Object.values(g.kvLoc || {}).forEach(r => { if (!r || r.st === 'gone' || r.st === 'dead' || r.diedOld) return; const a = loverAge(g, r);
+    if (a >= span('ld|' + r.id, K().LOVE_DIE)) { r.diedOld = day(g); r.st = 'gone'; r.goneDay = day(g); const f = r.sex === 'f';
+      if (C.note) C.note(g, `${placeName(g, r.at) ? placeName(g, r.at) + ': ' : ''}${f ? 'умерла' : 'умер'} ${r.n} — тихо, от старости.${(C.kvKidsOf ? '' : '')}`); } });
+  // супруги
+  heroesOf(g).forEach(h => { const sp = h.spouse; if (!sp || !sp.role || !sp.at || (sp.camp && sp.camp !== g.camp)) return; const key = sp.role + '@' + sp.at;
+    if (sp.born == null) { const a = Math.max(18, age0('sp|' + key + '|' + h.id, sp.face, true)); sp.born = day(g) - a * K().YEAR; }
+    const a = C.npcAgeYears(g, sp.born); if (a < span('sd|' + key + '|' + h.id, K().LOVE_DIE)) return;
+    const n = sp.n, f = sp.sex === 'f', heroF = h.sex === 'f'; let ok = false;
+    try { if (C.heLeave) { const jl = (g.journal || []).length; C.heLeave(g, key, 'смерть'); ok = true; if (g.journal && g.journal.length > jl) g.journal.splice(jl); const ex = (g.he && g.he.ex || []).slice(-1)[0]; if (ex && ex.n === n) { ex.dead = 1; ex.seen = 1; } } } catch (e) {}
+    if (!ok) delete h.spouse;
+    if (C.note) C.note(g, `${f ? 'Умерла' : 'Умер'} ${n} — ${f ? 'жена' : 'муж'} ${decl(h.name, h.sex).g}, тихо, от старости. ${h.name} — ${heroF ? 'вдова' : 'вдовец'}. Детей приютила родня — навещать можно.`);
+    h.deeds = (h.deeds || []).concat(`${heroF ? 'овдовела' : 'овдовел'}: ${n}`).slice(-12); });
+}
+C.npcAgeDaily = daily;
+['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); try { daily(g); } catch (e) {} return r; }; });
+})(typeof window !== 'undefined' ? window : globalThis);
