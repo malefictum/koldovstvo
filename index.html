@@ -50372,7 +50372,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611271702"></script><script>
+</script><script src="world.js?v=202611271758"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53774,10 +53774,11 @@ function drawMini() {
   if (battle.walk && B.BF && B.BF.houses) { try { const HC = {korchma: '#c08a3a', korchma_big: '#c08a3a', kupec: '#c9b04a', hram: '#e8e0c0', kuznya: '#c0603a', masterskaya: '#a07850', banya: '#6a8aa0', boyar: '#b07ad0', terem: '#b07ad0', starosta: '#d0a070'};
     const LET = {korchma: 'К', korchma_big: 'К', kupec: 'Л', hram: 'Х', kuznya: 'Н', masterskaya: 'М', banya: 'Б', boyar: 'Т', terem: 'Т', starosta: 'С'};
     x.font = '700 9px "Alegreya SC", serif'; x.textAlign = 'center'; x.textBaseline = 'middle';
-    B.BF.houses(F).forEach(h => { const cs = B.BF.houseCells(h); if (F.fog && battle.walk.tgtHome !== h.id && !cs.some(p => B.BF.explored(battle, p.c, p.r))) return; /* дом цели показан и неразведанным — «показала, где изба» */
+    B.BF.houses(F).forEach(h => { const cs = B.BF.houseCells(h); const knM = battle.walk.known && battle.walk.known[h.id]; if (F.fog && battle.walk.tgtHome !== h.id && !knM && !cs.some(p => B.BF.explored(battle, p.c, p.r))) return; /* дом цели показан и неразведанным — «показала, где изба» */
       const own = h.own || (battle.walk.kvHomes && battle.walk.kvHomes[h.id] === 'Свой дом'), tg = battle.walk.tgtHome === h.id && !battle.walk.tgtDead, col = tg ? '#e0503a' : own ? '#8fd06a' : HC[h.k] || '#8a6a44'; x.globalAlpha = 0.9; x.fillStyle = col;
       let sx = 0, sy = 0; cs.forEach(p => { const px = (SQ3 * (p.c + (p.r & 1) * 0.5) - U.X0) * k, py = (p.r * 1.5 + 0.25 - U.Y0) * k; sx += px; sy += py; x.fillRect(px, py, SQ3 * k + 0.6, 1.5 * k + 0.6); });
-      const L = tg ? 'Ц' : own ? 'Д' : LET[h.k]; if (L && cs.length) { x.globalAlpha = 1; x.fillStyle = '#1a120a'; x.fillText(L, sx / cs.length + SQ3 * k / 2, sy / cs.length + 0.75 * k); } });
+      const L = tg ? 'Ц' : own ? 'Д' : LET[h.k]; if (L && cs.length) { x.globalAlpha = 1; x.fillStyle = '#1a120a'; x.fillText(L, sx / cs.length + SQ3 * k / 2, sy / cs.length + 0.75 * k); }
+      if (knM && cs.length && !own) { const nm = String(knM).split(' · ')[0], tx = sx / cs.length + SQ3 * k / 2, ty = sy / cs.length - 4; x.globalAlpha = 1; x.font = '700 8px Alegreya, Georgia, serif'; x.lineWidth = 2.5; x.strokeStyle = 'rgba(15,10,5,.9)'; x.strokeText(nm, tx, ty); x.fillStyle = '#9fd8f0'; x.fillText(nm, tx, ty); x.font = '700 9px "Alegreya SC", serif'; } });
     x.globalAlpha = 1; } catch (e) {} }
   const vis = battle.units.filter(u => !u.gone && !u.dead && (u.side === 'party' || seenByParty(battle, u))), cur = B.current(battle);
   vis.forEach(u => { x.fillStyle = u.side === 'party' ? '#a6d38a' : u.side === 'civ' ? '#8fa6b8' : '#ff6a50'; x.beginPath(); x.arc((SQ3 * (u.c + 0.5 + (u.r & 1) * 0.5) - U.X0) * k, (1 + u.r * 1.5 - U.Y0) * k, u === cur ? 3.6 : 2.4, 0, 7); x.fill(); if (u === cur) { x.strokeStyle = '#fff3c4'; x.lineWidth = 1.2; x.stroke(); } });
@@ -54189,7 +54190,9 @@ function drawField(noFollow) {
   DU.filter(u => !u.gone && (!u.dead || u.kind !== 'monster')).forEach(u => { const up = unitXY(u); if (F.big && (up.x < -s * 4 || up.x > geo.W + s * 4 || up.y < -s * 4 || up.y > geo.H + s * 6)) return; things.push({y: unitXY(u).y + 0.1 + (u.tree && B.BF.treeLift ? B.BF.treeLift(u, geo.s) + 1 : 0), u}); });
   LABELQ = []; try { things.sort((a, b) => a.y - b.y).forEach(t => { const dim = F.fog && (t.o || t.c) && bfFogOf(S, t.c || t.o.cells[0]) === 1; if (dim) { ctx.save(); ctx.globalAlpha = 0.5; } try { t.hr ? B.BF.hbRoof(ctx, t.hr, geo.s, hexXY, S, IMG.house) : t.dgw ? B.BF.dgWall(ctx, t.dgw, hexXY(t.dgw.c, t.dgw.r), geo.s, S, IMG.house) : t.dgd ? B.BF.dgDecor(ctx, t.dgd, hexXY(t.dgd.c, t.dgd.r), geo.s, S, IMG.house) : t.o ? drawObj(t.o) : t.c ? ((t.c.vy != null && B.BF.vyThing && B.BF.vyThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (t.c.hb != null && B.BF.hbThing && B.BF.hbThing(ctx, t.c, hexXY(t.c.c, t.c.r), geo.s, S, HBX)) || (BF_PROPS.has(t.c.t) && F.big ? bfProp(t.c) : drawProp(t.c))) : (drawUnit(t.u), t.u.tree && B.BF.treeLeaves && B.BF.treeLeaves(ctx, t.u, unitXY(t.u), geo.s, S)); } finally { if (dim) ctx.restore(); } }); if (F.big) bfOver(S, cur); } finally { const q = LABELQ; LABELQ = null; ctx.save(); q.forEach(f => f()); ctx.restore(); }
   // таблички у дверей на прогулке: что за дом, кто живёт (bf_house.js, town_walk.js; Ник 25.11)
-  if (S.walk && B.BF && B.BF.houseSign && B.BF.signAt && B.BF.houses) { try { B.BF.houses(S.field).forEach(h => { const d = (h.doors || []).find(x => !x.inner); if (!d) return; if (F.fog && fogShow(S, d) === 0 && !B.neigh(d.c, d.r).some(n => B.cell(S, n.c, n.r) && fogShow(S, n) > 0)) return; const t = B.BF.houseSign(S, h); if (!t) return;
+  if (S.walk && B.BF && B.BF.houseSign && B.BF.signAt && B.BF.houses) { try { B.BF.houses(S.field).forEach(h => { const d = (h.doors || []).find(x => !x.inner); if (!d) return; const kn = S.walk.known && S.walk.known[h.id], hid0 = F.fog && fogShow(S, d) === 0 && !B.neigh(d.c, d.r).some(n => B.cell(S, n.c, n.r) && fogShow(S, n) > 0); if (hid0 && !kn) return;
+    if (hid0 && kn) { ctx.save(); ctx.fillStyle = 'rgba(70,52,34,.55)'; B.BF.houseCells(h).forEach(q => { const pq = hexXY(q.c, q.r); hexPath(pq.x, pq.y, geo.s * 0.98); ctx.fill(); }); ctx.restore(); } /* тёмный силуэт дома знакомого под туманом */
+    const t = hid0 && kn ? kn : B.BF.houseSign(S, h); if (!t) return;
     const p = hexXY(d.c, d.r); B.BF.signAt(ctx, t, p.x - geo.s * 1.55, p.y - geo.s * 1.05, geo.s * 2.2, geo.s); }); } catch (e) {} }
   if (anyDying() && !fxRaf) fxRaf = requestAnimationFrame(() => { fxRaf = 0; drawField(); });
   // шанс попасть: над врагом под курсором
@@ -54633,7 +54636,12 @@ function drawObj(o) {
   else if (FP_OBJ[o.t]) { const [nm, wk] = FP_OBJ[o.t]; fprop(nm, cx, by + s * 0.55, {w: SQ3 * s * wk}); }
   else if (o.t === 'log') { const a = ATLAS.spr && ATLAS.spr.log_summer, w = SQ3 * s * 1.9; if (a) sprite('log_summer', cx, cy + s * 0.45, w * a[3] / a[2]); }
 }
-const F_WATTLE = c => battle && battle.field.bg !== 'plain' && fprop('fp_wattle', hexXY(c.c, c.r).x, hexXY(c.c, c.r).y + geo.s * 0.5, {w: SQ3 * geo.s * 1.1});
+/* плетень ровно по линиям (Ник 27.11): поперёк поля — по ряду и так ровно; колонка клеток вдоль поля идёт «ёлочкой» —
+   её звенья ставим на одну вертикаль (середина между соседями), а не по центрам клеток со ступеньками */
+const F_WATTLE = c => { if (!battle || battle.field.bg === 'plain') return false; const S = battle, p = hexXY(c.c, c.r), s = geo.s;
+  const nb = B.neigh(c.c, c.r).map(q => B.cell(S, q.c, q.r)).filter(x => x && x.t === 'fence'), row = nb.some(n => n.r === c.r), col = nb.filter(n => n.r !== c.r);
+  let x = p.x; if (!row && col.length) { const xs = col.map(n => (hexXY(n.c, n.r).x + p.x) / 2); x = xs.reduce((a, b) => a + b, 0) / xs.length; }
+  return fprop('fp_wattle', x, p.y + s * 0.5, {w: SQ3 * s * 1.1}); };
 let TREEFADE = null;
 function drawProp(c) {
   if (FP_ONE[c.t]) { const p = hexXY(c.c, c.r), [nm, hk] = FP_ONE[c.t]; if (fprop(nm, p.x, p.y + geo.s * 0.55, {h: geo.s * hk})) return; }
@@ -54988,7 +54996,10 @@ function drawUnit0(u) {
   else if (u._noUi) { ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.45, s * 0.55, s * 0.2, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,.3)'; ctx.fill(); }
   else { ctx.beginPath(); ctx.ellipse(p.x, p.y + s * 0.45, s * 0.55, s * 0.2, 0, 0, Math.PI * 2);
   ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fill();
-  ctx.lineWidth = isCur ? 3 : 2; ctx.strokeStyle = u.side === 'party' ? (isCur ? '#e7c983' : '#c9a35c') : u.side === 'demon' ? (isCur ? '#d7a8ff' : '#9b5cd6') : (isCur ? '#ff8a70' : '#b04a3a'); ctx.stroke();
+  { const rk = u.civ && C.wkRing && battle && battle.walk ? C.wkRing(u) : null; /* прогулка: кольцо по тому, кто тебе этот человек (walk_known.js) */
+  ctx.lineWidth = isCur ? 3 : 2; ctx.strokeStyle = rk ? C.WK_RING[rk] : u.side === 'party' ? (isCur ? '#e7c983' : '#c9a35c') : u.side === 'demon' ? (isCur ? '#d7a8ff' : '#9b5cd6') : (isCur ? '#ff8a70' : '#b04a3a'); ctx.stroke();
+  if (rk === 'wife' || rk === 'love') { const hx = p.x + s * 0.5, hy = p.y + s * 0.42, r0 = s * 0.13; ctx.save(); ctx.fillStyle = rk === 'wife' ? '#d82a3a' : '#a05ad0'; ctx.strokeStyle = 'rgba(20,10,10,.8)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(hx, hy + r0 * 1.2); ctx.bezierCurveTo(hx - r0 * 2, hy - r0 * 0.2, hx - r0 * 0.9, hy - r0 * 1.6, hx, hy - r0 * 0.5); ctx.bezierCurveTo(hx + r0 * 0.9, hy - r0 * 1.6, hx + r0 * 2, hy - r0 * 0.2, hx, hy + r0 * 1.2); ctx.fill(); ctx.stroke(); ctx.restore(); } }
     // чей ход: светящееся кольцо, свои — золотом, враги — огнём
     if (isCur) { const t = performance.now() / 1000, q = 0.5 + 0.5 * Math.sin(t * 4), col = u.side === 'party' ? '255,222,140' : u.side === 'demon' ? '215,168,255' : '255,110,80';
       ctx.save(); ctx.shadowColor = `rgba(${col},.95)`; ctx.shadowBlur = s * (0.35 + 0.25 * q); ctx.strokeStyle = `rgba(${col},${0.75 + 0.25 * q})`; ctx.lineWidth = Math.max(2.5, s * 0.1);

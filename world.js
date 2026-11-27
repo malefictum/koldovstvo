@@ -79738,3 +79738,163 @@ if (C.profNorm) { const pn0 = C.profNorm; C.profNorm = function (g) { const r = 
 /* в лавке — рядом с дорожным */
 if (Array.isArray(C.ROAD_STOCK)) ['kushak', 'remen_kozh', 'poyas_ratnyy'].forEach(id => { if (!C.ROAD_STOCK.includes(id)) C.ROAD_STOCK.push(id); });
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* walk_known.js */
+/* Колдовство — walk_known: знакомые на прогулке и связь с меню места (Ник 27.11: «когда ты на площади — кто-то с тобой может
+   поговорить? надо сделать связь между НПС города и меню города; проверить, чтобы жители, кого знаешь, выводились; туман —
+   чёрный, но имя, где живёт знакомый, на миникарте и на месте чёрного силуэта»). Без DOM; рисование — ui.js по S.walk.known.
+   • ЗНАКОМЫЕ ВЫХОДЯТ ПЕРВЫМИ: днём все, кого герой знает (жители места, с кем говорил; мастера, с кем водится; знакомые),
+     стоят на улице — в подписи словом: «друг», «приятельница», «знакомый». Прочим прохожим — что останется.
+   • ДОМА ЗНАКОМЫХ ВИДНЫ СКВОЗЬ ТУМАН: S.walk.known[дом] = подпись («Хотен · кузнец», «Млада · знакомая»). Поле остаётся
+     чёрным, но над тёмным силуэтом дома — табличка с именем, на миникарте — пятно и имя.
+   • ПОДХОДЯТ САМИ: изредка (C.WK.EVERY кругов, не чаще) к герою подходит человек и заговаривает: тёплый знакомый —
+     поздороваться и новость; друг-мастер — «заходи, есть дело»; ребёнок — спросить про меч; старик — попросить на хлеб;
+     баба — рассказать сплетню. Подошёл вплотную — слово пузырём и кнопка «Ответить: имя». Холодный знакомый, завидев
+     героя, отворачивается. Ночью, в драке и с оружием наголо — не подходят.
+   • МЕНЮ ↔ УЛИЦА: в месте — «Знакомые здесь»: кто, кем приходится (словом) и где сейчас (в кузне, на торгу, дома, в корчме,
+     спит). «Найти на улице» — прогулка, человек обведён кругом на миникарте.
+   Числа — C.WK (тайна мастера). */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!R || !B || !C || !B.BF || !C.walkSetup || !C.walkTick) return;
+const BF = B.BF;
+const K = C.WK = Object.assign({EVERY: 12, P: 0.55, NEAR: 11, WARM_MASTER: 35, FRIEND_MASTER: 70, COLD_TF: 5, LEAVE: 14}, C.WK || {});
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const first = n => String(n || '').split(/[,(]/)[0].trim().split(' ')[0];
+const day = g => (g && g.day) || 1;
+const slot = g => ((g && g.time) || 0) % 4;
+const fx = (sex, m, f) => (sex === 'f' ? f : m);
+/* свой счётчик случайностей — не трогает общий R.rand (бой и проверки идут как прежде) */
+let RQ = 0x9e3779b9; const rnd = () => { RQ = Math.imul(RQ ^ (RQ >>> 15), 2246822507) >>> 0; RQ ^= RQ >>> 13; return (RQ % 100000) / 100000; };
+const pick = a => a[Math.floor(rnd() * a.length)];
+const tfRel = (g, at, id) => { try { const A = (g.tf || {})[g.camp + '|' + at]; return (A && A[id]) || null; } catch (e) { return null; } };
+const heroes = g => (g && g.heroes ? C.alive(g).filter(h => h.kind !== 'merc') : []);
+/* ---------- кого герой знает в этом месте ---------- */
+const masterWord = (r, sex) => { if (!r) return ''; if (r.bond === 'kin') return 'родня'; if (r.bond === 'drug' || (r.rep || 0) >= K.FRIEND_MASTER) return fx(sex, 'друг', 'подруга'); if ((r.rep || 0) >= K.WARM_MASTER) return fx(sex, 'приятель', 'приятельница'); return (r.rep || 0) > 0 || r.met ? fx(sex, 'знакомый', 'знакомая') : ''; };
+C.wkKnown = function (g, at) {
+  at = at || g.loc; const out = []; if (!g || !at) return out;
+  try { (C.folkHere ? (() => { const l0 = g.loc; g.loc = at; try { return C.folkHere(g) || []; } finally { g.loc = l0; } })() : []).forEach(role => { if (/^sp_/.test(role)) return;
+    const r = (g.folkRel || {})[role + '@' + at]; if (!r || r.bond === 'wed') return; const p = C.folkPerson(g, role, at); if (!p) return; const w = masterWord(r, p.sex); if (!w) return;
+    out.push({k: 'folk', id: role, n: p.n, t: p.t, sex: p.sex, face: p.face, word: w, warm: (r.rep || 0) >= K.WARM_MASTER || r.bond === 'drug', role}); }); } catch (e) {}
+  try { (C.tfPeople ? C.tfPeople(g, at) : []).forEach(p => { const r = tfRel(g, at, p.id); if (!r || !r.met) return; const warm = (r.rel || 0) >= ((C.TF || {}).REL_WARM || 30), cold = (r.rel || 0) <= K.COLD_TF;
+    const w = p.age === 'kid' ? fx(p.sex, 'знакомый мальчонка', 'знакомая девчушка') : warm ? fx(p.sex, 'приятель', 'приятельница') : fx(p.sex, 'знакомый', 'знакомая');
+    out.push({k: 'tf', id: p.id, n: p.n, t: p.t, sex: p.sex, face: p.face, word: w, warm, cold, age: p.age}); }); } catch (e) {}
+  try { Object.values(g.kvLoc || {}).forEach(r => { if (!r || r.at !== at || (r.camp && r.camp !== g.camp) || ['gone', 'wed'].includes(r.st) || r.tf) return;
+    out.push({k: 'kv', id: r.id, n: r.n, t: r.t || '', sex: r.sex, face: r.face, word: fx(r.sex, 'знакомый', 'знакомая'), warm: !r.cold, cold: !!r.cold}); }); } catch (e) {}
+  return out; };
+/* где человек сейчас — словом (по распорядку дня, walk_day.js) */
+const WORK = {forge: 'в кузне', weave: 'в мастерской', charm: 'в мастерской', jewel: 'в мастерской', trade: 'в лавке', temple: 'в храме', book: 'над книгами', war: 'на дружинном дворе', song: 'в корчме, у печи с гуслями', thief: 'где-то у корчмы', hunt: 'в лесу, на ловах', herb: 'в лесу, за травами', mill: 'на мельнице'};
+C.wkWhere = function (g, x) { const s = slot(g); if (s === 3) return x.age === 'kid' ? 'спит' : 'спит дома';
+  if (x.k === 'folk') return s === 2 ? (x.role === 'song' ? 'в корчме' : hsh(x.id + day(g)) % 3 ? 'дома' : 'в корчме') : WORK[x.role] || 'при деле';
+  if (x.age === 'kid') return s === 2 ? 'дома' : 'носится по улице';
+  if (s === 0) return 'дома, по хозяйству'; if (s === 2) return hsh(x.id + day(g)) % 3 ? 'дома' : 'в корчме';
+  return ['на улице', 'у колодца', 'на торгу', 'во дворе'][hsh(x.id + day(g)) % 4]; };
+/* ---------- на прогулке: знакомые выходят первыми, их дома подписаны ---------- */
+const HOMES = ['izba', 'terem', 'starosta', 'kupec', 'boyar', 'dlin'];
+const civs = S => (S.units || []).filter(u => u.side === 'civ' && u.civ && !u.gone && !u.dead && u.c != null);
+const plain = u => !u.civ.tf && !u.civ.folk && !u.civ.ask && !u.civ.kv && !u.civ.kid && !u.civ.werr && !u.civ.kin && !u.civ.kvr && !u.civ.svc && ['muzhik', 'baba', 'starik', 'child'].includes(u.civ.k);
+const fitK = x => x.age === 'kid' ? ['child'] : x.age === 'old' ? ['starik', x.sex === 'f' ? 'baba' : 'muzhik'] : [x.sex === 'f' ? 'baba' : 'muzhik'];
+const tagName = (u, x) => { const base = String(u.name || '').split(' · ')[0]; u.name = `${base} · ${x.word}`; u.civ.know = x.word; u.civ.knowK = x.k + ':' + x.id; if (x.warm) u.civ.warm = 1; if (x.cold) u.civ.cold = 1; };
+const ws0 = C.walkSetup;
+C.walkSetup = function (S, g) {
+  const r = ws0.apply(this, arguments);
+  try { const Wk = S.walk; if (!Wk || Wk.wild || Wk.dg || !g) return r;
+    const L = C.wkKnown(g, g.loc); Wk.known = Wk.known || {};
+    const hs = (BF.houses ? BF.houses(S.field) : []).filter(h => HOMES.includes(h.k)), taken = new Set(Object.keys(Wk.kvHomes || {}));
+    const homeFor = x => { const free = hs.filter(h => !taken.has(String(h.id))); if (!free.length) return null; const h = free[hsh(g.loc + '|' + x.k + x.id) % free.length]; taken.add(String(h.id)); return h; };
+    L.forEach(x => {
+      let u = civs(S).find(v => (x.k === 'folk' && v.civ.folk === x.id) || (x.k === 'tf' && v.civ.tf === x.id) || (x.k === 'kv' && v.civ.kv === x.id));
+      // житель, кого знаешь, но на улицу не вышел — выходит вместо прохожего (днём)
+      if (!u && x.k === 'tf' && !Wk.night) { u = civs(S).find(v => plain(v) && fitK(x).includes(v.civ.k)); if (u) { u.civ.tf = x.id; u.name = `${x.n}, ${x.t}`; if (x.face) { u.portrait = x.face; u.civ.face = x.face; } } }
+      if (u) tagName(u, x);
+      // дом: мастер — где работает (кузня, мастерская, лавка) или свой; житель — своя изба
+      let h = null; if (u && u.civ.workAt != null) h = BF.houseById ? BF.houseById(S.field, u.civ.workAt) : null;
+      if (!h && x.k === 'kv') { const id = Object.keys(Wk.kvHomes || {}).find(k => String(Wk.kvHomes[k]).indexOf(first(x.n)) === 0); if (id) h = BF.houseById ? BF.houseById(S.field, isNaN(+id) ? id : +id) || BF.houseById(S.field, id) : null; }
+      if (!h && u && u.civ.home != null && x.k === 'folk') h = BF.houseById ? BF.houseById(S.field, u.civ.home) : null;
+      if (!h) { h = homeFor(x); if (h && u && x.k === 'tf') u.civ.home = h.id; }
+      if (h) { const lab = `${first(x.n)} · ${x.k === 'folk' ? x.t : x.word}`; Wk.known[h.id] = lab; if (x.k !== 'folk' || !['kuznya', 'masterskaya', 'kupec', 'hram', 'korchma', 'korchma_big'].includes(h.k)) { Wk.kvHomes = Wk.kvHomes || {}; if (!Wk.kvHomes[h.id]) Wk.kvHomes[h.id] = lab; } } });
+    // кого искали из меню — обвести
+    if (g.twFind) { Wk.find = g.twFind; delete g.twFind; }
+    findHint(S);
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return r; };
+const findHint = S => { const Wk = S.walk; if (!Wk || !Wk.find) return; const u = civs(S).find(v => v.civ.knowK === Wk.find); Wk.hints = (Wk.hints || []).filter(h => !h.wk);
+  if (u) Wk.hints.push({c: u.c, r: u.r, rad: 3, col: '#8fd06a', label: first(u.name), wk: 1}); };
+/* ---------- подходят сами ---------- */
+const LINES = {
+  warm: ['{h}! Давно тебя не видно. Как дорога?', 'А, {h}! Здорово. Слыхал{ла}, что у старосты корова сбежала? Всем селом ловили.', 'Ой, {h}! Заходи как-нибудь, посидим.', '{h}, здравствуй! Ты к нам надолго?', 'Вот и {h}! А мы как раз про тебя вспоминали.'],
+  master: ['{h}! Заходи ко мне, есть дело.', 'Эй, {h}! Не проходи мимо — разговор есть.', '{h}, как раз тебя ищу. Загляни, как будет время.'],
+  kid: ['А ты воин? А покажи меч!', '{Дяденька}, а ты из дальних краёв? А там драконы есть?', '{Дяденька}, а правда, что ты колдовать умеешь?', 'А у тебя конь есть? А как его зовут?', '{Дяденька}, а ты меня в дружину возьмёшь, когда вырасту?'],
+  beg: ['Подай, добрый человек, на хлеб…', 'Не пожалей медяка старику, {сынок}.', 'Помоги, чем можешь, — третий день без горячего.'],
+  gossip: ['Слыхал{ла}? Мельник-то опять с женой поругался — весь конец слышал!', 'А у кузнеца, говорят, дочь просватали. За кого — не скажу, сам{а} угадай.', 'Ночью на погосте огни видели. Брешут, поди… а может, и нет.', 'Купец заезжий соль втридорога продаёт. Ты у него не бери.', 'В корчме вчера драка была — двое чужих, с мечами. Не твои, часом?'],
+  trade: ['Пирожки! С капустой, с яйцом — горячие!', 'Бусы, ленты, гребни — глянь, не пожалеешь!', 'Яблоки мочёные — бери, пока есть!'],
+  cold: ['{n} отворачивается и делает вид, что не заметил{а} тебя.', '{n}, завидев тебя, переходит на другую сторону улицы.', '{n} поджимает губы и уходит во двор.']};
+const KIND_KID = u => u.civ.k === 'child', KIND_OLD = u => u.civ.k === 'starik';
+const fillL = (t, h, u) => String(t).replace(/\{h\}/g, first(h && (h.ref || h).name)).replace(/\{n\}/g, first(u && u.name)).replace(/\{Дяденька\}/g, (h && (h.ref || h).sex === 'f') ? 'Тётенька' : 'Дяденька').replace(/\{сынок\}/g, (h && (h.ref || h).sex === 'f') ? 'дочка' : 'сынок').replace(/\{ла\}/g, (h && (h.ref || h).sex === 'f') ? 'а' : '').replace(/\{а\}/g, (u && (u.civ.sex === 'f' || u.civ.k === 'baba')) ? 'а' : '');
+/* шаг к герою: как ходят мирные (B.goNear в своём ходе), один раз за круг — только для того, кто подходит */
+const stepTo = (S, u, h) => { const k = {m: S.moved, a: S.acted, b: S.bonus, f: S.freeHit, at: S.attacked, cu: S.cur};
+  try { S.moved = 0; S.acted = false; S.bonus = false; S.freeHit = {}; B.goNear(S, u, h); } catch (e) {} finally { S.moved = k.m; S.acted = k.a; S.bonus = k.b; S.freeHit = k.f; S.attacked = k.at; }
+  if (B.faceTo) B.faceTo(u, h); };
+const myHeroes = S => (S.units || []).filter(u => u.side === 'party' && !u.pet && B.active(u) && u.c != null);
+const tick0 = C.walkTick;
+C.walkTick = function (S) {
+  const r = tick0.apply(this, arguments);
+  try { const Wk = S.walk; if (!Wk || Wk.wild || Wk.dg || Wk.fight || Wk.night || Wk.armed || Wk.hot) { if (Wk) findHint(S); return r; }
+    const hs = myHeroes(S); if (!hs.length) return r; const h = hs[0];
+    // холодный знакомый отворачивается (раз за прогулку)
+    civs(S).forEach(u => { if (!u.civ.cold || u.civ.coldSaid || B.dist(u, h) > 4) return; u.civ.coldSaid = 1; const t = fillL(pick(LINES.cold), h, u); if (B.log) B.log(S, t, ''); });
+    // идёт к герою
+    const A = Wk.app && civs(S).find(u => u.id === Wk.app.id);
+    if (A) { if (B.dist(A, h) > 1) { if (Wk.rnd - Wk.app.at > K.LEAVE) { A.civ.app = null; Wk.app = null; } else stepTo(S, A, h); }
+      if (Wk.app && B.dist(A, h) <= 1 && !Wk.app.said) { Wk.app.said = 1; A.civ.hi = Wk.rnd; A.say = {t: fillL(Wk.app.line, h, A), r: Wk.rnd}; if (B.log) B.log(S, `${first(A.name)}: «${A.say.t}»`, ''); if (B.faceTo) B.faceTo(A, h); }
+      if (Wk.app && Wk.app.said && (B.dist(A, h) > 2 || Wk.rnd - (A.civ.hi || 0) > 8)) { A.civ.app = null; Wk.app = null; } }
+    else if (!Wk.app && Wk.rnd - (Wk.appLast || -99) >= K.EVERY && rnd() < K.P) {
+      const near = civs(S).filter(u => B.active(u) && !u.civ.sleep && !u.civ.cold && !u.civ.app && u.civ.k !== 'guard' && u.civ.k !== 'dog' && u.civ.k !== 'tgt' && !u.civ.hostile && B.dist(u, h) <= K.NEAR && B.dist(u, h) >= 2 && BF.inHouse(S, u) == null);
+      const known = near.filter(u => u.civ.warm), mast = known.filter(u => u.civ.folk);
+      let u = null, kind = '';
+      if (mast.length && rnd() < 0.5) { u = pick(mast); kind = 'master'; }
+      else if (known.length) { u = pick(known); kind = 'warm'; }
+      else { const opts = near.filter(x => !x.civ.ask); u = opts.length ? pick(opts) : null; kind = u ? (KIND_KID(u) ? 'kid' : KIND_OLD(u) && rnd() < 0.5 ? 'beg' : u.civ.k === 'baba' && rnd() < 0.35 ? 'trade' : 'gossip') : ''; }
+      if (u) { Wk.appLast = Wk.rnd; Wk.app = {id: u.id, at: Wk.rnd, kind, line: pick(LINES[kind])}; u.civ.app = kind; if (u.civ.plan) u.civ.plan.until = Wk.rnd; } }
+    findHint(S);
+  } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return r; };
+if (C.battleStart) { const bs0 = C.battleStart; C.battleStart = function () { const S = bs0.apply(this, arguments); try { if (S && S.walk && S.walk.find) findHint(S); } catch (e) {} return S; }; }
+/* кнопки: «Ответить: имя» (подошёл и заговорил), «Подать на хлеб» */
+C.walkActsX = C.walkActsX || []; C.walkDoX = C.walkDoX || {};
+C.walkActsX.push(function (S, u, out, g) { const Wk = S.walk; if (!Wk || !Wk.app || !Wk.app.said) return; const A = civs(S).find(x => x.id === Wk.app.id); if (!A || B.dist(A, u) > 1) return;
+  const nm = first(A.name); if (!out.some(x => x.v === 'talk' && x.t === A.id)) out.unshift({v: 'talk', t: A.id, label: `Ответить: ${nm}`, title: 'Подошёл сам — поговорить', grp: 'Люди'});
+  else out.forEach(x => { if (x.v === 'talk' && x.t === A.id) x.label = `Ответить: ${nm}`; });
+  if (Wk.app.kind === 'beg') out.unshift({v: 'wk_alms', t: A.id, label: `Подать ${nm} на хлеб`, dis: g && (g.purse || 0) < 5 ? 'в кошеле пусто' : '', title: 'Пара медяков — и старику легче', grp: 'Люди'}); });
+C.walkDoX.wk_alms = function (S, u, a, t, g) { const Wk = S.walk; if (!g || (g.purse || 0) < 5) return 'в кошеле пусто'; g.purse -= 5; if (B.log) B.log(S, `${first(u.name)} кладёт медяки в сухую ладонь. Старик кланяется в пояс: «Дай тебе здоровья».`, 'buff');
+  try { if (C.spiritAdd && (g.wkAlms || 0) !== g.day) { g.wkAlms = g.day; C.spiritAdd(g, 1, 'подал старику на хлеб', u.ref); } } catch (e) {} if (Wk.app) { const A = civs(S).find(x => x.id === Wk.app.id); if (A) A.civ.app = null; Wk.app = null; } return ''; };
+/* ---------- кольцо под ногами (Ник 27.11): красный — враг, жёлтый — незнакомец, синий — торговец, голубой — знакомый,
+   зелёный — хороший знакомый, розовый с красным сердечком — жена (муж), фиолетовое сердечко — любовница (флирт) ---------- */
+C.WK_RING = {foe: '#d0402e', stranger: '#e0c040', trade: '#3a64d8', known: '#6ac8f0', good: '#5cc04a', wife: '#f08fb8', love: '#a05ad0'};
+C.wkRing = function (u) { if (!u || !u.civ) return null; const c = u.civ; if (['dog', 'pig', 'horse'].includes(c.k) || u.horseOnly) return null;
+  if (c.hostile || u.side === 'foe') return 'foe';
+  if ((c.folk && /^sp_/.test(c.folk)) || c.spouse) return 'wife';
+  if (c.kv || c.kvr) return 'love';
+  if (c.kid || c.kin || c.warm) return 'good';
+  if (c.know) return 'known';
+  if (c.k === 'trader' || c.svc || (c.job && ['kupec', 'korchma', 'banya', 'kuznya', 'masterskaya'].includes(c.job)) || c.folk) return 'trade';
+  return 'stranger'; };
+/* ---------- в меню места: «Знакомые здесь» ---------- */
+const placeScene = g => { try { if (C.CAMPS[g.camp].free) return 'free_place'; const n = C.CAMPS[g.camp].map.nodes[g.loc]; return (n && n.scene) || null; } catch (e) { return null; } };
+const SC = {wk_who: g => {
+  const L = C.wkKnown(g, g.loc), back = placeScene(g) || 'map', lines = [], ch = [];
+  if (!L.length) lines.push(['n', 'Здесь вас пока никто толком не знает. Поговорите с людьми — на улице, у колодца, у мастеров.']);
+  L.forEach(x => { lines.push(['n', `${x.n}${x.t ? ', ' + x.t : ''} — ${x.word}. Сейчас: ${C.wkWhere(g, x)}.`]);
+    const why = C.walkOk && !C.walkOk(g) ? (C.walkWhy ? C.walkWhy(g) : 'сейчас не выйти') : '';
+    ch.push({t: `Найти на улице: ${first(x.n)}`, dis: why || null, do: g2 => { g2.twFind = x.k + ':' + x.id; return 'tw_go'; }}); });
+  ch.push({t: 'Назад', do: () => back});
+  return {title: 'Знакомые здесь', bg: 'village', lines, choices: ch}; }};
+Object.values(C.CAMPS).forEach(camp => { if (camp && camp.scenes) Object.assign(camp.scenes, SC); });
+if (C.register) { const reg0 = C.register; C.register = function (camp) { const r = reg0.apply(this, arguments); try { if (camp && camp.scenes) Object.assign(camp.scenes, SC); } catch (e) {} return r; }; }
+{ const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
+  try { if (sc && g && Array.isArray(sc.choices) && id === placeScene(g) && C.walkOk && C.tfPeople && C.tfPeople(g, g.loc).length && !sc.choices.some(c => c.wkWho)) { const L = C.wkKnown(g, g.loc);
+      if (L.length) { const i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1; const c = {i, label: `Знакомые здесь: ${L.slice(0, 3).map(x => first(x.n)).join(', ')}${L.length > 3 ? '…' : ''}`, wkWho: 1, do: () => 'wk_who'};
+        const bi = sc.choices.findIndex(q => /^(Назад|Уйти|В путь|На карту)/.test(q.label || '')); sc.choices = sc.choices.slice(); sc.choices.splice(bi < 0 ? sc.choices.length : bi, 0, c); } } } catch (e) {}
+  return sc; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
