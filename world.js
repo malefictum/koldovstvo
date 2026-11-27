@@ -77443,6 +77443,21 @@ if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S, spec) 
       if (r && r.hb && !r.hb.dead && u && (u.dead || u.hp <= 0)) { r.hb.dead = day(g); r.st = 'widow'; r.t = 'вдова'; r.hbAmbush = 1; delete r.hb.plan;
         if (C.note) C.note(g, `Среди нападавших был и сам ${r.hb.n}. Теперь в ${(((C.CAMPS[g.camp] || {}).map || {}).nodes || {})[r.at] ? C.CAMPS[g.camp].map.nodes[r.at].name : 'селе'} говорят: «Лихие люди убили по дороге». ${r.n.split(' ')[0]} — вдова.`); } } } catch (e) {}
   return res; }; }
+
+/* «Избавить её от мужа» — не бросок, а ночная прогулка по селу (town_walk): муж — цель в своей избе (Ник 27.11) */
+if (C.walkTarget) { const wt0 = C.walkTarget; C.walkTarget = function (S, g) { const u0 = wt0.apply(this, arguments); if (u0) return u0;
+  try { const T = g.kvHbTgt, x = T && C.kvLocOf(g, T.r); if (!T || T.node !== g.loc || !x || !x.hb || x.hb.dead || x.st !== 'wife' || (S.walk && !S.walk.night) || hbAway(g, x)) return null;
+    const fake = {id: 'kvhb_' + x.id, status: 'open', kind: 'contract', tw: {node: g.loc, name: '', town: false, wealth: T.wealth, day: 'korchma'}, v: {vic: {n: T.n, sex: T.sex}}};
+    g.jobs = g.jobs || []; g.jobs.push(fake); try { return wt0.call(this, S, g); } finally { g.jobs = g.jobs.filter(j => j !== fake); } } catch (e) { return null; } }; }
+if (C.walkClose) { const wc0 = C.walkClose; C.walkClose = function (g, S) { try { const Wk = S && S.walk, T = Wk && Wk.tgtDead;
+    if (T && String(T.jid || '').startsWith('kvhb_')) { const x = C.kvLocOf(g, T.jid.slice(5)), h = heroById(g, T.hid); delete Wk.tgtDead;
+      if (x && x.hb && !x.hb.dead) { const wit = T.wit || (Wk.seen || []).some(s2 => s2.hid === T.hid && s2.r >= T.r) ? 'someone' : null;
+        x.hb.dead = day(g); x.st = 'widow'; x.t = 'вдова'; delete x.hb.plan; if (g.kvHbTgt && g.kvHbTgt.r === x.id) delete g.kvHbTgt;
+        if (h && C.crimeAdd) try { C.crimeAdd(g, h, 'murder', {seen: !!wit, noWit: true, quiet: 1, why: 'муж знакомой', place: 'village'}); } catch (e) {}
+        if (C.repAdd && wit) C.repAdd(g, x.at, -2, 'убит муж');
+        x.hbClean = wit ? 0 : 1; x.hbAmbush = 0; if (x.hb.bad) x.rel = Math.min(100, (x.rel || 0) + 10); else { x.hbGood = 1; }
+        C.note(g, `Утром ${x.hb.n} не проснулся. ${wit ? 'Кто-то видел ночью чужого у его избы.' : 'Никто ничего не видел.'} ${x.n.split(' ')[0]} — вдова.`); } } } catch (e) {}
+  return wc0.apply(this, arguments); }; }
 /* сцена */
 const SC = C.KV_SC; const sc0 = SC.kv_local;
 const sc = function (g) {
@@ -77457,6 +77472,8 @@ const sc = function (g) {
       if (was && high(r)) { r.st = 'gone'; r.goneDay = d; r.rel = 0; if (C.repAdd) C.repAdd(g, r.at, -3, 'скандал: обещал жениться и не женился'); g.kvLast = null; C.note(g, `${r.n} не дождалась сватов: всему селу рассказала, каков ${h.name}, и выставила за порог.`); return Object.assign({}, out, {lines: [['n', `${r.n} не пускает на порог: «Срок вышел. Иди, куда шёл». Соседи смотрят из-за плетней.`]], choices: out.choices.filter(c => c.t === 'Уйти')}); }
       r.rel = Math.max(0, r.rel - 20); r.cold = 1; out.lines.push(['n', `${r.n} встречает холодно: «Обещал — и где сваты?»`]); }
     // узнала о сопернице
+    if (r.hbGood && r.st === 'widow' && !r.hbGoodSaid) { r.hbGoodSaid = 1; out.lines.push(['n', `${r.n.split(' ')[0]} в чёрном, глаза красные: «Кто-то его ночью… Он мне худого слова не сказал. Ты ведь не… нет?» — и смотрит прямо.`]); }
+    if (r.hbClean && r.st === 'widow' && r.hb && r.hb.bad && !r.hbCleanSaid) { r.hbCleanSaid = 1; out.lines.push(['n', `${r.n.split(' ')[0]} в чёрном платке, а глаза сухие: «Не проснулся… Говорят — сердце. Я и не спрашиваю»`]); }
     if (r.hbAmbush === 1) { r.hbAmbush = 2; const hn = r.hb ? String(r.hb.n).split(' ')[0] : 'муж', bad = r.hb && r.hb.bad;
       const lines = out.lines.concat([['n', bad ? `${r.n.split(' ')[0]} в чёрном платке, а глаза сухие и светлые: «${hn} в дороге сгинул — лихие люди, говорят. Грех так думать… а мне легко. Впервые за годы легко»` : `${r.n.split(' ')[0]} в чёрном платке, глаза красные: «${hn} сгинул. Лихие люди на дороге… Как же так?»`]]);
       const ch = [{own: h.id, t: 'Признаться: это был ты', do: g2 => { const x = C.kvLocOf(g2, r.id); if (bad || x.rel >= 85) { x.rel = Math.min(100, x.rel + 10); g2.kvLast = bad ? `${x.n.split(' ')[0]} долго молчит. Потом берёт твою руку и прижимает к щеке: «Он сам на тебя пошёл. Значит, так судьба. Никому не скажу»` : `${x.n.split(' ')[0]} плачет, но не отнимает руки: «Он сам на тебя пошёл… Значит, так. Молчи об этом. Никогда»`; }
@@ -77510,14 +77527,11 @@ const sc = function (g) {
           const ok = R.d(20) + Math.max(mod(h, 'str'), mod(h, 'cha')) + Math.floor((h.level || 1) / 2) >= 13;
           if (ok) { x.hb.tamed = 1; x.rel = Math.min(100, x.rel + 8); g2.kvLast = `Ты встречаешь ${decl(hn, 'm').a} у кабака. Разговор короткий. Наутро он тише воды — и руки больше не поднимает. ${x.n.split(' ')[0]} не спрашивает, что ты ему сказал.`; }
           else { x.hb.knows = 1; x.rel = Math.max(0, x.rel - 3); g2.kvLast = `${hn} слушает, сплёвывает — и смотрит на тебя слишком долго. Кажется, он что-то понял.`; } return 'kv_local'; }});
-        out.choices.splice(Math.max(0, out.choices.length - 2), 0, {own: h.id, t: `Избавить её от ${decl(hn, 'm').g || hn}`, if: g2 => (C.kvLocOf(g2, r.id) || {}).hbTalkD !== day(g2), off: 'сегодня уже', do: g2 => { const x = C.kvLocOf(g2, r.id); x.hbTalkD = day(g2);
-          const ok = R.d(20) + Math.max(mod(h, 'str'), mod(h, 'dex')) + Math.floor((h.level || 1) / 2) + (h.cls === 'dushegub' ? 3 : 0) >= 12;
-          if (!ok) { x.hb.knows = 1; if (C.spiritAdd) C.spiritAdd(g2, -1, '', h); g2.kvLast = `В темноте у овина ${hn} вывернулся, заорал на всю улицу — и убежал. Теперь он знает. И она знает, что ты хотел.`; x.rel = Math.max(0, x.rel - 10); return 'kv_local'; }
-          x.hb.dead = day(g2); x.st = 'widow'; x.t = 'вдова'; const seen = R.rand() < (h.cls === 'dushegub' ? 0.03 : 0.35); // душегуб — без следа (Ник 27.11) if (C.crimeAdd) try { C.crimeAdd(g2, h, 'murder', {seen, why: 'муж знакомой'}); } catch (e) {}
-          if (C.repAdd) C.repAdd(g2, x.at, seen ? -3 : -1, 'убит муж');
-          if (x.hb.bad) { x.rel = Math.min(100, x.rel + 10); g2.kvLast = `Утром ${hn} нашли в канаве у кабака. ${x.n.split(' ')[0]} плачет на людях, как положено вдове. А ночью шепчет: «Свободна… Око светлое — свободна»`; }
-          else { x.st = 'gone'; x.goneDay = day(g2); x.rel = 0; g2.kvLast = `${hn} нашли мёртвым. ${x.n.split(' ')[0]} воет над ним — и, увидев тебя, кричит на всю улицу: «Это ты! Ты! Он мне худого слова не сказал!»`; if (C.repAdd) C.repAdd(g2, x.at, -2, 'вдова кричит на всю улицу'); }
-          C.note(g2, `${hn}, муж ${decl(x.n.split(' ')[0], 'f').g}, найден мёртвым${seen ? ' — и кто-то видел ' + h.name : ''}.`); return 'kv_local'; }}); } }
+        const tg = g.kvHbTgt && g.kvHbTgt.r === r.id;
+        out.choices.splice(Math.max(0, out.choices.length - 2), 0, {own: h.id, t: tg ? `${hn}: отложить` : `Избавить её от ${decl(hn, 'm').g || hn}`, do: g2 => { const x = C.kvLocOf(g2, r.id);
+          if (g2.kvHbTgt && g2.kvHbTgt.r === x.id) { delete g2.kvHbTgt; g2.kvLast = 'Ты решаешь подождать. Пока.'; return 'kv_local'; }
+          g2.kvHbTgt = {r: x.id, node: x.at, n: x.hb.n, sex: x.hb.sex || 'm', wealth: stat(x) === 2 ? (C.KV_RANK[x.rank] && C.KV_RANK[x.rank].power ? 'boyar' : 'kupec') : 'izba', hid: h.id, day: day(g2)};
+          g2.kvLast = `${x.n.split(' ')[0]} отводит глаза и шепчет, будто сама себе: «Изба наша — ${g2.kvHbTgt.wealth === 'izba' ? 'крайняя у колодца' : 'та, что с тесовыми воротами'}. Спит он у дальней стены. Пёс на цепи старый, глухой»… Ночью ${hbAway(g2, x) ? 'его не будет — уехал' : 'он дома'}. Сделать дело — ночью, пройдясь по ${(((C.CAMPS[g2.camp] || {}).map || {}).nodes || {})[x.at] && C.CAMPS[g2.camp].map.nodes[x.at].kind === 'город' ? 'городу' : 'селу'}: без свидетелей — чисто.`; return 'kv_local'; }}); } }
     if ((C.kvOwnKids(g, r) || []).length && !g.kvLast && R.rand() < 0.35) { const ks = r.kidsOwn; out.lines.push(['n', pick([`${ks.map(k => k.n).join(' и ')} — ${ks.length > 1 ? 'ребятишки' : (ks[0].sex === 'f' ? 'дочка' : 'сынишка')} ${r.n.split(' ')[0]} от первого мужа — выглядыва${ks.length > 1 ? 'ют' : 'ет'} из-за печи.`, `${r.n.split(' ')[0]} гонит ${ks.length > 1 ? 'ребятню' : ks[0].n} на двор: «Поиграйте пока»`])]); }
     if (r.newHome && !g.kvLast && !r.newHomeSaid) { r.newHomeSaid = 1; out.lines.push(['n', `${r.n.split(' ')[0]} теперь за ${r.hb ? r.hb.n : 'другим'}. Смотрит тепло, но глаза отводит: «Долго тебя не было. Я ждала… а потом перестала»`]); }
     // дитя просится в отряд
