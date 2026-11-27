@@ -78402,7 +78402,9 @@ C.FOLK_MORE = n;
 'use strict';
 const R = G.R, B = G.B;
 if (!B || !B.damage || !B.startTurn) return;
-B.DYING = Object.assign({LIVES: 3, CAP: 10, off: false}, B.DYING || {});
+B.DYING = Object.assign({LIVES: 3, CAP: 10, P_LIVES: 5, P_EVERY: 2, off: false}, B.DYING || {});
+/* смертельный яд убивает медленно (Ник 27.11: «чтобы не убивал наповал, а медленно очень»): с ног валит, но не убивает
+   на месте; лежачий проверяет Телосложение раз в два хода, сложность — сила яда, но не выше десяти; пять неудач — смерть */
 const OPEN = /нож|кинжал|серп|скрамасакс|меч|сабл|клинок|топор|секир|колун|чекан|клевец|копь|рогатин|вил[аы]?(?![а-яё])|острог|совн|пик|укус|клык|пасть|когт|лап|стрел|лук|самострел|болт|сулиц|дротик|рог(?![а-яё])|бивн|жал|клюв|коса(?![а-яё])|шип|игл/i;
 const VEN_SLEEP = /сонн|дурман|болиголов|мак(?![а-яё])|маков|дрём|сон-трав/i, VEN_BLOOD = /змеин|гадюк|аспид|кроверазж|кровав|кровян/i;
 const VEN_STIFF = /паук|скорпион|сколопендр|(?<![а-яё])оса(?![а-яё])|шершн/i, VEN_SNAKE = /змей|змея|гадюк|аспид|полоз|(?<![а-яё])уж(?![а-яё])|кобр/i;
@@ -78427,14 +78429,15 @@ const fill = (t, u) => { const dg = G.C && G.C.Q && G.C.Q.decl ? (G.C.Q.decl(nm(
 const mortal = u => u && u.kind !== 'monster' && u.summonLeft == null;
 const dm0 = B.damage;
 B.damage = function (S, t, d, src) {
+  if (S && S._venom && t && t.side === 'party' && t.hp > 0 && d > t.hp && !B.DYING.off) { d = t.hp; arguments[2] = d; } // яд валит, но не добивает на месте
   const off = B.DYING.off || !mortal(t); const wasUp = t && !t.down, wasKo = t && t.ko && !t.dead;
   const n0 = S && S.log ? S.log.length : 0; const r = dm0.apply(this, arguments);
   try { if (off || !t || t.dead || !t.down || !(d > 0)) return r;
     const ven = venOf(t), vk = ven ? venKind(ven) : null;
     const open = OPEN.test(String(src || '')) || /кровь|кровотеч/i.test(String(src || '')) || vk === 'blood';
-    if (wasUp && ven && ven.lethal && !open) { t.stable = false; t.ko = false; t.poisoned = {dc: ven.dc || 12}; t.bleed = B.DYING.LIVES; t.bleedT = 0; t.bleedDC = ven.dc || 12;
+    if (wasUp && ven && ven.lethal && !open) { t.stable = false; t.ko = false; t.poisoned = {dc: ven.dc || 12}; t.bleed = B.DYING.P_LIVES; t.bleedT = 0; t.bleedDC = ven.dc || 12;
       B.log(S, `${nm(t)} падает — в крови яд, и он жжёт дальше.`, 'bad', 'отравлен: перевязка не поможет — выгнать яд'); return r; }
-    if (wasUp && ven && ven.lethal && open) { t.poisoned = {dc: ven.dc || 12}; }
+    if (wasUp && ven && ven.lethal && open) { t.poisoned = {dc: ven.dc || 12}; t.bleed = Math.max(t.bleed || 0, B.DYING.P_LIVES); }
     if (wasUp && vk === 'sleep' && !open) { t.stable = true; t.ko = true; t.bleed = 0; const L = S && S.log ? S.log.slice(n0).reverse().find(l => l && l.cls === 'bad') : null; const ln = fill(pick(KO_SLEEP), t); if (L) { L.t = ln; L.n = 'сонный яд: без сознания'; } else B.log(S, ln, 'bad', 'сонный яд: без сознания'); return r; }
     if (wasUp) {
       if (!open) { t.stable = true; t.ko = true; t.bleed = 0; const ln = fill(pick(KO), t);
@@ -78475,7 +78478,8 @@ B.startTurn = function (S, u) {
   if (!B.DYING.off && u && u.down && !u.dead && mortal(u) && !u.stable) {
     try {
       u.bleedT = (u.bleedT || 0) + 1; const pz = !!u.poisoned;
-      const dc = pz ? Math.max(u.poisoned.dc || 12, u.bleedT === 1 ? (u.bleedDC || 0) : 0) : u.bleedT === 1 ? (u.bleedDC || 10) : Math.min(u.bleedDC || 10, B.DYING.CAP);
+      if (pz && u.bleedT % B.DYING.P_EVERY !== 0) { B.log(S, fill(pick(P_HOLD), u), 'bad', 'яд действует медленно'); return false; }
+      const dc = pz ? Math.min(u.poisoned.dc || 12, B.DYING.CAP) : u.bleedT === 1 ? (u.bleedDC || 10) : Math.min(u.bleedDC || 10, B.DYING.CAP);
       const roll = R.d(20), tot = roll + conMod(u);
       if (roll === 20 && !pz) { u.stable = true; u.ko = true; B.log(S, fill(pick(SELF), u), 'heal', 'кровь унялась'); return false; }
       if (roll !== 1 && tot >= dc) { B.log(S, fill(pick(pz ? P_HOLD : HOLD), u), 'bad', 'Телосложение: держится'); return false; }
@@ -78508,7 +78512,7 @@ const LETHAL_NM = /вдова|аспид|скорпион|гадюк|чёрн\S*
 const vo0 = B.venomOf;
 B.venomOf = function (u) { const v = vo0.apply(this, arguments);
   try { if (v && v.lethal == null) { const m = (u && u.ref) || {}, L = m.level || u.level || 1, nm = String(m.name || u.name || ''), id = String(m.id || '');
-      v.lethal = v.kind === 'bite' ? (L >= 6 || LETHAL_NM.test(nm)) : v.kind === 'blade' ? /ubiyts|убийц/i.test(id + ' ' + nm) : false; } } catch (e) {}
+      v.lethal = v.kind === 'bite' ? (L >= 6 || LETHAL_NM.test(nm)) : false; } /* клинки людей — тяжёлая отрава, но не смертельная: убийцы ходят и по обычным дорогам */ } catch (e) {}
   return v; };
 const vh0 = B.venomHit;
 if (vh0) B.venomHit = function (S, u, t) { const had = t && t.conds && t.conds.dot; const r = vh0.apply(this, arguments);
@@ -78563,5 +78567,15 @@ if (C.yadMake && C.yadWhy) {
     if ((id === 'yad_zheleza' || id === 'yad_zheleza_s') && h && ['dushegub', 'lovchiy'].includes(h.cls) && !a.some(x => x.k === 'yad_make')) a.push({t: id === 'yad_zheleza_s' && h.cls === 'dushegub' ? 'Сварить клинковый яд из железы' : 'Сварить простую отраву из железы', k: 'yad_make'});
     return a; }; }
 }
+/* ---------- смертельные яды — не на обычной дороге (Ник 27.11) ----------
+   Лес, равнины, пустоши, болотная тропа, побережье: ядовитые твари там — малые, яд у них несмертельный.
+   Смертельные (гигантский паук, вдова, паучья матка, ядовитый ящер, полоз-страж, полозиха) — в пещерах, подземельях, логовах
+   и по делам; на болоте остаётся редкий аспид среди чудовищ. */
+const LETHAL_IDS = ['yascher_yadovityy', 'poloz_strazh', 'polozikha', 'pauk_gigantskiy', 'chernaya_vdova', 'pauchya_matka'];
+const SAFE = {pauk_gigantskiy: 'pauk_bolshoy', chernaya_vdova: 'pauk_lesnoy', pauchya_matka: 'pauk_bolshoy', poloz_strazh: 'poloz', polozikha: 'polozyonok', yascher_yadovityy: null};
+try { const E = D && D.encounters && D.encounters.terrains; if (E) Object.values(E).forEach(T => { if (!T || T.id === 'caves' || !Array.isArray(T.table)) return;
+    T.table.forEach(r => { if (!Array.isArray(r.ids) || !r.ids.some(i => LETHAL_IDS.includes(i))) return; const out = [];
+      r.ids.forEach(i => { const x = LETHAL_IDS.includes(i) ? SAFE[i] : i; if (x && !out.includes(x)) out.push(x); }); if (out.length) r.ids = out; }); }); } catch (e) {}
+C.VENOM_ROAD_SAFE = LETHAL_IDS;
 C.VENOM_MORE = true;
 })(typeof window !== 'undefined' ? window : globalThis);
