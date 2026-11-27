@@ -49014,6 +49014,12 @@ const insKey = (S, h, cell, st) => { const k = wallKey(S, h, cell.t === 'hwin' ?
   return k; };
 /* проём поверх стены: g — точка низа на линии грани, (ux, uy) — направление грани, L — длина клетки по грани, hh — высота стены */
 /* косая вставка рисуется один раз в свой холст и дальше кладётся ровно — косой drawImage под срезом ряда дорог (город тормозил) */
+/* кэши холстов — по объёму (Ник 27.11: «Out of Memory»): крыша большого дома на крупном зуме — мегабайты, а ступеней зума много */
+const CBY = new Map();
+const cby = v => (v && v.cv && v.cv.width ? v.cv.width * v.cv.height * 4 : 0);
+function cput(map, key, val, max) { let tot = (CBY.get(map) || 0) + cby(val); map.set(key, val);
+  while (tot > max && map.size > 1) { const k = map.keys().next().value; if (k === key) break; const v = map.get(k); tot -= cby(v); try { if (v && v.cv) { v.cv.width = 0; v.cv.height = 0; } } catch (e) {} map.delete(k); }
+  CBY.set(map, Math.max(0, tot)); }
 const INSC = new Map();
 const skewDraw = (X, img, a, g, ux, uy, dx, dy, dw, dh) => {
   const m = typeof document !== 'undefined' && X.getTransform ? X.getTransform() : null;
@@ -49025,7 +49031,7 @@ const skewDraw = (X, img, a, g, ux, uy, dx, dy, dw, dh) => {
     const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
     const cv = document.createElement('canvas'); cv.width = Math.max(1, Math.ceil((x1 - x0) * sc) + 2); cv.height = Math.max(1, Math.ceil((y1 - y0) * sc) + 2);
     const c2 = cv.getContext('2d'); c2.setTransform(sc, 0, 0, sc, -x0 * sc + 1, -y0 * sc + 1); c2.transform(ux, uy, 0, 1, 0, 0); c2.drawImage(img, a[0], a[1], a[2], a[3], dx, dy, dw, dh);
-    if (INSC.size > 600) INSC.clear(); e = {cv, x0: x0 - 1 / sc, y0: y0 - 1 / sc, w: cv.width / sc, h: cv.height / sc}; INSC.set(key, e); }
+    e = {cv, x0: x0 - 1 / sc, y0: y0 - 1 / sc, w: cv.width / sc, h: cv.height / sc}; cput(INSC, key, e, 48 * 1048576); }
   X.drawImage(e.cv, g.x + e.x0, g.y + e.y0, e.w, e.h);
 };
 const insert = (X, img, key, g, ux, uy, L, hh, mirror) => { const r = AT()['r_' + key + (mirror ? '_m' : '')];
@@ -49233,7 +49239,7 @@ BF.hbRoof = function (X, hr, s, hexXY, S, img) {
     const W = Math.ceil((x1 - x0) * sc), Hh = Math.ceil((y1 - y0) * sc); if (W * Hh > 6e6) return hbRoof3.apply(this, arguments);
     const cv = document.createElement('canvas'); cv.width = W; cv.height = Hh; const c2 = cv.getContext('2d'); c2.setTransform(sc, 0, 0, sc, -x0 * sc, -y0 * sc);
     HR_IN = true; try { hbRoof3.call(this, c2, Object.assign({}, hr, {slice: null}), s, hexXY, S, img); } finally { HR_IN = false; }
-    if (HRC.size > 260) HRC.clear(); e = {cv, dx: x0 - base.x, dy: y0 - base.y, w: W / sc, h: Hh / sc}; HRC.set(key, e); }
+    e = {cv, dx: x0 - base.x, dy: y0 - base.y, w: W / sc, h: Hh / sc}; cput(HRC, key, e, 200 * 1048576); }
   X.save(); if (hr.slice != null) sliceClip(X, h, base, s, hr.slice); X.drawImage(e.cv, base.x + e.dx, base.y + e.dy, e.w, e.h); X.restore();
 };
 G.B = B;
@@ -50372,7 +50378,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611271908"></script><script>
+</script><script src="world.js?v=202611272000"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54117,7 +54123,7 @@ function groundTiles(S, F, s, cells, off, cellBase, cellOver, UNK) {
     // в ровный пиксель экрана: без размытия и без швов между кусками
     const px = Math.round((geo.ox + i * T) * dpr) / dpr, py = Math.round((geo.oy + j * T) * dpr) / dpr;
     main.imageSmoothingEnabled = false; main.drawImage(t.cv, px, py, T, T); main.imageSmoothingEnabled = keepSmooth; });
-  if (GT.m.size > 160) { const keep = new Set(byT.keys()); [...GT.m.keys()].forEach(k => { if (!keep.has(k)) GT.m.delete(k); }); }
+  if (GT.m.size > 48) { const keep = new Set(byT.keys()); [...GT.m.keys()].forEach(k => { if (!keep.has(k)) { const t = GT.m.get(k); try { if (t && t.cv) { t.cv.width = 0; t.cv.height = 0; } } catch (e) {} GT.m.delete(k); } }); }
   // дома (каждый раз: подсветка дверей), туман одним путём, сетка под туманом
   vis.forEach(([c, p]) => { if (!isDynCell(c)) return; if (F.fog && fogShow(S, c) === 0) return; cellBase(c, p); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(); });
   if (F.fog) { const dark = new Path2D(), dim = new Path2D(), grid = new Path2D();
@@ -54435,6 +54441,16 @@ const HELM_BK = {}; let HELM_K = 1.0;
    Платок, наголовник и куколь нарисованы вполоборота вправо с вырезом под лицо: их крупнее и назад, чтобы лицо легло в вырез. */
 const HELM_FIT = {monkhood: {k: 1.7, dx: -0.16, up: 0.32, chin: [0.72, 0.82, 0.42, 0.36]}, scarf: {k: 1.7, dx: -0.14, up: 0.28}, volhvhood: {k: 1.7, dx: -0.14, up: 0.3}}; window.__kldvFit = {HELM_FIT, GRIP, REST_ROT, FIST, natFace: u => natFace(u)}; /* для стенда кукол */
 /* горожане (их в квартале до сотни) — фигурка собирается из слоёв один раз и дальше кладётся готовой */
+/* кэши картинок — по объёму, а не по числу штук (Ник 27.11: «Out of Memory»): каждая новая ступень зума плодила свои копии,
+   и за долгую игру набегали гигабайты. Старое вытесняется первым, холсты отпускаются сразу (width = 0) */
+const CBYTES = new Map();
+const cvOf = v => (v && v.cv) ? v.cv : v;
+const cbytes = v => { const c = cvOf(v); return c && c.width ? c.width * c.height * 4 : 0; };
+function cput(map, key, val, max) { const old = map.get(key); let tot = (CBYTES.get(map) || 0) - (old ? cbytes(old) : 0) + cbytes(val); map.delete(key); map.set(key, val);
+  while (tot > max && map.size > 1) { const k = map.keys().next().value; if (k === key) break; const v = map.get(k); tot -= cbytes(v); const c = cvOf(v); if (c && c.width && c !== cvOf(val)) { try { c.width = 0; c.height = 0; } catch (e) {} } map.delete(k); }
+  CBYTES.set(map, Math.max(0, tot)); }
+const MB = 1024 * 1024;
+window.__kldvMem = () => { const o = {}; CBYTES.forEach((v, m) => { o[m === HEROC ? 'heroes' : m === SCALEC ? 'scaled' : m === HEAD_CACHE ? 'heads' : m === HAIR_CACHE ? 'hair' : 'other'] = Math.round(v / MB); }); o.ground = GT.m.size; return o; };
 const HEROC = new Map(); let HEROC_IN = false;
 function heroCached(u, p, H0) {
   const m = ctx.getTransform ? ctx.getTransform() : null; if (!m || m.b || m.c || typeof document === 'undefined') return null;
@@ -54444,7 +54460,7 @@ function heroCached(u, p, H0) {
   if (!e) { const W = Math.ceil(H0 * 2.4 * sc), Hh = Math.ceil(H0 * 1.7 * sc), cv = document.createElement('canvas'); cv.width = W; cv.height = Hh;
     const c2 = cv.getContext('2d'), keep = ctx; c2.setTransform(sc, 0, 0, sc, 0, 0); ctx = c2; HEROC_IN = true; let ok = false;
     try { c2.save(); ok = drawHero(u, {x: W / 2 / sc, y: Hh * 0.86 / sc - s * 0.5}, H0); c2.restore(); } finally { ctx = keep; HEROC_IN = false; }
-    if (HEROC.size > 400) HEROC.clear(); e = {cv, ok, W: W / sc, H: Hh / sc}; HEROC.set(key, e); }
+    e = {cv, ok, W: W / sc, H: Hh / sc}; cput(HEROC, key, e, 160 * MB); }
   if (!e.ok) return false;
   ctx.drawImage(e.cv, p.x - e.W / 2, p.y + s * 0.5 - e.H * 0.86, e.W, e.H); return true;
 }
@@ -54542,7 +54558,7 @@ function hairTile(hk, hair) {
   const key = hk + hair; let cv = HAIR_CACHE.get(key); if (cv) return cv;
   cv = tileCv(hk); const x = cv.getContext('2d'), d = x.getImageData(0, 0, cv.width, cv.height), m = tileCv('hm' + hk.slice(2)).getContext('2d').getImageData(0, 0, cv.width, cv.height);
   recolorHair(d.data, m.data, hair, (ATLAS.headlum && ATLAS.headlum.sheet) || 0.32); x.putImageData(d, 0, 0);
-  if (HAIR_CACHE.size > 400) HAIR_CACHE.clear(); HAIR_CACHE.set(key, cv); return cv;
+  cput(HAIR_CACHE, key, cv, 24 * MB); return cv;
 }
 function headComp(u, L, fname, a, tc) {
   const HF = ATLAS.headfit, HT = ATLAS.heads, fit = HF && HF[fname]; if (!fit || !IMG.heads || !window.HEADS || u.noHead) return null;
@@ -54565,7 +54581,7 @@ function headComp(u, L, fname, a, tc) {
     x.drawImage(hairTile(hk, hp.hair), px + hx, py + hy, hw, hh);
     hc = {cv, px, py};
   } catch (e) { hc = null; }
-  if (HEAD_CACHE.size > 600) HEAD_CACHE.clear(); HEAD_CACHE.set(key, hc); return hc;
+  if (hc) cput(HEAD_CACHE, key, hc, 48 * MB); else HEAD_CACHE.set(key, hc); return hc;
 }
 /* черты с портрета на фигурке: цвет волос и борода — стилизованно */
 let faceCv = null;
@@ -54636,7 +54652,7 @@ function blitAt(img, a, x, y, w, h) {
   let cv = SCALEC.get(key);
   if (!cv) { if (!flt && dw * 3 > a[2] && dh * 3 > a[3]) { ctx.drawImage(img, a[0], a[1], a[2], a[3], x, y, w, h); return; } // почти в свой размер и без окраски — и так быстро
     cv = document.createElement('canvas'); cv.width = dw; cv.height = dh; const c2 = cv.getContext('2d'); c2.imageSmoothingQuality = 'high'; if (flt) c2.filter = flt; c2.drawImage(img, a[0], a[1], a[2], a[3], 0, 0, dw, dh);
-    if (SCALEC.size > 900) SCALEC.clear(); SCALEC.set(key, cv); }
+    cput(SCALEC, key, cv, 160 * MB); }
   if (flt) ctx.filter = 'none';
   ctx.drawImage(cv, x, y, dw / sx, dh / sy);
   if (flt) ctx.filter = flt;
