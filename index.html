@@ -1692,7 +1692,7 @@ B.damage = function (S, t, d, src, by) {
   if (t.hp <= 0 && !t.down) {
     if (t.kind === 'monster' || t.summonLeft != null) { t.dead = true; t.down = true; B.log(S, G.N ? G.N.down(S, t, 'kill') : `${t.name} падает замертво.`, 'kill'); if (by) by.kills = (by.kills || 0) + 1; B.morale(S, t); }
     else if (t.hp <= -Math.max(6, Math.floor(t.hpMax / 2))) { t.dead = true; t.down = true; B.log(S, G.N ? G.N.down(S, t, 'dead') : `${t.name} убит.`, 'death'); S.lastDeath = {id: t.id, cause: by ? 'пал от руки: ' + by.name : src}; }
-    else { t.down = true; t.bleed = 3; t.stable = false; B.log(S, G.N ? G.N.down(S, t, 'down') : `${t.name} падает при смерти.`, 'bad', 'при смерти: 3 хода, чтобы перевязать'); }
+    else { t.down = true; t.bleed = 3; t.stable = false; B.log(S, G.N ? G.N.down(S, t, 'down') : `${t.name} падает при смерти.`, 'bad', 'при смерти: перевязать, пока не истёк кровью'); }
   } else if (t.down && t.hp <= -Math.max(6, Math.floor(t.hpMax / 2)) && !t.dead) { t.dead = true; B.log(S, G.N ? G.N.down(S, t, 'finish') : `${t.name} добит.`, 'death'); S.lastDeath = {id: t.id, cause: by ? 'добит: ' + by.name : src}; }
   if (hitE) { hitE.hp1 = t.hp; if (wasUp && t.down) hitE.fell = 1; if (t.dead) hitE.dead = 1; }
 };
@@ -50367,7 +50367,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270837"></script><script>
+</script><script src="world.js?v=202611270846"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

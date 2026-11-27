@@ -78381,3 +78381,64 @@ Object.keys(T).forEach(role => { const base = role.replace(/^sp_/, ''), D = DO[b
     const want = Math.max(8, arr.length * 2); for (let i = 0, j = (role.length * 7 + lvl * 13) % all.length; i < want; i++, j = (j + 11) % all.length) { const x = all[j]; if (!arr.includes(x)) { arr.push(x); n++; } } }); });
 C.FOLK_MORE = n;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* bf_dying.js */
+/* Колдовство — bf_dying: при смерти — как в старой редакции правил (Ник 27.11). Без DOM.
+   • Упал без открытой раны (дубина, кулак, камень, падение, чары, яд, огонь) — теряет сознание: кровь не идёт, лежит до конца
+     боя или до лечения. Добить лежачего можно, как и прежде.
+   • Упал от режущего, колющего, рваного (клинок, топор, копьё, стрела, нож, клык, коготь) — истекает кровью.
+   • Истекающий в начале своего хода проверяет Телосложение: сложность — урон последнего удара, со второго хода — не выше десяти.
+     Удача — держится, ход не потерян; неудача — слабеет. Три раза ослаб — умер. Двадцать — кровь унялась сама.
+     Так сколько протянет — решают бросок и сила тела, а не ровно три хода.
+   • Перевязка, лечение, чары исцеления останавливают кровь, как и раньше (stable). Новый удар по лежачему — сложность заново.
+   • В журнале — только слова. Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B;
+if (!B || !B.damage || !B.startTurn) return;
+B.DYING = Object.assign({LIVES: 3, CAP: 10, off: false}, B.DYING || {});
+const OPEN = /нож|кинжал|серп|скрамасакс|меч|сабл|клинок|топор|секир|колун|чекан|клевец|копь|рогатин|вил[аы]?\b|острог|совн|пик|укус|клык|пасть|когт|лап|стрел|лук|самострел|болт|сулиц|дротик|рог\b|бивн|жал|клюв|коса\b|шип|игл/i;
+const nm = u => String(u.name || '').split(',')[0];
+const conMod = u => R.mod(((u.ref && u.ref.stats) || u.stats || {}).con || 10);
+const pick = a => a[Math.floor(R.rand() * a.length)];
+const KO = ['{n} без сознания: удар оглушил, но ран нет — кровь не идёт.', '{n} лежит без памяти. Крови нет — очнётся.', '{n} падает без чувств — оглушён{a}, но жив{a}.'];
+const HOLD = ['{n} истекает кровью, но держится.', '{n} стискивает зубы — кровь идёт, а сердце бьётся.', '{n} цепляется за жизнь: ещё держится.'];
+const WEAK = {2: ['{n} слабеет: кровь не унять.', '{n} бледнеет, дыхание рвётся.'], 1: ['{n} на волоске: ещё немного — и не удержать.', '{n} почти не дышит. Скорее перевязать!']};
+const SELF = ['Кровь у {n_g} унялась сама — жив{a}, но без сознания.', '{n} перестаёт истекать кровью: рана запеклась.'];
+const sexA = u => ((u.ref && u.ref.sex) || u.sex) === 'f' ? 'а' : '';
+const fill = (t, u) => { const dg = G.C && G.C.Q && G.C.Q.decl ? (G.C.Q.decl(nm(u), (u.ref && u.ref.sex) || u.sex || 'm') || {}).g || nm(u) : nm(u);
+  return t.replace(/\{n_g\}/g, dg).replace(/\{n\}/g, nm(u)).replace(/\{a\}/g, sexA(u)); };
+const mortal = u => u && u.kind !== 'monster' && u.summonLeft == null;
+const dm0 = B.damage;
+B.damage = function (S, t, d, src) {
+  const off = B.DYING.off || !mortal(t); const wasUp = t && !t.down, wasKo = t && t.ko && !t.dead;
+  const n0 = S && S.log ? S.log.length : 0; const r = dm0.apply(this, arguments);
+  try { if (off || !t || t.dead || !t.down || !(d > 0)) return r;
+    const open = OPEN.test(String(src || ''));
+    if (wasUp) {
+      if (!open) { t.stable = true; t.ko = true; t.bleed = 0; const ln = fill(pick(KO), t);
+        const L = S && S.log ? S.log.slice(n0).reverse().find(l => l && l.cls === 'bad' && /при смерти|кровь уходит|не может подняться|едва дыша|рушится/.test(String(l.t) + ' ' + String(l.n))) : null;
+        if (L) { L.t = ln; L.n = 'без сознания: ран нет'; } else B.log(S, ln, 'bad', 'без сознания: ран нет'); }
+      else { t.stable = false; t.ko = false; t.bleed = B.DYING.LIVES; t.bleedDC = d; t.bleedT = 0; }
+    } else if (open) { // удар по лежачему: открылась рана — кровь, сложность по новому удару
+      if (wasKo || t.stable) { t.ko = false; t.stable = false; t.bleed = t.bleed > 0 ? t.bleed : B.DYING.LIVES; t.bleedT = 0; }
+      t.bleedDC = d; t.bleedT = 0; }
+  } catch (e) {}
+  return r;
+};
+const st0 = B.startTurn;
+B.startTurn = function (S, u) {
+  if (!B.DYING.off && u && u.down && !u.dead && mortal(u) && !u.stable) {
+    try {
+      u.bleedT = (u.bleedT || 0) + 1; const dc = u.bleedT === 1 ? (u.bleedDC || 10) : Math.min(u.bleedDC || 10, B.DYING.CAP);
+      const roll = R.d(20), tot = roll + conMod(u);
+      if (roll === 20) { u.stable = true; u.ko = true; B.log(S, fill(pick(SELF), u), 'heal', 'кровь унялась'); return false; }
+      if (roll !== 1 && tot >= dc) { B.log(S, fill(pick(HOLD), u), 'bad', 'Телосложение: держится'); return false; }
+      u.bleed = (u.bleed || 1) - 1;
+      if (u.bleed <= 0) { u.dead = true; B.log(S, `${nm(u)} умирает от ран.`, 'death'); S.lastDeath = {id: u.id, cause: 'истёк кровью'}; return false; }
+      B.log(S, fill(pick(WEAK[u.bleed] || WEAK[1]), u), 'bad', 'Телосложение: слабеет'); return false;
+    } catch (e) {}
+  }
+  return st0.apply(this, arguments);
+};
+})(typeof window !== 'undefined' ? window : globalThis);
