@@ -78447,8 +78447,22 @@ B.damage = function (S, t, d, src) {
   } catch (e) {}
   return r;
 };
+const ANTI = ['zelye_protivoyadie', 'protivoyadie'];
+const hasAnti = x => !!(x && x.ref && Array.isArray(x.ref.inv) && x.ref.inv.some(i => ANTI.includes(i)));
+/* противоядие — своё или из сумы самого упавшего (Ник 27.11: «даже твоим зельем от яда») */
+const antiFrom = (u, t) => hasAnti(u) ? u : hasAnti(t) ? t : null;
+B.antiFrom = antiFrom;
+const dG = t => (G.C && G.C.Q && G.C.Q.decl ? (G.C.Q.decl(nm(t), (t.ref && t.ref.sex) || t.sex || 'm') || {}).d : nm(t));
+/* зелье лечения отравленному упавшему: есть противоядие (своё или его) — сперва оно */
+if (B.potion) { const po0 = B.potion; B.potion = function (S, u, t) { if (!B.DYING.off && t && t !== u && t.down && !t.dead && t.poisoned && antiFrom(u, t)) { if (S.acted) return 'Действие уже потрачено в этот ход.'; B.bandage(S, u, t); return ''; } return po0.apply(this, arguments); }; }
+/* наложение рук очищает и яд */
+if (B.layHands) { const lh0 = B.layHands; B.layHands = function (S, u, t) { const pz = t && t.poisoned; const r = lh0.apply(this, arguments); if (pz && t && !t.dead) { delete t.poisoned; if (t.conds) delete t.conds.dot; t.venomSaved = 1; if (t.down) t.stable = true; B.log(S, `Тепло ладоней выжигает яд из ${G.C && G.C.Q && G.C.Q.decl ? (G.C.Q.decl(nm(t), (t.ref && t.ref.sex) || 'm') || {}).g : nm(t)}.`, 'heal', 'яд снят'); } return r; }; }
 /* перевязка отравленного: сперва выгнать яд (Медицина против силы яда), потом уже перевязать */
 if (B.bandage) { const bd0 = B.bandage; B.bandage = function (S, u, t) {
+  if (!B.DYING.off && t && t.down && !t.dead && t.poisoned && antiFrom(u, t)) { S.acted = true; const src = antiFrom(u, t), inv = src.ref.inv, id = inv.includes('zelye_protivoyadie') ? 'zelye_protivoyadie' : 'protivoyadie';
+    inv.splice(inv.indexOf(id), 1); delete t.poisoned; if (t.conds) delete t.conds.dot; t.stable = true; t.venomSaved = 1;
+    B.log(S, `${nm(u)} разжимает ${dG(t)} зубы и вливает противоядие${src === t ? ' — из сумы самого раненого' : ''}. Яд отступает: жив${sexA(t)}, но без сознания.`, 'heal', 'противоядие: яд остановлен');
+    return; }
   if (!B.DYING.off && t && t.down && !t.dead && t.poisoned) { S.acted = true; const tot = R.d(20) + (u.medic || 0), dc = t.poisoned.dc || 12;
     if (tot >= dc) { delete t.poisoned; if (t.conds) delete t.conds.dot; t.stable = true; t.venomSaved = 1; B.log(S, `${nm(u)} надрезает рану ${G.C && G.C.Q && G.C.Q.decl ? (G.C.Q.decl(nm(t), (t.ref && t.ref.sex) || t.sex || 'm') || {}).g : nm(t)}, высасывает яд и туго перевязывает — будет жить.`, 'heal', 'яд выгнан'); }
     else B.log(S, `${nm(u)} пытается выгнать яд, но отрава сидит глубоко.`, '', 'яд не выгнан');
@@ -78505,6 +78519,14 @@ B.venomCap = t => !!t && t.side === 'party' && !(t.conds && t.conds.dot && t.con
 /* ---------- после боя: спасённым от смертельного — к лекарю ---------- */
 if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S) {
   const saved = [], glands = [];
+  /* бой выигран, а кто-то лежит отравленным: друзья успевают — противоядие из любой сумы или Медицина (две попытки); не вышло — яд взял */
+  try { if (S && S.over === 'win') { const party = (S.units || []).filter(x => x.side === 'party' && x.ref && !x.dead);
+      (S.units || []).filter(x => x.side === 'party' && x.down && !x.dead && x.poisoned && !x.stable).forEach(x => {
+        const src = party.find(p => Array.isArray(p.ref.inv) && p.ref.inv.some(i => i === 'protivoyadie' || i === 'zelye_protivoyadie'));
+        if (src) { const inv = src.ref.inv, id = inv.includes('zelye_protivoyadie') ? 'zelye_protivoyadie' : 'protivoyadie'; inv.splice(inv.indexOf(id), 1); x.stable = true; x.venomSaved = 1; delete x.poisoned; if (C.note) C.note(g, `После боя ${String(src.name).split(',')[0]} вливает ${String(x.name).split(',')[0]} противоядие — яд отступил.`); return; }
+        const med = Math.max(0, ...party.filter(p => !p.down).map(p => p.medic || 0)), dc = (x.poisoned && x.poisoned.dc) || 12;
+        if (R.d(20) + med >= dc || R.d(20) + med >= dc) { x.stable = true; x.venomSaved = 1; delete x.poisoned; if (C.note) C.note(g, `После боя ${String(x.name).split(',')[0]}: яд выгнали — надрезали, высосали, прижгли.`); return; }
+        x.dead = true; S.lastDeath = {id: x.id, cause: 'яд: не успели выгнать'}; if (C.note) C.note(g, `${String(x.name).split(',')[0]}: яд не выгнали — не успели.`); }); } } catch (e) {}
   try { (S && S.units || []).forEach(u => { if (u.side === 'party' && u.ref && !u.dead && u.venomSaved) saved.push(u.ref); });
     if (S && S.over === 'win') (S.units || []).forEach(u => { if (u.side !== 'party' && u.dead && u.kind === 'monster' && !u.summonLeft) { const v = B.venomOf(u); if (v && v.kind === 'bite') glands.push({u, lethal: !!v.lethal}); } });
   } catch (e) {}

@@ -50367,7 +50367,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270910"></script><script>
+</script><script src="world.js?v=202611270921"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -55476,6 +55476,7 @@ function bop(op, a) {
     case 'guard': { const x = T(a.t); if (!x) return 'некого прикрыть'; B.guard(S, u, u.guarding === x.id && B.guardOf(S, x) === u ? null : x); break; }
     case 'band': { const f = T(a.t);
       if (f && !f.down && !f.dead && B.dist(u, f) <= 1 && B.isVenomDot && B.isVenomDot(f.conds.dot)) { if (S.acted) return 'Действие уже потрачено в этот ход.'; B.bandage(S, u, f); break; }
+      if (f && f.down && !f.dead && f.poisoned && B.dist(u, f) === 1) { if (S.acted) return 'Действие уже потрачено в этот ход.'; B.bandage(S, u, f); break; }
       if (!f || !f.down || f.dead || B.dist(u, f) !== 1) return 'до раненого не дотянуться'; if (S.acted) return 'Действие уже потрачено в этот ход.'; if (B.hasPotion(u)) { const e = B.potion(S, u, f); if (e) return e; } else B.bandage(S, u, f); break; }
     case 'spell': { const s = DATA.spellById[a.s]; if (!s || !B.Spells.usableNow(S, u).some(x => x.id === s.id)) return 'это заклинание сейчас не сотворить'; const tm = B.Spells.targetMode(s);
       if (tm === 'self') B.Spells.cast(S, u, s, u); else if (tm === 'place') B.Spells.cast(S, u, s, a.c != null ? {c: a.c, r: a.r} : null);
