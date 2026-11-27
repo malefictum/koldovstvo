@@ -1839,7 +1839,7 @@ B.venomHit = function (S, u, t, ranged) {
   const head = v.kind === 'bite' ? `${u.name} ${v.verb} — ` : `${u.name} ${v.verb} — `;
   if (B.saveRoll(t, 'Стойкость', dc)) { B.log(S, `${head}${t.name} перебарывает яд.`, '', `яд: Стойкость против ${dc} — выдержал`); return; }
   const was = t.conds.dot && B.isVenomDot(t.conds.dot) ? t.conds.dot : null;
-  t.conds.dot = {dice: v.dice, n: Math.max(v.n, was ? was.n : 0), src: 'яд', save: 1, dc, venom: 1};
+  t.conds.dot = {dice: v.dice, n: Math.max(v.n, was ? was.n : 0), src: 'яд', save: 1, dc, venom: 1, from: String(u.name || '')};
   B.log(S, `${head}яд в крови у ${t.name}.`, 'ctrl', `яд: Стойкость против ${dc} — провал; ${v.dice} в начале хода до ${v.n} ходов, Стойкость каждый ход; не ниже 1 хита`);
 };
 
@@ -50367,7 +50367,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270846"></script><script>
+</script><script src="world.js?v=202611270910"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

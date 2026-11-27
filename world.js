@@ -78391,19 +78391,35 @@ C.FOLK_MORE = n;
      Удача — держится, ход не потерян; неудача — слабеет. Три раза ослаб — умер. Двадцать — кровь унялась сама.
      Так сколько протянет — решают бросок и сила тела, а не ровно три хода.
    • Перевязка, лечение, чары исцеления останавливают кровь, как и раньше (stable). Новый удар по лежачему — сложность заново.
+   • Яд — смотря какой (Ник 27.11): кто упал, а в крови яд,
+       – сонный, дурманный, сковывающий (дурман, болиголов, мак, сонное зелье; укус паука, скорпиона) — спит или цепенеет, жив;
+       – кровяной (змеиный, гадючий, кроверазжижающий; укус змеи) — кровь не сворачивается: истекает, даже если удар был без раны;
+       – смертельный (venom_more: сильные твари, клинки убийц) — яд жжёт изнутри: каждый ход Телосложение против силы яда;
+         несмертельный с ног не валит, а упал от удара — как обычно, по ране;
+         перевязка тут не спасёт — нужно выгнать яд (Медицина против силы яда при перевязке), противоядие или очищающие чары.
    • В журнале — только слова. Без DOM. */
 (function (G) {
 'use strict';
 const R = G.R, B = G.B;
 if (!B || !B.damage || !B.startTurn) return;
 B.DYING = Object.assign({LIVES: 3, CAP: 10, off: false}, B.DYING || {});
-const OPEN = /нож|кинжал|серп|скрамасакс|меч|сабл|клинок|топор|секир|колун|чекан|клевец|копь|рогатин|вил[аы]?\b|острог|совн|пик|укус|клык|пасть|когт|лап|стрел|лук|самострел|болт|сулиц|дротик|рог\b|бивн|жал|клюв|коса\b|шип|игл/i;
+const OPEN = /нож|кинжал|серп|скрамасакс|меч|сабл|клинок|топор|секир|колун|чекан|клевец|копь|рогатин|вил[аы]?(?![а-яё])|острог|совн|пик|укус|клык|пасть|когт|лап|стрел|лук|самострел|болт|сулиц|дротик|рог(?![а-яё])|бивн|жал|клюв|коса(?![а-яё])|шип|игл/i;
+const VEN_SLEEP = /сонн|дурман|болиголов|мак(?![а-яё])|маков|дрём|сон-трав/i, VEN_BLOOD = /змеин|гадюк|аспид|кроверазж|кровав|кровян/i;
+const VEN_STIFF = /паук|скорпион|сколопендр|(?<![а-яё])оса(?![а-яё])|шершн/i, VEN_SNAKE = /змей|змея|гадюк|аспид|полоз|(?<![а-яё])уж(?![а-яё])|кобр/i;
+/* по самому яду, а если он безымянный — по тому, кто укусил: змеиный — кровь не сворачивается, паучий — цепенеют */
+const venKind = dt => { const t = String((dt && (dt.src || dt.name)) || ''), f = String((dt && dt.from) || '');
+  if (VEN_SLEEP.test(t) || VEN_STIFF.test(t) || VEN_STIFF.test(f)) return 'sleep'; if (VEN_BLOOD.test(t) || VEN_SNAKE.test(f)) return 'blood'; return 'death'; };
+const venOf = u => (u && u.conds && u.conds.dot && B.isVenomDot && B.isVenomDot(u.conds.dot)) ? u.conds.dot : null;
+B.venomKind = venKind;
 const nm = u => String(u.name || '').split(',')[0];
 const conMod = u => R.mod(((u.ref && u.ref.stats) || u.stats || {}).con || 10);
 const pick = a => a[Math.floor(R.rand() * a.length)];
 const KO = ['{n} без сознания: удар оглушил, но ран нет — кровь не идёт.', '{n} лежит без памяти. Крови нет — очнётся.', '{n} падает без чувств — оглушён{a}, но жив{a}.'];
 const HOLD = ['{n} истекает кровью, но держится.', '{n} стискивает зубы — кровь идёт, а сердце бьётся.', '{n} цепляется за жизнь: ещё держится.'];
 const WEAK = {2: ['{n} слабеет: кровь не унять.', '{n} бледнеет, дыхание рвётся.'], 1: ['{n} на волоске: ещё немного — и не удержать.', '{n} почти не дышит. Скорее перевязать!']};
+const KO_SLEEP = ['{n} засыпает мёртвым сном — отрава сонная. Жив{a}, дышит ровно.', 'Дурман берёт своё: {n} валится и спит, будто убит{a}, — но дышит.', 'Яд сковывает: {n} лежит оцепенев, не шевельнуть и пальцем, — но жив{a}.'];
+const P_HOLD = ['{n} лежит, яд жжёт изнутри, но сердце бьётся.', '{n} корчится от яда — и держится.', 'Губы у {n_g} синие, но дыхание ещё есть.'];
+const P_WEAK = {2: ['Яд берёт своё: {n} слабеет.', '{n} холодеет — отрава ползёт к сердцу.'], 1: ['{n} почти не дышит — яд у самого сердца. Выгнать, скорее!', '{n} на волоске: ещё немного — и яд возьмёт.']};
 const SELF = ['Кровь у {n_g} унялась сама — жив{a}, но без сознания.', '{n} перестаёт истекать кровью: рана запеклась.'];
 const sexA = u => ((u.ref && u.ref.sex) || u.sex) === 'f' ? 'а' : '';
 const fill = (t, u) => { const dg = G.C && G.C.Q && G.C.Q.decl ? (G.C.Q.decl(nm(u), (u.ref && u.ref.sex) || u.sex || 'm') || {}).g || nm(u) : nm(u);
@@ -78414,7 +78430,12 @@ B.damage = function (S, t, d, src) {
   const off = B.DYING.off || !mortal(t); const wasUp = t && !t.down, wasKo = t && t.ko && !t.dead;
   const n0 = S && S.log ? S.log.length : 0; const r = dm0.apply(this, arguments);
   try { if (off || !t || t.dead || !t.down || !(d > 0)) return r;
-    const open = OPEN.test(String(src || ''));
+    const ven = venOf(t), vk = ven ? venKind(ven) : null;
+    const open = OPEN.test(String(src || '')) || /кровь|кровотеч/i.test(String(src || '')) || vk === 'blood';
+    if (wasUp && ven && ven.lethal && !open) { t.stable = false; t.ko = false; t.poisoned = {dc: ven.dc || 12}; t.bleed = B.DYING.LIVES; t.bleedT = 0; t.bleedDC = ven.dc || 12;
+      B.log(S, `${nm(t)} падает — в крови яд, и он жжёт дальше.`, 'bad', 'отравлен: перевязка не поможет — выгнать яд'); return r; }
+    if (wasUp && ven && ven.lethal && open) { t.poisoned = {dc: ven.dc || 12}; }
+    if (wasUp && vk === 'sleep' && !open) { t.stable = true; t.ko = true; t.bleed = 0; const L = S && S.log ? S.log.slice(n0).reverse().find(l => l && l.cls === 'bad') : null; const ln = fill(pick(KO_SLEEP), t); if (L) { L.t = ln; L.n = 'сонный яд: без сознания'; } else B.log(S, ln, 'bad', 'сонный яд: без сознания'); return r; }
     if (wasUp) {
       if (!open) { t.stable = true; t.ko = true; t.bleed = 0; const ln = fill(pick(KO), t);
         const L = S && S.log ? S.log.slice(n0).reverse().find(l => l && l.cls === 'bad' && /при смерти|кровь уходит|не может подняться|едва дыша|рушится/.test(String(l.t) + ' ' + String(l.n))) : null;
@@ -78426,19 +78447,99 @@ B.damage = function (S, t, d, src) {
   } catch (e) {}
   return r;
 };
+/* перевязка отравленного: сперва выгнать яд (Медицина против силы яда), потом уже перевязать */
+if (B.bandage) { const bd0 = B.bandage; B.bandage = function (S, u, t) {
+  if (!B.DYING.off && t && t.down && !t.dead && t.poisoned) { S.acted = true; const tot = R.d(20) + (u.medic || 0), dc = t.poisoned.dc || 12;
+    if (tot >= dc) { delete t.poisoned; if (t.conds) delete t.conds.dot; t.stable = true; t.venomSaved = 1; B.log(S, `${nm(u)} надрезает рану ${G.C && G.C.Q && G.C.Q.decl ? (G.C.Q.decl(nm(t), (t.ref && t.ref.sex) || t.sex || 'm') || {}).g : nm(t)}, высасывает яд и туго перевязывает — будет жить.`, 'heal', 'яд выгнан'); }
+    else B.log(S, `${nm(u)} пытается выгнать яд, но отрава сидит глубоко.`, '', 'яд не выгнан');
+    return; }
+  return bd0.apply(this, arguments); }; }
 const st0 = B.startTurn;
 B.startTurn = function (S, u) {
+  if (u && u.stable && u.poisoned) { delete u.poisoned; u.venomSaved = 1; } // очистили чарами
+  if (u && u.down && !u.dead && u.poisoned && !venOf(u)) { delete u.poisoned; u.stable = true; u.venomSaved = 1; B.log(S, `Яд у ${nm(u)} остановлен — жив${sexA(u)}, но без сознания. После боя — к лекарю.`, 'heal', 'яд остановлен'); return false; }
   if (!B.DYING.off && u && u.down && !u.dead && mortal(u) && !u.stable) {
     try {
-      u.bleedT = (u.bleedT || 0) + 1; const dc = u.bleedT === 1 ? (u.bleedDC || 10) : Math.min(u.bleedDC || 10, B.DYING.CAP);
+      u.bleedT = (u.bleedT || 0) + 1; const pz = !!u.poisoned;
+      const dc = pz ? Math.max(u.poisoned.dc || 12, u.bleedT === 1 ? (u.bleedDC || 0) : 0) : u.bleedT === 1 ? (u.bleedDC || 10) : Math.min(u.bleedDC || 10, B.DYING.CAP);
       const roll = R.d(20), tot = roll + conMod(u);
-      if (roll === 20) { u.stable = true; u.ko = true; B.log(S, fill(pick(SELF), u), 'heal', 'кровь унялась'); return false; }
-      if (roll !== 1 && tot >= dc) { B.log(S, fill(pick(HOLD), u), 'bad', 'Телосложение: держится'); return false; }
+      if (roll === 20 && !pz) { u.stable = true; u.ko = true; B.log(S, fill(pick(SELF), u), 'heal', 'кровь унялась'); return false; }
+      if (roll !== 1 && tot >= dc) { B.log(S, fill(pick(pz ? P_HOLD : HOLD), u), 'bad', 'Телосложение: держится'); return false; }
       u.bleed = (u.bleed || 1) - 1;
-      if (u.bleed <= 0) { u.dead = true; B.log(S, `${nm(u)} умирает от ран.`, 'death'); S.lastDeath = {id: u.id, cause: 'истёк кровью'}; return false; }
-      B.log(S, fill(pick(WEAK[u.bleed] || WEAK[1]), u), 'bad', 'Телосложение: слабеет'); return false;
+      if (u.bleed <= 0) { u.dead = true; B.log(S, pz ? `${nm(u)} умирает от яда.` : `${nm(u)} умирает от ран.`, 'death'); S.lastDeath = {id: u.id, cause: pz ? 'яд' : 'истёк кровью'}; return false; }
+      B.log(S, fill(pick((pz ? P_WEAK : WEAK)[u.bleed] || (pz ? P_WEAK : WEAK)[1]), u), 'bad', 'Телосложение: слабеет'); return false;
     } catch (e) {}
   }
   return st0.apply(this, arguments);
 };
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* venom_more.js */
+/* Колдовство — venom_more: смертельный и несмертельный яд, спасение отравленного, яд с тел (Ник 27.11). Без DOM.
+   • Несмертельный яд (мелкие твари, степные стрелы, простая отрава) — как было: ломит тело, но с ног не валит (не ниже
+     одного хита). Справиться — Стойкость каждый ход, противоядие, лекарь.
+   • Смертельный яд (сильные твари: вдова, аспид, скорпион, гадюка, твари от шестого уровня; клинки наёмных убийц) — валит
+     с ног. Упавший отравлен: каждый ход Телосложение против силы яда (bf_dying). Спасают друзья, пока живы: выгнать яд
+     (перевязка с Медициной), дать противоядие, очищающие чары. Спасённый после боя — с «Отравлением»: к лекарю.
+   • Яд с тел: после победы тот, кто знает Животноводство, сцеживает яд с убитых ядовитых тварей — «ядовитая железа»
+     (у смертельных — «железа с сильным ядом»). Чем выше ступень, тем вернее. Душегуб и ловчий варят из железы отраву
+     (одна железа — как две травы), а из сильной — клинковый яд. Железы можно и продать знахарям. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!B || !B.venomOf || !C) return;
+const D = G.DATA || (typeof DATA !== 'undefined' ? DATA : null);
+/* ---------- смертельность ---------- */
+const LETHAL_NM = /вдова|аспид|скорпион|гадюк|чёрн\S* паук|кобр/i;
+const vo0 = B.venomOf;
+B.venomOf = function (u) { const v = vo0.apply(this, arguments);
+  try { if (v && v.lethal == null) { const m = (u && u.ref) || {}, L = m.level || u.level || 1, nm = String(m.name || u.name || ''), id = String(m.id || '');
+      v.lethal = v.kind === 'bite' ? (L >= 6 || LETHAL_NM.test(nm)) : v.kind === 'blade' ? /ubiyts|убийц/i.test(id + ' ' + nm) : false; } } catch (e) {}
+  return v; };
+const vh0 = B.venomHit;
+if (vh0) B.venomHit = function (S, u, t) { const had = t && t.conds && t.conds.dot; const r = vh0.apply(this, arguments);
+  try { const d = t && t.conds && t.conds.dot; if (d && d !== had && B.isVenomDot(d)) { const v = B.venomOf(u); if (v && v.lethal) { d.lethal = 1; d.from = d.from || String(u.name || ''); B.log(S, `Яд у ${C.Q && C.Q.decl ? (C.Q.decl(String(t.name).split(',')[0], (t.ref && t.ref.sex) || 'm') || {}).g : t.name} — смертельный.`, 'bad', 'смертельный яд: валит с ног'); } } } catch (e) {}
+  return r; };
+/* несмертельный не валит, смертельный — валит */
+B.venomCap = t => !!t && t.side === 'party' && !(t.conds && t.conds.dot && t.conds.dot.lethal);
+/* ---------- после боя: спасённым от смертельного — к лекарю ---------- */
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S) {
+  const saved = [], glands = [];
+  try { (S && S.units || []).forEach(u => { if (u.side === 'party' && u.ref && !u.dead && u.venomSaved) saved.push(u.ref); });
+    if (S && S.over === 'win') (S.units || []).forEach(u => { if (u.side !== 'party' && u.dead && u.kind === 'monster' && !u.summonLeft) { const v = B.venomOf(u); if (v && v.kind === 'bite') glands.push({u, lethal: !!v.lethal}); } });
+  } catch (e) {}
+  let r; try { r = be0.apply(this, arguments); } finally { post(); }
+  return r;
+  function post() { try {
+    saved.forEach(h => { if (C.ailAdd && !h.dead) { C.ailAdd(g, h, 'otrava', 2, true); if (C.note) C.note(g, `${h.name}: яд остановили, но он ещё в крови — нужен лекарь или противоядие.`); } });
+    if (glands.length && g && g.heroes) {
+      const tier = h => (C.profTier ? C.profTier(h, 'zhivotn') || 0 : 0);
+      const who = (C.alive ? C.alive(g) : g.heroes).filter(h => tier(h) > 0 && !h.dead).sort((a, b) => tier(b) - tier(a))[0];
+      if (who) { let got = 0, gs = 0, lost = 0;
+        glands.forEach(x => { const roll = R.d(20) + R.mod((who.stats || {}).wis || 10) + 2 * tier(who), dc = x.lethal ? 14 : 11;
+          if (roll >= dc) { who.inv = who.inv || []; who.inv.push(x.lethal ? 'yad_zheleza_s' : 'yad_zheleza'); if (x.lethal) gs++; else got++; } else lost++; });
+        const parts = []; if (got) parts.push(`ядовитых желёз: ${got === 1 ? 'одна' : got === 2 ? 'две' : got === 3 ? 'три' : 'несколько'}`); if (gs) parts.push(`с сильным ядом: ${gs === 1 ? 'одна' : gs === 2 ? 'две' : 'несколько'}`);
+        if (C.note) C.note(g, parts.length ? `${who.name} осторожно сцеживает яд с убитых тварей — ${parts.join(', ')}.${lost ? ' Часть желёз порвалась — пропало.' : ''}` : `${who.name} пробует сцедить яд с убитых тварей, но железы рвутся — пропало.`); }
+    }
+  } catch (e) {} } }; }
+/* ---------- предметы и варка ---------- */
+if (D && D.items) {
+  if (!D.items.yad_zheleza) D.items.yad_zheleza = {_t: 'g', id: 'yad_zheleza', name: 'Ядовитая железа', price: 25, weight_kg: 0.05, category: 'компоненты', notes: 'Сцежена с убитой ядовитой твари. Душегуб или ловчий сварит из неё простую отраву (как из двух трав). Знахари покупают.'};
+  if (!D.items.yad_zheleza_s) D.items.yad_zheleza_s = {_t: 'g', id: 'yad_zheleza_s', name: 'Железа с сильным ядом', price: 80, weight_kg: 0.05, category: 'компоненты', notes: 'Сцежена с твари, чей яд валит с ног. Душегуб сварит из неё клинковый яд. Знахари дают хорошую цену.'};
+}
+if (C.yadMake && C.yadWhy) {
+  const yw0 = C.yadWhy, ym0 = C.yadMake;
+  const has = (h, id) => (h && h.inv || []).includes(id);
+  C.yadWhy = (g, h) => { const w = yw0(g, h); if (w && /две ядовитые травы/.test(w) && (has(h, 'yad_zheleza') || has(h, 'yad_zheleza_s'))) return null; return w; };
+  C.yadMake = function (g, h) { const herbsN = (h.inv || []).filter(x => (C.POISON_HERBS || []).includes(x)).length;
+    if (herbsN >= 2) return ym0.apply(this, arguments);
+    const why = C.yadWhy(g, h); if (why) return {err: why};
+    if (has(h, 'yad_zheleza_s') && h.cls === 'dushegub') { h.inv.splice(h.inv.indexOf('yad_zheleza_s'), 1); h.inv.push('zelye_yad'); const t = `${h.name} выпаривает сильный яд из железы — склянка клинкового яда.`; if (C.note) C.note(g, t); return {ok: true, text: t}; }
+    const id = has(h, 'yad_zheleza') ? 'yad_zheleza' : 'yad_zheleza_s'; h.inv.splice(h.inv.indexOf(id), 1); h.inv.push('yad_prostoy', 'yad_prostoy');
+    const t = `${h.name} сцеживает железу в склянки — две склянки простой отравы.`; if (C.note) C.note(g, t); return {ok: true, text: t}; };
+  if (C.wbActsMore) { const am0 = C.wbActsMore; C.wbActsMore = function (g, h, id) { const a = am0.apply(this, arguments) || [];
+    if ((id === 'yad_zheleza' || id === 'yad_zheleza_s') && h && ['dushegub', 'lovchiy'].includes(h.cls) && !a.some(x => x.k === 'yad_make')) a.push({t: id === 'yad_zheleza_s' && h.cls === 'dushegub' ? 'Сварить клинковый яд из железы' : 'Сварить простую отраву из железы', k: 'yad_make'});
+    return a; }; }
+}
+C.VENOM_MORE = true;
 })(typeof window !== 'undefined' ? window : globalThis);
