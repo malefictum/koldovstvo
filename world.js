@@ -77415,6 +77415,25 @@ C.kvKidsDay = function (g) { kd0.apply(this, arguments); const d = day(g);
   Object.values(g.kvLoc || {}).forEach(r => { try { if (!r || r.camp && r.camp !== g.camp) return; C.kvOwnKids(g, r);
     if (!['maid', 'widow', 'left', 'freed'].includes(r.st) || r.newHome || r.promise || r.demand) return; const h = heroById(g, r.hid); if (!h) return;
     const ls = lastSeen(r); if (!ls || d - ls < K.FORGET) return; if (R.rand() < K.FORGET_P) forget(g, r, h); } catch (e) {} }); };
+
+/* ---------- муж: дома или в отъезде; подозрение растёт с каждой ночью; узнал — разборка или лихие люди (Ник 27.11) ---------- */
+Object.assign(C.KV, {HUSB: 0, HUSB_N: 0, HUSB_KNOWS: 0}); // старую поимку (vesely) выключаем — своя ниже
+K.SUS_HOME = 0.05; K.SUS_AWAY = 0.02; K.HIT_DAYS = [4, 10];
+const hbAway = (g, r) => !!(r && r.hb && hsh('away|' + r.id + '|' + Math.floor(day(g) / 4)) % 100 < 45);
+C.kvHbAway = hbAway;
+const plan = (g, x, h) => { if (!x.hb || x.hb.dead || x.hb.plan || (x.hb.hitDone && day(g) - x.hb.hitDone < 60)) return; const d = day(g), kind = stat(x) === 2 ? 'killers' : 'bandits';
+  x.hb.plan = {day: d + K.HIT_DAYS[0] + Math.floor(R.rand() * (K.HIT_DAYS[1] - K.HIT_DAYS[0])), kind}; g.kvHit = (g.kvHit || []).concat({hid: h.id, r: x.id, day: x.hb.plan.day, kind, n: x.hb.n}); };
+const husbandNight = (g, x, h, res) => { if (res === 'kv_husb' || x.st !== 'wife' || !x.hb || x.hb.dead) return null; const home = !hbAway(g, x);
+  x.hb.sus = Math.min(0.9, (x.hb.sus || 0) + (home ? K.SUS_HOME : K.SUS_AWAY));
+  if (home && R.rand() < x.hb.sus) { x.hb.knows = 1; plan(g, x, h); if (x.hb.caughtD && day(g) - x.hb.caughtD < 45) return null; x.hb.caughtD = day(g); g.kvHusb = x.id; return 'kv_husb'; } // раз поймал — дальше не врывается, а копит злобу (засада)
+  if (!x.hb.knows && R.rand() < x.hb.sus / 3) { x.hb.knows = 1; plan(g, x, h); } return null; };
+/* засада на дороге: люди обманутого мужа */
+if (C.encounter) { const en0 = C.encounter; C.encounter = function (g) { try { const L = (g.kvHit || []).filter(x => day(g) >= x.day); if (L.length && g.pos) { const hit = L[0]; g.kvHit = g.kvHit.filter(x => x !== hit);
+      const r = C.kvLocOf(g, hit.r); if (r && r.hb && !r.hb.dead && r.st === 'wife') { const e = en0.apply(this, arguments) || {}; const b = e.battle || {};
+        const foes = hit.kind === 'killers' ? ['naemnyy_ubiytsa', 'naemnyy_ubiytsa'] : ['razboynik', 'razboynik', 'tat'];
+        r.hb.plan = null; r.hb.hitDone = day(g); if (C.note) C.note(g, `На дороге поджидали: ${hit.kind === 'killers' ? 'наёмные убийцы' : 'лихие люди'}. Их послал ${hit.n} — обманутый муж.`);
+        return {battle: Object.assign({}, b, {title: `Засада: ${hit.kind === 'killers' ? 'наёмные убийцы' : 'лихие люди'} от ${hit.n}`, foes, waRoad: b.waRoad || 1, waIntent: 'kill', ambush: b.ambush || null})}; } } } catch (e) {}
+    return en0.apply(this, arguments); }; }
 /* сцена */
 const SC = C.KV_SC; const sc0 = SC.kv_local;
 const sc = function (g) {
@@ -77461,9 +77480,14 @@ const sc = function (g) {
         if (ok) { x.invite = day(g2); g2.kvLast = pick([`${x.n.split(' ')[0]} не отнимает руки, а потом шепчет: «Останься нынче. Только тихо»`, `${x.n.split(' ')[0]} смеётся, краснеет и, оглянувшись на дверь, задвигает засов.`, `«Ох, и ловок же ты…» — ${x.n.split(' ')[0]} тянет тебя за собой в горницу.`]); }
         else g2.kvLast = pick([`${x.n.split(' ')[0]} целует — и выпроваживает: «Не нынче. Иди, иди»`, `«Ишь, разошёлся!» — ${x.n.split(' ')[0]} шлёпает по руке, но улыбается.`, `${x.n.split(' ')[0]} отстраняется: «Не торопи меня»`]);
         const ls = likeSay(h, x); if (ls) g2.kvLast += ' ' + ls; return 'kv_local'; }}); }
-    else if (ni >= 0) { const c = out.choices[ni], d0 = c.do; c.do = function (g2) { const res = d0.apply(this, arguments); try { const x = C.kvLocOf(g2, r.id); if (x) { delete x.invite; rumor(g2, x, h); } } catch (e) {} return res; }; }
+    else if (ni >= 0) { const c = out.choices[ni], d0 = c.do; c.do = function (g2) { const res = d0.apply(this, arguments); let r2 = res;
+        try { const x = C.kvLocOf(g2, r.id); if (x) { delete x.invite; rumor(g2, x, h); r2 = husbandNight(g2, x, h, res) || res; } } catch (e) {} return r2; }; }
     // муж: бывают и мерзавцы — бьёт, пьёт (Ник 27.11: «ловелас-убийца может сделать много женщин вдовами… некоторые мужья мудаки»)
     if (r.st === 'wife' && !r.hb) { try { const P = (C.FOLK_NAMES || {})[r.ppl || 'nolgrim'] || (C.FOLK_NAMES || {}).nolgrim, L = (P && (r.sex === 'f' ? P.m : P.f)) || ['Вторак', 'Твердислав', 'Добрыня']; r.hb = {n: L[hsh('hbn|' + r.id) % L.length], sex: r.sex === 'f' ? 'm' : 'f'}; } catch (e) {} } // у замужней всегда есть муж
+    if (r.st === 'wife' && r.hb && !r.hb.dead && !g.kvLast) { const hn0 = String(r.hb.n).split(' ')[0];
+      if (r.hb.plan && !r.hb.warned) { r.hb.warned = 1; out.lines.push(['n', `${r.n.split(' ')[0]} хватает за рукав: «${hn0} всё знает. Слышала — ${r.hb.plan.kind === 'killers' ? 'серебро платил чужим, страшным' : 'с лихими людьми в кабаке шептался'}. Берегись на дороге. Или… сделай что-нибудь»`]); }
+      else if (hbAway(g, r)) out.lines.push(['n', pick([`${hn0} уехал по делам — дня на три.`, `${hn0} в отъезде: повёз товар в город.`])]);
+      else if (r.hb.knows) out.lines.push(['n', `${hn0} дома — и смотрит на тебя в окно так, что мороз по коже.`]); }
     if (r.st === 'wife' && r.hb && !r.hb.dead) { const bad = r.hb.bad != null ? r.hb.bad : (r.hb.bad = hsh('hb|' + r.id) % 100 < 45 ? 1 : 0), hn = String(r.hb.n || 'муж').split(' ')[0];
       if (bad && !r.hb.tamed && !g.kvLast && R.rand() < 0.4) out.lines.push(['n', pick([`${r.n.split(' ')[0]} прикрывает платком синяк на скуле: «Опять ${hn} пьяный пришёл. Не гляди так»`, `«${hn} грозился убить, если узнает, — шепчет ${r.n.split(' ')[0]}. — Он и без того бьёт. Просто так»`, `${r.n.split(' ')[0]} морщится, садясь: рёбра. «Упала», — говорит, не глядя в глаза.`])]);
       if ((r.rel || 0) >= K.STAGE1) {
@@ -77474,7 +77498,7 @@ const sc = function (g) {
         out.choices.splice(Math.max(0, out.choices.length - 2), 0, {own: h.id, t: `Избавить её от ${decl(hn, 'm').g || hn}`, if: g2 => (C.kvLocOf(g2, r.id) || {}).hbTalkD !== day(g2), off: 'сегодня уже', do: g2 => { const x = C.kvLocOf(g2, r.id); x.hbTalkD = day(g2);
           const ok = R.d(20) + Math.max(mod(h, 'str'), mod(h, 'dex')) + Math.floor((h.level || 1) / 2) + (h.cls === 'dushegub' ? 3 : 0) >= 12;
           if (!ok) { x.hb.knows = 1; if (C.spiritAdd) C.spiritAdd(g2, -1, '', h); g2.kvLast = `В темноте у овина ${hn} вывернулся, заорал на всю улицу — и убежал. Теперь он знает. И она знает, что ты хотел.`; x.rel = Math.max(0, x.rel - 10); return 'kv_local'; }
-          x.hb.dead = day(g2); x.st = 'widow'; x.t = 'вдова'; const seen = R.rand() < 0.35; if (C.crimeAdd) try { C.crimeAdd(g2, h, 'murder', {seen, why: 'муж знакомой'}); } catch (e) {}
+          x.hb.dead = day(g2); x.st = 'widow'; x.t = 'вдова'; const seen = R.rand() < (h.cls === 'dushegub' ? 0.03 : 0.35); // душегуб — без следа (Ник 27.11) if (C.crimeAdd) try { C.crimeAdd(g2, h, 'murder', {seen, why: 'муж знакомой'}); } catch (e) {}
           if (C.repAdd) C.repAdd(g2, x.at, seen ? -3 : -1, 'убит муж');
           if (x.hb.bad) { x.rel = Math.min(100, x.rel + 10); g2.kvLast = `Утром ${hn} нашли в канаве у кабака. ${x.n.split(' ')[0]} плачет на людях, как положено вдове. А ночью шепчет: «Свободна… Око светлое — свободна»`; }
           else { x.st = 'gone'; x.goneDay = day(g2); x.rel = 0; g2.kvLast = `${hn} нашли мёртвым. ${x.n.split(' ')[0]} воет над ним — и, увидев тебя, кричит на всю улицу: «Это ты! Ты! Он мне худого слова не сказал!»`; if (C.repAdd) C.repAdd(g2, x.at, -2, 'вдова кричит на всю улицу'); }
