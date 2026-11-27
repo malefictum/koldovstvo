@@ -72213,10 +72213,10 @@ const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n
 const she = r => r.sex === 'f', who = r => r.n, verb = (r, f, m) => (she(r) ? f : m);
 const K = {GAP: [14, 24], TERM: 14, GIFT: 20, KID: 1.5, COLD: 30, MEND: 3, REL_GIFT: 4, REL_VISIT: 5, REL_FAR: 10, FAR: 20, WARM_BACK: 50, OKO_CAP: 20};
 C.KV_ASK = K;
-const eligible = (g, r) => { if (!r || ['wed', 'gone'].includes(r.st) || (r.camp && r.camp !== g.camp)) return false; const h = heroById(g, r.hid); if (!h) return false;
+const eligible = (g, r) => { if (!r || r.newHome || ['wed', 'gone'].includes(r.st) || (r.camp && r.camp !== g.camp)) return false; const h = heroById(g, r.hid); if (!h) return false;
   if (h.spouse && h.spouse.n === r.n && h.spouse.at === r.at) return false; return kidWith(g, r) || (r.rel || 0) >= 40 || !!r.cold || !!r.ask; };
 const okoOf = (g, r) => { if (r.oko != null) return r.oko; const f = C.placeFaith ? C.placeFaith(g, r.at) : null; r.oko = hsh('oko|' + r.id + '|' + r.n) < (f === 'oko' ? 0.6 : 0.12) ? 1 : 0; return r.oko; };
-const sumOf = (g, r) => { const m = (C.KV_RANK && C.KV_RANK[r.rank || 'muzhik'] || {m: 1}).m || 1; return Math.round(K.GIFT * m * (kidWith(g, r) ? K.KID : 1) / 5) * 5; };
+const sumOf = (g, r) => { const m = (C.KV_RANK && C.KV_RANK[r.rank || 'muzhik'] || {m: 1}).m || 1; return Math.round(K.GIFT * m * (kidWith(g, r) ? K.KID : 1) * (1 + 0.15 * ((r.kidsOwn || []).length)) / 5) * 5; }; // свои ребятишки от первого мужа — просит чуть больше
 C.kvAskSum = sumOf;
 const mail = (g, r, h, text) => { g.mail = (g.mail || []).concat({from: r.n, t: r.t || '', face: r.face, sex: r.sex, kind: 'kv', head: verb(r, 'От знакомой', 'От знакомого'), to: h.name, text, day: day(g)}).slice(-6); };
 const tick = g => {
@@ -76299,10 +76299,10 @@ const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n
 const she = r => r.sex === 'f', who = r => r.n, verb = (r, f, m) => (she(r) ? f : m);
 const K = {GAP: [14, 24], TERM: 14, GIFT: 20, KID: 1.5, COLD: 30, MEND: 3, REL_GIFT: 4, REL_VISIT: 5, REL_FAR: 10, FAR: 20, WARM_BACK: 50, OKO_CAP: 20};
 C.KV_ASK = K;
-const eligible = (g, r) => { if (!r || ['wed', 'gone'].includes(r.st) || (r.camp && r.camp !== g.camp)) return false; const h = heroById(g, r.hid); if (!h) return false;
+const eligible = (g, r) => { if (!r || r.newHome || ['wed', 'gone'].includes(r.st) || (r.camp && r.camp !== g.camp)) return false; const h = heroById(g, r.hid); if (!h) return false;
   if (h.spouse && h.spouse.n === r.n && h.spouse.at === r.at) return false; return kidWith(g, r) || (r.rel || 0) >= 40 || !!r.cold || !!r.ask; };
 const okoOf = (g, r) => { if (r.oko != null) return r.oko; const f = C.placeFaith ? C.placeFaith(g, r.at) : null; r.oko = hsh('oko|' + r.id + '|' + r.n) < (f === 'oko' ? 0.6 : 0.12) ? 1 : 0; return r.oko; };
-const sumOf = (g, r) => { const m = (C.KV_RANK && C.KV_RANK[r.rank || 'muzhik'] || {m: 1}).m || 1; return Math.round(K.GIFT * m * (kidWith(g, r) ? K.KID : 1) / 5) * 5; };
+const sumOf = (g, r) => { const m = (C.KV_RANK && C.KV_RANK[r.rank || 'muzhik'] || {m: 1}).m || 1; return Math.round(K.GIFT * m * (kidWith(g, r) ? K.KID : 1) * (1 + 0.15 * ((r.kidsOwn || []).length)) / 5) * 5; }; // свои ребятишки от первого мужа — просит чуть больше
 C.kvAskSum = sumOf;
 const mail = (g, r, h, text) => { g.mail = (g.mail || []).concat({from: r.n, t: r.t || '', face: r.face, sex: r.sex, kind: 'kv', head: verb(r, 'От знакомой', 'От знакомого'), to: h.name, text, day: day(g)}).slice(-6); };
 const tick = g => {
@@ -77275,7 +77275,7 @@ if (C.kidsTick) { const kt0 = C.kidsTick; C.kidsTick = function (g) { const r = 
 const R = G.R, C = G.C; if (!R || !C || !C.kvLocOf || !C.KV_SC) return;
 const K = C.KV_HEART = {FLIRT_NO: 2, DAYCAP: 2, START: 38, STAGE1: 55, STAGE2: 75, FL_DC: 13, RUMOR: 0.08, RUMOR_N: 0.04, DEMAND: 21, PROMISE: 30, MANY: 4, SUPPORT_GAP: 30, HEART_N: 5, HEART_CHA: 14};
 const day = g => (g && g.day) || 1;
-const hsh = s => { let h = 7; for (const ch of String(s)) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
+const hsh = s => { let h = 2166136261; for (const ch of String(s)) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619) >>> 0; } h ^= h >>> 15; h = Math.imul(h, 2246822507) >>> 0; h ^= h >>> 13; return h >>> 0; }; // перемешанный: соседние id не дают соседних чисел
 const pick = a => a[Math.floor(R.rand() * a.length)];
 const mod = (h, s) => R.mod(((h && h.stats) || {})[s] || 10);
 const fill = C.kvFill;
@@ -77304,19 +77304,21 @@ const won = (g, at, pid, hid) => Object.values(g.kvLoc || {}).some(k => k.tf ===
 const flAfter = (g, h, at, pid) => { if (!won(g, at, pid, h.id)) { const rr = tfRel(g, at, pid); rr.flNo = day(g) + K.FLIRT_NO; return; }
   const r = Object.values(g.kvLoc || {}).find(k => k.tf === at + '|' + pid && k.hid === h.id); if (r && !r.kh0) { r.kh0 = 1; r.rel = Math.min(r.rel || 0, K.START); } }; // новое знакомство — с симпатии (Ник 27.11: «растяни»)
 if (C.tfFlirt) { const tf0 = C.tfFlirt; C.tfFlirt = function (g, hh, at, pid) { const why = hh ? flBlock(g, hh, at, pid) : ''; if (why) return {ok: false, text: why[0].toUpperCase() + why.slice(1) + '.'};
-  LB = hh ? likeMod(hh, {likes: likesOf(at + '|' + pid)}) * 2 : 0; try { const r = tf0.apply(this, arguments); if (r && hh) flAfter(g, hh, at, pid); return r; } finally { LB = 0; } }; }
+  LB = hh ? likeMod(hh, {likes: likesOf(at + '|' + pid)}) * 2 - (C.kvHodok(g, at, hh.id) ? 3 : 0) : 0; try { const r = tf0.apply(this, arguments); if (r && hh) flAfter(g, hh, at, pid); return r; } finally { LB = 0; } }; }
 const so0 = C.sceneOf;
 C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
   try { if (id === 'tf_talk' && sc && sc.choices && g.tfCur) { const at = g.loc, pid = g.tfCur;
     sc.choices.forEach(c => { if (!/: заигрывать$/.test(c.t || '') || c._kh) return; c._kh = 1; const hid = c.own, i0 = c.if, d0 = c.do, o0 = c.off;
       c.if = g2 => { const hh = heroById(g2, hid); return (!i0 || i0(g2)) && !(hh && flBlock(g2, hh, at, pid)); };
       c.off = g2 => { const hh = heroById(g2, hid), w = hh && flBlock(g2, hh, at, pid); return w || (typeof o0 === 'function' ? o0(g2) : o0); };
-      c.do = function (g2) { const hh = heroById(g2, hid); LB = hh ? likeMod(hh, {likes: likesOf(at + '|' + pid)}) * 2 : 0;
+      c.do = function (g2) { const hh = heroById(g2, hid); LB = hh ? likeMod(hh, {likes: likesOf(at + '|' + pid)}) * 2 - (C.kvHodok(g2, at, hh.id) ? 3 : 0) : 0;
         try { return d0.apply(this, arguments); } finally { LB = 0; if (hh) { flAfter(g2, hh, at, pid); const r = Object.values(g2.kvLoc || {}).find(k => k.tf === at + '|' + pid && k.hid === hh.id); const s = r && likeSay(hh, r); if (s && g2.tfLast) g2.tfLast += ' ' + s; } } }; }); } } catch (e) {}
   return sc; };
 /* ---------- знакомая: ступени, ревность, на дитя ---------- */
 const othersAt = (g, r) => Object.values(g.kvLoc || {}).filter(x => x !== r && x.at === r.at && x.hid === r.hid && active(x));
 const loversOf = (g, hid) => Object.values(g.kvLoc || {}).filter(x => x.hid === hid && active(x));
+const nodeScene = g => { const n = (((C.CAMPS[g.camp] || {}).map || {}).nodes || {})[g.loc]; return n ? n.scene : 'map'; };
+const stat = r => { const RK = C.KV_RANK && C.KV_RANK[r.rank || 'muzhik']; return !RK ? 0 : (RK.power || RK.m >= 2) ? 2 : RK.m > 1 ? 1 : 0; }; // 0 — простая, 1 — мастерица, 2 — купчиха и выше
 const high = r => { const RK = C.KV_RANK && C.KV_RANK[r.rank || 'muzhik']; return !!(RK && (RK.power || RK.m >= 2)); };
 const kidW = (g, r) => Object.values((g.w2kids || {}).fam || {}).filter(F => F && F.kv && F.kv.pid === 'loc:' + r.id);
 const hasKid = (g, r) => kidW(g, r).some(F => (F.kids || []).some(k => !k.dead));
@@ -77362,12 +77364,63 @@ C.shopFond = function (g, h) { if (!g || !h || !g.loc) return null; const d = da
   return null; };
 if (C.buyPrice) { const bp0 = C.buyPrice; C.buyPrice = function (g, h, x) { const p = bp0.apply(this, arguments); try { if (p && g && h && !g.shopMode && x && !(C.isMagic && C.isMagic(x.id))) { const f = C.shopFond(g, h); if (f) return Math.max(1, Math.round(p * (1 - f.disc))); } } catch (e) {} return p; }; }
 if (C.sellPrice) { const sp0 = C.sellPrice; C.sellPrice = function (g, h, x) { const p = sp0.apply(this, arguments); try { if (p && g && h && !g.shopMode) { const f = C.shopFond(g, h); if (f) return Math.round(p * (1 + f.disc / 2)); } } catch (e) {} return p; }; }
+
+/* ---------- ходок: слава на деревню (четыре и больше знакомых в одном месте) ---------- */
+C.kvHodok = (g, at, hid) => Object.values(g.kvLoc || {}).filter(x => x.at === at && (!hid || x.hid === hid) && (!x.camp || x.camp === g.camp)).length >= 4;
+if (C.kvLocalWhy) { const lw0 = C.kvLocalWhy; C.kvLocalWhy = function (g, r, what) { const w = lw0.apply(this, arguments); try { if (what === 'svat' && w !== 'нельзя' && r && stat(r) === 2 && C.kvHodok(g, r.at, r.hid)) return 'за ходока не отдадут: всё село знает'; } catch (e) {} return w; }; }
+/* ---------- пресыщение: десять ночей за две седмицы — ночь не радует; «пора жениться — или хоть недельку поскучать» ---------- */
+if (C.kvAfter) { const ka0 = C.kvAfter; C.kvAfter = function (g, h, o) { try { if (g && h) { const d = day(g); h.kvNts = (h.kvNts || []).filter(x => d - x < 14).concat(d);
+    if (h.kvNts.length >= 10) { o = Object.assign({}, o || {}, {spirit: 0}); arguments[2] = o; if (!h.kvSatD || d - h.kvSatD >= 14) { h.kvSatD = d; C.note(g, `${h.name} ${h.sex === 'f' ? 'пресытилась' : 'пресытился'}: всё одно и то же. Думает — пора бы жениться. Или хоть недельку поскучать.`); } } } } catch (e) {}
+  return ka0.apply(this, arguments); }; }
+/* ---------- дети в шестнадцать просятся в отряд; братья и сёстры по отцу узнают друг о друге ---------- */
+const kidsOfHero = (g, hid) => Object.values((g.w2kids || {}).fam || {}).filter(F => F && F.kv && F.hero === hid).flatMap(F => (F.kids || []).filter(k => !k.dead && !k.went).map(k => ({k, F})));
+C.kvKidsDay = function (g) { const d = day(g);
+  (g.heroes ? C.alive(g) : []).forEach(h => { const ats = [...new Set(Object.values(g.kvLoc || {}).filter(x => x.hid === h.id).map(x => x.at))]; ats.forEach(at => { g.kvHodokSaid = g.kvHodokSaid || {}; const k = h.id + '|' + at; if (g.kvHodokSaid[k] || !C.kvHodok(g, at, h.id)) return; g.kvHodokSaid[k] = d;
+    if (C.repAdd) C.repAdd(g, at, -1, 'ходок'); C.note(g, `В ${(((C.CAMPS[g.camp] || {}).map || {}).nodes || {})[at] ? C.CAMPS[g.camp].map.nodes[at].name : 'селе'} ${h.name} прозвали ходоком: отцы и мужья косятся, девки хихикают, а знатные за ходока дочерей не отдают.`); }); });
+  (g.heroes ? C.alive(g) : []).forEach(h => { const L = kidsOfHero(g, h.id);
+    L.forEach(({k, F}) => { const age = C.kidAge ? C.kidAge(g, k) : 0; if (age >= 16 && (k.fatherGave || 0) >= 3 && !k.askJoin) { k.askJoin = d; const mom = F.kv && F.kv.pid && F.kv.pid.startsWith('loc:') ? C.kvLocOf(g, F.kv.pid.slice(4)) : null;
+      C.note(g, `Весточка от ${k.n}: «${h.sex === 'f' ? 'Мама' : 'Тятя'}, мне шестнадцать. Возьми меня в отряд — я не подведу». Заходи к ${mom ? decl(mom.n.split(' ')[0], 'f').d : 'матери'}.`); } });
+    const big = L.filter(({k}) => (C.kidAge ? C.kidAge(g, k) : 0) >= 10);
+    big.forEach(a => big.forEach(b => { if (a.k.id >= b.k.id || a.F === b.F || a.F.at !== b.F.at) return; const key = a.k.id + '|' + b.k.id; g.kvSib = g.kvSib || {}; if (g.kvSib[key]) return; g.kvSib[key] = d;
+      C.note(g, `${a.k.n.split(' ')[0]} и ${b.k.n.split(' ')[0]} узнали, что они ${a.k.sex === b.k.sex ? (a.k.sex === 'f' ? 'сёстры' : 'братья') : 'брат и сестра'} по ${h.sex === 'f' ? 'матери' : 'отцу'}. Село судачит неделю.`); })); }); };
+const daily = g => { try { if (!g || !g.heroes || g.kvHD === g.day) return; g.kvHD = g.day; C.kvKidsDay(g); } catch (e) {} };
+C.kvHeartDaily = daily;
+['pass', 'rest'].forEach(fn => { if (C[fn]) { const f0 = C[fn]; C[fn] = function (g) { const r = f0.apply(this, arguments); daily(g); return r; }; } });
+
+/* ---------- вдова или ушедшая от мужа — бывает с ребятишками от первого (Ник 27.11) ---------- */
+const KNAMES = {m: ['Ждан', 'Малк', 'Тишило', 'Беляй', 'Мирошка', 'Гордята', 'Вышата', 'Первуша'], f: ['Малуша', 'Любава', 'Милка', 'Забава', 'Белянка', 'Ждана', 'Дарёнка', 'Улита']};
+C.kvOwnKids = function (g, r) { if (!r || r.kidsOwnSet || !['widow', 'left'].includes(r.st)) return r && r.kidsOwn || []; r.kidsOwnSet = 1;
+  const x = hsh('own|' + r.id + '|' + r.n) % 100, n = x < (r.st === 'widow' ? 45 : 35) ? 1 + (x % 3) : 0; r.kidsOwn = [];
+  for (let i = 0; i < n; i++) { const sx = hsh('ks|' + r.id + i) % 2 ? 'm' : 'f', L = KNAMES[sx]; r.kidsOwn.push({n: L[hsh('kn|' + r.id + i) % L.length], sex: sx, age: 2 + hsh('ka|' + r.id + i) % 11, at: day(g)}); }
+  return r.kidsOwn; };
+const ownAge = (g, k) => k.age + Math.floor((day(g) - (k.at || day(g))) / 360);
+/* свадьба с такой — её дети в доме, наследник раньше */
+if (C.kvLocalWed) { const lw0 = C.kvLocalWed; C.kvLocalWed = function (g, r) { const res = lw0.apply(this, arguments);
+  try { if (res && r && (r.kidsOwn || []).length && C.kidsEnsure) { C.kidsEnsure(g); const h = heroById(g, r.hid); const F = Object.values((g.w2kids || {}).fam || {}).find(F0 => F0.key === r.role + '@' + r.at && F0.hero === (h && h.id));
+    if (F) { F.kids = F.kids || []; r.kidsOwn.forEach((k, i) => { F.kids.push({id: 'st' + r.id + i, n: k.n, sex: k.sex, born: day(g) - ownAge(g, k) * 360 - 30, step: 1}); }); C.note(g, `${r.kidsOwn.map(k => k.n).join(' и ')} теперь зовут ${h ? h.name : 'героя'} ${h && h.sex === 'f' ? 'матушкой' : 'тятей'}: в доме сразу ${r.kidsOwn.length > 1 ? 'ребятня' : 'дитя'}, а там и наследник.`); } } } catch (e) {}
+  return res; }; }
+/* ---------- забыл — вышла за другого (Ник 27.11: «не проведываешь более месяца — могут влюбиться в другого и жениться;
+   к тебе — как к знакомому, ещё нравитесь друг другу; ребёнка новый отец считает своим») ---------- */
+K.FORGET = 30; K.FORGET_P = 0.02;
+const lastSeen = r => Math.max(r.seenD || 0, r.meetDay || 0, r.nightDay || 0, r.giftDay || 0, r.supD || 0, r.met || 0);
+const forget = (g, r, h) => { const d = day(g); const P = (C.FOLK_NAMES || {})[r.ppl || 'nolgrim'] || (C.FOLK_NAMES || {}).nolgrim, L = (P && (r.sex === 'f' ? P.m : P.f)) || ['Твердислав', 'Добрыня', 'Вторак'];
+  const nb = L[hsh('nb|' + r.id + d) % L.length], was = r.st; r.st = 'wife'; r.t = r.sex === 'f' ? 'мужняя жена' : 'женатый'; r.hb = {n: nb, sex: r.sex === 'f' ? 'm' : 'f', bad: 0, newHb: 1}; r.wedOther = d; r.newHome = 1;
+  r.rel = Math.min(r.rel || 0, 35); delete r.cold; delete r.ask; delete r.demand; delete r.promise;
+  const ks = kidW(g, r).flatMap(F => (F.kids || []).filter(k => !k.dead && !k.went)); ks.forEach(k => { k.went = 1; k.step = nb; });
+  if (kidW(g, r).some(F => F.kvPreg)) kidW(g, r).forEach(F => { if (F.kvPreg) F.kvPreg.stepFather = nb; });
+  const nm = String(r.n).split(' ')[0];
+  C.note(g, `Вести из ${(((C.CAMPS[g.camp] || {}).map || {}).nodes || {})[r.at] ? C.CAMPS[g.camp].map.nodes[r.at].name : 'села'}: ${nm} ${r.sex === 'f' ? 'вышла замуж за' : 'женился на'} ${nb}. Ждать устал${r.sex === 'f' ? 'а' : ''}.` + (ks.length ? ` ${ks.map(k => k.n.split(' ')[0]).join(' и ')} теперь зовёт тятей ${nb}.` : '') + ` Говорят, ${r.sex === 'f' ? 'она' : 'он'} всё же вспоминает ${h.name} — без зла.`); };
+const kd0 = C.kvKidsDay;
+C.kvKidsDay = function (g) { kd0.apply(this, arguments); const d = day(g);
+  Object.values(g.kvLoc || {}).forEach(r => { try { if (!r || r.camp && r.camp !== g.camp) return; C.kvOwnKids(g, r);
+    if (!['maid', 'widow', 'left', 'freed'].includes(r.st) || r.newHome || r.promise || r.demand) return; const h = heroById(g, r.hid); if (!h) return;
+    const ls = lastSeen(r); if (!ls || d - ls < K.FORGET) return; if (R.rand() < K.FORGET_P) forget(g, r, h); } catch (e) {} }); };
 /* сцена */
 const SC = C.KV_SC; const sc0 = SC.kv_local;
 const sc = function (g) {
   const out = sc0.apply(this, arguments);
   try { const r = C.kvLocOf(g, g.kvCur), h = r && heroById(g, r.hid); if (!r || !h || !out || !out.choices || g.kvTopic) return out; const d = day(g);
-    C.kvLikes(r);
+    C.kvLikes(r); daily(g);
     // остывает, если редко ходишь, а Обаяние низкое
     if (r.seenD && d - r.seenD > 4 && mod(h, 'cha') < 0 && !r.coolD) { r.rel = Math.max(0, r.rel - Math.min(15, Math.round((d - r.seenD - 4) * -mod(h, 'cha') / 2))); }
     if (r.seenD !== d) { r.seenD = d; r.relB = r.rel; } else { const cap = K.DAYCAP + Math.max(-2, mod(h, 'cha')) / 3 + likeMod(h, r) / 3; if (r.rel > r.relB + Math.max(1, cap)) r.rel = Math.round(r.relB + Math.max(1, cap)); }
@@ -77376,12 +77429,23 @@ const sc = function (g) {
       if (was && high(r)) { r.st = 'gone'; r.goneDay = d; r.rel = 0; if (C.repAdd) C.repAdd(g, r.at, -3, 'скандал: обещал жениться и не женился'); g.kvLast = null; C.note(g, `${r.n} не дождалась сватов: всему селу рассказала, каков ${h.name}, и выставила за порог.`); return Object.assign({}, out, {lines: [['n', `${r.n} не пускает на порог: «Срок вышел. Иди, куда шёл». Соседи смотрят из-за плетней.`]], choices: out.choices.filter(c => c.t === 'Уйти')}); }
       r.rel = Math.max(0, r.rel - 20); r.cold = 1; out.lines.push(['n', `${r.n} встречает холодно: «Обещал — и где сваты?»`]); }
     // узнала о сопернице
+    // сговор: две-три не простые из одного села — «выбирай одну» (раз в два месяца на село)
+    if (stat(r) && !(g.kvUlt && g.kvUlt[r.at] && d - g.kvUlt[r.at] < 60)) { const band = [r].concat(othersAt(g, r)).filter(x => stat(x) && !x.cold && (x.knows || []).length);
+      if (band.length >= 2 && band.includes(r)) { g.kvUlt = g.kvUlt || {}; g.kvUlt[r.at] = d; const nm = band.map(x => x.n.split(' ')[0]);
+        const lines = out.lines.concat([['n', `В горнице у ${decl(nm[0], 'f').g} — ${nm.slice(1).join(' и ')}. Сидят рядком, руки сложили. ${nm[0]}: «Мы тут поговорили. Выбирай одну. А не выберешь — ни одной не будет. И всё село узнает, каков ты»`]]);
+        const ch = band.map(x => ({own: h.id, t: `Выбрать ${decl(x.n.split(' ')[0], 'f').a}`, do: g2 => { band.forEach(y => { const yy = C.kvLocOf(g2, y.id); if (!yy) return; if (yy.id === x.id) { yy.rel = Math.min(100, yy.rel + 10); yy.promise = day(g2) + K.PROMISE; delete yy.knowsNew; } else { yy.st = 'gone'; yy.goneDay = day(g2); yy.rel = 0; } });
+          g2.kvLast = `Остальные молча встают и уходят. ${x.n.split(' ')[0]} смотрит строго: «Теперь — сватов. Месяц»`; C.note(g2, `${h.name} выбрал ${x.n}; прочие ушли.`); return 'kv_local'; }}));
+        ch.push({own: h.id, t: 'Не выбирать', do: g2 => { band.forEach(y => { const yy = C.kvLocOf(g2, y.id); if (yy) { yy.st = 'gone'; yy.goneDay = day(g2); yy.rel = 0; } }); if (C.repAdd) C.repAdd(g2, r.at, -3, 'скандал: ходок'); C.note(g2, `${h.name} не выбрал — и потерял всех разом. Село гудит.`); g2.kvLast = null; return nodeScene(g2); }});
+        return Object.assign({}, out, {lines, choices: ch}); } }
     if (r.knowsNew) { const o = C.kvLocOf(g, r.knowsNew), md = mood(g, r, h), opener = fillR(pick(W[md]), g, r, h, o);
       if (md === 'demand' && !r.demand) r.demand = d + K.DEMAND; if (md === 'resign') r.wedPush = 1;
       const done = (txt, eff, extra) => g2 => { const x = C.kvLocOf(g2, r.id); delete x.knowsNew; x.rel = Math.max(0, Math.min(100, x.rel + eff)); if (extra) extra(g2, x); g2.kvLast = fillR(txt, g2, x, h, o); return 'kv_local'; };
       const ch = [];
       if (['widow', 'maid', 'left', 'freed'].includes(r.st)) ch.push({own: h.id, t: 'Пообещать посвататься', do: done(REACT.promise[md], 5, (g2, x) => { delete x.demand; x.promise = day(g2) + K.PROMISE; })});
-      ch.push({own: h.id, t: 'Утешить', do: g2 => { const ok = R.d(20) + mod(h, 'cha') + likeMod(h, r) >= 12; return done(ok ? REACT.comfortOk[md] : REACT.comfortNo[md], ok ? 3 : -5)(g2); }});
+      ch.push({own: h.id, t: 'Утешить', do: g2 => { const lv = stat(r), many = Math.max(0, othersAt(g2, r).length + 1 - 3), ok = R.d(20) + mod(h, 'cha') + likeMod(h, r) >= 12 + (lv ? 2 * many : 0);
+        const res = done(ok ? REACT.comfortOk[md] : REACT.comfortNo[md], ok ? 3 : -5)(g2);
+        if (ok && lv && many && R.rand() < (lv === 2 ? 0.25 : 0.1) * many) { const x = C.kvLocOf(g2, r.id); x.st = 'gone'; x.goneDay = day(g2); x.rel = 0; g2.kvLast = `${x.n.split(' ')[0]} выслушала, кивнула — а наутро передала через соседку: «Не приходи больше. Делить тебя с половиной села я не стану»`; C.note(g2, `${x.n} порвала с ${h.name}: не захотела делить.`); }
+        return res; }});
       ch.push({own: h.id, t: 'Сказать как есть', do: done(REACT.truth[md], md === 'resign' ? 2 : md === 'sad' ? -8 : md === 'cry' ? -10 : -15, (g2, x) => {
         if (md === 'demand' || md === 'fight') { x.st = 'gone'; x.goneDay = day(g2); x.rel = 0; if (C.repAdd) C.repAdd(g2, x.at, -2, 'скандал на всё село'); } })});
       return Object.assign({}, out, {lines: out.lines.concat([['n', opener]]), choices: ch}); }
@@ -77398,6 +77462,31 @@ const sc = function (g) {
         else g2.kvLast = pick([`${x.n.split(' ')[0]} целует — и выпроваживает: «Не нынче. Иди, иди»`, `«Ишь, разошёлся!» — ${x.n.split(' ')[0]} шлёпает по руке, но улыбается.`, `${x.n.split(' ')[0]} отстраняется: «Не торопи меня»`]);
         const ls = likeSay(h, x); if (ls) g2.kvLast += ' ' + ls; return 'kv_local'; }}); }
     else if (ni >= 0) { const c = out.choices[ni], d0 = c.do; c.do = function (g2) { const res = d0.apply(this, arguments); try { const x = C.kvLocOf(g2, r.id); if (x) { delete x.invite; rumor(g2, x, h); } } catch (e) {} return res; }; }
+    // муж: бывают и мерзавцы — бьёт, пьёт (Ник 27.11: «ловелас-убийца может сделать много женщин вдовами… некоторые мужья мудаки»)
+    if (r.st === 'wife' && !r.hb) { try { const P = (C.FOLK_NAMES || {})[r.ppl || 'nolgrim'] || (C.FOLK_NAMES || {}).nolgrim, L = (P && (r.sex === 'f' ? P.m : P.f)) || ['Вторак', 'Твердислав', 'Добрыня']; r.hb = {n: L[hsh('hbn|' + r.id) % L.length], sex: r.sex === 'f' ? 'm' : 'f'}; } catch (e) {} } // у замужней всегда есть муж
+    if (r.st === 'wife' && r.hb && !r.hb.dead) { const bad = r.hb.bad != null ? r.hb.bad : (r.hb.bad = hsh('hb|' + r.id) % 100 < 45 ? 1 : 0), hn = String(r.hb.n || 'муж').split(' ')[0];
+      if (bad && !r.hb.tamed && !g.kvLast && R.rand() < 0.4) out.lines.push(['n', pick([`${r.n.split(' ')[0]} прикрывает платком синяк на скуле: «Опять ${hn} пьяный пришёл. Не гляди так»`, `«${hn} грозился убить, если узнает, — шепчет ${r.n.split(' ')[0]}. — Он и без того бьёт. Просто так»`, `${r.n.split(' ')[0]} морщится, садясь: рёбра. «Упала», — говорит, не глядя в глаза.`])]);
+      if ((r.rel || 0) >= K.STAGE1) {
+        if (bad && !r.hb.tamed) out.choices.splice(Math.max(0, out.choices.length - 2), 0, {own: h.id, t: `Потолковать с ${decl(hn, 'm').i || hn}`, if: g2 => (C.kvLocOf(g2, r.id) || {}).hbTalkD !== day(g2), off: 'сегодня уже', do: g2 => { const x = C.kvLocOf(g2, r.id); x.hbTalkD = day(g2);
+          const ok = R.d(20) + Math.max(mod(h, 'str'), mod(h, 'cha')) + Math.floor((h.level || 1) / 2) >= 13;
+          if (ok) { x.hb.tamed = 1; x.rel = Math.min(100, x.rel + 8); g2.kvLast = `Ты встречаешь ${decl(hn, 'm').a} у кабака. Разговор короткий. Наутро он тише воды — и руки больше не поднимает. ${x.n.split(' ')[0]} не спрашивает, что ты ему сказал.`; }
+          else { x.hb.knows = 1; x.rel = Math.max(0, x.rel - 3); g2.kvLast = `${hn} слушает, сплёвывает — и смотрит на тебя слишком долго. Кажется, он что-то понял.`; } return 'kv_local'; }});
+        out.choices.splice(Math.max(0, out.choices.length - 2), 0, {own: h.id, t: `Избавить её от ${decl(hn, 'm').g || hn}`, if: g2 => (C.kvLocOf(g2, r.id) || {}).hbTalkD !== day(g2), off: 'сегодня уже', do: g2 => { const x = C.kvLocOf(g2, r.id); x.hbTalkD = day(g2);
+          const ok = R.d(20) + Math.max(mod(h, 'str'), mod(h, 'dex')) + Math.floor((h.level || 1) / 2) + (h.cls === 'dushegub' ? 3 : 0) >= 12;
+          if (!ok) { x.hb.knows = 1; if (C.spiritAdd) C.spiritAdd(g2, -1, '', h); g2.kvLast = `В темноте у овина ${hn} вывернулся, заорал на всю улицу — и убежал. Теперь он знает. И она знает, что ты хотел.`; x.rel = Math.max(0, x.rel - 10); return 'kv_local'; }
+          x.hb.dead = day(g2); x.st = 'widow'; x.t = 'вдова'; const seen = R.rand() < 0.35; if (C.crimeAdd) try { C.crimeAdd(g2, h, 'murder', {seen, why: 'муж знакомой'}); } catch (e) {}
+          if (C.repAdd) C.repAdd(g2, x.at, seen ? -3 : -1, 'убит муж');
+          if (x.hb.bad) { x.rel = Math.min(100, x.rel + 10); g2.kvLast = `Утром ${hn} нашли в канаве у кабака. ${x.n.split(' ')[0]} плачет на людях, как положено вдове. А ночью шепчет: «Свободна… Око светлое — свободна»`; }
+          else { x.st = 'gone'; x.goneDay = day(g2); x.rel = 0; g2.kvLast = `${hn} нашли мёртвым. ${x.n.split(' ')[0]} воет над ним — и, увидев тебя, кричит на всю улицу: «Это ты! Ты! Он мне худого слова не сказал!»`; if (C.repAdd) C.repAdd(g2, x.at, -2, 'вдова кричит на всю улицу'); }
+          C.note(g2, `${hn}, муж ${decl(x.n.split(' ')[0], 'f').g}, найден мёртвым${seen ? ' — и кто-то видел ' + h.name : ''}.`); return 'kv_local'; }}); } }
+    if ((C.kvOwnKids(g, r) || []).length && !g.kvLast && R.rand() < 0.35) { const ks = r.kidsOwn; out.lines.push(['n', pick([`${ks.map(k => k.n).join(' и ')} — ${ks.length > 1 ? 'ребятишки' : (ks[0].sex === 'f' ? 'дочка' : 'сынишка')} ${r.n.split(' ')[0]} от первого мужа — выглядыва${ks.length > 1 ? 'ют' : 'ет'} из-за печи.`, `${r.n.split(' ')[0]} гонит ${ks.length > 1 ? 'ребятню' : ks[0].n} на двор: «Поиграйте пока»`])]); }
+    if (r.newHome && !g.kvLast && !r.newHomeSaid) { r.newHomeSaid = 1; out.lines.push(['n', `${r.n.split(' ')[0]} теперь за ${r.hb ? r.hb.n : 'другим'}. Смотрит тепло, но глаза отводит: «Долго тебя не было. Я ждала… а потом перестала»`]); }
+    // дитя просится в отряд
+    kidW(g, r).forEach(F => (F.kids || []).forEach(k => { if (!k.askJoin || k.went || k.dead || k.joined) return;
+      out.choices.splice(Math.max(0, out.choices.length - 2), 0, {own: h.id, t: `Взять ${k.n.split(' ')[0]} в отряд`, if: g2 => !C.MERC_ROOM || C.MERC_ROOM(g2), off: 'в отряде нет места', do: g2 => {
+        try { const m = C.makeRoadMerc(g2); m.name = k.n; m.sex = k.sex; m.hero.sex = k.sex; m.level = 1; m.price = 0; m.portrait = R.pick(k.sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M); m.hero.people = (h.people || m.hero.people);
+          if (C.hireRoad(g2, m)) { const mm = g2.mercs[g2.mercs.length - 1]; mm.loyal = true; mm.kvKid = k.id; mm.age = 16; k.joined = 1; k.went = 1; g2.kvLast = `${r.n.split(' ')[0]} кладёт на ${k.sex === 'f' ? 'дочь' : 'сына'} знак звезды и плачет: «Береги ${k.sex === 'f' ? 'её' : 'его'}». ${k.n} уже стоит у ворот с котомкой.`; } } catch (e) { g2.kvLast = 'Не вышло.'; }
+        return 'kv_local'; }}); }));
     // на дитя
     if (hasKid(g, r) && active(r)) { const sum = C.kvAskSum ? C.kvAskSum(g, r) : 30; const gap = r.supD ? d - r.supD : 999;
       out.choices.splice(Math.max(0, out.choices.length - 2), 0, {own: h.id, t: `Дать на дитя — ${R.priceText(sum)}`, if: g2 => gap >= K.SUPPORT_GAP && (g2.purse || 0) >= sum, off: gap < K.SUPPORT_GAP ? 'в этом месяце уже давал' : 'не хватает денег', do: g2 => { const x = C.kvLocOf(g2, r.id); g2.purse -= sum; x.supD = day(g2); x.supN = (x.supN || 0) + 1; x.rel = Math.min(100, x.rel + 6); if (x.cold && x.rel >= 50) delete x.cold;
@@ -77450,8 +77539,8 @@ C.kvAutoDay = function (g) {
     const give = Math.min(need, Math.max(0, (g.purse || 0) - 50)); if (give >= WEEK) { g.purse -= give; H.coin = (H.coin || 0) + give; C.note(g, `Управляющий отправил домой ${R.priceText(give)} на хозяйство — ${String(sp.n || 'семья').split(' ')[0]} пишет спасибо.`); }
     else if ((H.coin || 0) < WEEK) short(g, `Письмо из дому: «Денег на хозяйство на неделю осталось. Пришли, сколько можешь», — пишет ${String(sp.n || 'семья').split(' ')[0]}.`, 'home|' + h.id); });
 };
-const pass0 = C.pass;
-C.pass = function (g) { const d = g && g.day; const r = pass0.apply(this, arguments); try { if (g && g.day > d) C.kvAutoDay(g); } catch (e) {} return r; };
+const daily = g => { try { if (!g || !g.heroes || g.kvAD === g.day) return; g.kvAD = g.day; C.kvAutoDay(g); } catch (e) {} };
+['pass', 'rest'].forEach(fn => { if (C[fn]) { const f0 = C[fn]; C[fn] = function (g) { const r = f0.apply(this, arguments); daily(g); return r; }; } });
 })(typeof window !== 'undefined' ? window : globalThis);
 
 /* kv_long.js */
@@ -77489,8 +77578,8 @@ C.spiritCap = function (h) { const c = cap0.apply(this, arguments); try { const 
 if (C.spiritText) { const st0 = C.spiritText; C.spiritText = function (h) { let t = st0.apply(this, arguments); try { const g = GG; const w = g && C.kvLongWhy(g, h); if (w) t += ` ${w[0].toUpperCase() + w.slice(1)}: выше «${C.SPIRIT_RU[C.kvLong(g, h) === 2 ? K.CAP2 : K.CAP1]}» дух не поднять.`; } catch (e) {} return t; }; }
 /* игра под рукой: запоминаем при каждом изменении духа и ходе дня */
 if (C.spiritAdd) { const sa0 = C.spiritAdd; C.spiritAdd = function (g) { if (g && g.heroes) GG = g; return sa0.apply(this, arguments); }; }
-if (C.pass) { const p0 = C.pass; C.pass = function (g) { if (g && g.heroes) GG = g; const d = g && g.day; const r = p0.apply(this, arguments);
-  try { if (g && g.day > d) C.alive(g).forEach(h => { if (exempt(h)) return; const L = C.kvLong(g, h); if (L && (h.kvLongSaid || 0) < L) { h.kvLongSaid = L; C.note(g, `${h.name} ${C.kvLongWhy(g, h)}.`); h.spirit = Math.min(h.spirit || 0, C.spiritCap(h)); } if (!L) h.kvLongSaid = 0; }); } catch (e) {} return r; }; }
+const longDay = g => { if (!g || !g.heroes || g.kvLD === g.day) return; g.kvLD = g.day; try { C.alive(g).forEach(h => { if (exempt(h)) return; const L = C.kvLong(g, h); if (L && (h.kvLongSaid || 0) < L) { h.kvLongSaid = L; C.note(g, `${h.name} ${C.kvLongWhy(g, h)}.`); h.spirit = Math.min(h.spirit || 0, C.spiritCap(h)); } if (!L) h.kvLongSaid = 0; }); } catch (e) {} };
+['pass', 'rest'].forEach(fn => { if (C[fn]) { const f0 = C[fn]; C[fn] = function (g) { if (g && g.heroes) GG = g; const r = f0.apply(this, arguments); longDay(g); return r; }; } });
 if (C.sceneOf) { const so0 = C.sceneOf; C.sceneOf = function (g) { if (g && g.heroes) GG = g; return so0.apply(this, arguments); }; }
 /* засмотрелись, а отказал — грустит */
 if (C.TL_EV && C.TL_EV.kv_flirt) { const E = C.TL_EV.kv_flirt, op0 = E.opts;
