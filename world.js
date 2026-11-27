@@ -77648,3 +77648,46 @@ if (C.TL_EV && C.TL_EV.kv_flirt) { const E = C.TL_EV.kv_flirt, op0 = E.opts;
         try { X.log.push({who: 'n', text: `${h.name} провожает ${Ev.who.sex === 'f' ? 'её' : 'его'} взглядом — и вздыхает: ${C.kvLongWhy(g2, h)}.`}); if (C.spiritAdd) C.spiritAdd(g2, -1, '', h); } catch (e) {} return r; }; }); } catch (e) {}
     return out; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* bf_cone.js */
+/* Колдовство — взгляд: куда смотрит каждый (Ник 27.11: «у них есть конус, куда смотрят, если ты бесшумно; а если шёл обычным
+   шагом — они тебя увидят, так как сразу повернутся, даже в твой ход. И в бою так же»).
+   • У врага, мирного, стражника — направление взгляда (u.bfLook, градусы; то же, что у часовых в скрытном подходе). Видит в
+     конусе ±65°; вплотную — всегда. Кто идёт — смотрит туда, куда идёт; кто бьёт — на того, кого бьёт; в кого попали — на
+     стрелка; враг в бою в начале хода смотрит туда, где последний раз видел отряд.
+   • Шум поворачивает головы сразу, даже посреди твоего хода: шаг слышно (доспех, обувь, земля — BF.noiseOf); крадучись —
+     почти беззвучно (в лёгком — совсем), бегом — вдвое громче. Услышал — обернулся — и если ты в конусе и на виду, заметил.
+   • На прогулке (town_walk: walkNotices) и в бою (bf_search: BF.foeSees) — одна и та же проверка. На поле конусы рисует ui.js. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C; if (!R || !B || !B.BF) return;
+const BF = B.BF;
+BF.CONE = 65;
+const angTo = (a, b) => { const p = BF.px(a.c, a.r), q = BF.px(b.c, b.r); return Math.atan2(q.y - p.y, q.x - p.x) * 180 / Math.PI; };
+BF.lookAt = (u, x) => { if (u && x && u.c != null && x.c != null && (u.c !== x.c || u.r !== x.r)) u.bfLook = angTo(u, x); };
+BF.inCone = function (f, x) { if (!f || f.bfLook == null || !x || x.c == null) return true; if (B.dist(f, x) <= 1) return true;
+  const df = Math.abs(((angTo(f, x) - f.bfLook) % 360 + 540) % 360 - 180); return df <= BF.CONE; };
+const asleep = f => !!((f.civ && f.civ.sleep) || f.bfWatch === 'sleep' || (f.conds && f.conds.sleep));
+const deaf = f => !!(f.conds && f.conds.deaf);
+/* шум шага: прогулка — по походке; бой — как в bf_search */
+BF.stepRad = function (S, u) { const base = BF.stepNoise ? BF.stepNoise(u) * (BF.groundMul ? BF.groundMul(S, B.cell(S, u.c, u.r)) : 1) : 2;
+  const gait = u.gait || (u.crouch ? 'sneak' : 'walk'); let n = gait === 'sneak' ? base - 3 : gait === 'run' || (u.conds && u.conds.running) ? base * 2 : base;
+  if (u.conds && u.conds.hidden && gait !== 'sneak') n = n / 2; return Math.max(0, Math.round(n)); };
+const turnHeads = (S, u) => { const rad = BF.stepRad(S, u); if (rad <= 0) return;
+  S.units.forEach(f => { if (f.side === 'party' || f.dead || f.gone || f.down || f.c == null || asleep(f) || deaf(f) || B.dist(f, u) > rad) return; if (f.civ && /^(pig|beast)$/.test(f.civ.k)) return; BF.lookAt(f, u); f.bfTurnR = S.round; }); };
+const mv0 = B.move;
+B.move = function (S, u, c, r) { const from = u && u.c != null ? {c: u.c, r: u.r} : null; const res = mv0.apply(this, arguments);
+  try { if (S && S.field && u && from && (u.c !== from.c || u.r !== from.r)) { BF.lookAt(u, {c: u.c + (u.c - from.c), r: u.r + (u.r - from.r)}); u.bfLook = angTo(from, u); if (u.side === 'party') turnHeads(S, u); } } catch (e) {}
+  return res; };
+const at0 = B.attack;
+B.attack = function (S, u, t) { try { if (u && t) { BF.lookAt(u, t); if (t.side !== 'party' || !t.ai) BF.lookAt(t, u); } } catch (e) {} return at0.apply(this, arguments); };
+/* бой: в начале хода враг смотрит туда, где ждёт отряд */
+const ai0 = B.ai;
+B.ai = function (S, u) { try { if (u && u.side === 'foe' && u.bfSpot && S.field && S.field.big) BF.lookAt(u, u.bfSpot); } catch (e) {} return ai0.apply(this, arguments); };
+if (BF.foeSees) { const fs0 = BF.foeSees; BF.foeSees = function (S, f, h) { if (f && h && f.bfLook != null && S && S.field && S.field.big && !BF.inCone(f, h)) return false; return fs0.apply(this, arguments); }; }
+/* прогулка */
+if (C && C.walkNotices) { const wn0 = C.walkNotices; C.walkNotices = function (S, f, h) { if (f && h && S && S.walk && S.walk.night && !BF.inCone(f, h)) return false; /* днём народ кругом — глядят во все стороны */ return wn0.apply(this, arguments); }; }
+if (C && C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S) { const r = ws0.apply(this, arguments);
+  try { S.units.forEach(u => { if (u.side !== 'party' && u.bfLook == null && u.c != null) u.bfLook = (Math.floor(R.rand() * 6) * 60) - 180; }); } catch (e) {} return r; }; }
+B.CONE = true;
+})(typeof window !== 'undefined' ? window : globalThis);

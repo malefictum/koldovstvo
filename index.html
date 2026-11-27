@@ -50348,7 +50348,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270553"></script><script>
+</script><script src="world.js?v=202611270605"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54758,6 +54758,10 @@ function bfOver(S, cur) {
     if (u.bfWatch !== 'post') return; const a = (u.bfLook || 0) * Math.PI / 180, R0 = s * 6, sp = 65 * Math.PI / 180, gr = X.createRadialGradient(p.x, p.y, s * 0.5, p.x, p.y, R0); gr.addColorStop(0, 'rgba(255,200,110,.5)'); gr.addColorStop(0.7, 'rgba(255,200,110,.18)'); gr.addColorStop(1, 'rgba(255,200,110,0)');
     X.fillStyle = gr; X.beginPath(); X.moveTo(p.x, p.y); X.arc(p.x, p.y, R0, a - sp, a + sp); X.closePath(); X.fill();
     X.strokeStyle = 'rgba(255,215,130,.75)'; X.lineWidth = 1.5; X.setLineDash([5, 5]); X.beginPath(); X.moveTo(p.x + Math.cos(a - sp) * s * 0.6, p.y + Math.sin(a - sp) * s * 0.6); X.lineTo(p.x + Math.cos(a - sp) * R0, p.y + Math.sin(a - sp) * R0); X.moveTo(p.x + Math.cos(a + sp) * s * 0.6, p.y + Math.sin(a + sp) * s * 0.6); X.lineTo(p.x + Math.cos(a + sp) * R0, p.y + Math.sin(a + sp) * R0); X.stroke(); X.setLineDash([]); });
+  // взгляд мирных и врагов на прогулке и в бою, когда кто-то из своих крадётся (bf_cone.js)
+  if (!(S.stealth && S.stealth.on) && (S.walk || S.units.some(x => x.side === 'party' && B.active(x) && (x.gait === 'sneak' || x.crouch || (x.conds && x.conds.hidden))))) S.units.forEach(u => { if (u.side === 'party' || u.bfLook == null || !B.active(u) || u.c == null || (u.civ && (u.civ.sleep || /^(pig|beast|dog)$/.test(u.civ.k))) || !seenByParty(S, u)) return;
+    const p = hexXY(u.c, u.r), a = u.bfLook * Math.PI / 180, R0 = s * 4.2, sp = 65 * Math.PI / 180, gr = X.createRadialGradient(p.x, p.y, s * 0.4, p.x, p.y, R0), hot = u.side === 'foe' || (u.civ && u.civ.k === 'guard');
+    gr.addColorStop(0, hot ? 'rgba(255,150,90,.32)' : 'rgba(255,215,140,.22)'); gr.addColorStop(1, 'rgba(255,200,110,0)'); X.fillStyle = gr; X.beginPath(); X.moveTo(p.x, p.y); X.arc(p.x, p.y, R0, a - sp, a + sp); X.closePath(); X.fill(); });
   // подмога идёт: у хода — шаги и голоса
   (S.bfRein || []).forEach(gr => { if (gr.state !== 'come' || !gr.at || !gr.at.length) return; const [c0, r0] = gr.at[Math.floor(gr.at.length / 2)], p = hexXY(c0, r0), t = (performance.now() / 600) % 1;
     X.strokeStyle = gr.side === 'party' ? `rgba(166,211,138,${0.8 - t * 0.6})` : `rgba(255,120,90,${0.8 - t * 0.6})`; X.lineWidth = 2; for (let i = 0; i < 3; i++) { X.beginPath(); X.arc(p.x, p.y, s * (0.5 + i * 0.45 + t * 0.45), 0, 7); X.stroke(); }
