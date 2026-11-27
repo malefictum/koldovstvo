@@ -77351,6 +77351,17 @@ const rumor = (g, r, h) => { const os = othersAt(g, r); if (!os.length) return;
 /* сердцеед */
 C.kvHeartbreaker = (g, h) => !!(h && mod(h, 'cha') >= R.mod(K.HEART_CHA) && Object.values(g.kvLoc || {}).filter(x => x.hid === h.id).length >= K.HEART_N);
 if (C.TL_EV && C.TL_EV.kv_flirt) { const E = C.TL_EV.kv_flirt, w0 = E.w; E.w = function (x) { let w = w0.apply(this, arguments); try { if (x && x.g && (x.g.heroes ? C.alive(x.g) : []).some(h => C.kvHeartbreaker(x.g, h))) w *= x.spot === 'torg' ? 2.2 : 1.5; } catch (e) {} return w; }; }
+/* неравнодушная торговка: своя за прилавком — скидка и своё слово (Ник 27.11) */
+const TRADE_RX = /лавоч|торгов|купч|купец|купеческ|мельнич|корчмар|мастериц|ткачих/i;
+C.shopFond = function (g, h) { if (!g || !h || !g.loc) return null; const d = day(g);
+  const r = Object.values(g.kvLoc || {}).filter(x => x.hid === h.id && x.at === g.loc && active(x) && !x.cold && (TRADE_RX.test(String(x.t || '')) || x.rank === 'kupec')).sort((a, b) => (b.rel || 0) - (a.rel || 0))[0];
+  if (r) { const rel = r.rel || 0, disc = rel >= K.STAGE2 ? 0.2 : rel >= K.STAGE1 ? 0.12 : 0.06, nm = r.n.split(' ')[0], f = r.sex === 'f';
+    const say = rel >= K.STAGE2 ? pick([`«Для тебя — как для своего. Бери, не торгуйся»`, `«Это я тебе отложила. Другим не продаю»`, `«Ох, опять ты… Ну, бери, бери — с тебя поцелуй, а не серебро»`]) : rel >= K.STAGE1 ? pick([`«Тебе — дешевле. Только чтоб никто не видел»`, `«Для тебя сбавлю. Заходи почаще»`]) : pick([`«Тебе, так и быть, скину немного»`]);
+    return {n: r.n, t: r.t || (f ? 'за прилавком' : 'за прилавком'), face: r.face, say, disc, who: r.id}; }
+  if (C.kvHeartbreaker && C.kvHeartbreaker(g, h)) return {n: h.sex === 'f' ? 'Лавочник' : 'Лавочница', t: 'за прилавком', face: '', say: h.sex === 'f' ? '«Наслышан, наслышан… Для такой — уступлю»' : '«Наслышана о тебе, сокол… Для тебя — уступлю. А вечером заходи — чаю попьём»', disc: 0.05};
+  return null; };
+if (C.buyPrice) { const bp0 = C.buyPrice; C.buyPrice = function (g, h, x) { const p = bp0.apply(this, arguments); try { if (p && g && h && !g.shopMode && x && !(C.isMagic && C.isMagic(x.id))) { const f = C.shopFond(g, h); if (f) return Math.max(1, Math.round(p * (1 - f.disc))); } } catch (e) {} return p; }; }
+if (C.sellPrice) { const sp0 = C.sellPrice; C.sellPrice = function (g, h, x) { const p = sp0.apply(this, arguments); try { if (p && g && h && !g.shopMode) { const f = C.shopFond(g, h); if (f) return Math.round(p * (1 + f.disc / 2)); } } catch (e) {} return p; }; }
 /* сцена */
 const SC = C.KV_SC; const sc0 = SC.kv_local;
 const sc = function (g) {
