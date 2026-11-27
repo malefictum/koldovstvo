@@ -79807,6 +79807,7 @@ C.walkSetup = function (S, g) {
       let u = civs(S).find(v => (x.k === 'folk' && v.civ.folk === x.id) || (x.k === 'tf' && v.civ.tf === x.id) || (x.k === 'kv' && v.civ.kv === x.id));
       // житель, кого знаешь, но на улицу не вышел — выходит вместо прохожего (днём)
       if (!u && x.k === 'tf' && !Wk.night) { u = civs(S).find(v => plain(v) && fitK(x).includes(v.civ.k)); if (u) { u.civ.tf = x.id; u.name = `${x.n}, ${x.t}`; if (x.face) { u.portrait = x.face; u.civ.face = x.face; } } }
+      if (u && x.k === 'tf') { const kv = Object.values(g.kvLoc || {}).find(r => r && r.tf === g.loc + '|' + x.id && r.hid != null && !['gone', 'wed'].includes(r.st)); if (kv) { u.civ.kv = kv.id; x = Object.assign({}, x, {word: x.sex === 'f' ? 'сердце тянется' : 'сердце тянется', warm: true}); } }
       if (u) tagName(u, x);
       // дом: мастер — где работает (кузня, мастерская, лавка) или свой; житель — своя изба
       let h = null; if (u && u.civ.workAt != null) h = BF.houseById ? BF.houseById(S.field, u.civ.workAt) : null;
@@ -79869,6 +79870,57 @@ C.walkActsX.push(function (S, u, out, g) { const Wk = S.walk; if (!Wk || !Wk.app
   if (Wk.app.kind === 'beg') out.unshift({v: 'wk_alms', t: A.id, label: `Подать ${nm} на хлеб`, dis: g && (g.purse || 0) < 5 ? 'в кошеле пусто' : '', title: 'Пара медяков — и старику легче', grp: 'Люди'}); });
 C.walkDoX.wk_alms = function (S, u, a, t, g) { const Wk = S.walk; if (!g || (g.purse || 0) < 5) return 'в кошеле пусто'; g.purse -= 5; if (B.log) B.log(S, `${first(u.name)} кладёт медяки в сухую ладонь. Старик кланяется в пояс: «Дай тебе здоровья».`, 'buff');
   try { if (C.spiritAdd && (g.wkAlms || 0) !== g.day) { g.wkAlms = g.day; C.spiritAdd(g, 1, 'подал старику на хлеб', u.ref); } } catch (e) {} if (Wk.app) { const A = civs(S).find(x => x.id === Wk.app.id); if (A) A.civ.app = null; Wk.app = null; } return ''; };
+/* ---------- разговор на улице знает, кто тебе человек (Ник 27.11: «диалоги несинхронизированы») ----------
+   Знакомая, с кем было, — не «Здравствуй, путник»; приятель — «давно не виделись»; друг-мастер — по-свойски. Подпись под
+   лицом — словом (знакомая, приятель, сердце тянется). «Поболтать о жизни» — вопрос героя меняется, ответы в одном
+   разговоре не повторяются; наговорились — так и скажут. */
+const HI = {
+  kv: {f: ['«Ой, это ты… Здравствуй. Я как раз о тебе думала».', '«Ну наконец-то! А то я уж решила — забыл дорогу».', '«Тише, тут люди смотрят… Но я рада, правда».', '«Пришёл всё-таки. А я и не ждала… почти».'],
+    m: ['«А, вот и ты! Здравствуй, здравствуй».', '«Я тебя ещё с того конца улицы приметил».', '«Ну, рассказывай, где пропадала».']},
+  warm: {f: ['«{h}! Давно не виделись. Как дорога?»', '«Ой, {h}, здравствуй! Заходи как-нибудь — пирогов напеку».', '«А я тебя сразу признала, {h}. Здравствуй»'],
+    m: ['«{h}! Здорово. Давно тебя не было».', '«О, {h}! Вот уж кого рад видеть».', '«Здорово, {h}. Как оно, в дороге?»']},
+  known: {f: ['«А, это ты. Здравствуй».', '«Здравствуй, {h}. Опять к нам?»', '«Здравствуй. Помню тебя — ты у колодца спрашивал{ла} дорогу».'],
+    m: ['«А, это ты. Здорово».', '«Здорово, {h}. Опять к нам?»', '«Здорово. Помню тебя, помню».']},
+  friend: {f: ['«{h}! Вот кстати. Заходи, разговор есть».', '«А я как раз о тебе вспоминала, {h}. Здравствуй»'], m: ['«{h}! Вот кстати. Заходи, разговор есть».', '«Здорово, {h}! Ко мне не забудь заглянуть»']}};
+const ASK = ['Как живёте тут?', 'Что у вас нового?', 'А как сам{а}-то?', 'Чем живёт село?', 'Расскажи ещё что-нибудь.'];
+const ENOUGH = {f: ['«Да всё уж рассказала, что знала. Заходи завтра — накопится».', '«Ой, заговорились мы. Дела ждут — завтра доскажу».'], m: ['«Да всё уж рассказал. Завтра заходи — может, что новое будет».', '«Заболтались мы. Дела не ждут — завтра потолкуем».']};
+const fillH = (t, hh, sx) => String(t).replace(/\{h\}/g, first(hh && hh.name)).replace(/\{ла\}/g, hh && hh.sex === 'f' ? 'а' : '').replace(/\{а\}/g, sx === 'f' ? 'а' : '');
+/* знакомый на улице — тот же разговор, что в меню места (Ник 27.11: «список реплик должен быть один в один как в общем
+   диалоге»): знакомая — её сцена (гостинец, ночь, сваты…), житель — сцена жителя, мастер — сцена мастера. «Уйти» в них
+   ведёт обратно на улицу, пока разговор начат на прогулке (g.twBack). */
+const BACK_RX = /^(Уйти|Назад|Будь здоров|Отойти)/;
+const resumeWalk = g2 => { delete g2.twBack; if (g2.twalk) delete g2.twalk.talk; g2.kvLast = null; g2.folkLast = null; return g2.twalk ? {battle: C.walkSpec(g2)} : (placeScene(g2) || 'map'); };
+const patchBack = sc => { if (!sc || !Array.isArray(sc.choices)) return sc; sc.choices = sc.choices.map(c => (c && BACK_RX.test(c.label || c.t || '')) ? Object.assign({}, c, {label: 'Вернуться на улицу', t: 'Вернуться на улицу', dis: null, do: resumeWalk}) : c); return sc; };
+{ const so8 = C.sceneOf; C.sceneOf = function (g, id) {
+  try { if (g && g.twBack && !g.twalk) delete g.twBack;
+    const T = id === 'tw_talk' && g && g.twalk && g.twalk.talk;
+    if (T && !g.twBack) { let kv = T.kv && (g.kvLoc || {})[T.kv]; if (!kv && T.tf) kv = Object.values(g.kvLoc || {}).find(r => r && r.tf === g.loc + '|' + T.tf && !['gone', 'wed'].includes(r.st));
+      if (kv) { g.kvCur = kv.id; g.kvLast = null; g.twBack = 'kv_local'; }
+      else if (T.tf) { g.tfCur = T.tf; g.twBack = 'tf_talk'; }
+      else if (T.folk && !/^sp_/.test(T.folk) && !T.kid) { const r = (g.folkRel || {})[T.folk + '@' + g.loc]; if (!r || !['wed', 'kin'].includes(r.bond)) { g.folkRole = T.folk; g.folkAt = null; g.folkLast = null; g.twBack = 'folk'; } } }
+    if (g && g.twBack && g.twalk && (id === 'tw_talk' || id === g.twBack)) return patchBack(so8.call(this, g, g.twBack)); } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return so8.apply(this, arguments); }; }
+{ const so9 = C.sceneOf; C.sceneOf = function (g, id) {
+  try { const T = id === 'tw_talk' && g && g.twalk && g.twalk.talk; if (T && !(T.log || []).length && !T.wkHi) { T.wkHi = 1; const hh = heroes(g)[0], sx = T.sex === 'f' ? 'f' : 'm', d = day(g);
+      let kv = T.kv && (g.kvLoc || {})[T.kv]; if (!kv && T.tf) kv = Object.values(g.kvLoc || {}).find(r => r && r.tf === g.loc + '|' + T.tf && !['gone', 'wed'].includes(r.st)); if (kv) T.kv = kv.id;
+      let pool = null, sub = '';
+      if (kv) { pool = HI.kv[sx]; sub = 'сердце тянется'; T.kvHi = 1; }
+      else if (T.folk && !/^sp_/.test(T.folk)) { const r = (g.folkRel || {})[T.folk + '@' + g.loc]; const w = masterWord(r, sx); if (w && (r.bond === 'drug' || (r.rep || 0) >= K.WARM_MASTER)) { pool = HI.friend[sx]; T.folkHi = 1; } if (w) sub = w; }
+      else if (T.tf) { const r = tfRel(g, g.loc, T.tf); if (r && r.met) { const warm = (r.rel || 0) >= ((C.TF || {}).REL_WARM || 30); pool = (warm ? HI.warm : HI.known)[sx]; sub = warm ? fx(sx, 'приятель', 'приятельница') : fx(sx, 'знакомый', 'знакомая'); } }
+      if (pool) T.log.push({who: 'o', text: fillH(pool[hsh((T.tf || T.folk || T.kv || T.id) + '|' + d) % pool.length], hh, sx)});
+      if (sub) T.sub = sub; } } catch (e) {}
+  const sc = so9.apply(this, arguments);
+  try { const T = id === 'tw_talk' && g && g.twalk && g.twalk.talk; if (T && sc && Array.isArray(sc.choices)) {
+      if (T.sub && sc.talk && sc.talk.who) sc.talk.who.sub = T.sub;
+      sc.choices = sc.choices.map(c => { if (!c || c.label !== 'Поболтать о жизни' || c.wkChat) return c; const d0 = c.do; const sx = T.sex === 'f' ? 'f' : 'm';
+        if ((T.chatN || 0) >= 3) return Object.assign({}, c, {wkChat: 1, dis: 'на сегодня наговорились'});
+        return Object.assign({}, c, {wkChat: 1, do: g2 => { const X = g2.twalk.talk, n0 = X.log.length; const said = new Set(X.log.filter(l => l.who === 'o').map(l => l.text)); let r = null;
+          for (let k = 0; k < 8; k++) { X.log.length = n0; r = d0(g2); const last = X.log[X.log.length - 1]; if (!last || last.who !== 'o' || !said.has(last.text)) break; }
+          const qi = X.log.findIndex((l, i) => i >= n0 && l.who === 'h'); if (qi >= 0) X.log[qi].text = fillH(ASK[(X.chatN || 0) % ASK.length], heroes(g2)[0], sx);
+          const last = X.log[X.log.length - 1]; if (last && last.who === 'o' && said.has(last.text)) last.text = ENOUGH[sx][hsh(X.id + day(g2)) % 2];
+          X.chatN = (X.chatN || 0) + 1; return r; }}); });
+    } } catch (e) { if (C.BF_DEBUG) console.error(e); }
+  return sc; }; }
 /* ---------- кольцо под ногами (Ник 27.11): красный — враг, жёлтый — незнакомец, синий — торговец, голубой — знакомый,
    зелёный — хороший знакомый, розовый с красным сердечком — жена (муж), фиолетовое сердечко — любовница (флирт) ---------- */
 C.WK_RING = {foe: '#d0402e', stranger: '#e0c040', trade: '#3a64d8', known: '#6ac8f0', good: '#5cc04a', wife: '#f08fb8', love: '#a05ad0'};
