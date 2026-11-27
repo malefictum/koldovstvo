@@ -72485,7 +72485,7 @@ C.gossipLine = function (g, at, teller, h, extra) {
   return open + c0.t;
 };
 /* кумушка и болтливые — не «ой, не слыхал…», а настоящая сплетня о соседях */
-const talkOr = (g, p, h, salt) => { try { if (p.age !== 'kid' && (p.talk === 'kuma' || (p.nrav === 'shutnik' && gh(salt + 'g') % 3 === 0) || gh(salt + 'g') % 5 === 0)) { const t = C.gossipLine(g, g.loc, p, h, salt); if (t) return t; } } catch (e) {} return talkLine(p, salt); };
+const talkOr = (g, p, h, salt) => { try { const x = C.tfLineHook && C.tfLineHook(g, p, salt); if (x) return x; } catch (e) {} try { if (p.age !== 'kid' && (p.talk === 'kuma' || (p.nrav === 'shutnik' && gh(salt + 'g') % 3 === 0) || gh(salt + 'g') % 5 === 0)) { const t = C.gossipLine(g, g.loc, p, h, salt); if (t) return t; } } catch (e) {} return talkLine(p, salt); };
 const talkLine = (p, salt) => { const T = TALK[p.talk] || TALK.kuma; return pickH(T[p.sex] || T.f || T.m, salt); };
 
 /* ---------- сцены ---------- */
@@ -79989,4 +79989,797 @@ if (C.walkTick) { const wt0 = C.walkTick; C.walkTick = function (S) { const r = 
 if (B.move) { const mv0 = B.move; B.move = function (S, u) { try { if (u && u.sit) u.sit = false; } catch (e) {} return mv0.apply(this, arguments); }; }
 if (C.walkGait) { const wg0 = C.walkGait; C.walkGait = function (u, m) { try { if (u && m && u.sit) u.sit = false; } catch (e) {} return wg0.apply(this, arguments); }; }
 if (B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments); try { (S && S.units || []).forEach(u => { if (u.sit && !(S.walk && !S.walk.fight)) u.sit = false; }); } catch (e) {} return S; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* qt_engine.js */
+/* Колдовство — нити заданий (Ник 27.11: «задание → два-три исхода → под каждый ещё два-три задания со связанным сюжетом → и дальше бифуркации»;
+   «самое бедное в квестах — что рассказывается»). Разобрано по char-gen и tabletopgenerator, свод правил — в доке проекта koldovstvo-quest-threads.md.
+   Звено нити — обычное дело quests.js (те же препятствия, бои, плата, отчёт), но со своими людьми, речью, уликами и развязкой:
+   • у нити свои люди (каст): заказчик, свидетель, противник, союзник — с именами, живут в одном селе, переходят из звена в звено;
+   • заказчик просит одно, а хочет другого; у беды две правды — что говорят люди и что было на самом деле;
+   • на каждом пройденном препятствии — осязаемая улика, а перед развязкой — осложнение: очевидный путь не годится;
+   • развязка — вопрос и два-три названных выхода, каждый бьёт по кому-то; неудача проверки — тоже исход, только дороже;
+   • каждый выход оставляет хвост: через несколько дней приходит грамотка, слух или человек — и начинается следующее звено.
+   Данные нитей — qt_koleso.js, qt_zhila.js, qt_tihoe.js. Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q;
+if (!R || !C || !Q) return;
+const QT = C.QT = C.QT || {T: {}};
+QT.P = Object.assign({START: 0.45, OPEN: 2, KEEP: 9}, QT.P || {});
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const arr = x => Array.isArray(x) ? x : [x];
+const call = (f, c) => typeof f === 'function' ? f(c) : f;
+const pickT = (g, L, salt) => { L = arr(L); return L.length < 2 ? L[0] : L[(g.day * 7 + (salt || 0)) % L.length]; };
+QT.st = g => (g.threads = g.threads || {});
+QT.def = t => QT.T[String(t.tid).split('#')[0]];
+QT.ctx = (g, t) => Object.assign({}, t.cast, {f: t.f, at: t.at || '', g, t});
+/* имя села в падежах: «в Ольшанке», «из Ольшанки», «к Ольшанке» */
+QT.atF = c => { const n = (c.t && c.t.atName) || ''; if (!n) return null; return Q.decl(n, /[ая]$/.test(n) ? 'f' : 'm'); };
+QT.inAt = c => { const f = QT.atF(c); return f ? 'в ' + f.p : 'в селе'; };
+QT.fromAt = c => { const f = QT.atF(c); return f ? 'из ' + f.g : 'из села'; };
+QT.toAt = c => { const f = QT.atF(c); return f ? 'к ' + f.d : 'к селу'; };
+QT.nodeName = (g, at) => { try { const n = C.CAMPS[g.camp].map.nodes[at]; return n ? n.name : ''; } catch (e) { return ''; } };
+/* люди нити: имя по роли, без повторов; fixed — имя задано нитью */
+QT.cast = function (g, T, pre) {
+  const out = Object.assign({}, pre || {}), used = new Set(Object.values(out).map(p => p.n));
+  Object.entries(T.cast || {}).forEach(([k, r]) => { if (out[k]) { out[k] = Object.assign({}, out[k], {role: out[k].role || r.role, key: k}); return; }
+    let p = null; for (let i = 0; i < 12; i++) { p = Q.person(g, r.sex, r.ppl ? R.pick(arr(r.ppl)) : 'nolgrim'); if (!used.has(p.n)) break; }
+    if (r.name) Object.assign(p, Q.decl(r.name, r.sex));
+    used.add(p.n); out[k] = Object.assign(p, {role: r.role, key: k}); });
+  return out;
+};
+QT.open = g => Object.values(QT.st(g)).filter(t => t.status === 'on' && t.camp === g.camp);
+/* звено → дело quests.js */
+QT.make = function (g, t, sid) {
+  const T = QT.def(t), S = T.steps[sid], c = QT.ctx(g, t);
+  const j = Q.make(g, 'town', {giver: 'qt_thread', kind: S.kind || 'retrieve', diff: S.diff || 'mid'});
+  if (S.thr) { const th = R.pick(arr(S.thr)); const TH = Q.THREAT[th]; if (TH) { j.thr = th; j.v.thrId = th; j.v.thr = {n: TH.n, a: TH.a, g: TH.g, i: TH.i, gen: TH.gen}; j.v.ttype = TH.human ? 'human' : TH.undead ? 'undead' : TH.nechist ? 'nechist' : th === 'spiders' ? 'spiders' : TH.beast ? 'beast' : 'monster'; } }
+  if (S.stages) j.stages = S.stages.filter(k => Q.OB[k]);
+  if (S.place) { const pl = call(S.place, c); j.v.place = Object.assign({in: 0, a: pl.n}, pl); }
+  if (!S.dungeon) j.dgDone = 1;
+  ['giver', 'vic', 'wit', 'rcp'].forEach(k => { const ck = S[k === 'giver' ? 'giver' : k]; if (ck && t.cast[ck]) j.v[k] = t.cast[ck]; });
+  if (S.item) j.v.item = call(S.item, c);
+  j.pay = Math.round(j.pay * (S.pay == null ? 1 : S.pay) / 10) * 10; if (j.bonus) { j.pay -= j.bonus; j.bonus = 0; }
+  if (S.days) j.dl = g.day + S.days;
+  j.thread = {tid: t.tid, sid}; j.node = t.at; if (typeof S.title === 'function') j.qtTitle = S.title(c); j.twist = null; j.txt = {payKey: 'town'};
+  return j;
+};
+QT.stepOf = j => { if (!j || !j.thread) return null; const t = j.thread, T = QT.T[String(t.tid).split('#')[0]]; return T && T.steps[t.sid] ? {T, S: T.steps[t.sid]} : null; };
+QT.of = (g, j) => QT.st(g)[j.thread.tid];
+
+/* враги нитей: стража дознавателя, водяная нечисть, серые. В обычные дела не попадают (вес 0) */
+const thrLike = (base, o) => Object.assign({}, Q.THREAT[base], o);
+if (Q.THREAT.deserters && !Q.THREAT.oko_guard) {
+  Q.THREAT.oko_guard = thrLike('deserters', {n: 'стража Ока', i: 'стражей Ока', gen: 'f', a: 'стражу Ока', g: 'стражи Ока', pool: ['strazhnik', 'strazhnik', 'opolchenets', 'naemnik', 'strazhnik'], human: 1});
+  Q.THREAT.serye = thrLike('bandits', {n: 'серые', i: 'серыми', gen: 'pl', a: 'серых', g: 'серых', pool: ['naemnik', 'naemnyy_ubiytsa', 'strazhnik', 'naemnik', 'charodey_uchenik'], human: 1});
+  Q.THREAT.vodyan = thrLike('swamp', {n: 'водяная нечисть', i: 'водяной нечистью', a: 'водяную нечисть', g: 'водяной нечисти', pool: ['mavka', 'mavka'].concat(Q.THREAT.swamp.pool)});
+  Q.THREAT_W.oko_guard = Q.THREAT_W.serye = Q.THREAT_W.vodyan = 0;
+}
+/* ---------- заказчик — свой человек ---------- */
+Q.GIVER.qt_thread = {t: '', mul: 1, sex: 'm'};
+const gn0 = Q.giverName; Q.giverName = j => { if (j && j.thread && j.v.giver) return j.v.giver.role ? `${j.v.giver.n}, ${j.v.giver.role}` : j.v.giver.n; return gn0(j); };
+const ti0 = Q.title; Q.title = j => { if (j && j.qtTitle) return j.qtTitle; const x = QT.stepOf(j); return x ? (typeof x.S.title === 'string' ? x.S.title : x.T.title) : ti0(j); };
+/* предложение: зачин нити — живой сценой, не «подходит к вам» */
+const ol0 = Q.offerLines;
+Q.offerLines = function (g, j) {
+  const x = QT.stepOf(j); if (!x) return ol0(g, j);
+  const t = QT.of(g, j), c = QT.ctx(g, t), L = [];
+  call(x.S.hook, c).forEach(([who, text]) => L.push([who === 'n' ? 'n' : (t.cast[who] ? t.cast[who].n : who), text]));
+  if (x.S.ask) L.push([j.v.giver.n, '«' + call(x.S.ask, c) + '»']);
+  const days = Math.max(1, j.dl - g.day), pays = Q.TXT.PAY.town;
+  const pf = pays[(j.hook || 0) % pays.length], df = Q.TXT.DEADLINE[(j.hook || 0) % Q.TXT.DEADLINE.length];
+  L.push([j.v.giver.n, '«' + (typeof pf === 'function' ? pf(R.priceText(j.payBase || j.pay)) : pf) + ' ' + (x.S.when ? call(x.S.when, c) : typeof df === 'function' ? df(days) : df) + '»']);
+  if (j.site) L.push(['n', 'Место, куда идти, вы отмечаете на карте.']);
+  return L;
+};
+/* улики на пути и осложнение перед развязкой: дописываем, когда дело открывают */
+const by0 = Q.byId;
+Q.byId = function (g, id) {
+  const j = by0(g, id); const x = j && j.status === 'open' && QT.stepOf(j); if (!x) return j;
+  try { const t = QT.of(g, j), c = QT.ctx(g, t), clues = x.S.clues || [];
+    j.clueAt = j.clueAt || 0;
+    while (j.clueAt < j.stage) { const cl = clues[j.clueAt]; if (cl) j.notes.push(call(cl, c)); j.clueAt++; }
+    if (j.stage >= j.stages.length && !j.finText) { if (x.S.twist) j.notes.push(call(x.S.twist, c)); j.finText = ['', [call(x.S.fork, c), call(x.S.ask2, c)].filter(Boolean).join(' ')]; }
+  } catch (e) {}
+  return j;
+};
+/* развязка: выходы нити */
+const endDo = (j, k) => (g2) => {
+  const jj = Q.byId(g2, j.id), x = QT.stepOf(jj), E = x.S.ends[k], t = QT.of(g2, jj), c = QT.ctx(g2, t);
+  jj.thread.end = k; jj.thread.ok = 1;
+  if (E.cost) { const cst = Math.max(10, Math.round(jj.pay * E.cost / 10) * 10); if (g2.purse < cst) { jj.notes.push('Порылись в кошеле — а столько серебра у отряда нет.'); return 'q_site'; } g2.purse -= cst; }
+  if (E.choice) jj.choice = E.choice;
+  if (E.fight) { jj.fightFor = 'final'; if (E.thr && Q.THREAT[E.thr]) jj.thr = E.thr; jj.thread.fight = 1; return Q.battle(g2, jj, E.fight); }
+  let ok = true;
+  if (E.check) { const [stat, skill, add] = E.check; const r = C.bestCheck(g2, stat, skill, Q.dc(g2, jj, add || 0)); g2.lastCheck = r; ok = r.ok;
+    if (!ok && E.failFight) { jj.fightFor = 'final'; jj.thread.fight = 1; jj.thread.ok = 0; jj.notes.push(call(E.bad, c)); return Q.battle(g2, jj, E.failFight); } }
+  jj.thread.ok = ok ? 1 : 0;
+  if (E.src) jj.src = E.src;
+  Q.finish(g2, jj, call(ok ? E.ok : (E.bad || E.ok), c), ok ? (E.mul == null ? 1 : E.mul) : (E.badMul == null ? 0.6 : E.badMul), Object.assign({}, E.ex || {}, ok ? {} : E.badEx || {}));
+  return 'q_done';
+};
+const fc0 = Q.finChoices;
+Q.finChoices = function (g, j) {
+  const x = QT.stepOf(j); if (!x) return fc0(g, j);
+  const t = QT.of(g, j), c = QT.ctx(g, t);
+  return x.S.ends.map((E, k) => (E.if && !E.if(c, g)) ? null : {t: call(E.t, c) + (E.check ? ` (${C.STAT_NAME[E.check[0]]}, ${E.check[1]})` : '') + (E.cost ? ` (${R.priceText(Math.max(10, Math.round(j.pay * E.cost / 10) * 10))})` : ''), do: endDo(j, k)}).filter(Boolean);
+};
+/* итог звена: плата как обычно, а сверх неё — хвост */
+const fin0 = Q.finish;
+Q.finish = function (g, j, text, mul, ex) {
+  const x = QT.stepOf(j); if (!x) return fin0(g, j, text, mul, ex);
+  const t = QT.of(g, j), c = QT.ctx(g, t), k = j.thread.end, E = k != null ? x.S.ends[k] : null;
+  if (E && j.thread.fight) { text = call(j.thread.ok ? E.ok : (E.won || E.ok), c); mul = E.mul == null ? 1 : E.mul; ex = Object.assign({}, ex || {}, E.ex || {}); }
+  fin0(g, j, text, mul, ex);
+  if (!t || !E) return;
+  QT.after(g, t, j, E, c);
+};
+QT.after = function (g, t, j, E, c) {
+  const ok = !!j.thread.ok;
+  Object.assign(t.f, E.set || {}, ok ? {} : (E.badSet || {}));
+  [ok ? E.side : (E.badSide || E.side), E.side2].forEach(sd => { if (sd && C.trust && g.chron) C.trust(g, sd[0], sd[1]); });
+  t.log.push({sid: j.thread.sid, end: j.thread.end, ok: ok ? 1 : 0, day: g.day});
+  if (E.log) { const line = call(E.log, c); C.note(g, line); if (g.chron) g.chron.threads = (g.chron.threads || []).concat({t: QT.def(t).title, line, day: g.day}).slice(-40); }
+  try { const gv = t.cast[(QT.def(t).steps[j.thread.sid] || {}).giver]; if (gv && gv.rid) { g.tf = g.tf || {}; const A = g.tf[g.camp + '|' + t.at] = g.tf[g.camp + '|' + t.at] || {}; const r = A[gv.rid] = A[gv.rid] || {rel: 0, met: 0}; r.met = r.met || g.day; r.rel = Math.max(0, Math.min(100, r.rel + (E.rel != null ? E.rel : ok ? 20 : 8))); } } catch (e) {}
+  if (E.rep) j.repText = [call(E.rep[0], c), call(E.rep[1], c)];
+  const nx = arr((ok ? E.next : (E.badNext || E.next)) || []).filter(Boolean);
+  nx.forEach(n => t.pending.push({sid: n.s, due: g.day + (n.d || 3), via: n.via || 'mail', from: n.from}));
+  if (!nx.length && !t.pending.length && !t.ready.length) { t.status = 'done'; if (E.end !== false) C.note(g, `Нить «${QT.def(t).title}» завершена.`); }
+};
+/* просрочка звена — тоже исход */
+const tk0 = Q.tick;
+Q.tick = function (g) {
+  tk0(g);
+  try {
+    (g.jobs || []).forEach(j => { const x = QT.stepOf(j); if (!x || j.status !== 'late' || j.thread.lateDone) return; j.thread.lateDone = 1; const t = QT.of(g, j); if (!t) return; const c = QT.ctx(g, t);
+      t.log.push({sid: j.thread.sid, end: -1, ok: 0, day: g.day}); if (x.S.late) C.note(g, call(x.S.late.text, c));
+      Object.assign(t.f, (x.S.late && x.S.late.set) || {}); const nx = arr((x.S.late && x.S.late.next) || []); nx.forEach(n => t.pending.push({sid: n.s, due: g.day + (n.d || 2), via: n.via || 'mail', from: n.from}));
+      if (!nx.length && !t.pending.length && !t.ready.length) t.status = 'done'; });
+    QT.deliver(g);
+  } catch (e) {}
+};
+/* хвосты: грамотка, слух или человек ищет вас */
+QT.deliver = function (g) {
+  Object.values(QT.st(g)).forEach(t => {
+    if (t.status === 'offer' && g.day - t.day > QP().KEEP) { delete QT.st(g)[t.tid]; return; }
+    if (t.status !== 'on' || !t.pending.length) return;
+    const due = t.pending.filter(p => g.day >= p.due); if (!due.length) return;
+    t.pending = t.pending.filter(p => g.day < p.due);
+    due.forEach(p => { const T = QT.def(t), S = T.steps[p.sid]; if (!S) return; t.ready.push(p.sid); const c = QT.ctx(g, t);
+      const who = t.cast[p.from || S.giver] || t.cast[S.giver], at = QT.nodeName(g, t.at);
+      const text = call(S.call || S.ask, c);
+      if (p.via === 'mail' && who) { const h = C.alive(g)[0]; g.mail = (g.mail || []).concat({from: who.n, t: who.role || '', face: who.face || '', sex: who.sex, kind: 'thread', head: T.title, to: h ? h.name : '', text: '«' + text + '»' + (at ? ` — ${at}.` : ''), day: g.day}).slice(-6); }
+      C.note(g, p.via === 'rumor' ? `Слух из ${at || 'села'}: ${text}` : `${who ? who.n : 'Кто-то'} ищет вас${at ? ' — ' + at : ''}: «${Q.title({thread: {tid: t.tid, sid: p.sid}})}».`);
+    });
+  });
+};
+const QP = () => QT.P;
+/* где взять звено: заказчик сам ищет отряд — первым в селе и на доске */
+QT.offersAt = function (g, at) {
+  const out = [];
+  QT.open(g).filter(t => t.at === at).forEach(t => {
+    t.offers = (t.offers || []).filter(o => o.status === 'offer');
+    t.ready.forEach(sid => { if (!t.offers.some(o => o.thread.sid === sid)) t.offers.push(QT.make(g, t, sid)); }); t.ready = [];
+    t.offers.forEach(o => out.push(o));
+  });
+  Object.values(QT.st(g)).filter(t => t.status === 'offer' && t.at === at && t.camp === g.camp && !QT.def(t).manual && t.offer && t.offer.status === 'offer').forEach(t => out.push(t.offer));
+  return out;
+};
+QT.canStart = (g, T) => !T.manual && (!T.ok || T.ok(g)) && Q.lvl(g) >= (T.lv || 1) && !Object.values(QT.st(g)).some(t => QT.def(t) === T);
+QT.start = function (g, T, at, pre) {
+  const tid = T.multi ? T.id + '#' + (g.jobSeq || 0) + '_' + g.day : T.id;
+  const t = QT.st(g)[tid] = {tid, camp: g.camp, at, day: g.day, status: 'offer', cast: QT.cast(g, T, pre), f: {}, log: [], pending: [], ready: [], offers: []};
+  t.atName = QT.nodeName(g, at);
+  QT.settle(g, t);
+  return t;
+};
+/* люди нити — жители села (Ник 27.11: «НПС в единой базе — завязать квесты между ними»): живут на улице, попадают в «Знакомых»,
+   говорят о том, что было в нити, а соседи о них сплетничают */
+QT.rid = (t, k) => 'qt_' + String(t.tid).replace(/[^a-z0-9]/gi, '') + '_' + k;
+QT.settle = function (g, t) {
+  try { if (!C.tfPeople) return; const T = QT.def(t), ppl = C.tfPeople(g, t.at); if (!ppl || !ppl.length && !(g.tfPpl || {})[g.camp + '|' + t.at]) return;
+    Object.entries(T.cast || {}).forEach(([k, r]) => { const tf = r.tf; if (!tf) return; const p = t.cast[k], id = QT.rid(t, k); p.rid = id;
+      if (ppl.some(x => x.id === id)) return;
+      let face = ''; try { face = (C.D1 && C.D1.faceRole) ? C.D1.faceRole(tf.age === 'old' ? 'old' : tf.age === 'young' ? 'young' : 'adult', p.sex, id) : ''; } catch (e) {}
+      p.face = p.face || face;
+      ppl.push({id, n: p.n, sex: p.sex, age: tf.age || 'adult', st: tf.st || 'old', t: r.role, talk: tf.talk || 'kuma', face: p.face, ppl: p.ppl, nrav: tf.nrav || 'tihiy', qt: t.tid, qk: k}); });
+  } catch (e) {}
+};
+/* что говорит человек нити и что говорят о нити соседи */
+C.tfLineHook = function (g, p, salt) {
+  const h = s => { let x = 2166136261; s = String(s); for (let i = 0; i < s.length; i++) { x ^= s.charCodeAt(i); x = Math.imul(x, 16777619); } return x >>> 0; };
+  if (p && p.qt) { const t = QT.st(g)[p.qt]; const T = t && QT.def(t); if (!T || !T.say || !T.say[p.qk]) return null; const L = T.say[p.qk](QT.ctx(g, t)).filter(Boolean); return L.length ? L[h(salt) % L.length] : null; }
+  const here = Object.values(QT.st(g)).filter(t => t.camp === g.camp && t.at === g.loc && t.log.length && QT.def(t).gossip);
+  if (!here.length || h(salt + 'qt') % 3) return null;
+  const t = here[h(salt) % here.length], L = QT.def(t).gossip(QT.ctx(g, t)).filter(Boolean); return L.length ? L[h(salt + 'l') % L.length] : null;
+};
+/* с людьми нити не заигрывают: у них своя беда */
+if (C.tfFlirt) { const fl0 = C.tfFlirt; C.tfFlirt = function (g, hh, at, pid) { if (/^qt_/.test(pid || '')) return null; return fl0.apply(this, arguments); }; }
+const bd0 = Q.board;
+Q.board = function (g) {
+  const offers = bd0(g); if (!g.jobBoard || !g.jobBoard[g.loc]) return offers;
+  if (!offers.length) { try { return QT.offersAt(g, g.loc); } catch (e) { return offers; } } // худая молва: работы нет, но свои люди всё равно найдут
+  const b = g.jobBoard[g.loc];
+  try {
+    if (!b.qt && offers.length && QT.open(g).length < QP().OPEN && R.rand() < QP().START) { b.qt = 1;
+      const cand = Object.values(QT.T).filter(T => QT.canStart(g, T) && (!T.where || T.where(g, g.loc)));
+      if (cand.length) { const T = R.pick(cand), t = QT.start(g, T, g.loc); t.offer = QT.make(g, t, T.start); }
+    }
+    b.qt = 1;
+    b.offers = QT.offersAt(g, g.loc).concat(b.offers.filter(o => !o.thread));
+  } catch (e) {}
+  return b.offers;
+};
+/* взялись за первое звено — нить пошла */
+const ac0 = Q.accept;
+Q.accept = function (g, j) {
+  ac0(g, j);
+  if (!j.thread) return;
+  const t = QT.of(g, j); if (!t) return;
+  if (t.status === 'offer') { t.status = 'on'; t.offer = null; }
+  t.offers = (t.offers || []).filter(o => o.id !== j.id);
+};
+/* в селе: «X ищет вас» — прямо в списке, не прячась за «есть ли работа» */
+const inj0 = Q.inject;
+Q.inject = function (g, sceneId, choices) {
+  const out = inj0(g, sceneId, choices);
+  try { const camp = C.CAMPS[g.camp], node = camp.map.nodes[g.loc]; if (!node || node.scene !== sceneId || camp.noJobs) return out;
+    let i = out.length ? Math.max(...out.map(c => c.i || 0)) + 1 : 0;
+    QT.open(g).filter(t => t.at === g.loc && (t.ready.length || (t.offers || []).some(o => o.status === 'offer'))).forEach(t => {
+      QT.offersAt(g, g.loc).filter(o => o.thread.tid === t.tid).forEach(o => out.push({i: i++, label: `${o.v.giver.n} ищет вас: ${Q.title(o).toLowerCase()}`, t: '', do: g2 => { g2.jobOffer = o.id; g2.jobFrom = 'town'; const b = (g2.jobBoard = g2.jobBoard || {})[g2.loc] = g2.jobBoard[g2.loc] || {day: g2.day, offers: []}; if (!b.offers.includes(o)) b.offers.unshift(o); return 'q_offer'; }, job: 1})); });
+  } catch (e) {}
+  return out;
+};
+/* летопись нитей — для свитка и проверок */
+QT.story = (g, tid) => { const t = QT.st(g)[tid]; if (!t) return []; const T = QT.def(t); return t.log.map(l => ({step: (T.steps[l.sid] || {}).title || T.title, end: l.end >= 0 ? call(T.steps[l.sid].ends[l.end].t, QT.ctx(g, t)) : 'не успели', ok: l.ok})); };
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* qt_koleso.js */
+/* Колдовство — нить «Стоячее колесо» (Ник 27.11). Купальская ночь, мельница, ведунья с омута и дознаватель Ока.
+   Звенья: k1 → (k2a | k2b | k2c) → (k3a | k3b | k3c). Тексты — живые, у каждого человека свой голос. Без DOM. */
+(function (G) {
+'use strict';
+const C = G.C, QT = C && C.QT;
+if (!QT) return;
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const at = c => c.t.atName || 'селе';
+QT.T.koleso = {id: 'koleso', title: 'Стоячее колесо', lv: 1, start: 'k1',
+  where: (g, loc) => { try { const n = C.CAMPS[g.camp].map.nodes[loc]; return ['село', 'мельница', 'подворье'].includes(n.kind); } catch (e) { return false; } },
+  cast: {
+    melnik: {sex: 'm', role: 'мельник', tf: {talk: 'mel', age: 'adult', st: 'old', nrav: 'hozyain'}},
+    zhena: {sex: 'f', role: 'мельничиха', tf: {talk: 'wife', age: 'young', st: 'old', nrav: 'tihiy'}},
+    oko: {sex: 'm', role: 'дознаватель Ока', ppl: 'imperets', tf: {talk: 'pis', age: 'adult', st: 'old', nrav: 'hozyain'}},
+    baba: {sex: 'f', role: 'ведунья с омута', tf: {talk: 'old_baba', age: 'old', st: 'old', nrav: 'shutnik'}},
+    brat: {sex: 'm', role: 'младший брат Ока', ppl: ['imperets', 'nolgrim'], tf: {talk: 'pod', age: 'young', st: 'old', nrav: 'tihiy'}},
+    starosta: {sex: 'm', role: 'староста', tf: {talk: 'old_war', age: 'old', st: 'old', nrav: 'hozyain'}},
+  },
+  /* что люди нити говорят на улице — по тому, что уже было */
+  say: {
+    melnik: c => [!c.t.log.length && 'Третий день не мелю. Жернова сохнут, мыши наглеют. А жены нет.',
+      c.f.night && 'Колесо скрипит — слышишь? Это оно поёт. Я теперь по ночам не сплю, слушаю.', c.f.promise && 'Хозяин омута, говоришь, должок помнит? Пустое. Я своё всё знаю.',
+      c.f.gaveBaba && 'Мелю, мелю… Мука горькая стала. Или мне так кажется.', c.f.blameUs && 'Мешок муки для вас всегда найдётся. Помню, кто за нас под список встал.',
+      c.f.okoSecret && 'Списки увёз, и как не было. Как вы его… ладно, молчу.', c.f.noVodyan && 'Омут ряской затянуло. Колесо через день стоит. Ну ничего, живы.'],
+    zhena: c => [c.t.log.length ? 'Я теперь к воде одна не хожу. И ночью сплю. Почти.' : null, c.f.promise && !c.f.noVodyan && 'Тише. Слышишь, как вода в кадке плещет? Сама.',
+      c.f.word && 'Бабка за рекой говорит, у меня рука лёгкая. Учусь.', c.f.gaveBaba && 'Не говори со мной. Не надо.', c.f.fled && 'Бабка за рекой жива. Только никому.'],
+    oko: c => [!c.f.shamed && !c.f.okoTurned && 'Свет видит каждого. И тех, кто ходит к воде ночью, — тоже.', c.f.shamed && 'Вы. Я вас помню. Ступайте мимо.',
+      c.f.okoFriend && 'Дочь бегает, представляете? Бегает. Ни слова больше — я помню, кому обязан.', c.f.okoTurned && 'Палата знает о серых. Я сам рассказал. Это было… трудно.',
+      c.f.okoSecret && !c.f.okoFriend && 'Мы с вами говорили у родника. Больше мы об этом не говорим.'],
+    baba: c => ['Вода всё помнит, милые. И кто её запирал, и кто отпирал.', c.f.night && 'Ночью кто-то камни из истока повынимал. Ох и добрые руки. Не знаю чьи. И знать не хочу.',
+      c.f.word && 'Слово, что я дала, — не болтайте. Не про всякую воду оно.'],
+    brat: c => [!c.f.bratAlly && 'Брат велит молчать. Я и молчу. Только мне от этого не легче.', c.f.bratAlly && 'Звезду с меня сняли. А дышать стало легче, веришь?'],
+    starosta: c => ['Село — как жернов: тронь одно зерно, всё перемелется.', c.f.revolt && 'Мятежные мы теперь, слыхал? А пашем так же, как пахали.'],
+  },
+  /* о чём судачат соседи */
+  gossip: c => [`Слыхали? ${c.zhena.n}-то с купальской ночи как подменённая — к воде не подходит.`,
+    c.f.night && 'Запруду у истока ночью кто-то разобрал. Стражи божатся, что не спали. А мешки — в реке.',
+    c.f.open && `${c.oko.n} своих стражей в ивняке собирал, побитых. Ох, будет нам.`,
+    c.f.talked && `Дознаватель сам велел запруду снять. Видно, и у него сердце есть.`,
+    c.f.promise && `Говорят, мельник водяному что-то пообещал. А что — сам не знает.`,
+    c.f.shamed && `${c.oko.n} уехал красный, как рак. Грамотку-то из рва все читали!`,
+    c.f.bratAlly && `${c.brat.n} теперь на мельнице мешки таскает. Без звезды. А весёлый!`,
+    c.f.gaveBaba && `${c.baba.n} сама с дознавателем ушла. Кто её выдал — тот пусть спит спокойно. Если сможет.`,
+    c.f.fled && `Ведунья-то сбежала из амбара! Видно, оборотилась сорокой.`],
+  steps: {
+/* ---------- 1. Стоячее колесо ---------- */
+k1: {title: 'Стоячее колесо', giver: 'melnik', vic: 'zhena', wit: 'brat', kind: 'missing', thr: 'vodyan', stages: ['witness', 'tracks'], days: 5, pay: 0.8,
+  place: {n: 'исток мельничной речки', at: 'у истока под старой ивой'},
+  hook: c => [
+    ['n', `Мельничное колесо ${QT.inAt(c)} стоит третий день. Вода под ним не шумит, а сочится, как из худого ведра, и в омуте видно илистое дно. У мельницы толпа: мужики, бабы, ребятня на плетне.`],
+    ['n', `На двери мельницы — свежая медная звезда о восьми лучах, прибитая гвоздями прямо поверх резных оберегов. Рядом стоит ${c.oko.n}, дознаватель Ока, в белом облачении, а писарь при нём переписывает тех, кто в купальскую ночь прыгал через костёр.`],
+    ['oko', '«Водяных нет. Есть люди, которые ночью ходят к воде, и люди, которые их покрывают. Мне нужны имена, а не сказки».'],
+    ['n', `${c.melnik.n} протискивается к вам сквозь толпу. Мука у него на бороде старая, серая — три дня не молол.`],
+    ['melnik', `«Жена моя, ${c.zhena.n}, ушла в купальскую ночь и не вернулась. Бабы говорят — водяной взял. Он вон говорит — ведьмы. А я говорю — найдите её. Живую или… найдите».`],
+  ],
+  ask: c => `И ещё. Если узнаете, куда она ходила и с кем, — скажите мне, а ему не говорите. Он и так полсела в свои списки вписал.`,
+  call: c => `Найдите мою ${c.zhena.a}. Колесо стоит третий день.`,
+  clues: [
+    c => `${c.brat.n}, младший брат Ока, долго мнётся у плотины и наконец говорит, глядя в сторону: в купальскую ночь он видел женщину с пустым ведром. Шла она не к костру, а вверх по речке, к истоку. «Я никому не сказал. Брат ${c.oko.n} спросил бы, почему я сам не спал».`,
+    c => `У истока под старой ивой на глине — следы босых ног, а сама глина по колено перерыта: здесь таскали камни. Родник заложен мешками с песком, дёрном и бревном поперёк. На верхнем мешке выжжена восьмилучевая звезда. Воде некуда идти, и она ушла в свежий ров, что тянется к селу — к звёздному камню, который ставят у новой молельни.`,
+  ],
+  twist: c => `Из-под берега, где осыпалась глина, слышен голос, женский и хриплый от холода: «Я здесь… не тяните, он не пускает». В сухой норе меж корней сидит ${c.zhena.n}, живая, обхватив колени. Вокруг норы вода не течёт, а стоит стеной. «Я за росяной водой пришла, мне ${c.baba.n} велела, — шепчет она. — Хотела запруду разобрать, а берег обвалился. А хозяин омута меня спрятал. Сказал, отпустит, когда вода пойдёт».`,
+  fork: c => `Запруду стерегут двое храмовых стражей: ${c.oko.n} велел вести ров к звёздному камню, чтобы у молельни был свой святой ключ. Разобрать запруду при них — значит ослушаться Ока на глазах у всего села. А не разобрать — ${c.zhena.n} так и будет сидеть в норе, а колесо стоять.`,
+  ask2: 'Как вызволить её?',
+  ends: [
+    {t: 'Разобрать запруду ночью, без шума', check: ['dex', 'Скрытность', 1], set: {night: 1}, badSet: {seen: 1}, mul: 1, badMul: 0.9,
+      ok: c => `Ночь безлунная. Мешок за мешком уходит в темноту, стражи храпят у костра. Под утро родник вздыхает, стоячая вода срывается со своей стены — и ${c.zhena.n} выходит из норы по колено в воде, будто её вынесло. Внизу, у села, с хриплым скрипом трогается колесо. Кто разобрал запруду, не видел никто. Утром ${c.oko.n} долго стоит у пустого рва.`,
+      bad: c => `Последний мешок срывается в воду с плеском, как ведро в колодец. Стражи вскакивают и кричат, а вы уходите ивняком, таща ${c.zhena.a} за руку. К утру колесо вертится, но стражи видели ваши спины: дознаватель теперь знает, что тут были чужие с оружием.`,
+      log: c => `«Стоячее колесо»: запруду у истока разобрали ночью, ${c.zhena.n} вернулась к мужу.`,
+      rep: [c => `${c.melnik.n} встречает вас в муке по локти: мельница мелет с рассвета.`, c => `Живая. Сидит на печи, молчит, но живая. Вот ваше. А куда она ходила — я теперь и сам знаю. И вы молчите, ладно?`],
+      next: {s: 'k2a', d: 3, via: 'meet', from: 'zhena'}},
+    {t: 'Пойти к дознавателю и показать, что его запруда губит село', check: ['wis', 'Дипломатия', 2], side: ['oko', 1], set: {talked: 1}, mul: 1, badMul: 0.7,
+      ok: c => `${c.oko.n} выслушивает молча. Потом едет к истоку сам, долго смотрит на стоячую воду и говорит писарю: «Ключ для молельни найдём другой». Запруду разбирают его же стражи. Когда ${c.zhena.n} выходит из воды живая, он смотрит на неё и спрашивает при всех: «Что ты делала у воды в купальскую ночь?» Ответа не ждёт. «Подумай. Я спрошу ещё раз».`,
+      bad: c => `Дознаватель слушает вполуха. «Ров копают по слову Ока. Хотите воды — молитесь». Запруду разбирают только к вечеру, когда ${c.melnik.n} при всём селе становится перед ним на колени. ${c.zhena.n} выходит из норы синяя от холода, и ${c.oko.n} вписывает в свой список и её, и мужа.`,
+      log: c => `«Стоячее колесо»: ${c.oko.n} сам велел разобрать запруду, но запомнил мельничиху.`,
+      rep: [c => `${c.melnik.n} платит, не поднимая глаз.`, c => `Спасибо, что вернули. Только теперь она у него в списке. А из этих списков, говорят, не вычёркивают.`],
+      next: {s: 'k2b', d: 3, via: 'mail', from: 'melnik'}},
+    {t: 'Говорить с хозяином омута: выкупить её', check: ['wis', 'Знахарство', 2], side: ['kap', 1], set: {promise: 1}, mul: 1, badMul: 0.8, badEx: {fame: -1},
+      ok: c => `Хлеб с солью ложится на воду и не тонет. Из стоячей стены поднимается голос, старый, как сам омут: «Отпущу. Только вода мне одна не надобна. Отдадите то, чего дома не знаете». ${c.melnik.n} кивает, не думая, — лишь бы жена. Вода опадает, ${c.zhena.n} выходит на берег, и запруда сама расползается, будто её размыло изнутри. Колесо к вечеру мелет.`,
+      bad: c => `Хлеб тонет. Голос из воды смеётся: «Мало». Берег оседает ещё на сажень, и одного из ваших до пояса затягивает в ил. Наконец хозяин омута берёт то, что ему кинули, и отпускает ${c.zhena.a}, но напоследок говорит: «А должок за вами. То, чего дома не знаете». ${c.melnik.n} кивает, не слушая.`,
+      log: c => `«Стоячее колесо»: ${c.zhena.n} выкуплена у хозяина омута обещанием — «то, чего дома не знаете».`,
+      rep: [c => `${c.melnik.n} весел, как на свадьбе.`, c => `Вот ваше, да сверху бы дал, кабы было. Что он там просил — «чего дома не знаю»? Я в своём доме всё знаю. Пустое.`],
+      next: {s: 'k2c', d: 5, via: 'meet', from: 'zhena'}},
+    {t: 'Отбить исток у стражей силой', fight: 1, thr: 'oko_guard', side: ['oko', -2], set: {open: 1}, mul: 1.1,
+      ok: c => `Храмовые стражи лежат в ивняке, мешки летят в реку. ${c.zhena.n} выходит из норы, держась за ваши руки. Колесо к вечеру мелет. Но к вечеру же всё село знает: чужаки подняли оружие на людей Ока у самого звёздного камня.`,
+      log: c => `«Стоячее колесо»: стражей дознавателя побили у истока, ${c.zhena.n} спасена. Око этого не забудет.`,
+      rep: [c => `${c.melnik.n} оглядывается, прежде чем отдать деньги.`, c => `Берите и уходите поскорее. Жена дома, спасибо вам. Только он вернётся. Не с двумя — с двадцатью.`],
+      next: {s: 'k2a', d: 2, via: 'meet', from: 'zhena'}},
+  ],
+  late: {text: c => `Колесо ${QT.inAt(c)} так и не тронулось. Говорят, ${c.zhena.n} потом нашлась сама, живая, но с той ночи ни с кем не говорит. ${c.oko.n} вписал её в свои списки.`, set: {lost: 1}, next: {s: 'k2b', d: 2, via: 'mail', from: 'melnik'}}},
+
+/* ---------- 2a. Кто вынул камни ---------- */
+k2a: {title: 'Кто вынул камни', giver: 'zhena', vic: 'baba', wit: 'brat', kind: 'peace', thr: 'oko_guard', stages: ['crowd', 'locked'], days: 3, pay: 0.6,
+  place: {n: 'амбар старосты', at: 'у амбара старосты', in: 1},
+  hook: c => [
+    ['n', `${c.zhena.n} ловит вас у колодца. Платок надвинут до бровей, ведро пустое — пришла не за водой.`],
+    ['zhena', `«${c.oko.n} взял ${c.baba.a}. Говорит, это она водила меня к воде и она разобрала запруду. Держит её в амбаре у старосты, а на рассвете суд у звёздного камня. ${c.f.seen || c.f.open ? 'Стражи видели чужих, он и вас ищет, да схватил ту, кого схватить можно.' : 'Кто запруду вынул, он не знает, вот и взял ту, кого не жалко.'} Её сожгут. А виновата я».`],
+    ['n', `За амбаром собирается народ. Кто-то несёт сухой хворост — пока будто бы просто так.`],
+  ],
+  ask: c => `Вызволите её. Только никому не говорите, что я туда ходила. Муж не переживёт, если меня впишут в списки.`,
+  call: c => `${c.oko.n} взял ${c.baba.a}. На рассвете суд.`,
+  clues: [
+    c => `Толпу у амбара удалось развести. Из щели между брёвнами ${c.baba.n} шепчет: «Не меня спасайте, а ров. Он воду к своему камню вёл не для молитв. Поищите, что в рву закопано».`,
+    c => `В рву у звёздного камня под свежим дёрном — глиняная корчага, а в ней грамотка с печатью Ока: «Ключ освятить до Дожинок. Кто воду старым богам носит — в списки». Ниже, другой рукой, приписано: «Мельница пусть постоит. Пусть видят, что старое не кормит».`,
+  ],
+  twist: c => `Выходит, колесо остановили нарочно: селу показывали, что старые боги больше не кормят, а Око — кормит. ${c.brat.n}, младший брат, стоит у амбара бледный — он узнал руку своего старшего.`,
+  fork: c => `Суд — на рассвете. Покажете грамотку — опозорите дознавателя при всём селе, и он этого не простит ни вам, ни селу. Не покажете — ${c.baba.n} сгорит за чужое.`,
+  ask2: 'Что делать?',
+  ends: [
+    {t: 'Показать грамотку при всём селе', check: ['cha', 'Запугивание', 2], side: ['oko', -1], set: {shamed: 1}, mul: 1, badMul: 0.8,
+      ok: c => `Грамотку читают вслух — сперва староста, потом кузнец, потом все, кто знает буквы. Гул идёт по толпе, как ветер по ржи. ${c.oko.n} белеет, потом краснеет, велит отпереть амбар и к полудню уезжает со своими стражами. Садясь в седло, он говорит, ни на кого не глядя: «Свет видит. И вас тоже».`,
+      bad: c => `${c.oko.n} выхватывает грамотку и рвёт её: «Ведьмина подделка!» Толпа колеблется, кто-то уже тянется к хворосту. Но ${c.starosta.n} при всех заступается за старуху, и суд откладывают «до приезда старших». ${c.baba.a} отпускают под его слово. Дознаватель уезжает — затем, чтобы вернуться не одному.`,
+      log: c => `«Кто вынул камни»: ${c.oko.n} опозорен грамоткой из рва, ${c.baba.n} на воле.`,
+      rep: [c => `${c.zhena.n} суёт вам узелок с серебром — копила тайком от мужа.`, c => `Бабка жива. А я… я так и не сказала, что это я. Вы меня не выдали. Я этого не забуду.`],
+      next: {s: 'k3a', d: 6, via: 'rumor'}},
+    {t: 'Увести ведунью из амбара тайком', check: ['dex', 'Скрытность', 2], failFight: 1, side: ['kap', 1], set: {fled: 1}, mul: 1,
+      ok: c => `Засов снят, стражник спит, ${c.baba.n} идёт за вами в ночь, опираясь на клюку, — быстрее, чем можно ждать от старухи. У речки она останавливается: «Мне здесь больше не жить. Отведите меня за реку, к старому месту. Там меня никто не тронет».`,
+      bad: c => `Засов скрипит. Стражник вскакивает и трубит в рог — к амбару бегут люди дознавателя.`,
+      won: c => `Стражу пришлось разогнать. ${c.baba.n} уходит с вами в ночь, и село к утру гудит: ведьму увели вооружённые чужаки. «Отведите меня за реку, к старому месту, — говорит она у брода. — Там меня никто не тронет».`,
+      log: c => `«Кто вынул камни»: ${c.baba.n} уведена из амбара в ночь.`,
+      rep: [c => `${c.zhena.n} приходит на рассвете, глаза красные.`, c => `Её ищут по всем дворам. Пусть ищут. Вот, возьмите — больше у меня ничего нет.`],
+      next: {s: 'k3b', d: 2, via: 'meet', from: 'baba'}},
+    {t: c => `Уговорить ${c.brat.a} сказать правду на суде`, if: c => !c.f.open, check: ['wis', 'Дипломатия', 3], side: ['oko', 1], set: {bratAlly: 1}, badSet: {shamed: 1}, mul: 1.1, badMul: 0.8,
+      ok: c => `На рассвете у звёздного камня ${c.brat.n} выходит вперёд и говорит громко, как не говорил никогда: «Ров копал я. По слову брата ${c.oko.g}. Запруду ставил я. Старуха тут ни при чём». Тишина такая, что слышно колесо. ${c.oko.n} отпускает ведунью и уезжает, а младшего брата с собой не берёт.`,
+      bad: c => `${c.brat.n} выходит вперёд, открывает рот — и молчит. Старший смотрит на него, и младший опускает глаза. Тогда вы сами достаёте грамотку из рва. Ведунью отпускают, но слова младшего брата так никто и не услышал.`,
+      log: c => `«Кто вынул камни»: ${c.brat.n} сказал правду против своего старшего.`,
+      rep: [c => `${c.zhena.n} кланяется вам в пояс, а за её спиной стоит ${c.brat.n} без звезды на шее.`, c => `Его выгнали. Ему теперь идти некуда. Мы его на мельницу возьмём, муж согласен.`],
+      next: {s: 'k3a', d: 6, via: 'rumor'}},
+  ],
+  late: {text: c => `${cap(QT.inAt(c))} у звёздного камня жгли костёр. ${c.baba.n} не вернётся. ${c.zhena.n}, говорят, с того дня не выходит со двора.`, set: {burned: 1}, next: {s: 'k3a', d: 5, via: 'rumor'}}},
+
+/* ---------- 2b. Цена уговора ---------- */
+k2b: {title: 'Цена уговора', giver: 'melnik', vic: 'oko', wit: 'baba', kind: 'peace', thr: 'oko_guard', stages: ['witness', 'night'], days: 4, pay: 0.7,
+  place: {n: 'старый родник за мельницей', at: 'у старого родника за мельницей'},
+  hook: c => [
+    ['n', `${c.melnik.n} ждёт вас у ворот мельницы. Колесо крутится, мука летит, а сам мельник серый, как его мука.`],
+    ['melnik', `«${c.oko.n} требует имя. Кто водил жену к воде в купальскую ночь — того в списки, а её отпустят. Не назову — заберёт её в город на покаяние, а оттуда не возвращаются такими, какими уходили».`],
+    ['n', 'Он молчит, мнёт шапку. Потом говорит тише.'],
+    ['melnik', `«Скажите ему, что это были вы. Вы уйдёте, вам что. А нам тут жить».`],
+  ],
+  ask: c => `Или найдите другой выход. Только до воскресного торга: тогда он и едет.`,
+  call: c => `${c.oko.n} требует имя. Помогите.`,
+  clues: [
+    c => `${c.baba.n} сидит на пороге своей избы над омутом и чистит рыбу. «Знаю, зачем пришли. Назовите меня. Я старая, мне всё одно скоро. А мельничихе ещё детей рожать». Нож в её руке не дрогнул.`,
+    c => `Ночью у старого родника за мельницей кто-то есть. Человек с фонарём набирает воду в глиняную флягу и шепчет над ней старые слова — те самые, за которые вписывают в списки. Фонарь поднимается — это ${c.oko.n}. У него в городе хворает дочь, и он не верит, что поможет одна молитва.`,
+  ],
+  twist: c => `${c.oko.n} замечает вас. Он не тянется к оружию, а прячет флягу за спину, как мальчишка.`,
+  fork: c => `Теперь у вас есть, чем его прижать. Только тот, кого прижали, обычно не прощает. А назвать имя — значит отдать кого-то на суд.`,
+  ask2: 'Чем платить за уговор?',
+  ends: [
+    {t: 'Взять вину на себя: «к воде её водили мы»', side: ['oko', -1], set: {blameUs: 1}, mul: 1, ex: {fame: 1},
+      ok: c => `${c.oko.n} долго смотрит на вас. «Чужаки, значит». Он вписывает в список ваши имена, а мельничиху вычёркивает. Село провожает вас до околицы молча, но в каждом дворе вам выносят хлеб.`,
+      log: c => `«Цена уговора»: отряд взял на себя чужую вину, мельничиху вычеркнули из списков.`,
+      rep: [c => `${c.melnik.n} провожает вас до самого брода.`, c => `Я бы так не смог. Вот ваше, и вот ещё — мука, полмешка. Будете в наших краях — мельница ваша.`],
+      next: {s: 'k3a', d: 7, via: 'rumor'}},
+    {t: c => `Назвать ${c.baba.a}`, side: ['oko', 1], side2: ['kap', -1], set: {gaveBaba: 1}, mul: 1, ex: {fame: -1}, end: true,
+      ok: c => `${c.baba.n} уходит с дознавателем сама, не дожидаясь, пока её поведут. На мосту оборачивается и машет мельничихе рукой. ${c.zhena.n} плачет в сенях. Колесо крутится, мука летит. ${cap(QT.inAt(c))} с вами здороваются сквозь зубы.`,
+      log: c => `«Цена уговора»: ${c.baba.n} уведена в город по вашему слову.`,
+      rep: [c => `${c.melnik.n} отдаёт плату, не глядя в глаза.`, c => `Всё по уговору. Только больше к нам не заходите. Жена вас видеть не может. Да и я.`]},
+    {t: 'Поговорить с дознавателем о его ночной воде', check: ['cha', 'Дипломатия', 2], side: ['oko', 1], set: {okoSecret: 1}, mul: 1.2, badMul: 0.7,
+      ok: c => `Говорите вы тихо, у родника, без свидетелей. ${c.oko.n} слушает, глядя на флягу. Потом говорит: «Списков больше не будет. Ни мельничихи, ни старухи, ни вас. А вы… вы ведь ходите дорогами. Отвезите эту воду моей дочери. Мне самому нельзя».`,
+      bad: c => `«Шантаж? — ${c.oko.n} выпрямляется. — Свет видит и это». Утром он объявляет при народе, что чужаки грозили служителю Ока. Мельничиху из списков вычёркивают — теперь ему нужны вы.`,
+      log: c => `«Цена уговора»: дознаватель отступил — у него своя тайна у старого родника.`,
+      badNext: {s: 'k3a', d: 5, via: 'rumor'},
+      rep: [c => `${c.melnik.n} не понимает, что вы сделали, но мука на его бороде опять белая.`, c => `Ушёл. Сам ушёл и списки увёз. Как вы его… да ладно, не говорите. Вот ваше.`],
+      next: {s: 'k3c', d: 2, via: 'mail', from: 'oko'}},
+  ],
+  late: {text: c => `${c.oko.n} увёз мельничиху ${QT.fromAt(c)} в город. ${c.melnik.n} продал мельницу и ушёл за ней.`, set: {lost: 1}}},
+
+/* ---------- 2c. Чего дома не знаешь ---------- */
+k2c: {title: 'Чего дома не знаешь', giver: 'zhena', vic: 'melnik', wit: 'baba', kind: 'haunt', thr: 'vodyan', stages: ['lore', 'night'], days: 5, pay: 0.7,
+  place: {n: 'мельничный омут', at: 'у мельничного омута'},
+  hook: c => [
+    ['n', `${c.zhena.n} приходит сама, кутаясь в шаль, хотя вечер тёплый. Руку держит на животе — так держат, когда там уже кто-то есть.`],
+    ['zhena', '«Третью ночь вода в кадке поднимается сама — до краёв, через край. Под окном поют, тонко, как девки на гулянье, а выглянешь — никого, только мокрые следы на крыльце. Это он. За долгом пришёл».'],
+    ['zhena', `«Муж в своём доме всё знал. А того, кого я ношу, — не знал. Никто не знал. Даже я».`],
+  ],
+  ask: c => `Не отдавайте ему моего ребёнка. Что угодно, только не это.`,
+  call: c => `Он пришёл за долгом. Помогите.`,
+  clues: [
+    c => `${c.baba.n} выслушивает и долго молчит. «Хозяин омута слов не путает, да и не различает толком. "Чего дома не знаете" — это не одно дитя. Кобыла у мельника жеребая? Вот то-то. Первым родится, первым и считается. А можно и по-другому: долг не всегда платят телом».`,
+    c => `В полночь омут светлеет. Хозяин его — старик с лицом как мокрая кора, борода в тине — сидит на мельничном колесе и смотрит на вас глазами в бельмах. Он почти слеп. Омут вокруг него заилился: с той запруды вода так и не стала прежней. Ему не дитя нужно — ему нужна живая вода.`,
+  ],
+  twist: c => `«Обещано, — шелестит старик, и вода у ваших ног поднимается на ладонь. — Обещанное — моё».`,
+  fork: c => `Обмануть его можно, но обман водяной помнит долго. Прогнать — можно, только омут без хозяина зарастёт, и колесо остановится уже навсегда. А долг… долг можно отдать иначе — если он согласится.`,
+  ask2: 'Как быть с долгом?',
+  ends: [
+    {t: 'Отдать ему первого, кто родится в доме: жеребёнка', check: ['cha', 'Обман', 2], failFight: 1, side: ['kap', -1], mul: 1, end: true,
+      ok: c => `На рассвете у мельничной кобылы рождается жеребёнок, рыжий, со звездой во лбу. Его ведут к омуту на верёвке, и вода берёт его тихо, без всплеска. Старик кивает: первым родился — первым и счёт. ${c.zhena.n} в ту ночь спит без снов. Только кобыла до осени ходит к воде и ржёт.`,
+      bad: c => `Старик принюхивается к жеребёнку и смеётся, как вода в трубе: «Не то». Омут поднимается разом, и из него лезут его девки, мокрые, с зелёными волосами.`,
+      won: c => `Нечисть омута отбита и ушла на дно. Хозяин её больше не показывается, а под окном у мельничихи больше не поют. Но и рыба из омута ушла, и вода стала чёрной. Колесо крутится всё хуже.`,
+      log: c => `«Чего дома не знаешь»: долг хозяину омута отдан жеребёнком.`,
+      rep: [c => `${c.zhena.n} кладёт вам в руки вышитый рушник.`, c => `Это ему на свадьбу шила, а вам отдаю. Не будь вас — нечего было бы шить.`]},
+    {t: 'Вычистить омут и отдать долг работой', check: ['con', 'Атлетика', 2], side: ['kap', 1], mul: 1.2, badMul: 0.8, ex: {fame: 1}, end: true,
+      ok: c => `Три дня отряд по пояс в иле: вытаскивает коряги, бревно от старой запруды, мешки с песком, что занесло сюда течением. На четвёртый день из-под мельницы бьёт чистый холодный ключ. Старик на колесе долго слушает, как поёт вода, потом говорит: «Отработано». И уходит в глубину. Больше под окном не поют.`,
+      bad: c => `Работа тяжёлая, ил холодный, у всех ломит спины, а один из ваших чуть не захлебнулся в яме. Омут вычистили наполовину. Старик подумал и согласился: «Половина долга — работой. Половина — песней. Пусть мельничиха поёт мне по вечерам». Она поёт. Голос у неё хороший.`,
+      log: c => `«Чего дома не знаешь»: омут вычищен, долг хозяину отработан.`,
+      rep: [c => `${c.melnik.n} и ${c.zhena.n} встречают вас вдвоём, рука в руке.`, c => `Будет сын — назовём по одному из вас. Будет дочь — тоже назовём, придумаем как.`]},
+    {t: 'Прогнать хозяина омута', fight: 1.1, thr: 'vodyan', side: ['kap', -2], set: {noVodyan: 1}, mul: 1, end: true,
+      ok: c => `Нечисть омута разбита, старик ушёл в ил и больше не показывается. ${c.zhena.n} спасена. Только к осени омут затягивает ряской, рыба уходит, и колесо всё чаще стоит. Старухи ${QT.inAt(c)} говорят: зря прогнали хозяина. Он хоть и брал своё, да воду держал.`,
+      log: c => `«Чего дома не знаешь»: хозяина омута прогнали. Мельница хиреет.`,
+      rep: [c => `${c.zhena.n} кланяется вам, а ${c.melnik.n} хмурится на чёрную воду.`, c => `Жена с дитём — это главное. А мельница… что мельница. Новую поставим. Где-нибудь.`]},
+  ],
+  late: {text: c => `${cap(QT.inAt(c))} говорят: у мельничихи родилась дочь, и в первую же ночь вода в кадке поднялась до краёв. Утром колыбель была мокрая. Больше никто ничего не говорит.`}},
+
+/* ---------- 3a. Свет видит ---------- */
+k3a: {title: 'Свет видит', giver: 'starosta', vic: 'oko', wit: 'brat', kind: 'peace', thr: 'oko_guard', stages: ['crowd', 'guard'], days: 4, pay: 1.2, diff: 'hard',
+  place: {n: 'площадь у звёздного камня', at: 'на площади у звёздного камня'},
+  hook: c => [
+    ['n', `По дороге ${QT.toAt(c)} пылит обоз: дюжина стражей с медными звёздами, двое братьев Ока с длинными списками и охотник на ведьм — сухой человек в чёрной коже, с факелом у седла. Впереди всех едет ${c.oko.n}.`],
+    ['n', `${c.starosta.n}, староста, встречает вас за околицей, запыхавшись, без шапки.`],
+    ['starosta', `«${c.oko.n} вернулся и привёз охотника. У него список — двенадцать имён. ${c.f.burned ? 'Мало ему одной старухи.' : c.f.shamed ? 'Кто его позорил, того и вписал первым.' : 'Кто к воде ходил, кто через костёр прыгал, кто запруду трогал.'} ${c.f.blameUs || c.f.seen || c.f.open ? 'И ваши имена там тоже есть.' : ''}»`],
+  ],
+  ask: c => `Я селом отвечаю, мне его и спасать. Помогите — как сумеете. Только чтобы к осени здесь ещё было село.`,
+  call: c => `${c.oko.n} вернулся с охотником на ведьм. Спасайте село.`,
+  clues: [
+    c => `Толпа на площади расходится по дворам. ${c.brat.n}${c.f.bratAlly ? ', бывший младший брат Ока,' : ''} шепчет вам у плетня: «Охотник не из Палаты. У него печать без зрачка — серая. Брат ${c.oko.n} сам его боится».`,
+    c => `Стражу у списков удалось обойти. На последнем листе, под двенадцатью именами, — опись: «пепел капища, вода из омута — две корчаги, ведунья — живой». Охотнику нужны не ведьмы. Ему нужно то, что от них остаётся.`,
+  ],
+  twist: c => `Серые. Канцелярия под Звездой собирает старую силу, как пасечник мёд, — и ${c.oko.n}, сам того не зная, привёл их ${QT.inAt(c)}.`,
+  fork: c => `Драться со стражей Ока — значит поднять оружие на Око открыто. Увести людей — значит бросить дома. А сказать дознавателю, кого он привёл, — поверит ли он чужакам?`,
+  ask2: 'Как спасти село?',
+  ends: [
+    {t: 'Встать за село с оружием', fight: 1.3, thr: 'oko_guard', side: ['oko', -2], set: {revolt: 1}, mul: 1.3, ex: {xp: 1.4}, end: true,
+      ok: c => `Стража разбита, охотник ушёл в лес, бросив факел и списки. Списки горят на площади, и никто не плачет. ${c.oko.n} уезжает один, без звезды на груди: потерял её в свалке. Через месяц село объявят мятежным. Но это будет через месяц, а сегодня у колодца пляшут.`,
+      log: c => `«Свет видит»: стража Ока разбита у звёздного камня, списки сожжены. Село объявят мятежным.`,
+      rep: [c => `${c.starosta.n} поит вас мёдом прямо на площади.`, c => `Пусть объявляют. Земля наша, вода наша. А вы — наши тоже, слышите? Всегда.`]},
+    {t: 'Увести названных в лес до осени', check: ['wis', 'Выживание', 2], side: ['kap', 1], mul: 1, badMul: 0.7, end: true,
+      ok: c => `Двенадцать человек уходят ночью в лес, на старые борти, с узлами и козами. Охотник три дня обшаривает дворы и уезжает ни с чем. К Дожинкам беглецы возвращаются по одному, загорелые и злые, — но живые.`,
+      bad: c => `Двенадцать человек ушли в лес, но двоих охотник догнал у брода. Остальные вернулись к Дожинкам. Тех двоих ${QT.inAt(c)} поминают на Дедов.`,
+      log: c => `«Свет видит»: названных увели в лес, охотник уехал ни с чем.`,
+      rep: [c => `${c.starosta.n} пересчитывает людей у колодца, загибая пальцы.`, c => `Все. Почти все. Это больше, чем я надеялся. Вот вам за труды.`]},
+    {t: 'Открыть дознавателю, кого он привёл', check: ['cha', 'Дипломатия', 3], if: c => c.f.bratAlly || c.f.shamed || c.f.okoSecret, side: ['oko', 2], set: {okoTurned: 1}, mul: 1.3, badMul: 0.6, ex: {fame: 2}, end: true,
+      ok: c => `${c.oko.n} долго смотрит на опись. Потом снимает с охотника печать — тот не успевает дёрнуться — и видит серую изнанку. «Это не Свет», — говорит дознаватель тихо. Ночью охотника и его людей уводят в город уже как пленных. Списки ${c.oko.n} бросает в костёр сам. «Палата узнает. Я сам ей расскажу».`,
+      bad: c => `${c.oko.n} слушает, но верить не хочет: «Чужаки клевещут на служителя». Охотник улыбается. Всё же, уезжая, дознаватель вычёркивает из списка половину имён — сомнение в нём осталось.`,
+      log: c => `«Свет видит»: дознаватель узнал, что за ним стоят серые, и повернул против них.`,
+      rep: [c => `${c.starosta.n} не верит своему счастью.`, c => `Сам сжёг? Своими руками? Ну, чудны дела. Вот вам, и пусть Звезда вам светит — по-настоящему светит.`]},
+  ],
+  late: {text: c => `${cap(QT.inAt(c))} побывал охотник на ведьм. Двенадцать дворов стоят пустые.`}},
+
+/* ---------- 3b. За рекой ---------- */
+k3b: {title: 'За рекой', giver: 'baba', vic: 'baba', wit: 'brat', kind: 'escort', thr: ['vodyan', 'wolves'], stages: ['river', 'lore'], days: 4, pay: 0.4,
+  place: {n: 'старое капище за рекой', at: 'на старом капище за рекой'},
+  hook: c => [
+    ['n', `${c.baba.n} сидит на мешке у брода, клюка поперёк колен. Мешок лёгкий: травы, гребень, горшочек с углями.`],
+    ['baba', '«За рекой, в березняке, — старое место. Жертвенник там мхом зарос, а вода в ключе ещё помнит, кому она служит. Доведите меня. Сама дойду, да в мои годы до рассвета не управиться, а ищут меня с вечера».'],
+    ['baba', '«Платить мне нечем. Есть у меня одно слово, которого никто, кроме меня, не знает. Доведёте — скажу».'],
+  ],
+  ask: c => `Только тихо идите. Чужих там не любят — ни людей, ни зверей.`,
+  call: c => `Доведите меня за реку, к старому месту.`,
+  clues: [
+    c => `Брод перейдён. На том берегу ${c.baba.n} снимает лапти и дальше идёт босиком — «так положено». Вода в реке вокруг её ног бежит быстрее, будто торопится.`,
+    c => `Камень жертвенника весь в резах. Под мхом — те же знаки, что на оберегах мельничной двери, только старше. ${c.baba.n} трогает их пальцем, как читают книгу: «Вот он, уговор. Пока это помнят, хозяин омута воду держит. Забудут — и вода уйдёт».`,
+  ],
+  twist: c => `«Я — последняя, кто помнит, — говорит ведунья. — Внучки у меня нет. Мельничиху хотела выучить, да вон оно как вышло».`,
+  fork: c => `Слово — тяжесть. Кто его возьмёт, тот и понесёт: хозяин омута будет его знать, и Око — если узнает. Можно оставить её здесь хранить уговор, пока жива. А можно унести слово в мир.`,
+  ask2: 'Что делать со словом?',
+  ends: [
+    {t: 'Принять её слово', side: ['kap', 2], set: {word: 1}, mul: 1, ex: {xp: 1.3, potion: 2}, end: true,
+      ok: c => `${c.baba.n} шепчет слово тому, кто стоит ближе, — три раза, на три стороны. Ничего не меняется, только ветер в березняке стихает и ключ у жертвенника начинает звенеть. «Теперь и ты помнишь, — говорит старуха. — Когда меня не станет, вода будет знать, кого слушать». Она остаётся у жертвенника, а вам суёт в руки два горшочка с отваром — «на дорогу».`,
+      log: c => `«За рекой»: слово уговора с хозяином омута теперь знает отряд.`},
+    {t: 'Оставить её хранить уговор', side: ['kap', 1], mul: 1, ex: {potion: 1}, end: true,
+      ok: c => `«И то дело», — кивает старуха и садится на камень у ключа, будто всю жизнь тут сидела. Вы уходите. Оглянувшись с бугра, видите дым её костерка над березняком. Через год ${QT.inAt(c)} будут говорить, что за рекой живёт бабка, которая лечит лучше городских, — и что ходить к ней надо босиком.`,
+      log: c => `«За рекой»: ${c.baba.n} осталась хранительницей старого места.`},
+    {t: c => `Вернуться за мельничихой: пусть учится у неё`, check: ['cha', 'Дипломатия', 2], side: ['kap', 1], mul: 1.1, badMul: 0.6, ex: {fame: 1}, end: true,
+      ok: c => `${c.zhena.n} приходит за реку через три дня, с узлом и с мужем, который ворчит, но несёт за ней корзину. Старуха учит её всю осень. К зиме ${QT.inAt(c)} снова есть кому ходить к воде, — и на этот раз её никто не вписал в списки: учиться к бабке за реку ходят «по травы».`,
+      bad: c => `${c.zhena.n} так и не решается: «Муж, дитя, списки… Не могу». Старуха вздыхает и остаётся одна. Слово уговора уйдёт вместе с ней.`,
+      log: c => `«За рекой»: у ведуньи появилась ученица.`},
+  ],
+  late: {text: c => `Ведунью ${QT.fromAt(c)} нашли у брода. Не дошла.`}},
+
+/* ---------- 3c. Вода для дочери ---------- */
+k3c: {title: 'Вода для дочери', giver: 'oko', vic: 'oko', wit: 'brat', kind: 'deliver', thr: 'serye', stages: ['guard', 'chase'], days: 5, pay: 1.2,
+  place: {n: 'дом дознавателя в городе', at: 'у дома дознавателя в городе', in: 1},
+  item: c => ({n: 'фляга росяной воды', a: 'флягу росяной воды', g: 'фляги росяной воды'}),
+  hook: c => [
+    ['n', `Грамотку приносит мальчишка, которому заплатили медью. Почерк твёрдый, писарский, но в конце буквы скачут.`],
+    ['oko', `«Вы знаете, о чём я. Фляга у старого родника, под камнем. Отвезите её в город, в мой дом за храмом. Дочери. Ей девять. Лекари говорят — до первого снега».`],
+    ['oko', '«Никому из братьев не говорите. Никому в сером — тем более. Если спросят, что везёте, — мёд».'],
+  ],
+  ask: c => `Заплачу, сколько смогу. Больше, чем смогу.`,
+  call: c => `Отвезите воду моей дочери. Она в городе, за храмом.`,
+  clues: [
+    c => `У городских ворот стражник в сером плаще просит открыть мешки. Не мытник — у мытника медная бляха, а у этого печать на перстне, без зрачка. Мёд он нюхает долго. Флягу не нашёл.`,
+    c => `За вами от ворот шли двое. Их догнали в переулке. У одного в кошеле — лист: «Дознаватель ${c.oko.n} носит воду из омута. Узнать — откуда. Взять — сколько есть».`,
+  ],
+  twist: c => `Дочь дознавателя лежит у окна, белая, как подушка под ней. Серые знают про флягу. Если отдать воду — серые узнают, что старая сила лечит лучше молитв, и придут к роднику уже не за флягой.`,
+  fork: c => `Отдать воду девочке — значит выдать родник. Продать флягу серым — они дадут вдвое и оставят дознавателя в покое… на время. Вылить в реку — вода вернётся туда, откуда взята, и никто ничего не узнает.`,
+  ask2: 'Кому отдать флягу?',
+  ends: [
+    {t: 'Отдать девочке', side: ['oko', 2], set: {okoFriend: 1}, mul: 1.3, ex: {fame: 1}, end: true,
+      ok: c => `Девочка пьёт три глотка и засыпает. Утром она просит есть — впервые за месяц. ${c.oko.n}, когда узнаёт, не говорит ничего: просто сжимает вашу руку и долго не отпускает. С того дня в любом храме Ока, где он служит, вас пускают без вопросов. А к старому роднику он ставит своих стражей — сторожить его от серых.`,
+      log: c => `«Вода для дочери»: дочь дознавателя поправилась. ${c.oko.n} теперь ваш тайный друг.`},
+    {t: 'Продать флягу серым', side: ['oko', -2], set: {soldSerye: 1}, mul: 2, ex: {fame: -2}, end: true,
+      ok: c => `Человек в сером пересчитывает серебро медленно, монету к монете. Флягу он прячет в ларец, обитый изнутри холстом. Девочка в доме за храмом не доживает до снега. А весной к старому роднику ${QT.inAt(c)} приезжают люди в серых плащах — с лопатами и с ларцами.`,
+      log: c => `«Вода для дочери»: фляга продана серым. Родник у мельницы теперь их.`},
+    {t: 'Вылить воду в реку', side: ['kap', 1], mul: 0.5, end: true,
+      ok: c => `Фляга булькает и пустеет. Река на миг светлеет вокруг, потом течёт дальше, как текла. Серым больше нечего искать, родник уцелеет. Дознавателю вы говорите правду. Он слушает, кивает и уходит в дом, где лежит его дочь. Плату он всё же отдаёт — половину.`,
+      log: c => `«Вода для дочери»: росяную воду вернули реке. Родник уцелел.`},
+  ],
+  late: {text: c => `Дочь дознавателя ${c.oko.g} умерла до первого снега.`}},
+  },
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* qt_tihoe.js */
+/* Колдовство — «Тихое дело» как нить (Ник 27.11: «Тихое дело: Будимир» — «что рассказывается — это очень тухло»;
+   «если истории будут, что кто-то предательски подставил другого, — это свежо и драматично»).
+   Заказ тихих людей (folk.js) теперь всегда с историей: за каждым заказом стоит чьё-то предательство, и отряд узнаёт его по дороге.
+   Четыре истории (долг, свидетель, донос, ревность) × три-четыре развязки → хвосты: «Чья вина» (родня убитого ищет убийцу — вас),
+   «Тихие помнят» (тихие взыскивают с тех, кто отпустил), «Свести счёты» (тот, кого спасли, идёт к предателю), «Облава» (Око зовёт на тихий дом).
+   Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, Q = C && C.Q, QT = C && C.QT;
+if (!QT || !Q) return;
+const cap = s => s ? s[0].toUpperCase() + s.slice(1) : s;
+const sx = (p, m, f) => p && p.sex === 'f' ? f : m;
+const at = c => c.t.atName || 'селе';
+/* ---------- четыре истории: кто предал и кого ---------- */
+const ST = {
+  /* долг, которого не было: заказ оплатил родной брат жертвы */
+  dolg: {tret: {sex: 'm', role: 'брат'}, kin: {sex: 'f', role: 'жена'},
+    hook: c => [
+      ['n', `В доме с закрытыми ставнями пахнет воском и мокрой шерстью. ${c.zak.n} не встаёт из-за стола и говорит, не поднимая глаз от счётной доски.`],
+      ['zak', `«${c.vic.n}. Держит лавку ${c.vic.place || 'на торгу'}, должен нам сорок гривен и третий год кормит обещаниями. Долг купили у честного человека — по всем правилам. Нам не нужны деньги. Нам нужно, чтобы на торгу поняли: тихим долгов не прощают».`],
+      ['n', `На доске, под рукой заказчика, — долговая грамотка. Почерк ровный, нажим сильный. В углу оттиснута чужая печатка — не тихих.`]],
+    ask: c => `Сделайте тихо. Чтобы утром нашли, а к обеду — забыли.`,
+    clues: [
+      c => `Охранник у лавки, хмурый детина, пропускает вас за медяк и говорит, словно сам себе: «Хозяин каждую седмицу шлёт серебро брату. ${c.tret.n} его зовут. Брат бедный, говорят. Только сапоги у брата новые».`,
+      c => `В сундуке у ${c.vic.g} — стопка расписок. Все долги уплачены, кроме одного — того самого, сорок гривен. Только та расписка написана другой рукой. Ровный почерк, сильный нажим. Как на грамотке у тихих.`,
+      c => `${c.kin.n}, жена ${c.vic.g}, ловит вас у ворот: «Вы от брата? ${c.tret.n} сказал, что пришлёт людей помочь с долгом. Он у нас добрый, всё для семьи».`],
+    twist: c => `${c.vic.n} узнаёт вас по глазам — понимает, зачем пришли. «Сорок гривен? Я ничего никому не должен. Мой брат вёл мои книги, пока я болел… Брат?» ${sx(c.vic, 'Он', 'Она')} садится на лавку, будто ноги отказали.`,
+    fork: c => `Долг выдуман. Его купили у «честного человека», а честный человек — ${c.tret.n}, родной брат. Убьёте — лавка отойдёт ему. Отпустите — тихие спросят с вас. Расскажете правду — начнётся то, что братья будут доделывать сами.`,
+    tell: c => `Сказать, кто купил долг`,
+    tellOk: c => `${c.vic.n} слушает молча, потом встаёт. «Значит, брат». Больше ни слова. В ту же ночь ${sx(c.vic, 'он', 'она')} закрывает лавку и уходит в темноту — туда, где живёт ${c.tret.n}.`,
+    tellBad: c => `${c.vic.n} не верит: «Брат? Лжёте. Вас наняли, а теперь крутите». Но грамотку, что вы показали, всё же прячет за пазуху.`,
+  },
+  /* свидетель, которого продал ученик */
+  svid: {tret: {sex: 'm', role: 'ученик'}, kin: {sex: 'm', role: 'сын'},
+    hook: c => [
+      ['n', `${c.zak.n} ждёт вас в задней комнате, где окна заколочены изнутри. На столе — нож, хлеб и ничего больше.`],
+      ['zak', `«${c.vic.n}. Видел${sx(c.vic, '', 'а')}, как наши провожали мытника с моста. Видел${sx(c.vic, '', 'а')} — и пошёл${sx(c.vic, '', 'а')} к дознавателю. Пока не дошёл${sx(c.vic, '', 'а')}. Нам шепнул верный человек — из ${sx(c.vic, 'его', 'её')} же дома».`],
+      ['n', 'Он отрезает кусок хлеба и не ест.'],
+      ['zak', '«Верному человеку заплачено. Теперь ваш черёд».']],
+    ask: c => `Чем скорее, тем лучше. Свидетели долго не живут, а болтают быстро.`,
+    clues: [
+      c => `У мастерской ${c.vic.g} крутится парень с испачканными в краске руками — ${c.tret.n}, ученик. Завидев вас, он не удивляется. Кивает, как своим, и отходит, оглядываясь.`,
+      c => `За печной заслонкой — свёрток: грамотка к дознавателю, уже запечатанная. «Видел${sx(c.vic, '', 'а')} своими глазами, как трое сбросили мытника с моста, — и назову их…» Ниже — три имени. Последнее зачёркнуто так густо, что прорвало бересту.`,
+      c => `${c.kin.n}, сын ${c.vic.g}, мальчишка лет двенадцати, говорит вам у колодца: «Батя${sx(c.vic, '', ' мой… то есть мамка')} грамотку ${c.tret.d} отдавал${sx(c.vic, '', 'а')}, чтоб тот снёс в город. А ${c.tret.n} снёс не туда».`],
+    twist: c => `«Я знаю, кто вас прислал, — говорит ${c.vic.n} спокойно. — И знаю, кто меня продал. ${c.tret.n}. Я его с десяти лет учил${sx(c.vic, '', 'а')}. Он хочет мою мастерскую, а тихим нужна моя голова. Сговорились».`,
+    fork: c => `Грамотку можно отнести дознавателю — тогда тихих возьмут, а с ними и ученика. Можно сжечь её — и ${c.vic.n} будет жить, пока молчит. Можно сделать, за что заплачено, — и мастерская достанется ${c.tret.d}.`,
+    tell: c => `Отдать ${sx(c.vic, 'ему', 'ей')} ученика: пусть разберётся сам${sx(c.vic, '', 'а')}`,
+    tellOk: c => `${c.vic.n} берёт вашу улику — монету тихих из кармана ученика — и долго вертит её в пальцах. «Спасибо. Дальше я сам${sx(c.vic, '', 'а')}». Вечером ${c.tret.n} не приходит ночевать в мастерскую.`,
+    tellBad: c => `${c.vic.n} отмахивается: «Мальчишка глупый, но не подлый». Монету тихих бросает в печь.`,
+  },
+  /* донос под ножом: Око держит сына */
+  donos: {tret: {sex: 'm', role: 'брат Ока', ppl: 'imperets'}, kin: {sex: 'm', role: 'сын'},
+    hook: c => [
+      ['n', `${c.zak.n} говорит тихо, но в голосе у него не злость, а усталость.`],
+      ['zak', `«${c.vic.n} сдал${sx(c.vic, '', 'а')} наш дом на Гнилом конце Оку. Троих взяли, одного уже нет. Мы ${sx(c.vic, 'его', 'её')} кормили, когда никто не кормил. А ${sx(c.vic, 'он', 'она')} — вот так».`],
+      ['zak', '«Тихие не прощают. Не потому, что злые. Потому что иначе завтра сдадут всех».']],
+    ask: c => `Сделаете — я вам отдам и плату, и долг. Не сделаете — сами понимаете.`,
+    clues: [
+      c => `У дома ${c.vic.g} стоит брат Ока — ${c.tret.n}, молодой, с медной звездой. Не стережёт — ждёт. Время от времени поглядывает на окно.`,
+      c => `Соседка, развешивая бельё, шепчет: «А сынка-то у ${sx(c.vic, 'него', 'неё')} забрали. ${c.kin.n}. С Купалы не видать. Говорят, в храм на учение. Только какое учение с мешком на голове?»`,
+      c => `В доме, под половицей, — грамотка с печатью Ока: «Сына отпустим, когда назовёшь тихий дом. Назовёшь неправду — не отпустим». Печать свежая, воск ещё мягкий.`],
+    twist: c => `${c.vic.n} видит вас и не бежит. «Я знал${sx(c.vic, '', 'а')}, что придут. Сына мне всё равно не отдали. Сказали — ещё один дом назови. Я не назову. Делайте что пришли».`,
+    fork: c => `Сделаете дело — сын останется у Ока навсегда. Отпустите — тихие спросят с вас. А можно пойти к брату ${c.tret.d} у дома и узнать, где держат мальчишку, — но тогда вы сами окажетесь между тихими и Оком.`,
+    tell: c => `Найти, где Око держит сына`,
+    tellOk: c => `${c.tret.n} у дома оказывается не тюремщиком — сам он с этой грамоткой не согласен. Он называет подвал при храме. К утру мальчишка дома, а ${c.vic.n} собирает узлы: им обоим здесь больше не жить.`,
+    tellBad: c => `${c.tret.n} хватается за меч и кричит стражу. Мальчишку вы не находите, а у дома ${c.vic.g} теперь стоят трое.`,
+  },
+  /* ревность: заказала жена хозяина тихих, а он не знает */
+  revn: {tret: {sex: 'f', role: 'жена хозяина'}, kin: {sex: 'f', role: 'сестра'},
+    hook: c => [
+      ['n', `Заказчик сегодня не ${c.zak.n}. За столом сидит женщина в тёмном платке, с хорошими кольцами на руках, — ${c.tret.n}. ${c.zak.n} стоит у двери, как слуга.`],
+      ['tret', `«${c.vic.n}. Вы ${sx(c.vic, 'его', 'её')} не знаете, и не надо. Мой муж велел. Он занят, сам прийти не мог».`],
+      ['n', `${c.zak.n} при слове «муж велел» на миг поднимает глаза — и опускает снова.`]],
+    ask: c => `Без шума. И без разговоров. ${sx(c.vic, 'Он', 'Она')} много говорит, когда ${sx(c.vic, 'ему', 'ей')} страшно.`,
+    clues: [
+      c => `${c.zak.n} догоняет вас за воротами: «Хозяин ничего такого не велел. Я его неделю не видел, а она уже — "муж велел". Делайте как знаете. Я вам этого не говорил».`,
+      c => `В доме ${c.vic.g} на стене — нож хозяина тихих, с костяной рукоятью, тот самый, что носит он сам. Не украденный: подаренный. На рукояти вырезано: «Помню».`,
+      c => `${c.kin.n}, сестра ${c.vic.g}, говорит у колодца: «Они с хозяином тихих росли на одной улице. Друг дружку из реки вытаскивали. Ничего между ними нет — кроме того, что было в детстве. А ей и этого много».`],
+    twist: c => `«Это она? — ${c.vic.n} смеётся, но глаза мокрые. — Я ему двадцать лет как сестра. Она решила, что больше. Если вы меня убьёте, он узнает — и тогда он убьёт её. А потом себя. Он такой».`,
+    fork: c => `Сделаете дело — хозяин тихих однажды узнает, кто его велел. Отпустите — ${c.tret.n} пошлёт других. Расскажете хозяину — в доме тихих начнётся то, о чём на торгу будут говорить год.`,
+    tell: c => `Пойти к самому хозяину тихих`,
+    tellOk: c => `Хозяин тихих выслушивает вас молча, не перебивая. Потом снимает с пальца кольцо, кладёт на стол и говорит: «Никому. Ни слова». Наутро ${c.tret.n} уезжает из города в закрытой повозке. Куда — не спрашивают.`,
+    tellBad: c => `Хозяин тихих слушает вас, бледнеет и говорит: «Ложь». Но ${c.vic.n} остаётся жить, а жена его с того дня не выходит из дому.`,
+  },
+};
+const KEYS = Object.keys(ST);
+const S0 = c => ST[c.f.story] || ST.dolg;
+const T = QT.T.tihoe = {id: 'tihoe', title: 'Тихое дело', manual: 1, multi: 1, start: 'ti1',
+  cast: {zak: {sex: 'm', role: 'тихий человек'}, vic: {sex: 'm', role: ''}, tret: {sex: 'm', role: ''}, kin: {sex: 'f', role: ''}},
+  steps: {
+ti1: {title: c => `Тихое дело: ${c.vic.n}`, giver: 'zak', vic: 'vic', wit: 'kin', kind: 'contract',
+  hook: c => S0(c).hook(c), ask: c => S0(c).ask(c), call: c => `Есть работа. Тихая.`,
+  clues: [c => S0(c).clues[0](c), c => S0(c).clues[1](c), c => S0(c).clues[2](c)],
+  twist: c => S0(c).twist(c), fork: c => S0(c).fork(c), ask2: 'Как быть?',
+  ends: [
+    {t: 'Сделать, за что заплачено, — тихо', choice: 'kill', check: ['dex', 'Скрытность', 2], failFight: 1, mul: 1, side: ['oko', -1], set: {killed: 1}, rel: 0,
+      ok: c => `Всё кончено быстро. ${cap(c.vic.n)} больше никому ничего не расскажет. Вы уходите тем же путём, что пришли, и долго не говорите друг с другом.`,
+      bad: c => `Под ногой скрипнула половица. Крик, топот, охрана сбегается со всех сторон.`,
+      won: c => `Охрана разбежалась. ${cap(c.vic.n)} лежит лицом в половицы. Тихо уже не вышло: к утру об этом будет говорить весь торг.`,
+      log: c => `«Тихое дело»: ${c.vic.n} убит${sx(c.vic, '', 'а')} по заказу тихих. Кто за этим стоял, знаете только вы.`,
+      next: {s: 'ti_vina', d: 4, via: 'meet', from: 'kin'}},
+    {t: c => `Выслушать и отпустить: пусть уходит из края`, choice: 'spare', src: 'road', mul: 0.3, ex: {fame: 1}, set: {spared: 1},
+      ok: c => `${cap(c.vic.n)} собирается за одну ночь: узел, деньги из-под печи, ${S0(c) === ST.donos ? 'и ни слова о сыне' : 'и ничего лишнего'}. У ворот оборачивается: «Я вам этого не забуду». И уходит, не оглядываясь. Всё, что было при ${sx(c.vic, 'нём', 'ней')}, ${sx(c.vic, 'он', 'она')} оставил${sx(c.vic, '', 'а')} вам.`,
+      log: c => `«Тихое дело»: ${c.vic.n} отпущен${sx(c.vic, '', 'а')}. Тихие этого не простят.`,
+      next: {s: 'ti_mest', d: 3, via: 'rumor'}},
+    {t: c => S0(c).tell(c), check: ['cha', 'Дипломатия', 2], choice: 'spare', src: 'road', mul: 0.5, badMul: 0.3, set: {told: 1}, ex: {xp: 1.2},
+      ok: c => S0(c).tellOk(c), bad: c => S0(c).tellBad(c),
+      log: c => `«Тихое дело»: ${c.vic.n} узнал${sx(c.vic, '', 'а')}, кто ${sx(c.vic, 'его', 'её')} продал.`,
+      next: {s: 'ti_schet', d: 3, via: 'meet', from: 'vic'}, badNext: {s: 'ti_mest', d: 3, via: 'rumor'}},
+    {t: 'Сдать заказчиков Оку', choice: 'betray', src: 'road', mul: 0.6, side: ['oko', 1], ex: {fame: 1}, set: {betray: 1},
+      ok: c => `${cap(c.vic.n)} идёт с вами к страже. Наутро дом с закрытыми ставнями пуст, а тихих ищут по всему краю. Око платит за имена — и уже присматривается к вам: кто так много знает про тихих, тот и сам не так чист.`,
+      log: c => `«Тихое дело»: тихие люди сданы Оку.`,
+      next: {s: 'ti_oblava', d: 3, via: 'meet', from: 'tret'}},
+  ]},
+
+/* ---------- Чья вина: родня убитого ищет убийцу — вас ---------- */
+ti_vina: {title: 'Чья вина', giver: 'kin', vic: 'tret', wit: 'zak', kind: 'peace', thr: 'bandits', stages: ['witness'], days: 4, pay: 0.7,
+  hook: c => [
+    ['n', `${c.kin.n}, ${c.kin.role} ${c.vic.g}, стоит у вашего стола в корчме, в чёрном, с красными от слёз глазами.`],
+    ['kin', `«${c.vic.n} убит${sx(c.vic, '', 'а')}. Все говорят: тихие. А я знаю, кто тихим заплатил: ${c.tret.n}. ${S0(c) === ST.dolg ? 'Лавку уже прибрал к рукам, и трёх дней не прошло.' : S0(c) === ST.svid ? 'Мастерскую на себя переписал, и трёх дней не прошло.' : 'Ходит теперь, как будто ничего и не было.'} Найдите мне тех, кто это сделал. Своими руками. Я хочу видеть их лица».`],
+    ['n', 'Вы смотрите друг на друга. Ищут — вас.']],
+  ask: c => `Заплачу последним, что есть. Мне больше не на что тратить.`,
+  call: c => `Найдите тех, кто убил ${c.vic.a}.`,
+  clues: [c => `${c.zak.n}, тихий человек, перехватывает вас на улице: «Слыхал, вас наняли искать убийц? Смешно. Найдите им кого-нибудь. Мы подскажем кого — у нас лишних людей хватает».`],
+  twist: c => `Свидетель видел у дома в ту ночь чужих с оружием — и описывает их так, что любой в корчме узнал бы вас.`,
+  fork: c => `${c.kin.n} ждёт имени. Тихие подсовывают чужое. ${c.tret.n} спит спокойно.`,
+  ask2: 'Что сказать?',
+  ends: [
+    {t: 'Сказать правду: это сделали мы', check: ['cha', 'Дипломатия', 3], mul: 0, ex: {noPay: 1, fame: 1}, badEx: {noPay: 1, fame: -1}, end: true, rel: 0,
+      ok: c => `${c.kin.n} долго молчит. Потом говорит: «Значит, руки — ваши. А голова — ${c.tret.g}». Денег не берёт и вам не даёт. Через седмицу на торгу говорят, что ${c.tret.n} уехал ${QT.fromAt(c)} ночью, а его дом сгорел. Кто поджёг — не нашли.`,
+      bad: c => `${c.kin.n} кричит на всю корчму. Люди встают из-за столов. Вы уходите, а вслед вам летит: «Убийцы!» ${cap(QT.inAt(c))} вам больше не рады.`,
+      log: c => `«Чья вина»: ${c.kin.n} узнал${sx(c.kin, '', 'а')} от вас правду.`},
+    {t: c => `Назвать ${c.tret.a}: голова — его`, mul: 1, side: ['oko', 1], end: true,
+      ok: c => `${c.kin.n} идёт к дознавателю. ${c.tret.n} всё отрицает, но долговые грамотки, написанные его рукой, говорят за него. Его уводят. Тихих не трогают: про них ${c.kin.n} так ничего и не узнал${sx(c.kin, '', 'а')}. Плату вы берёте. Она жжёт руки.`,
+      log: c => `«Чья вина»: ${c.tret.n} осуждён. Руки убийц остались в тени.`},
+    {t: 'Отдать тихим их козла отпущения', side: ['oko', -1], mul: 1.2, ex: {fame: -1}, end: true,
+      ok: c => `Тихие указывают на бродягу из ночлежки. У того нож, руки в крови — свиной, но кто станет разбираться. ${c.kin.n} смотрит, как его уводят, и благодарит вас. Вечером тихие присылают вам кувшин мёда и записку: «Своих не бросаем».`,
+      log: c => `«Чья вина»: за убийство осудили чужого. Тихие теперь считают вас своими.`},
+  ]},
+
+/* ---------- Тихие помнят ---------- */
+ti_mest: {title: 'Тихие помнят', giver: 'zak', vic: 'zak', wit: 'kin', kind: 'bandits', thr: 'bandits', stages: ['guard'], days: 3, pay: 0.5,
+  hook: c => [
+    ['n', `На лавке у ворот сидит ${c.zak.n}. Не прячется — вас ждёт. Рядом двое, которых вы раньше не видели. У одного рука под плащом.`],
+    ['zak', `«${c.vic.n} жив${sx(c.vic, '', 'а')}. Мы знаем. Вы знаете. Деньги, что мы дали, вы взяли. Хозяин хочет их назад — вдвойне. Или хочет назад вас».`],
+    ['zak', '«Завтра на старой мельнице за выгоном. Приходите сами. Не придёте — придём мы».']],
+  ask: c => `И не приводите с собой стражу. Мы стражу тоже знаем.`,
+  call: c => `Тихие ждут вас на старой мельнице за выгоном.`,
+  clues: [c => `Дозорного у старой мельницы удалось обойти. Внутри — пятеро, и все при оружии. А ${c.zak.n} сидит отдельно, у окна, и, кажется, не очень хочет быть здесь.`],
+  twist: c => `«Я вам скажу одну вещь, — шепчет ${c.zak.n}, когда вы входите. — Хозяин не меня прислал за долгом. Он прислал меня сюда за вами — и тех пятерых за мной. Если я вернусь без вас, меня тоже не будет».`,
+  fork: c => `Можно платить. Можно драться. А можно забрать с собой того, кого прислали за вами.`,
+  ask2: 'Чем кончится?',
+  ends: [
+    {t: 'Заплатить вдвойне', cost: 1, mul: 0, ex: {noPay: 1}, end: true, rel: 0,
+      ok: c => `Серебро уходит со стола в мешок. ${c.zak.n} кивает: «В расчёте». Пятеро расходятся. Тихие о вас больше не вспомнят. Если повезёт.`,
+      log: c => `«Тихие помнят»: откупились от тихих.`},
+    {t: 'Драться', fight: 1.1, thr: 'bandits', mul: 0.5, side: ['nav', -1], end: true,
+      ok: c => `Старая мельница затихает. Из пятерых ушли двое. ${c.zak.n} сидит у окна живой — в бой он не вмешался. «Хозяину я скажу, что вас не нашёл», — говорит он и уходит.`,
+      log: c => `«Тихие помнят»: люди тихих побиты у старой мельницы.`},
+    {t: c => `Увести ${c.zak.a} с собой`, check: ['cha', 'Обман', 3], failFight: 1.2, mul: 0.5, ex: {xp: 1.3}, end: true,
+      ok: c => `«Он идёт с нами — будет заложником», — говорите вы так, чтобы пятеро поверили. Они верят. За выгоном ${c.zak.n} снимает перстень тихих и бросает в канаву. «Я тридцать лет на них работал. Хватит». Он уходит на север, а вам на прощание называет три дома, где тихие держат серебро.`,
+      bad: c => `Пятеро не верят ни одному слову. Ножи выходят из-под плащей.`,
+      won: c => `Бой выигран. ${c.zak.n} уходит с вами — заложником уже не понарошку, а по своей воле. За выгоном он снимает перстень тихих и бросает в канаву.`,
+      log: c => `«Тихие помнят»: ${c.zak.n} ушёл от тихих.`},
+  ]},
+
+/* ---------- Свести счёты: спасённый идёт к предателю ---------- */
+ti_schet: {title: 'Свести счёты', giver: 'vic', vic: 'tret', wit: 'kin', kind: 'peace', thr: 'bandits', stages: ['crowd'], days: 3, pay: 0.6,
+  hook: c => [
+    ['n', `${c.vic.n} находит вас сам${sx(c.vic, '', 'а')}. Лицо спокойное, а руки не знают, куда себя деть.`],
+    ['vic', `«Я знаю теперь, кто меня продал. ${c.tret.n}. Пойдёте со мной? Я хочу посмотреть ${S0(c) === ST.revn ? 'ей' : 'ему'} в глаза. А дальше — как выйдет. Одн${sx(c.vic, 'ому', 'ой')} мне не дойти: у ${S0(c) === ST.revn ? 'неё' : 'него'} люди».`]],
+  ask: c => `Я заплачу. Мне теперь есть ради чего жить, а значит — есть чем платить.`,
+  call: c => `Я иду к ${c.tret.d}. Пойдёте со мной?`,
+  clues: [c => `У дома ${c.tret.g} — люди. Соседи, родня, зеваки: слух уже прошёл. ${c.kin.n} стоит в толпе и молчит.`],
+  twist: c => `${c.tret.n} выходит на крыльцо и не оправдывается. «Да. Я. А ты что думал${sx(c.vic, '', 'а')}? Ты всё получал${sx(c.vic, '', 'а')} даром, а я — ничего».`,
+  fork: c => `${c.vic.n} держит руку на ноже. Толпа ждёт. За ${S0(c) === ST.revn ? 'ней' : 'ним'} — Око, если отвести к дознавателю. Перед ${S0(c) === ST.revn ? 'ней' : 'ним'} — нож, если отступить.`,
+  ask2: 'Чем кончится?',
+  ends: [
+    {t: 'Отвести предателя к дознавателю', side: ['oko', 1], mul: 1, end: true,
+      ok: c => `${c.tret.n} идёт под стражей, не опуская головы. ${c.vic.n} смотрит вслед и вдруг садится прямо на землю. «Двадцать лет», — говорит ${sx(c.vic, 'он', 'она')}. Больше ничего.`,
+      log: c => `«Свести счёты»: ${c.tret.n} отдан дознавателю.`},
+    {t: 'Отойти в сторону: пусть решают сами', side: ['oko', -1], mul: 1, ex: {fame: -1}, end: true,
+      ok: c => `Вы отходите. Толпа смыкается. Вы не видите, что было дальше, но слышите. Через час ${c.vic.n} выходит, вытирая руки о подол. ${c.tret.n} ${QT.inAt(c)} больше не живёт. Ни в каком смысле.`,
+      log: c => `«Свести счёты»: ${c.vic.n} сам${sx(c.vic, '', 'а')} рассчитал${sx(c.vic, 'ся', 'ась')} с предателем.`},
+    {t: 'Помирить их', check: ['wis', 'Дипломатия', 3], mul: 1.3, badMul: 0.6, ex: {fame: 2}, end: true,
+      ok: c => `Говорите вы долго — про детство, про реку, про то, что тихим всё равно, кого из них хоронить. К вечеру ${c.vic.n} и ${c.tret.n} сидят на одном крыльце, не глядя друг на друга. Не мир. Но и не нож. ${cap(QT.inAt(c))} это называют чудом.`,
+      bad: c => `Мира не вышло. ${c.tret.n} уходит ${QT.fromAt(c)} той же ночью, а ${c.vic.n} до утра сидит на крыльце пустого дома.`,
+      log: c => `«Свести счёты»: предатель и преданный разошлись без крови.`},
+  ]},
+
+/* ---------- Облава: Око зовёт на тихий дом ---------- */
+ti_oblava: {title: 'Облава', giver: 'tret', vic: 'zak', wit: 'kin', kind: 'bandits', thr: 'bandits', stages: ['locked'], days: 3, pay: 1,
+  hook: c => [
+    ['n', `К вам подходит человек с медной звездой на груди — не дознаватель, но из тех, кто ходит при нём.`],
+    ['tret', `«Свет видит. Вы знаете тихий дом. Покажете — и с вас спросу не будет. Не покажете — спросим».`],
+    ['n', `Он говорит учтиво. За его спиной — шестеро стражей.`]],
+  ask: c => `Облава на рассвете. Вы идёте первыми.`,
+  call: c => `Око зовёт вас на облаву.`,
+  clues: [c => `Дверь тихого дома снята с петель. Внутри — не притон, а жильё: детские рубашки на верёвке, люлька. ${c.zak.n} сидит у стола, будто ждал.`],
+  twist: c => `«Здесь мои дети, — говорит ${c.zak.n}. — Тихие — это не только ножи. Это и те, кому больше некуда. Око возьмёт всех».`,
+  fork: c => `Стражи уже у ворот. Решать надо сейчас.`,
+  ask2: 'Кого вывести, кого отдать?',
+  ends: [
+    {t: 'Отдать дом Оку', side: ['oko', 2], mul: 1.3, ex: {fame: 1}, end: true,
+      ok: c => `Стражи выводят всех. ${c.zak.n} идёт последним и смотрит на вас — не со злостью, а будто запоминает. Око платит щедро. С того дня тихие в этом краю для вас — кровники.`,
+      log: c => `«Облава»: тихий дом взят Оком.`},
+    {t: 'Вывести детей и женщин задним двором', check: ['dex', 'Скрытность', 2], failFight: 1, thr: 'oko_guard', side: ['oko', -1], mul: 0.5, ex: {fame: 1}, end: true,
+      ok: c => `Пока стражи ломятся в переднюю дверь, задним двором уходят шестеро: женщины, ребятня, старик. ${c.zak.n} остаётся — встречать стражу. Око берёт одного человека вместо дома. А тихие запомнят, кто вывел их детей.`,
+      bad: c => `На заднем дворе вас встречает стража.`,
+      won: c => `Стражу у заднего двора пришлось уложить. Дети ушли. Око теперь знает, на чьей вы стороне.`,
+      log: c => `«Облава»: дети тихих выведены из-под облавы.`},
+    {t: 'Повести стражу не в тот дом', check: ['cha', 'Обман', 3], side: ['oko', -1], badSide: ['oko', -2], mul: 0.7, badMul: 0.2, end: true,
+      ok: c => `Облава ломится в пустой амбар за торгом. Звёздный страж ругается, но платит половину — «за усердие». Тихий дом в ту же ночь пустеет. Под вашей дверью утром — кошель без записки.`,
+      bad: c => `Звёздный страж понимает обман у ворот амбара. Облава всё же находит тихий дом — к полудню, а вас вписывают в список «пособников».`,
+      log: c => `«Облава»: Око обмануто, тихий дом ушёл.`},
+  ]},
+  },
+};
+/* заказ на человека даёт только тихий человек — не вдова и не староста с доски */
+{ const mk1 = Q.make; Q.make = function (g, src, opt) { let j = mk1.apply(this, arguments); for (let i = 0; i < 6 && j && j.kind === 'contract' && !(opt && opt.kind); i++) j = mk1.apply(this, arguments); return j; }; }
+/* заказ тихих → всегда нить с историей */
+if (C.folkMakeJob) { const mk0 = C.folkMakeJob;
+  C.folkMakeJob = function (g, role) {
+    const j = mk0.apply(this, arguments);
+    try { if (!j || j.kind !== 'contract') return j;
+      const story = R.pick(KEYS), S = ST[story];
+      const zak = Object.assign({}, j.v.giver, {role: 'тихий человек'}), vic = Object.assign({}, j.v.vic, {role: ''});
+      const pre = {zak, vic};
+      const mk = (r) => { let p = null; for (let i = 0; i < 8; i++) { p = Q.person(g, r.sex, r.ppl || null); if (p.n !== zak.n && p.n !== vic.n) break; } return Object.assign(p, {role: r.role}); };
+      pre.tret = mk(S.tret); pre.kin = mk(S.kin);
+      T.cast = {zak: {sex: zak.sex, role: 'тихий человек'}, vic: {sex: vic.sex, role: ''}, tret: S.tret, kin: S.kin};
+      const t = QT.start(g, T, g.loc, pre); t.f.story = story; t.offer = j;
+      j.thread = {tid: t.tid, sid: 'ti1'}; j.qtTitle = `Тихое дело: ${vic.n}`; j.twist = null; j.node = g.loc;
+      j.v.wit = pre.kin;
+    } catch (e) {}
+    return j;
+  }; }
+G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
