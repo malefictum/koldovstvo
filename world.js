@@ -78666,7 +78666,8 @@ C.VENOM_SLOW = true;
    • Супруги героев: тот же век; ушёл (ушла) — герой вдовец (вдова): дом и дети остаются с ним — «Домой» в месте дома (дети,
      повозиться, гостинцы, сундук, ночь под своей крышей). Женится снова — малых детей и сундук новая жена (муж) берёт к себе.
    • Лица стареют, если для лица есть постаревшая версия (C.FACE_AGED).
-   • Только Вечный мир. Всё от хеша — одинаково у всех игроков в сети. */
+   • Вечный мир и саги. В сагах время — год главы: между главами («Прошло N лет») мастера сменяются наследниками, любовники
+     и супруги стареют; сюжетные люди — долгожители: стареют лицом, но доживают до конца саги. Всё от хеша — одинаково в сети. */
 (function (G) {
 'use strict';
 const R = G.R, C = G.C;
@@ -78675,7 +78676,11 @@ C.NPC_AGE = Object.assign({off: false, YEAR: 360, DIE: [62, 79], LOVE_DIE: [64, 
 const K = () => C.NPC_AGE;
 const hsh = s => { let h = 2166136261 >>> 0; s = String(s); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; } h ^= h >>> 13; h = Math.imul(h, 0x5bd1e995) >>> 0; return (h ^ (h >>> 15)) >>> 0; };
 const isFree = g => !!(g && C.CAMPS[g.camp] && C.CAMPS[g.camp].free);
-const day = g => (g && g.day) || 1;
+/* время мира: в Вечном мире — день мира; в сагах — год главы (C.CAMP_YEAR, от первой главы) × 360 + день главы.
+   Так между главами («Прошло N лет») люди стареют и сменяются, как и герои. */
+const day = g => { if (!g) return 1; if (isFree(g)) return g.day || 1; const Y = C.CAMP_YEAR || {}, y = Y[g.camp], y0 = Y.dead_water != null ? Y.dead_water : -20;
+  return (y == null ? 0 : (y - y0) * 360) + (g.day || 1); };
+const on = g => !!(g && C.CAMPS[g.camp]);
 const span = (k, [a, b]) => a + hsh(k) % (b - a + 1);
 const STEP_AGE = {0: [6, 12], 1: [18, 24], 2: [25, 39], 3: [40, 54], 4: [55, 70]};
 const stepOf = face => { const f = C.FACE_AGE && C.FACE_AGE[face]; return f && f.a != null ? f.a : 2; };
@@ -78696,7 +78701,7 @@ const KIN = {m: ['сын', 'сын', 'ученик', 'племянник', 'зя
 /* ---------- мастера ---------- */
 const fp0 = C.folkPerson;
 C.folkPerson = function (g, role, at) {
-  if (K().off || !isFree(g) || /^sp_/.test(role) || String(at).indexOf('~') >= 0) { const p = fp0.apply(this, arguments); return p; }
+  if (K().off || !on(g) || /^sp_/.test(role) || String(at).indexOf('~') >= 0) { const p = fp0.apply(this, arguments); return p; }
   const key = role + '@' + at, rel = (g.folkRel || {})[key];
   const p0 = fp0.call(this, g, role, at); if (!p0) return p0;
   if (rel && rel.bond === 'wed') { const L = chain(key, p0.face, Infinity); p0.born = L[0].born; p0.age = C.npcAgeYears(g, p0.born); return p0; } // супруг — своим веком (см. ниже)
@@ -78705,12 +78710,13 @@ C.folkPerson = function (g, role, at) {
   p = Object.assign({}, p); p.born = cur.born; p.age = C.npcAgeYears(g, cur.born); p.gen = gen;
   if (gen) { const prev = gen > 1 ? fp0.call(this, g, role, at + '~g' + (gen - 1)) : p0; p.heirOf = prev ? prev.n : ''; p.kin = KIN[p.sex === 'f' ? 'f' : 'm'][hsh('kin|' + key + gen) % 5]; }
   p.face = ageFace(p.face, p.age);
-  try { const s = S(g); if ((s.seen[key] || 0) < gen) { s.seen[key] = gen;
+  try { const s = S(g); if ((s.seen[key] || 0) < gen && (!rel || (rel.heir || 0) < gen)) { s.seen[key] = gen;
       if (rel) { const keep = Math.round((rel.rep || 0) * 0.5); Object.keys(rel).forEach(k => { if (!['camp', 'who'].includes(k)) delete rel[k]; }); rel.rep = keep; rel.heir = gen; }
       const pl = placeName(g, at); if (C.note && (rel || g.loc === at)) C.note(g, `${pl ? pl + ': ' : ''}${p.heirOf ? 'нет больше ' + (decl(p.heirOf.split(' ')[0], p0.sex).g || p.heirOf) + ' — ' : ''}дело держит ${p.heirOf ? (p0.sex === 'f' ? 'её ' : 'его ') : ''}${p.kin}, ${p.n}.${rel && rel.rep > 0 ? ' Про отряд ' + (p.sex === 'f' ? 'она' : 'он') + ' наслышан' + (p.sex === 'f' ? 'а' : '') + ': примет как знакомых.' : ''}`); } } catch (e) {}
   return p;
 };
-/* ---------- ключевые люди мест (SPEAKERS) в Вечном мире: имя и лицо наследника, реплики те же ---------- */
+/* ---------- ключевые люди мест (SPEAKERS) в Вечном мире: имя и лицо наследника, реплики те же.
+   В сагах сюжетные люди — долгожители: стареют лицом, но доживают до конца саги (Ник 27.11). ---------- */
 const ORIG = {};
 const nameFor = (k, gen, ppl, sex) => { const P = (C.FOLK_NAMES || {})[ppl] || (C.FOLK_NAMES || {}).nolgrim; const L = (P && P[sex]) || ['Ждан']; return L[hsh('nm|' + k + '|' + gen) % L.length]; };
 const faceFor = (k, gen, sex, age) => { const pool = (sex === 'f' ? C.PORTRAITS_F : C.PORTRAITS_M) || []; const st = C.faceStep ? C.faceStep(age) : 2;
@@ -78728,7 +78734,7 @@ C.sceneOf = function (g) {
   try { if (!sc || !Array.isArray(sc.lines) || !C.SPEAKERS) return sc; const free = !K().off && isFree(g);
     const keys = new Set(); sc.lines.forEach(l => { if (Array.isArray(l) && l[0] && l[0] !== 'n' && C.SPEAKERS[l[0]]) keys.add(l[0]); }); (sc.people || []).forEach(k => { if (C.SPEAKERS[k]) keys.add(k); });
     keys.forEach(k => { if (!ORIG[k]) ORIG[k] = C.SPEAKERS[k].slice();
-      if (!free) { C.SPEAKERS[k] = ORIG[k].slice(); return; }
+      if (!free) { const o = ORIG[k]; C.SPEAKERS[k] = o.slice(); try { if (on(g) && !K().off) { const L0 = chain('spk|' + k, o[1], -Infinity)[0], a = C.npcAgeYears(g, L0.born); const fa = ageFace(o[1], a); if (fa !== o[1]) C.SPEAKERS[k] = [o[0], fa, o[2]]; } } catch (e) {} return; }
       if ((g.mercs || []).some(m => String(ORIG[k][0]).startsWith(m.name))) return;
       const x = C.npcSpeaker(g, k); if (!x) return; C.SPEAKERS[k] = x.sp;
       if (x.gen) { const s = S(g), sk = 'spk|' + k; if ((s.seen[sk] || 0) < x.gen) { s.seen[sk] = x.gen; if (C.note) C.note(g, `${x.was ? 'Нет больше ' + (decl(x.was, x.sex).g || x.was) + '. ' : ''}На ${x.sex === 'f' ? 'её' : 'его'} месте теперь ${x.sp[0].split(',')[0]}.`); } } }); } catch (e) {}
@@ -78740,7 +78746,7 @@ C.kvAge = loverAge;
 if (C.kvMaybeKid) { const mk0 = C.kvMaybeKid; C.kvMaybeKid = function (g, h, o) { try { if (!K().off && o && o.loc && C.kvLocOf) { const r = C.kvLocOf(g, o.loc); if (r && loverAge(g, r) >= K().FERTILE && r.sex === 'f') return null; } } catch (e) {} return mk0.apply(this, arguments); }; }
 const heroesOf = g => (g && g.heroes ? g.heroes.filter(h => !h.dead) : []);
 function daily(g) {
-  if (K().off || !isFree(g) || !g.heroes) return; const s = S(g); try { remarry(g); } catch (e) {} if (s.day === day(g)) return; s.day = day(g);
+  if (K().off || !on(g) || !g.heroes) return; const s = S(g); try { remarry(g); } catch (e) {} if (s.day === day(g)) return; s.day = day(g);
   // любовники
   Object.values(g.kvLoc || {}).forEach(r => { if (!r || r.st === 'gone' || r.st === 'dead' || r.diedOld) return; const a = loverAge(g, r);
     if (a >= span('ld|' + r.id, K().LOVE_DIE)) { r.diedOld = day(g); r.st = 'gone'; r.goneDay = day(g); const f = r.sex === 'f';
@@ -78772,13 +78778,14 @@ function remarry(g) { const W = S(g).widow; if (!W) return;
 C.npcRemarry = remarry;
 /* ---------- дом вдовца: дети, гостинцы, сундук, ночь под своей крышей ---------- */
 const FC = C.CAMPS.free;
+const placeScene = g => { try { if (isFree(g)) return 'free_place'; const n = C.CAMPS[g.camp].map.nodes[g.loc]; return (n && n.scene) || 'map'; } catch (e) { return 'map'; } };
 const WH_HI = ['Изба без хозяйки: печь холодная, пока не растопишь, на лавке — недошитая рубаха.', 'В доме тихо. На полке — её гребень, никто не решается убрать.', 'Соседка присматривает за домом: полы метены, а печь топится через день.', 'Дом встречает запахом остывшей золы и сушёных трав — ещё тех, её.'];
 const kidLn = (g, k) => { const L = (C.KID_LINES || {})[k.sex === 'f' ? 'f' : 'm']; const st = C.kidStage ? C.kidStage(g, k) : 1; const pool = L && L[st]; if (!pool || !pool.length) return null;
   const t = pool[hsh(k.id + '|' + day(g)) % pool.length].replace(/\{k\}/g, k.n || (k.sex === 'f' ? 'малышка' : 'малыш')); return t[0].toUpperCase() + t.slice(1); };
 const wRec = g => { const W = (g.npcAge && g.npcAge.widow) || {}; const h = heroesOf(g).find(x => W[x.id] && W[x.id].at === g.loc && !x.spouse); return h ? {h, w: W[h.id]} : null; };
 const wKids = (g, w, h) => (C.kidsFams ? C.kidsFams(g) : []).filter(F => F.key === w.key && F.hero === h.id).flatMap(F => (F.kids || []).filter(k => !k.went && !k.dead));
-if (FC && FC.scenes) FC.scenes.npc_whome = g => {
-  const x = wRec(g); if (!x) return {title: 'Дом', bg: 'village', lines: [['n', 'Здесь уже не ваш дом.']], choices: [{t: 'Назад', do: () => 'free_place'}]};
+const WHOME = g => {
+  const x = wRec(g); if (!x) return {title: 'Дом', bg: 'village', lines: [['n', 'Здесь уже не ваш дом.']], choices: [{t: 'Назад', do: g2 => placeScene(g2)}]};
   const {h, w} = x, ks = wKids(g, w, h), lines = [['n', WH_HI[hsh(w.key + day(g)) % WH_HI.length]]];
   if (g.npcWLast) lines.push(['n', g.npcWLast]);
   ks.slice(0, 3).forEach(k => { const t = kidLn(g, k); if (t) lines.push(['n', t]); });
@@ -78788,10 +78795,12 @@ if (FC && FC.scenes) FC.scenes.npc_whome = g => {
     ch.push({t: 'Подарить детям гостинец', if: g2 => w.give !== day(g2) && (g2.purse || 0) >= 100, off: g2 => (w.give === day(g2) ? 'сегодня уже дарили' : 'в кошеле пусто'), do: g2 => { g2.purse -= 100; w.give = day(g2); g2.npcWLast = C.kidGiftLine ? C.kidGiftLine(g2, ks) : ''; cheer(g2, 'Гостинцы детям — и на душе светлее.'); return 'npc_whome'; }}); }
   if (w.chest && w.chest.length) ch.push({t: 'Забрать всё из сундука', do: g2 => { h.inv = (h.inv || []).concat(w.chest); const n = w.chest.length; w.chest = []; g2.npcWLast = `${h.name} выгребает сундук: ${n === 1 ? 'одна вещь' : 'вещи'} — в суму.`; return 'npc_whome'; }});
   ch.push({t: 'Переночевать под своей крышей', do: g2 => { g2.npcWLast = null; try { if (C.rest) C.rest(g2); } catch (e) {} if (C.spiritAdd) C.spiritAdd(g2, 1, 'Ночь дома.'); g2.npcWLast = ks.length ? 'Ночью дети по очереди забираются под бок. Утром в доме пахнет кашей — сварили сами, хоть и подгорело.' : 'Ночь в своём доме — тихо, только сверчок за печью.'; return 'npc_whome'; }});
-  ch.push({t: 'Назад', do: g2 => { g2.npcWLast = null; return 'free_place'; }});
+  ch.push({t: 'Назад', do: g2 => { g2.npcWLast = null; return placeScene(g2); }});
   return {title: h.sex === 'f' ? 'Дом вдовы' : 'Дом вдовца', bg: 'village', art: 'hut', lines, choices: ch}; };
+Object.values(C.CAMPS).forEach(cm => { if (cm.scenes && !cm.scenes.npc_whome) cm.scenes.npc_whome = WHOME; });
+if (C.register) { const rg1 = C.register; C.register = function (cm) { const r = rg1.apply(this, arguments); try { if (cm && cm.scenes && !cm.scenes.npc_whome) cm.scenes.npc_whome = WHOME; } catch (e) {} return r; }; }
 { const so1 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so1.apply(this, arguments);
-  try { if (sc && id === 'free_place' && isFree(g) && wRec(g) && Array.isArray(sc.choices) && !sc.choices.some(c => c.npcW)) { const i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
+  try { if (sc && on(g) && id === placeScene(g) && wRec(g) && Array.isArray(sc.choices) && !sc.choices.some(c => c.npcW)) { const i = Math.max(0, ...sc.choices.map(c => (typeof c.i === 'number' ? c.i : 0))) + 1;
       const c = {i, label: 'Домой: дети и сундук', npcW: 1, do: () => 'npc_whome'}; const back = sc.choices.findIndex(q => /^(Назад|Уйти|В путь)/.test(q.label || '')); sc.choices = sc.choices.slice(); sc.choices.splice(back < 0 ? sc.choices.length : back, 0, c); } } catch (e) {}
   return sc; }; }
 C.npcAgeDaily = daily;
