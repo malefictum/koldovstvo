@@ -50370,7 +50370,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611271413"></script><script>
+</script><script src="world.js?v=202611271444"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52661,9 +52661,9 @@ function showSporDone(sp, hero, prev, rl, fin) {
 function sayWin(t, after) {
   const h = (g.mercs || []).concat(C.alive(g)).find(x => x.name === t.from), sub = t.sub || (h && C.NRAV && C.NRAV[h.nrav] ? (h.sex === 'f' ? C.NRAV[h.nrav].f : C.NRAV[h.nrav].n) : '');
   const sx = t.sex || (h && h.sex), hr = C.alive(g)[0];
-  const bye = t.head === 'Подарок' ? 'Носи на здоровье.' : `Спасибо, что рассказал${sx === 'f' ? 'а' : ''}.`;
+  const bye = t.bye || (t.head === 'Подарок' ? 'Носи на здоровье.' : `Спасибо, что рассказал${sx === 'f' ? 'а' : ''}.`);
   talkWin({who: {name: t.from, face: t.face, sub, head: t.head || 'По душам'}, hero: hr ? {name: hr.name, face: hr.portrait || ''} : null,
-    lines: [{who: 'o', text: unq(t.text)}].concat(t.after ? [{who: 'n', text: t.after}] : []),
+    lines: (Array.isArray(t.paras) ? t.paras.map(x => ({who: 'n', text: x})) : [{who: 'o', text: unq(t.text)}]).concat(t.after ? [{who: 'n', text: t.after}] : []),
     opts: [{t: bye, end: 1, attr: 'id="kl-ok"', on: () => { closeModal(); if (after) after(); }}]});
 }
 /* разговор по душам (w2_merctalk): вопросы, ответ наёмника, ответ героя его голосом, отклик; просьба на ступени — здесь же.
