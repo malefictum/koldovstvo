@@ -50370,7 +50370,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611271533"></script><script>
+</script><script src="world.js?v=202611271602"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -51454,12 +51454,13 @@ function paintIcons(root) { (root || document).querySelectorAll('canvas[data-ico
   if (!a || !src) return; const k = Math.min(c.width / a[2], c.height / a[3]) * 0.9, w = a[2] * k, h = a[3] * k; x.drawImage(src, a[0], a[1], a[2], a[3], (c.width - w) / 2, (c.height - h) / 2, w, h); }); }
 const INVF = {};
 const canGive = h => !!(g && h && mineH(h) && h.kind !== 'merc' && C.alive(g).concat((g.mercs || []).filter(m => !m.dead)).length > 1 && (!NET() || C.alive(g).some(x => x !== h) || amLeader()));
-/* пояс с мелочами: четыре быстрых места, на кукле не рисуются */
+/* пояс с мелочами: столько быстрых мест, сколько держит надетый пояс (belt_slot.js) */
 function beltBlock(h) {
   if (h.kind === 'merc') return `<div class="belt"><h4 class="jh">Пояс</h4><p class="note">${esc(C.beltText(h))}. Наёмник сам решает, что держать под рукой.</p></div>`;
   const b = C.beltOf(h), can = mineH(h), opts = [...new Set(h.inv)].filter(C.beltable).map(R.item).filter(Boolean);
   const ready = C.beltReady(h);
-  return `<div class="belt"><h4 class="jh">Пояс <small>· под рукой в бою</small></h4><div class="bslots">${b.map((id, i) => { const x = id && R.item(id), miss = id && !(h.inv || []).includes(id);
+  if (!b.length) return `<div class="belt"><h4 class="jh">Пояс <small>· под рукой в бою</small></h4><p class="note">Пояса нет — в бою всё из сумы, дольше. Наденьте пояс в слоте «Пояс»: кушак держит одно место и тих, ремень — два, ратный пояс — четыре, но звякает.</p></div>`;
+  return `<div class="belt"><h4 class="jh">Пояс <small>· под рукой в бою${C.beltWord && C.beltWord(h) ? ' · ' + esc(C.beltWord(h)) : ''}</small></h4><div class="bslots">${b.map((id, i) => { const x = id && R.item(id), miss = id && !(h.inv || []).includes(id);
     return `<label class="bslot ${id ? 'on' : ''} ${miss ? 'miss' : ''}"><span>${i + 1}</span><select data-belt="${i}" data-h="${h.id}" ${can ? '' : 'disabled'}><option value="">— пусто —</option>${opts.map(o => `<option value="${o.id}" ${id === o.id ? 'selected' : ''}>${esc(o.name.replace(/\s*\(.*\)/, ''))} · ${esc(C.beltKind(o.id))}</option>`).join('')}${miss ? `<option value="${id}" selected>${esc(x ? x.name : id)} — кончилось</option>` : ''}</select></label>`; }).join('')}</div>
     <p class="note">С пояса в бою быстро: выпить — малое действие, швырнуть зелье или прочесть свиток — действие. Из сумы уходит ещё и следующее. Мелочь — факел, зеркальце, святыня, благовония, тул — работает только с пояса. Выпитое место после боя пополнится из сумы, если там есть такое же.${ready.length ? ' Сейчас под рукой: ' + esc(C.beltText(h)) + '.' : ''}</p></div>`;
 }

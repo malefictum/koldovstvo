@@ -79673,3 +79673,59 @@ try { apply(); } catch (e) {}
 // вещи, что заводятся позже (книги, железы), — на всякий случай ещё раз при новой игре и загрузке
 ['newGame', 'load'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function () { const r = f0.apply(this, arguments); try { apply(); } catch (e) {} return r; }; });
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* belt_slot.js */
+/* Колдовство — belt_slot: пояс — своя вещь на кукле (Ник 27.11: «пояса у нас нету? добавь слот просто; сделай пояса
+   на 1-2-3-4 слотов; чем меньше слотов, тем менее шумные»). Без DOM; ui.js рисует слот из C.WEAR_SLOTS сам.
+   • Слот «Пояс» на кукле. Сколько мест под рукой в бою — столько, сколько держит надетый пояс. Без пояса — всё из сумы.
+   • Пояса: кушак (одно место, тихий), кожаный ремень (два, чуть поскрипывает), пояс из волчьей шкуры (три — мех глушит,
+     шумит как ремень), ратный пояс с подсумками (четыре, звякает — таиться трудно). Шум — помеха Скрытности (числа тайна,
+     игроку — словами).
+   • Старым и новым героям — кожаный ремень один раз (h.beltV), чтобы никто не остался без пояса. Снял — твоё дело.
+   • Наёмники — как прежде: четыре места, сами решают. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C || !C.beltOf || !C.WEAR || !G.DATA) return;
+const I = G.DATA.items, base = id => (R.baseId ? R.baseId(id) : id);
+C.BELTS = Object.assign({
+  kushak: {n: 1, noise: 0, name: 'Кушак тканый', price: 20, w: 0.2, word: 'тихий', notes: 'Широкий тканый кушак. Одно место под руку. Тихий — таиться не мешает.'},
+  remen_kozh: {n: 2, noise: 1, name: 'Ремень кожаный', price: 100, w: 0.4, word: 'чуть поскрипывает', notes: 'Кожаный ремень с пряжкой. Два места под руку. Чуть поскрипывает — таиться немного труднее.'},
+  wb_poyas: {n: 3, noise: 1, name: 'Пояс из волчьей шкуры', price: 200, w: 0.5, word: 'мех глушит — шумит не больше ремня', notes: 'Широкий пояс из волчьей шкуры, мехом наружу. Три места под руку, а мех глушит — шумит не больше простого ремня.'},
+  poyas_ratnyy: {n: 4, noise: 3, name: 'Ратный пояс с подсумками', price: 400, w: 1, word: 'звякает — таиться трудно', notes: 'Широкий ратный пояс с подсумками и кольцами. Четыре места под руку, но звякает на каждом шагу — таиться трудно.'},
+}, C.BELTS || {});
+Object.entries(C.BELTS).forEach(([id, b]) => {
+  if (!I[id]) I[id] = {_t: 'g', id, category: 'одежда', name: b.name, price: b.price, weight_kg: b.w, notes: b.notes};
+  else I[id].notes = b.notes;
+  if (!I[id].ico) I[id].ico = 'item2:poyas';
+  C.WEAR[id] = Object.assign({}, C.WEAR[id] || {}, {slot: 'belt', fx: `${['', 'одно место', 'два места', 'три места', 'четыре места'][b.n]} под руку; ${b.word}`});
+});
+if (!C.WEAR_SLOTS.some(s => s[0] === 'belt')) { const i = C.WEAR_SLOTS.findIndex(s => s[0] === 'neck'); C.WEAR_SLOTS.splice(i < 0 ? C.WEAR_SLOTS.length : i, 0, ['belt', 'Пояс']); }
+const beltItem = h => { const id = h && h.eq && h.eq.belt; return id && (h.inv || []).includes(id) ? C.BELTS[base(id)] || null : null; };
+const merc = h => h && h.kind === 'merc';
+/* один раз: ремень всем, у кого пояса ещё не было (старые сохранения, новые герои) */
+const migrate = h => { if (!h || merc(h) || h.beltV || !h.eq || !Array.isArray(h.inv)) return; h.beltV = 1; if (h.eq.belt) return;
+  const have = h.inv.find(id => C.BELTS[base(id)]); if (have) { h.eq.belt = have; return; } if (I.remen_kozh) { h.inv.push('remen_kozh'); h.eq.belt = 'remen_kozh'; } };
+C.beltN = h => { if (!h) return 0; if (merc(h)) return C.BELT_N || 4; migrate(h); const b = beltItem(h); return b ? b.n : 0; };
+C.beltNoise = h => { if (!h || merc(h) || !h.eq) return 0; const b = beltItem(h); return b ? b.noise : 0; };
+C.beltWord = h => { const b = beltItem(h); return b ? `${(R.item(h.eq.belt) || {}).name || b.name}: ${b.word}` : ''; };
+const auto0 = C.beltAuto;
+C.beltAuto = function (h) { const a = auto0.apply(this, arguments), n = C.beltN(h); return a.slice(0, n); };
+C.beltOf = function (h) {
+  if (!h) return []; if ((h.inv || []).includes('nabor_putnika') && C.unpackKit) C.unpackKit(h); const n = C.beltN(h);
+  if (!Array.isArray(h.belt)) h.belt = C.beltAuto(h);
+  if (h.belt.length < n) { const add = auto0(h).filter(id => id && !h.belt.includes(id)); while (h.belt.length < n) h.belt.push(add.shift() || null); }
+  if (h.belt.length > n) h.belt.length = n; return h.belt; };
+const set0 = C.beltSet;
+C.beltSet = function (h, i, id) { const n = C.beltN(h); if (i < 0 || i >= n) return n ? 'на поясе столько мест нет' : 'пояса нет — наденьте пояс'; return set0.apply(this, arguments); };
+const tx0 = C.beltText;
+C.beltText = function (h) { if (!merc(h) && !C.beltN(h)) return 'пояса нет — всё из сумы'; return tx0.apply(this, arguments); };
+/* шум пояса — помеха Скрытности */
+{ const sk0 = R.skill; R.skill = function (h, skill) { const v = sk0.apply(this, arguments); try { if (skill === 'Скрытность' && h && h.eq && !merc(h)) return v - C.beltNoise(h); } catch (e) {} return v; }; }
+/* новые герои и старые сохранения */
+if (R.giveKit) { const gk0 = R.giveKit; R.giveKit = function (h) { const r = gk0.apply(this, arguments); try { if (h && !merc(h)) { if (h.eq && h.eq.belt && !(h.inv || []).includes(h.eq.belt)) h.eq.belt = null; h.beltV = 0; migrate(h); h.belt = C.beltAuto(h); } } catch (e) {} return r; }; }
+['addHero'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g, h) { const r = f0.apply(this, arguments); try { (g && g.heroes || []).forEach(migrate); } catch (e) {} return r; }; });
+if (C.profNorm) { const pn0 = C.profNorm; C.profNorm = function (g) { const r = pn0.apply(this, arguments); try { if (g) C.alive(g).forEach(migrate); } catch (e) {} return r; }; }
+/* в лавке — рядом с дорожным */
+if (Array.isArray(C.ROAD_STOCK)) ['kushak', 'remen_kozh', 'poyas_ratnyy'].forEach(id => { if (!C.ROAD_STOCK.includes(id)) C.ROAD_STOCK.push(id); });
+})(typeof window !== 'undefined' ? window : globalThis);
