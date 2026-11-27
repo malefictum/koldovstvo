@@ -78435,9 +78435,9 @@ B.damage = function (S, t, d, src) {
   try { if (off || !t || t.dead || !t.down || !(d > 0)) return r;
     const ven = venOf(t), vk = ven ? venKind(ven) : null;
     const open = OPEN.test(String(src || '')) || /кровь|кровотеч/i.test(String(src || '')) || vk === 'blood';
-    if (wasUp && ven && ven.lethal && !open) { t.stable = false; t.ko = false; t.poisoned = {dc: ven.dc || 12}; t.bleed = B.DYING.P_LIVES; t.bleedT = 0; t.bleedDC = ven.dc || 12;
+    if (wasUp && ven && ven.lethal && B.DYING.lethalFall && !open) { t.stable = false; t.ko = false; t.poisoned = {dc: ven.dc || 12}; t.bleed = B.DYING.P_LIVES; t.bleedT = 0; t.bleedDC = ven.dc || 12;
       B.log(S, `${nm(t)} падает — в крови яд, и он жжёт дальше.`, 'bad', 'отравлен: перевязка не поможет — выгнать яд'); return r; }
-    if (wasUp && ven && ven.lethal && open) { t.poisoned = {dc: ven.dc || 12}; t.bleed = Math.max(t.bleed || 0, B.DYING.P_LIVES); }
+    if (wasUp && ven && ven.lethal && B.DYING.lethalFall && open) { t.poisoned = {dc: ven.dc || 12}; t.bleed = Math.max(t.bleed || 0, B.DYING.P_LIVES); }
     if (wasUp && vk === 'sleep' && !open) { t.stable = true; t.ko = true; t.bleed = 0; const L = S && S.log ? S.log.slice(n0).reverse().find(l => l && l.cls === 'bad') : null; const ln = fill(pick(KO_SLEEP), t); if (L) { L.t = ln; L.n = 'сонный яд: без сознания'; } else B.log(S, ln, 'bad', 'сонный яд: без сознания'); return r; }
     if (wasUp) {
       if (!open) { t.stable = true; t.ko = true; t.bleed = 0; const ln = fill(pick(KO), t);
@@ -78516,7 +78516,7 @@ B.venomOf = function (u) { const v = vo0.apply(this, arguments);
   return v; };
 const vh0 = B.venomHit;
 if (vh0) B.venomHit = function (S, u, t) { const had = t && t.conds && t.conds.dot; const r = vh0.apply(this, arguments);
-  try { const d = t && t.conds && t.conds.dot; if (d && d !== had && B.isVenomDot(d)) { const v = B.venomOf(u); if (v && v.lethal) { d.lethal = 1; d.from = d.from || String(u.name || ''); B.log(S, `Яд у ${C.Q && C.Q.decl ? (C.Q.decl(String(t.name).split(',')[0], (t.ref && t.ref.sex) || 'm') || {}).g : t.name} — смертельный.`, 'bad', 'смертельный яд: валит с ног'); } } } catch (e) {}
+  try { const d = t && t.conds && t.conds.dot; if (d && d !== had && B.isVenomDot(d)) { const v = B.venomOf(u); if (v && v.lethal) { d.lethal = 1; d.n = 999; d.save = 0; d.from = d.from || String(u.name || ''); B.log(S, `Яд у ${C.Q && C.Q.decl ? (C.Q.decl(String(t.name).split(',')[0], (t.ref && t.ref.sex) || 'm') || {}).g : t.name} — смертельный: в бою не берёт, а потом начнёт отнимать силы час за часом.`, 'bad', 'смертельный яд: противоядие, Медицина или лекарь'); } } } catch (e) {}
   return r; };
 /* несмертельный не валит, смертельный — валит */
 B.venomCap = t => !!t && t.side === 'party' && !(t.conds && t.conds.dot && t.conds.dot.lethal);
@@ -78578,4 +78578,76 @@ try { const E = D && D.encounters && D.encounters.terrains; if (E) Object.values
       r.ids.forEach(i => { const x = LETHAL_IDS.includes(i) ? SAFE[i] : i; if (x && !out.includes(x)) out.push(x); }); if (out.length) r.ids = out; }); }); } catch (e) {}
 C.VENOM_ROAD_SAFE = LETHAL_IDS;
 C.VENOM_MORE = true;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* venom_slow.js */
+/* Колдовство — venom_slow: смертельный яд час за часом (Ник 27.11: «смертельный яд не отнимает хиты, но ты теряешь
+   один хит в час, пока не впадёшь в кому»). Без DOM.
+   • В бою смертельный яд не бьёт: он просто сидит в крови (отмечен в журнале). Выгнать его можно и в бою — противоядием
+     или Медициной (перевязка стоящему), очищающими чарами.
+   • После боя у героя хворь «Смертельный яд»: по одному хиту в час дороги, отдыха, дела. Кончились силы — кома: лежит без
+     памяти, в бою не встаёт, отряд несёт на руках. В коме — двое суток, потом смерть.
+   • Лечат: противоядие (выпить или влить — меню героя «Выпить противоядие от хвори»), лекарь, знахарка, волхв,
+     лечебница при храме (как любую хворь). Вылечили — силы возвращаются как обычно, из комы приходит в себя.
+   • Наёмникам — обычное «Отравление» (их не морим). */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!C || !C.AILS || !C.ailAdd) return;
+C.VSLOW = Object.assign({COMA_H: 48, off: false}, C.VSLOW || {});
+const v = (h, m, f) => (h && h.sex === 'f' ? f : m);
+C.AILS.yad_smert = {name: 'Смертельный яд', dc: 14, self: 0, grow: 0, venom: true,
+  say: ['яд в крови: силы уходят час за часом', 'яд сосёт силы: руки холодеют, в глазах темно', 'яд почти взял своё: лежит без памяти'],
+  catchTxt: h => `${v(h, 'отравлен', 'отравлена')} смертельным ядом: силы будут уходить час за часом`,
+  pen: s => ({chk: s, str: 1, atk: s >= 2 ? 1 : 0, hp: 0})};
+const hasY = h => C.ailsOf(h).some(a => a.id === 'yad_smert');
+const nowH = g => (((g.day || 0) * 4) + (g.time || 0)) * 6 + (g.walk || 0);
+const heroes = g => (g && g.heroes ? g.heroes.filter(h => !h.dead && h.kind !== 'merc') : []);
+const placeOf = g => { try { const n = C.CAMPS[g.camp].map.nodes[g.loc]; return n ? n.name : 'в дороге'; } catch (e) { return 'в дороге'; } };
+function tick(g) {
+  if (!g || !g.heroes || C.VSLOW.off || g._planRun) return;
+  const now = nowH(g);
+  heroes(g).slice().forEach(h => {
+    if (!hasY(h)) { if (h.venomL) { const was = h.venomComa; delete h.venomL; delete h.venomComa; if (was && C.note) C.note(g, `${h.name} приходит в себя: яд выгнали. Слаб${v(h, '', 'а')}, но жив${v(h, '', 'а')}.`); } return; }
+    const L = h.venomL = h.venomL || {at: now, dc: 14};
+    const dh = Math.floor(now - L.at); if (dh <= 0) return; L.at += dh;
+    const a = C.ailsOf(h).find(x => x.id === 'yad_smert');
+    if (h.venomComa) { L.coma = (L.coma || 0) + dh;
+      if (L.coma >= C.VSLOW.COMA_H) { C.ailDrop(h, 'yad_smert'); delete h.venomL; delete h.venomComa;
+        C.recordFallen(g, h, placeOf(g), v(h, 'умер от яда, так и не придя в себя', 'умерла от яда, так и не придя в себя'));
+        g.heroes = g.heroes.filter(x => !x.dead); if (!C.alive(g).length) g.pendingCreate = Math.max(1, g.pendingCreate || 0); }
+      else if (L.coma >= C.VSLOW.COMA_H - 12 && !L.warn2) { L.warn2 = 1; C.note(g, `${h.name} еле дышит: без противоядия или лекаря до утра не дотянет.`); }
+      return; }
+    const hp0 = h.hp; h.hp = Math.max(0, h.hp - dh); const max = h.hpMax || 10;
+    if (a) a.sev = h.hp <= max / 4 ? 3 : h.hp <= max / 2 ? 2 : 1;
+    if (hp0 > max / 2 && h.hp <= max / 2) C.note(g, `${h.name}: яд берёт своё — руки холодеют, шаг тяжёлый. Нужно противоядие или лекарь.`);
+    else if (hp0 > max / 4 && h.hp <= max / 4) C.note(g, `${h.name} едва держится на ногах: яд у самого сердца.`);
+    if (h.hp <= 0) { h.hp = 1; h.venomComa = 1; L.coma = 0; C.note(g, `${h.name} падает без памяти — яд взял силы. ${v(h, 'Его', 'Её')} несут на руках; без лечения — двое суток, не больше.`); }
+  });
+}
+C.venomSlowTick = tick;
+['pass', 'passH', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); try { tick(g); } catch (e) {} return r; }; });
+/* бой: смертельный яд в бою не бьёт; кто в коме — лежит без памяти */
+if (B && B.damage) { const dm0 = B.damage; B.damage = function (S, t, d) { if (!C.VSLOW.off && S && S._venom && t && t.side === 'party' && t.conds && t.conds.dot && t.conds.dot.lethal) return; return dm0.apply(this, arguments); }; }
+if (B && B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments);
+  try { (S && S.units || []).forEach(u => { if (u.side === 'party' && u.ref && u.ref.venomComa && !u.dead) { u.down = true; u.stable = true; u.ko = true; u.hp = 0; B.log(S, `${String(u.name).split(',')[0]} лежит без памяти — яд.`, 'bad', 'в коме'); } }); } catch (e) {}
+  return S; }; }
+/* после боя: смертельный яд в крови — хворь; у кого его выгнали в бою — нет */
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S) { const got = [];
+  try { (S && S.units || []).forEach(u => { const d = u.conds && u.conds.dot; if (u.side === 'party' && u.ref && !u.dead && d && d.lethal) got.push({h: u.ref, dc: d.dc || 14, merc: u.kind === 'merc'}); }); } catch (e) {}
+  let r; try { r = be0.apply(this, arguments); } finally { post(); } return r;
+  function post() { try { got.forEach(x => { const h = x.h; if (h.dead) return; if (x.merc || h.kind === 'merc') { C.ailAdd(g, h, 'otrava', 2, true); return; }
+      C.ailAdd(g, h, 'yad_smert', 1); h.venomL = {at: nowH(g), dc: x.dc}; }); } catch (e) {} } }; }
+/* противоядие из меню героя снимает и смертельный яд */
+if (C.abilOpts && C.abil) { const ao0 = C.abilOpts, ab0 = C.abil;
+  const ANTI = x => Array.isArray(x && x.inv) && x.inv.some(i => i === 'protivoyadie' || i === 'zelye_protivoyadie');
+  const antiOwner = (g, h) => ANTI(h) ? h : heroes(g).find(x => x !== h && ANTI(x)) || null;
+  C.abilOpts = function (g, h) { const out = ao0.apply(this, arguments) || [];
+    if (hasY(h) && antiOwner(g, h) && !out.some(o => o.arg === 'ail_anti')) out.push({t: h.venomComa ? 'Влить противоядие (без памяти)' : 'Выпить противоядие от смертельного яда', arg: 'ail_anti', why: ''});
+    return out; };
+  C.abil = function (g, h, arg) { if (arg === 'ail_anti' && hasY(h)) { const own = antiOwner(g, h); if (!own) return {err: 'нет противоядия'}; const inv = own.inv; let i = inv.indexOf('zelye_protivoyadie'); if (i < 0) i = inv.indexOf('protivoyadie');
+      inv.splice(i, 1); const coma = h.venomComa; C.ailDrop(h, 'yad_smert'); delete h.venomL; delete h.venomComa; C.ailDrop(h, 'otrava');
+      const t = coma ? `Противоядие${own !== h ? ' из сумы ' + (C.Q && C.Q.decl ? (C.Q.decl(own.name, own.sex) || {}).g : own.name) : ''} вливают ${C.Q && C.Q.decl ? (C.Q.decl(h.name, h.sex) || {}).d : h.name} сквозь стиснутые зубы. К вечеру ${v(h, 'он', 'она')} открывает глаза.` : `${h.name} выпивает противоядие${own !== h ? ' из сумы ' + (C.Q && C.Q.decl ? (C.Q.decl(own.name, own.sex) || {}).g : own.name) : ''}. Холод отступает, яд больше не тянет силы.`; C.note(g, t); return {ok: true, text: t}; }
+    return ab0.apply(this, arguments); }; }
+C.VENOM_SLOW = true;
 })(typeof window !== 'undefined' ? window : globalThis);
