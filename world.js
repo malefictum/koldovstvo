@@ -77431,9 +77431,18 @@ const husbandNight = (g, x, h, res) => { if (res === 'kv_husb' || x.st !== 'wife
 if (C.encounter) { const en0 = C.encounter; C.encounter = function (g) { try { const L = (g.kvHit || []).filter(x => day(g) >= x.day); if (L.length && g.pos) { const hit = L[0]; g.kvHit = g.kvHit.filter(x => x !== hit);
       const r = C.kvLocOf(g, hit.r); if (r && r.hb && !r.hb.dead && r.st === 'wife') { const e = en0.apply(this, arguments) || {}; const b = e.battle || {};
         const foes = hit.kind === 'killers' ? ['naemnyy_ubiytsa', 'naemnyy_ubiytsa'] : ['razboynik', 'razboynik', 'tat'];
+        const self = hit.kind !== 'killers' || R.rand() < 0.3; if (self && R.rand() < 0.5) foes.push({id: 'naemnik', id2: 1, name: r.hb.n, leader: true}); // сам пошёл с ними — поквитаться
         r.hb.plan = null; r.hb.hitDone = day(g); if (C.note) C.note(g, `На дороге поджидали: ${hit.kind === 'killers' ? 'наёмные убийцы' : 'лихие люди'}. Их послал ${hit.n} — обманутый муж.`);
-        return {battle: Object.assign({}, b, {title: `Засада: ${hit.kind === 'killers' ? 'наёмные убийцы' : 'лихие люди'} от ${hit.n}`, foes, waRoad: b.waRoad || 1, waIntent: 'kill', ambush: b.ambush || null})}; } } } catch (e) {}
+        foes.forEach(f => { if (f && f.id2) { delete f.id2; f.id = 'naemnik'; f.extraId = 'hb_' + r.id; } });
+        return {battle: Object.assign({}, b, {kvHb: r.id, title: `Засада: ${hit.kind === 'killers' ? 'наёмные убийцы' : 'лихие люди'} от ${hit.n}`, foes, waRoad: b.waRoad || 1, waIntent: 'kill', ambush: b.ambush || null})}; } } } catch (e) {}
     return en0.apply(this, arguments); }; }
+
+/* муж сам пошёл в засаду и пал — «бандиты убили по пути»: она вдова, а знаешь правду только ты (Ник 27.11) */
+if (C.battleEnd) { const be0 = C.battleEnd; C.battleEnd = function (g, S, spec) { const res = be0.apply(this, arguments);
+  try { if (spec && spec.kvHb && S && S.units) { const r = C.kvLocOf(g, spec.kvHb); const u = S.units.find(x => x.side === 'foe' && r && r.hb && x.name === r.hb.n);
+      if (r && r.hb && !r.hb.dead && u && (u.dead || u.hp <= 0)) { r.hb.dead = day(g); r.st = 'widow'; r.t = 'вдова'; r.hbAmbush = 1; delete r.hb.plan;
+        if (C.note) C.note(g, `Среди нападавших был и сам ${r.hb.n}. Теперь в ${(((C.CAMPS[g.camp] || {}).map || {}).nodes || {})[r.at] ? C.CAMPS[g.camp].map.nodes[r.at].name : 'селе'} говорят: «Лихие люди убили по дороге». ${r.n.split(' ')[0]} — вдова.`); } } } catch (e) {}
+  return res; }; }
 /* сцена */
 const SC = C.KV_SC; const sc0 = SC.kv_local;
 const sc = function (g) {
@@ -77448,6 +77457,12 @@ const sc = function (g) {
       if (was && high(r)) { r.st = 'gone'; r.goneDay = d; r.rel = 0; if (C.repAdd) C.repAdd(g, r.at, -3, 'скандал: обещал жениться и не женился'); g.kvLast = null; C.note(g, `${r.n} не дождалась сватов: всему селу рассказала, каков ${h.name}, и выставила за порог.`); return Object.assign({}, out, {lines: [['n', `${r.n} не пускает на порог: «Срок вышел. Иди, куда шёл». Соседи смотрят из-за плетней.`]], choices: out.choices.filter(c => c.t === 'Уйти')}); }
       r.rel = Math.max(0, r.rel - 20); r.cold = 1; out.lines.push(['n', `${r.n} встречает холодно: «Обещал — и где сваты?»`]); }
     // узнала о сопернице
+    if (r.hbAmbush === 1) { r.hbAmbush = 2; const hn = r.hb ? String(r.hb.n).split(' ')[0] : 'муж', bad = r.hb && r.hb.bad;
+      const lines = out.lines.concat([['n', bad ? `${r.n.split(' ')[0]} в чёрном платке, а глаза сухие и светлые: «${hn} в дороге сгинул — лихие люди, говорят. Грех так думать… а мне легко. Впервые за годы легко»` : `${r.n.split(' ')[0]} в чёрном платке, глаза красные: «${hn} сгинул. Лихие люди на дороге… Как же так?»`]]);
+      const ch = [{own: h.id, t: 'Признаться: это был ты', do: g2 => { const x = C.kvLocOf(g2, r.id); if (bad || x.rel >= 85) { x.rel = Math.min(100, x.rel + 10); g2.kvLast = bad ? `${x.n.split(' ')[0]} долго молчит. Потом берёт твою руку и прижимает к щеке: «Он сам на тебя пошёл. Значит, так судьба. Никому не скажу»` : `${x.n.split(' ')[0]} плачет, но не отнимает руки: «Он сам на тебя пошёл… Значит, так. Молчи об этом. Никогда»`; }
+          else { x.st = 'gone'; x.goneDay = day(g2); x.rel = 0; g2.kvLast = `${x.n.split(' ')[0]} отшатывается: «Ты?! Уходи. Уходи — и не приходи больше»`; } return 'kv_local'; }},
+        {own: h.id, t: 'Промолчать — судьба', do: g2 => { const x = C.kvLocOf(g2, r.id); x.rel = Math.min(100, x.rel + (bad ? 6 : 2)); g2.kvLast = bad ? `«Видно, есть правда на свете», — шепчет ${x.n.split(' ')[0]} и прижимается к тебе.` : `Ты обнимаешь её и молчишь. ${x.n.split(' ')[0]} плачет у тебя на плече.`; return 'kv_local'; }}];
+      return Object.assign({}, out, {lines, choices: ch}); }
     // сговор: две-три не простые из одного села — «выбирай одну» (раз в два месяца на село)
     if (stat(r) && !(g.kvUlt && g.kvUlt[r.at] && d - g.kvUlt[r.at] < 60)) { const band = [r].concat(othersAt(g, r)).filter(x => stat(x) && !x.cold && (x.knows || []).length);
       if (band.length >= 2 && band.includes(r)) { g.kvUlt = g.kvUlt || {}; g.kvUlt[r.at] = d; const nm = band.map(x => x.n.split(' ')[0]);
