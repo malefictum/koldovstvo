@@ -79388,7 +79388,7 @@ Object.values(C.CAMPS).forEach(cm => Object.entries(scenes).forEach(([id, sc]) =
 if (C.register) { const rg0 = C.register; C.register = function (cm) { const r = rg0.apply(this, arguments); try { Object.entries(scenes).forEach(([id, sc]) => { if (cm && cm.scenes && !cm.scenes[id]) cm.scenes[id] = sc; }); } catch (e) {} return r; }; }
 /* книги — предметы */
 const D = G.DATA || (typeof DATA !== 'undefined' ? DATA : null);
-if (D && D.items && C.FAITH_BOOKS) Object.entries(C.FAITH_BOOKS).forEach(([f, B]) => { if (!D.items[B.id]) D.items[B.id] = {_t: 'g', id: B.id, name: B.title, price: B.price, weight_kg: 0.5, category: 'книги', notes: `Священная книга ${F[f] ? F[f].g : ''}: пять глав. Читать — по главе в день (меню героя). Своей веры — ступень растёт, чужой — знание.`}; });
+if (D && D.items && C.FAITH_BOOKS) Object.entries(C.FAITH_BOOKS).forEach(([f, B]) => { if (!D.items[B.id]) D.items[B.id] = {_t: 'g', id: B.id, name: B.title, price: B.price, weight_kg: 0.5, category: 'книги', notes: `Священная книга ${F[f] ? F[f].g : ''}: ${({5: 'пять', 6: 'шесть', 7: 'семь', 8: 'восемь'})[B.ch.length] || B.ch.length} глав. Читать — по главе в день (меню героя). Своей веры — ступень растёт, чужой — знание.`}; });
 /* ---------- кнопки в месте и у мастеров ---------- */
 const so0 = C.sceneOf;
 C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
@@ -79636,4 +79636,40 @@ if (C.kvAfter) { const ka0 = C.kvAfter; C.kvAfter = function (g, h, o) { const o
 { const so0 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so0.apply(this, arguments);
   try { if (id === 'he_night' && g && g.he && g.he.night && !g.he.night._lt) { const N = g.he.night; N._lt = 1; const lv = N.mood === 'hot' ? 'hot' : (N.mood === 'cold' || N.mood === 'sore') ? 'cold' : 'warm'; C.loveTune(g, lv, 'n' + (N.hero || '')); } } catch (e) {}
   return sc; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* item_icons.js */
+/* Колдовство — item_icons: картинки в суме для новых вещей, у которых своей не было (Ник 27.11: «появилось много
+   интересных предметов, но они не выводятся в слотах»). Без DOM: только поле ico у вещи, ui.js (iconOf) берёт его,
+   если своей картинки нет. Все ключи — из уже нарисованных атласов (items, items2). Услуги (баня, писарь, лекарь…) —
+   не вещи сумы, им картинка не нужна. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C;
+if (!R || !C) return;
+const I = k => 'item:' + k, I2 = k => 'item2:' + k;
+const MAP = {
+  // заготовки для посоха: дерево; кость и клык — костью
+  zag_dub: I2('derevo'), zag_osina: I2('derevo'), zag_yasen: I2('derevo'), zag_cheremuha: I2('derevo'), zag_oreh: I2('derevo'), zag_klen: I2('derevo'),
+  zag_iva: I2('derevo'), zag_kiparis: I2('derevo'), zag_tis: I2('derevo'), zag_sosna: I2('derevo'), zag_olha: I2('derevo'), zag_perunovo_drevo: I2('derevo'),
+  zag_svyashch_bereza: I2('derevo'), zag_svyashch_dub: I2('derevo'), zag_moreny_dub: I2('derevo'), zag_zvezdnyi_yasen: I2('derevo'),
+  zag_morzhovyi_klyk: I('tr_volot_zub'), zag_kost_upyrya: I('tr_volot_zub'), zag_kosti_koshcheya: I('tr_volot_zub'),
+  // редкости и руды
+  podzemnoe_serebro: I('serebro'), navya_ruda: I2('mednaya_ruda'), alatyr: I('yantar'), gromovaya_strela: I('oniks'),
+  // одежда, мелочь, дрова
+  wb_poyas: I2('poyas'), lenta_krasnaya: I2('pavoloka'), drova_vyazanka: I2('luchina'), sumka_promaslennaya: I2('sumka'),
+  podorozhnaya_lzhivaya: I('pergament_list'), kn_mokrye_listy: I2('beresta'),
+  // травы и яды
+  volchya_yagoda: I2('smorodina'), bolegolov: I2('belena'), durman: I2('belena'), yad_prostoy: I2('sklyanka_zh'),
+  yad_zheleza: I('tr_paukova_zheleza'), yad_zheleza_s: I('tr_paukova_zheleza'),
+  // священные книги: чёрная — навья книга, прочие — книга в переплёте
+  kn_oko: I('kniga_char_pustaya_pergament'), kn_perun: I('kniga_char_pustaya_pergament'), kn_veles: I('kniga_char_pustaya_pergament'),
+  kn_mokosh: I('kniga_char_pustaya_pergament'), kn_svarog: I('kniga_char_pustaya_pergament'), kn_stribog: I('kniga_char_pustaya_pergament'),
+  kn_chernobog: I('kniga_navi'), kn_dedy: I('kniga_char_pustaya_pergament'), kn_nebo: I('kniga_char_pustaya_pergament'), kn_zvezdy: I('kniga_char_pustaya_pergament'),
+};
+C.ITEM_ICO_MORE = MAP;
+const apply = () => Object.entries(MAP).forEach(([id, ico]) => { const x = R.item(id); if (x && !x.ico) x.ico = ico; });
+try { apply(); } catch (e) {}
+// вещи, что заводятся позже (книги, железы), — на всякий случай ещё раз при новой игре и загрузке
+['newGame', 'load'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function () { const r = f0.apply(this, arguments); try { apply(); } catch (e) {} return r; }; });
 })(typeof window !== 'undefined' ? window : globalThis);
