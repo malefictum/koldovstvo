@@ -81158,5 +81158,34 @@ const af0 = QT.after;
 QT.after = function (g, t, j, E, c) { af0.apply(this, arguments); try { if (t.gen && j.thread.sid === 's1' && I[t.gen.i].away && t.gen.i === 'propal') QT.away(g, t, 'zh', false); if (t.gen && t.status === 'done') QT.away(g, t, 'zh', false); } catch (e) {} };
 /* на доске: обычные поручения — односложные, на заработок; нить — особая, заводится ГМ из жителей села */
 QT.GEN.START = 0.55;
+/* ============ «одно из простых — не простое» (Ник 27.11) ============
+   Среди обычных поручений на доске иногда одно втайне с подвохом. С виду — волки, трава, пропавшая вещь. Какое — не узнать заранее.
+   Когда дело сделано, на месте находится вещь, которая тянет за собой беду села, — и сразу начинается нить. */
+QT.GEN.HIDE = 0.35;
+const BRIDGE = {
+  propal: c => `Уже уходя, вы замечаете у тропы ${v(c.zh, 'шапку', 'платок')} — ${v(c.zh, 'сухую', 'сухой')}, аккуратно ${v(c.zh, 'сложенную', 'сложенный')}, будто положили нарочно. ${v(c.zh, 'Такую', 'Такой')} носит ${c.zh.n} ${QT.fromAt(c)}. А ${c.zh.n}, как вы потом узнаёте, третий день как пропал${a(c.zh)}.`,
+  pozhar: c => `На обратном пути, у обочины, — черепок горшка с застывшей смолой и паклей. Кто-то нёс его отсюда — или сюда. А над селом уже тянется дым: ночью сгорел овин ${c.zh.g}.`,
+  kolodets: c => `В траве у места — холщовый мешочек с мельничной меткой, а в нём сухие корни. Кто-то из ваших нюхает и морщится: волчий корень. А ${QT.inAt(c)}, говорят, третий день пьют из колодца ${c.zh.g} — и ложатся с горячкой.`,
+  skot: c => `У ручья на обратной дороге — связка болиголова, свежесрезанного, перевязанная лыком. Пастухи такое не носят. А ${QT.inAt(c)} в тот же день у ${c.zh.g} пали три коровы.`,
+  kazna: c => `В пыли у дороги блестит монета — серебро, старое, общинное: такими ${QT.inAt(c)} копили на подать. А к вечеру по селу крик: ларец пропал, и нашли его у ${c.zh.g} в сарае.`,
+  donos: c => `У места валяется обрывок бересты, исцарапанный корявыми буквами: «…ведовство… травы… ${c.zh.n}…» Черновик. А наутро ${QT.intoAt(c)} приезжает стража Ока за ${c.zh.i}.`,
+};
+QT.GEN.BRIDGE = BRIDGE;
+const bd1 = Q.board;
+Q.board = function (g) {
+  const fresh = !(g.jobBoard && g.jobBoard[g.loc] && g.day - g.jobBoard[g.loc].day < 3);
+  const offers = bd1.apply(this, arguments);
+  try { if (fresh && offers.length > 1 && R.rand() < QT.GEN.HIDE && QT.open(g).length < QT.P.OPEN) { const plain = offers.filter(o => !o.thread && !o.hidThread && o.src === 'town'); if (plain.length) R.pick(plain).hidThread = 1; } } catch (e) {}
+  return offers;
+};
+const fin1 = Q.finish;
+Q.finish = function (g, j, text, mul, ex) {
+  const r = fin1.apply(this, arguments);
+  try { if (j && j.hidThread === 1 && !j.thread) { j.hidThread = 2; const at = j.node || g.loc; const t = QT.GEN.start(g, at);
+      if (t) { const jn = t.offer; Q.accept(g, jn); t.fresh = jn.id; t.freshFrom = j.id;
+        const c = Object.assign(QT.ctx(g, t), {rel: t.gen.rel, dvRel: t.gen.dvRel}); const br = (BRIDGE[t.gen.i] || BRIDGE.pozhar)(c);
+        j.outcome = (j.outcome ? j.outcome + ' ' : '') + br; j.notes.push(br); C.note(g, `Простое дело оказалось не простым: «${QT.def(t).title}».`); } } } catch (e) {}
+  return r;
+};
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
