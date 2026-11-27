@@ -72800,7 +72800,7 @@ G.C = C;
 /* Колдовство — наряды ступенями и подарки жене (Ник 25.11). Без DOM. Все числа — тайна мастера (C.DG), игроку только слова.
    • НАРЯДЫ: новый слот «Наряд» (wear.js). Пять ступеней — простое (холст), крашеное, вышитое, праздничное (шёлк, тесьма),
      боярское (парча, жемчужное шитьё) — мужские и женские. Старые вещи встают на ступени: рубаха простая, платье с понёвой — 1,
-     рубаха вышитая — 3 (шёлковый кафтан остаётся плащом).
+     рубаха вышитая — 3, шёлковый кафтан — 4 (наряд; плащ носят поверх).
    • ШВЕЯ ШЬЁТ: «Сшить наряд» у швеи (мастера и люди): в селе — до вышитого, в городе — до праздничного; боярское — только
      городская мастерица, которая к вам расположена. Заказ шьётся несколько дней, забирают у неё же. Цена — по ступени и месту.
    • НАРЯД И СОСЛОВИЕ: как растут отношения (разговор, дела, встречи, жена, мастера) и как смотрят при флирте — от наряда
@@ -72844,6 +72844,11 @@ C.DRESS_T = {rubaha_prostaya: 1, plate_rubaha_s_ponevoy: 1, rubaha_vyshitaya: 3}
 ['m', 'f'].forEach(sx => Object.entries(NAR[sx]).forEach(([t, [id, n, notes]]) => {
   if (!I[id]) I[id] = {_t: 'g', id, category: 'одежда', name: n, price: K().PRICE[t] * ZM, weight_kg: t >= 5 ? 3 : 1, notes, dressSex: sx};
   C.DRESS_T[id] = +t; C.WEAR[id] = {slot: 'dress', fx: FX[t]}; }));
+/* шёлковый кафтан — наряд, а не плащ (Ник 27.11: «плащ поверх»): праздничная ступень, его прибавки к Дипломатии и Торговле
+   остаются; корзно и расшитая мантия — плащи, их носят поверх наряда */
+C.DRESS_T.kaftan_shelkovyy = 4; if (C.WEAR.kaftan_shelkovyy) C.WEAR.kaftan_shelkovyy = Object.assign({}, C.WEAR.kaftan_shelkovyy, {slot: 'dress', fx: 'богатый наряд: +1 к Дипломатии и Торговле; праздничный — купцы и знать смотрят приветливее'});
+const moveKaftan = h => { if (!h || !h.eq || h.eq.cloak == null) return; if ((R.baseId ? R.baseId(h.eq.cloak) : h.eq.cloak) !== 'kaftan_shelkovyy') return; if (!h.eq.dress) h.eq.dress = h.eq.cloak; h.eq.cloak = null; };
+{ const pn0 = C.profNorm; C.profNorm = function (g) { if (pn0) pn0.apply(this, arguments); try { if (g) C.alive(g).concat(g.mercs || []).forEach(moveKaftan); } catch (e) {} }; }
 ['rubaha_prostaya', 'plate_rubaha_s_ponevoy', 'rubaha_vyshitaya'].forEach(id => { if (I[id] && !C.WEAR[id]) C.WEAR[id] = {slot: 'dress', fx: FX[C.DRESS_T[id]]}; });
 /* к нарядам — кокошник и шуба: в городе у швеи, готовые; на подарок (Ник 25.11) */
 if (!I.kokoshnik) I.kokoshnik = {_t: 'g', id: 'kokoshnik', category: 'одежда', name: 'Кокошник с жемчугом', price: 60 * ZM, weight_kg: 0.5, notes: 'Бархат, речной жемчуг, цветные камушки — убор замужней знатной женщины.'};

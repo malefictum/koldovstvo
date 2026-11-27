@@ -27398,7 +27398,7 @@ C.WEAR = {
   mantiya_grubaya_votola: {slot: 'cloak', sk: {Выживание: 1}, fx: '+1 к Выживанию'},
   svita_sherstyanaya: {slot: 'cloak', sk: {Выживание: 1}, fx: '+1 к Выживанию'},
   korzno_knyazheskoe: {slot: 'cloak', sk: {Дипломатия: 2, Запугивание: 1}, fx: 'знак знатного: +2 к Дипломатии, +1 к Запугиванию'},
-  kaftan_shelkovyy: {slot: 'cloak', sk: {Дипломатия: 1, Торговля: 1}, fx: 'богатый наряд: +1 к Дипломатии и Торговле'},
+  kaftan_shelkovyy: {slot: 'dress', sk: {Дипломатия: 1, Торговля: 1}, fx: 'богатый наряд: +1 к Дипломатии и Торговле'},
   mantiya_rasshitaya_oblachenie: {slot: 'cloak', sk: {Вера: 2, Дипломатия: 1}, power: 1, fx: 'облачение: +2 к Вере, +1 к Дипломатии; служителям — +1 Сила'},
   obereg_znak_boga: {slot: 'neck', will: 1, power: 2, fx: 'знак бога: +1 к Воле; жрецам и волхвам — +2 Силы'},
   tr_obereg: {slot: 'neck', will: 1, fx: 'оберег: +1 к Воле'},
@@ -27422,7 +27422,7 @@ C.wearFx = x => {
   if (w.fx) out.push(w.fx); else if (w.sk) out.push(Object.entries(w.sk).map(([k, v]) => `${v > 0 ? '+' : ''}${v} к ${k}`).join(', '));
   return out.join('; ');
 };
-const worn = h => ['hands', 'legs', 'feet', 'cloak', 'neck', 'ring1', 'ring2'].map(k => h.eq && h.eq[k]).filter(Boolean);
+const worn = h => ['dress', 'hands', 'legs', 'feet', 'cloak', 'neck', 'ring1', 'ring2'].map(k => h.eq && h.eq[k]).filter(Boolean);
 C.worn = worn;
 const DIVINE = ['chernets', 'obetnik', 'volhv', 'zhrets', 'vedmak', 'lovchiy'];
 const sk0 = R.skill;
@@ -50370,7 +50370,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611271602"></script><script>
+</script><script src="world.js?v=202611271614"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
