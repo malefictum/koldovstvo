@@ -77449,9 +77449,16 @@ if (C.walkTarget) { const wt0 = C.walkTarget; C.walkTarget = function (S, g) { c
   try { const T = g.kvHbTgt, x = T && C.kvLocOf(g, T.r); if (!T || T.node !== g.loc || !x || !x.hb || x.hb.dead || x.st !== 'wife' || (S.walk && !S.walk.night) || hbAway(g, x)) return null;
     const fake = {id: 'kvhb_' + x.id, status: 'open', kind: 'contract', tw: {node: g.loc, name: '', town: false, wealth: T.wealth, day: 'korchma'}, v: {vic: {n: T.n, sex: T.sex}}};
     g.jobs = g.jobs || []; g.jobs.push(fake); try { return wt0.call(this, S, g); } finally { g.jobs = g.jobs.filter(j => j !== fake); } } catch (e) { return null; } }; }
+/* свидетель — только тот, кто видел у его избы: как заходил и как выходил (в трёх шагах от двери или внутри), а не просто на улице */
+const nearHome = (S, u, hid) => { const h = BF0().houses(S.field).find(x => x.id === hid); if (!h) return false; if (BF0().inHouse(S, u) === hid) return true; return (h.doors || []).some(d => B0().dist(u, d) <= 3); };
+const BF0 = () => G.B.BF, B0 = () => G.B;
+if (C.walkTick) { const tk0 = C.walkTick; C.walkTick = function (S) { const r = tk0.apply(this, arguments);
+  try { const Wk = S && S.walk; const tg = Wk && Wk.tgt && S.units.find(x => x.id === Wk.tgt); if (tg && tg.civ && /^kvhb_/.test(String(tg.civ.jid || ''))) { Wk.kvNear = Wk.kvNear || {};
+      S.units.filter(u => u.side === 'party' && u.ref && u.c != null).forEach(u => { if (nearHome(S, u, tg.civ.home)) Wk.kvNear[u.ref.id + '|' + Wk.rnd] = 1; }); } } catch (e) {}
+  return r; }; }
 if (C.walkClose) { const wc0 = C.walkClose; C.walkClose = function (g, S) { try { const Wk = S && S.walk, T = Wk && Wk.tgtDead;
     if (T && String(T.jid || '').startsWith('kvhb_')) { const x = C.kvLocOf(g, T.jid.slice(5)), h = heroById(g, T.hid); delete Wk.tgtDead;
-      if (x && x.hb && !x.hb.dead) { const wit = T.wit || (Wk.seen || []).some(s2 => s2.hid === T.hid && s2.r >= T.r) ? 'someone' : null;
+      if (x && x.hb && !x.hb.dead) { const near = Wk.kvNear || {}, wit = T.wit || (Wk.seen || []).some(s2 => s2.hid === T.hid && (near[s2.hid + '|' + s2.r] || near[s2.hid + '|' + (s2.r - 1)])) ? 'someone' : null; // видели у его избы — до или после
         x.hb.dead = day(g); x.st = 'widow'; x.t = 'вдова'; delete x.hb.plan; if (g.kvHbTgt && g.kvHbTgt.r === x.id) delete g.kvHbTgt;
         if (h && C.crimeAdd) try { C.crimeAdd(g, h, 'murder', {seen: !!wit, noWit: true, quiet: 1, why: 'муж знакомой', place: 'village'}); } catch (e) {}
         if (C.repAdd && wit) C.repAdd(g, x.at, -2, 'убит муж');
