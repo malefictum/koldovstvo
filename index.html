@@ -50348,7 +50348,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611270605"></script><script>
+</script><script src="world.js?v=202611270718"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -55202,6 +55202,7 @@ function drawPanel() {
       ${windWhy !== null ? btn('b-wind', 'Второе дыхание', !!windWhy, tip(windWhy, `Раз за бой: вернуть 1d10 + ${u.level} (уровень) хитов`)) : ''}
       ${B.callWhy && B.callWhy(S, u) != null ? (() => { const cw = B.callWhy(S, u), ms = B.orderMercs(S), row = (who, n, cur) => `<div class="ordrow"><b>${esc(n)}</b>${B.ORDERS.map(([v, t]) => `<button class="btn small ${cur === v ? 'on' : ''}" data-ord="${v}" data-who="${who}" ${cw ? 'disabled' : ''} title="${esc(cw || 'Малое действие: приказ словами. Окрик слышат и враги')}">${t}</button>`).join('')}</div>`;
         return `<details class="bmore" id="b-ord"><summary>Приказ своим</summary><div class="bmore-g">${ms.length > 1 ? row('all', 'Все', null) : ''}${ms.map(m => row(m.id, m.n, m.ord)).join('')}</div></details>`; })() : ''}
+      ${B.canSneak && B.canSneak(S, u) ? btn('b-sneak', u.bfSneak ? 'В полный шаг' : 'Красться', false, u.bfSneak ? 'Обычный шаг: все шаги, но слышно и видно издали' : 'Свободно: шагов вдвое меньше, зато тихо — издали заметить трудно', u.bfSneak ? 'on' : '') : ''}
       ${tat || (B.shadowHide && B.shadowHide(u)) ? btn('b-thide', tat ? 'Хитрость: затаиться' : 'В тень', Bn || !!hideWhy, tip(hideWhy || usedB, 'Затаиться малым действием')) : ''}
       ${u.cls === 'dushegub' || u.offhand ? btn('b-off', 'Вторая рука' + (u.offhand ? ': ' + esc(u.offhand.name) : ''), Bn || !!afterHitWhy, tip(afterHitWhy || usedB, `После удара основным оружием — ещё удар левой рукой (${u.offhand ? u.offhand.dmg : '1d4'})`), mode === 'offhand' ? 'on' : '') : ''}
       ${poisonWhy !== null ? btn('b-poison', `Яд на клинок (${u.poison})`, !!poisonWhy, tip(poisonWhy, 'Следующий удачный удар вблизи отравит цель: урон в начале её хода три хода подряд. Нежить, духов и истуканов яд не берёт')) : ''}
@@ -55250,6 +55251,7 @@ function drawPanel() {
     on('#b-tdash', () => go('dash', {cun: 1}, true));
     on('#b-tdis', () => go('dis', {cun: 1}, true));
     on('#b-thide', () => go('hide', {cun: 1}, true));
+    on('#b-sneak', () => go('bf', {k: 'sneak'}, true));
     $('#acts').querySelectorAll('[data-ord]').forEach(b => b.onclick = () => go('bf', {v: b.dataset.ord, who: b.dataset.who}, true));
     on('#b-off', () => { mode = mode === 'offhand' ? null : 'offhand'; redraw(); });
     on('#b-shove', () => { mode = mode === 'shove' ? null : 'shove'; redraw(); });
