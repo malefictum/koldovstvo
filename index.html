@@ -38380,6 +38380,9 @@ C.heroStatus = function (g, h) {
     get muted() { return store.muted; },
     mute(on) { store.muted = on == null ? !store.muted : !!on; save(); apply(); return store.muted; },
     unlock, get ready() { return live(); }, get ctx() { return ctx; }, _bus: () => ({master, sfxBus, musBus}),
+    // для других модулей: свой звук из тех же кирпичиков (love_tune.js и т. п.)
+    def(name, fn, loud) { SND[name] = fn; if (loud) LOUD[name] = loud; PRIO[name] = 1; if (!C.SFX.names.includes(name)) C.SFX.names.push(name); },
+    kit: {tone, noise, pluck, bell, hz, env, gainAt, rnd, pickA},
   };
 
   if (hasWin && G.document) {
@@ -50367,7 +50370,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611271328"></script><script>
+</script><script src="world.js?v=202611271413"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
