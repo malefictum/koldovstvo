@@ -78707,7 +78707,7 @@ C.folkPerson = function (g, role, at) {
   p.face = ageFace(p.face, p.age);
   try { const s = S(g); if ((s.seen[key] || 0) < gen) { s.seen[key] = gen;
       if (rel) { const keep = Math.round((rel.rep || 0) * 0.5); Object.keys(rel).forEach(k => { if (!['camp', 'who'].includes(k)) delete rel[k]; }); rel.rep = keep; rel.heir = gen; }
-      const pl = placeName(g, at); if (C.note && (rel || g.loc === at)) C.note(g, `${pl ? pl + ': ' : ''}${p.heirOf ? 'нет больше ' + (decl(p.heirOf.split(' ')[0], p0.sex).g || p.heirOf) + ' — ' : ''}дело держит ${p.kin} — ${p.n}.${rel && rel.rep > 0 ? ' Про отряд ' + (p.sex === 'f' ? 'она' : 'он') + ' наслышан' + (p.sex === 'f' ? 'а' : '') + ': примет как знакомых.' : ''}`); } } catch (e) {}
+      const pl = placeName(g, at); if (C.note && (rel || g.loc === at)) C.note(g, `${pl ? pl + ': ' : ''}${p.heirOf ? 'нет больше ' + (decl(p.heirOf.split(' ')[0], p0.sex).g || p.heirOf) + ' — ' : ''}дело держит ${p.heirOf ? (p0.sex === 'f' ? 'её ' : 'его ') : ''}${p.kin}, ${p.n}.${rel && rel.rep > 0 ? ' Про отряд ' + (p.sex === 'f' ? 'она' : 'он') + ' наслышан' + (p.sex === 'f' ? 'а' : '') + ': примет как знакомых.' : ''}`); } } catch (e) {}
   return p;
 };
 /* ---------- ключевые люди мест (SPEAKERS) в Вечном мире: имя и лицо наследника, реплики те же ---------- */
