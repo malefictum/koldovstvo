@@ -1493,13 +1493,15 @@ B.SPR_ALIAS = {
 };
 B.SPR_GROUP = {'нежить': {beast: 'upyr_krovopiytsa', tint: 'dead'}, 'нечисть': {beast: 'anchutka_zavodila', size: 0.9}, 'духи': {beast: 'naviy_duh'}, 'звери': {like: 'volk'}, 'чудовища': {beast: 'garguliya'}, 'люди': {sprite: 'club'}};
 /* облик героя из пробного набора «Колдовства»: тело по доспеху и классу + оружие, щит, шлем */
+B.hasBook = h => !!(h && Array.isArray(h.inv) && h.inv.some(id => /^(kniga_|kn_)/.test(String(id))));
 B.lookFor = function (h, D) {
   const f = h.sex === 'f', cls = h.cls, body = D.body, layer = body ? body.layer : null;
   let base;
   if (['chernets'].includes(cls) && (!layer || ['стёганка', 'кожа'].includes(layer))) base = f ? 'f_oka' : 'monk';
   // у тела волхва борода нарисована на груди: молодому (до 30) — одежда книжника, без бороды (Ник 25.11: «маг-подросток и маг-дед»)
-  else if (['volhv', 'zhrets'].includes(cls) && (!layer || ['стёганка', 'кожа'].includes(layer))) base = f ? 'vedunya' : (((G.C && G.C.ageOf) ? G.C.ageOf(h) : 40) < 30 ? 'scholar' : 'volhv');
-  else if (['knizhnik', 'charovnik'].includes(cls) && (!layer || layer === 'стёганка')) base = f ? 'vedunya' : cls === 'charovnik' ? 'necro' : 'scholar';
+  // книга у бедра нарисована на теле книжника (scholar): рисуем его, только если книга и правда в суме (Ник 27.11: «а у нас её нет»)
+  else if (['volhv', 'zhrets'].includes(cls) && (!layer || ['стёганка', 'кожа'].includes(layer))) base = f ? 'vedunya' : (((G.C && G.C.ageOf) ? G.C.ageOf(h) : 40) < 30 ? (B.hasBook(h) ? 'scholar' : 'm_' + (layer === 'кожа' ? 'leather' : layer ? 'gambeson' : 'shirt')) : 'volhv');
+  else if (['knizhnik', 'charovnik'].includes(cls) && (!layer || layer === 'стёганка')) base = f ? 'vedunya' : cls === 'charovnik' ? 'necro' : (B.hasBook(h) ? 'scholar' : 'm_' + (layer ? 'gambeson' : 'shirt'));
   // ярый: голый торс, кожаный наплечник или кольчуга со шкурой — свои тела (листы 60–61); стёганку он носит как кожу
   else if (cls === 'yaryi' && (!layer || ['стёганка', 'кожа', 'кольчуга'].includes(layer))) base = (f ? 'f_barb' : 'm_barb') + (layer === 'кольчуга' ? '_mail' : layer ? '_leather' : '');
   else base = (f ? 'f_' : 'm_') + ({'стёганка': 'gambeson', 'кожа': 'leather', 'кольчуга': 'mail', 'чешуя': 'scale', 'дощатая': f ? 'lamellar' : 'lamellar2'}[layer] || (f ? 'dress' : 'shirt'));
@@ -50370,7 +50372,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611271614"></script><script>
+</script><script src="world.js?v=202611271702"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.

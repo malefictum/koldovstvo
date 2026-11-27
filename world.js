@@ -79673,6 +79673,10 @@ const MAP = {
   kn_chernobog: I('kniga_navi'), kn_dedy: I('kniga_char_pustaya_pergament'), kn_nebo: I('kniga_char_pustaya_pergament'), kn_zvezdy: I('kniga_char_pustaya_pergament'),
 };
 C.ITEM_ICO_MORE = MAP;
+/* старым книжникам — та же книга, один раз */
+if (C.profNorm) { const pn0 = C.profNorm; C.profNorm = function (g) { const r = pn0.apply(this, arguments); try { if (g) C.alive(g).forEach(h => { if (h.cls !== 'knizhnik' || h.bookV || !Array.isArray(h.inv)) return; h.bookV = 1; if (!h.inv.some(id => /^kniga_/.test(id)) && R.item('kniga_char_pustaya_pergament')) h.inv.push('kniga_char_pustaya_pergament'); }); } catch (e) {} return r; }; }
+/* книжнику — книга чар в стартовый набор: она нарисована у него на боку, пусть будет и в суме (Ник 27.11) */
+if (R.giveKit) { const gk0 = R.giveKit; R.giveKit = function (h) { const r = gk0.apply(this, arguments); try { if (h && h.cls === 'knizhnik' && Array.isArray(h.inv) && !h.inv.some(id => /^kniga_/.test(id)) && R.item('kniga_char_pustaya_pergament')) h.inv.push('kniga_char_pustaya_pergament'); } catch (e) {} return r; }; }
 const apply = () => Object.entries(MAP).forEach(([id, ico]) => { const x = R.item(id); if (x && !x.ico) x.ico = ico; });
 try { apply(); } catch (e) {}
 // вещи, что заводятся позже (книги, железы), — на всякий случай ещё раз при новой игре и загрузке
