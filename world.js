@@ -77442,3 +77442,49 @@ C.kvAutoDay = function (g) {
 const pass0 = C.pass;
 C.pass = function (g) { const d = g && g.day; const r = pass0.apply(this, arguments); try { if (g && g.day > d) C.kvAutoDay(g); } catch (e) {} return r; };
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* kv_long.js */
+/* Колдовство — тоска по ласке (Ник 27.11: «если ты не служитель Ока, твой герой нуждается в ласках. Спустя неделю он ощущает,
+   что соскучился, через месяц — сильно соскучился. Это влияет на максимальный боевой дух. И в сёлах он может грустить, если
+   ему оказывают знаки внимания, а ты как игрок ему это не даёшь. Есть жена — его тянет к ней домой; любовницы — грустит хоть
+   за кем-то»).
+   • Последняя ласка — h.kvDay (ночь со знакомой, гостьей, в весёлом доме, с наёмницей; ночь дома с женой — тоже).
+   • Неделя без — «соскучился»: потолок духа не выше «Бодр»; месяц — «сильно соскучился»: не выше «В духе».
+   • На героя засмотрелись, а игрок отказал или отшутился — герой грустит: дух −1 («провожает взглядом и вздыхает»).
+   • В тексте духа и в летописи — по кому: жена — «тянет домой, к …»; знакомые — «скучает по …»; никого — «по ласке».
+   • Не касается чернецов и обетников (служители Ока), детей и наёмников (у них свои дела — merc_romance). */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C; if (!R || !C || !C.spiritCap) return;
+const K = C.KV_LONG = {D1: 7, D2: 30, CAP1: 2, CAP2: 1};
+const day = g => (g && g.day) || 1;
+const OKO_CLS = /^(chernets|obetnik)$/;
+let GG = null; // игра для потолка духа (C.spiritCap получает только героя)
+const exempt = h => !h || h.kind === 'merc' || OKO_CLS.test(String(h.cls || '')) || (h.age != null && h.age < 16);
+const since = (g, h) => { if (h.meal && h.meal.id === 'home_love' && h.meal.day) h.kvDay = Math.max(h.kvDay || 0, h.meal.day);
+  if (h.kvDay == null) h.kvDay = h.kvStart != null ? h.kvStart : (h.kvStart = day(g)); return day(g) - h.kvDay; };
+C.kvLong = (g, h) => { if (!g || exempt(h)) return 0; const n = since(g, h); return n >= K.D2 ? 2 : n >= K.D1 ? 1 : 0; };
+const whom = (g, h) => { const sp = h.spouse; if (sp && sp.n) return {k: 'home', n: String(sp.n).split(' ')[0]};
+  const L = Object.values(g.kvLoc || {}).filter(r => r.hid === h.id && !['wed', 'gone'].includes(r.st) && !r.cold).sort((a, b) => (b.rel || 0) - (a.rel || 0));
+  if (L[0]) return {k: 'lover', n: String(L[0].n).split(' ')[0], sex: L[0].sex}; return {k: 'none'}; };
+const decl = (n, sex) => (C.Q && C.Q.decl ? C.Q.decl(n || '', sex) : null) || {n, d: n, p: n};
+C.kvLongWhy = (g, h) => { const L = C.kvLong(g, h); if (!L) return ''; const w = whom(g, h), f = h.sex === 'f';
+  const base = L === 2 ? `сильно соскучил${f ? 'ась' : 'ся'}` : `соскучил${f ? 'ась' : 'ся'}`;
+  if (w.k === 'home') return `${base} — тянет домой, к ${decl(w.n, f ? 'm' : 'f').d}`;
+  if (w.k === 'lover') return `${base} по ${decl(w.n, w.sex).d}`;
+  return `${base} по ласке`; };
+const cap0 = C.spiritCap;
+C.spiritCap = function (h) { const c = cap0.apply(this, arguments); try { const g = GG; if (g && h && !exempt(h) && g.heroes && g.heroes.includes(h)) { const L = C.kvLong(g, h); if (L === 2) return Math.min(c, K.CAP2); if (L === 1) return Math.min(c, K.CAP1); } } catch (e) {} return c; };
+if (C.spiritText) { const st0 = C.spiritText; C.spiritText = function (h) { let t = st0.apply(this, arguments); try { const g = GG; const w = g && C.kvLongWhy(g, h); if (w) t += ` ${w[0].toUpperCase() + w.slice(1)}: выше «${C.SPIRIT_RU[C.kvLong(g, h) === 2 ? K.CAP2 : K.CAP1]}» дух не поднять.`; } catch (e) {} return t; }; }
+/* игра под рукой: запоминаем при каждом изменении духа и ходе дня */
+if (C.spiritAdd) { const sa0 = C.spiritAdd; C.spiritAdd = function (g) { if (g && g.heroes) GG = g; return sa0.apply(this, arguments); }; }
+if (C.pass) { const p0 = C.pass; C.pass = function (g) { if (g && g.heroes) GG = g; const d = g && g.day; const r = p0.apply(this, arguments);
+  try { if (g && g.day > d) C.alive(g).forEach(h => { if (exempt(h)) return; const L = C.kvLong(g, h); if (L && (h.kvLongSaid || 0) < L) { h.kvLongSaid = L; C.note(g, `${h.name} ${C.kvLongWhy(g, h)}.`); h.spirit = Math.min(h.spirit || 0, C.spiritCap(h)); } if (!L) h.kvLongSaid = 0; }); } catch (e) {} return r; }; }
+if (C.sceneOf) { const so0 = C.sceneOf; C.sceneOf = function (g) { if (g && g.heroes) GG = g; return so0.apply(this, arguments); }; }
+/* засмотрелись, а отказал — грустит */
+if (C.TL_EV && C.TL_EV.kv_flirt) { const E = C.TL_EV.kv_flirt, op0 = E.opts;
+  E.opts = function (g, Ev) { const out = op0.apply(this, arguments); try { const h = (g.heroes ? C.alive(g) : []).find(y => y.id === Ev.data.hid); if (!h || !C.kvLong(g, h)) return out;
+      out.forEach(o => { if (o.k !== 'no' && o.k !== 'joke') return; const d0 = o.do; o.do = function (g2, X) { const r = d0.apply(this, arguments);
+        try { X.log.push({who: 'n', text: `${h.name} провожает ${Ev.who.sex === 'f' ? 'её' : 'его'} взглядом — и вздыхает: ${C.kvLongWhy(g2, h)}.`}); if (C.spiritAdd) C.spiritAdd(g2, -1, '', h); } catch (e) {} return r; }; }); } catch (e) {}
+    return out; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
