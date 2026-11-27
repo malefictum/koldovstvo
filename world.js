@@ -79950,3 +79950,43 @@ if (C.register) { const reg0 = C.register; C.register = function (camp) { const 
         const bi = sc.choices.findIndex(q => /^(Назад|Уйти|В путь|На карту)/.test(q.label || '')); sc.choices = sc.choices.slice(); sc.choices.splice(bi < 0 ? sc.choices.length : bi, 0, c); } } } catch (e) {}
   return sc; }; }
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* body_poses.js */
+/* Колдовство — body_poses: сесть и встать, присесть крадучись; банщицы и девицы на выданье (Ник 27.11, листы 114 и 115).
+   • «Сесть на лавку» на прогулке: герой стоит на лавке или у стола — садится (кадр «сидит»). Любой шаг — встаёт сам.
+   • Крадучись (походка «крадучись» на прогулке, «Красться» в бою) — кадр «присел на колено», если у тела он нарисован;
+     ui.js выбирает кадр сам (u.sit, u.crouch, u.gait).
+   • Банщицы в бане и у бани — в белых банных рубахах (f_bath, f_bath2); молодые незамужние — в нарядах девиц на выданье
+     с венком или лентой в косе (f_maiden, f_maiden2). Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, B = G.B, C = G.C;
+if (!R || !B || !C || !B.BF) return;
+const BF = B.BF;
+const hsh = s => { let h = 2166136261; s = String(s || ''); for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return h >>> 0; };
+const has = k => { try { return !!(G.ATLAS && G.ATLAS.heroes && G.ATLAS.heroes[k + '_stand']); } catch (e) { return false; } };
+/* ---------- одежда жителей ---------- */
+if (C.civDress) { const cd0 = C.civDress; C.civDress = function (u) { const r = cd0.apply(this, arguments);
+  try { if (!u || !u.civ || !u.look || u.side === 'foe' || u.civ.hostile) return r; const f = u.look.base === 'f_dress', k = hsh(u.name || u.id);
+    if (f && (u.civ.job === 'banya' || u.civ.svc === 'bansh' || /банщиц/.test(u.name || ''))) { const b = k % 2 ? 'f_bath2' : 'f_bath'; if (has(b)) u.look = Object.assign({}, u.look, {base: b, tint: null}); }
+    else if (f && (u.civ.young || u.civ.maiden) && u.civ.svc !== 'vesely') { const b = k % 2 ? 'f_maiden2' : 'f_maiden'; if (has(b)) u.look = Object.assign({}, u.look, {base: b, tint: null}); }
+  } catch (e) {} return r; }; }
+/* незамужние молодые жительницы — тоже девицы (town_folk: st single, age young) */
+if (C.walkSetup) { const ws0 = C.walkSetup; C.walkSetup = function (S, g) { const r = ws0.apply(this, arguments);
+  try { const ppl = C.tfPeople ? C.tfPeople(g, g.loc) : []; (S.units || []).forEach(u => { if (!u.civ || !u.civ.tf || !u.look || u.look.base !== 'f_dress') return; const p = ppl.find(x => x.id === u.civ.tf);
+      if (p && p.sex === 'f' && p.st === 'single' && p.age === 'young') { u.civ.maiden = 1; const b = hsh(u.name) % 2 ? 'f_maiden2' : 'f_maiden'; if (has(b)) u.look = Object.assign({}, u.look, {base: b, tint: null}); } }); } catch (e) {}
+  return r; }; }
+/* ---------- сесть и встать ---------- */
+const SEAT = ['hbench', 'bed', 'bench'];
+const seatNear = (S, u) => { const x = B.cell(S, u.c, u.r); if (x && SEAT.includes(x.t)) return true; return B.neigh(u.c, u.r).some(q => { const y = B.cell(S, q.c, q.r); return y && (y.t === 'table'); }); };
+C.walkActsX = C.walkActsX || []; C.walkDoX = C.walkDoX || {};
+C.walkActsX.push(function (S, u, out) { const Wk = S.walk; if (!Wk || Wk.fight || u.lying) return;
+  if (u.sit) out.push({v: 'bp_sit', p: 0, label: 'Встать', title: 'Подняться с лавки', grp: 'Прогулка'});
+  else if (seatNear(S, u)) out.push({v: 'bp_sit', p: 1, label: 'Сесть', title: 'Присесть на лавку или к столу — передохнуть, послушать, о чём говорят', grp: 'Прогулка'}); });
+C.walkDoX.bp_sit = function (S, u, a) { u.sit = !!a.p; if (u.sit && u.crouch && C.walkGait) C.walkGait(u, 'walk'); if (B.log) B.log(S, `${String(u.name).split(',')[0]} ${u.sit ? 'садится на лавку.' : 'поднимается.'}`, ''); return ''; };
+/* любой шаг — встаёт; началась драка — все на ногах */
+if (C.walkTick) { const wt0 = C.walkTick; C.walkTick = function (S) { const r = wt0.apply(this, arguments); try { if (S && S.walk && S.walk.fight) (S.units || []).forEach(u => { if (u.sit) u.sit = false; }); } catch (e) {} return r; }; }
+if (B.move) { const mv0 = B.move; B.move = function (S, u) { try { if (u && u.sit) u.sit = false; } catch (e) {} return mv0.apply(this, arguments); }; }
+if (C.walkGait) { const wg0 = C.walkGait; C.walkGait = function (u, m) { try { if (u && m && u.sit) u.sit = false; } catch (e) {} return wg0.apply(this, arguments); }; }
+if (B.start) { const bs0 = B.start; B.start = function () { const S = bs0.apply(this, arguments); try { (S && S.units || []).forEach(u => { if (u.sit && !(S.walk && !S.walk.fight)) u.sit = false; }); } catch (e) {} return S; }; }
+})(typeof window !== 'undefined' ? window : globalThis);
