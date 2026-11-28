@@ -81976,7 +81976,7 @@ G.C = C;
 'use strict';
 const R = G.R, C = G.C, Q = C && C.Q, W = G.W;
 if (!R || !C || !Q || !C.kvAfter) return;
-C.BL = Object.assign({HOME: 0.3, LAND: 0.08, FAR: 0.02, KNOW: 2, GONE: 600, YEAR: 360, VES_DAYS: 30, VES_GAP: 3, VES_DC: 13, BUY: 10}, C.BL || {}); // тайна мастера
+C.BL = Object.assign({HOME: 0.3, LAND: 0.08, FAR: 0.02, KNOW: 2, GONE: 600, YEAR: 360, VES_DAYS: 30, VES_GAP: 3, VES_DC: 13, BUY: 10, TALK: 300}, C.BL || {}); const BL = C.BL; // тайна мастера
 const K = () => C.BL;
 const v = (p, m, f) => p && p.sex === 'f' ? f : m;
 const day = g => g.day || 1;
@@ -82110,7 +82110,7 @@ C.sceneOf = function (g, id) {
       const runDis = (h, b) => helpP(h, b) && (g.purse || 0) < helpP(h, b) ? 'не хватает серебра' : undefined;
       const runDo = (h, b) => g2 => { const hh = heroById(g2, h.id); if (!hh) return SID; const pr = helpP(hh, b); if (pr) { if ((g2.purse || 0) < pr) return SID; g2.purse -= pr; } const x = C.banshRun(g2, hh, b); if (x && x.junior) { g2.kvLast = x.text; return SID; }
         g2.kvLast = `Ночью, пока ${b.ves ? 'хозяйка дома считает выручку' : 'хозяин бани спит'}, ${b.n} выходит к коновязи с узелком — всё ${v(b, 'его', 'её')} добро. ${v(b, 'Он', 'Она')} не плачет и не оглядывается. «Куда? — В ${(nodes(g2)[x.at] || {}).name || 'соседнее село'}. Там тебя никто не знает». Утром ${b.ves ? 'хозяйка дома' : 'хозяин бани'} будет кричать на всю улицу. Пусть кричит.`; return SID; };
-      hs.forEach(h => { if (!VES && !C.banshSpecial(g, g.loc)) return; const b = banshOf(g, g.loc, h.sex === 'f' ? 'm' : 'f', VES ? 'ves' : 'bansh'); if ((g.banshRun || {})[b.key]) return; const B = bondOf(g, b, h); if (C.saviorMeet) { const L = C.saviorMeet(g, h, b, B, VES); if (L) sc.lines = (sc.lines || []).concat([['n', L]]); }
+      hs.forEach(h => { if (!VES && !C.banshSpecial(g, g.loc)) return; const b = banshOf(g, g.loc, h.sex === 'f' ? 'm' : 'f', VES ? 'ves' : 'bansh'); if ((g.banshRun || {})[b.key]) return; const B = bondOf(g, b, h); if (C.saviorMeet) { const L = C.saviorMeet(g, h, b, B, VES); if (L) sc.lines = (sc.lines || []).concat([['n', L]]); } if (C.saviorTip) { const c = C.saviorTip(g, h, b, B, VES, SID); if (c) add.push(Object.assign({i: i++, own: h.id, t: ''}, c)); }
         if (VES) { /* весёлый дом: план выкупа после постельных разговоров */
           if (!B.plan) return; const price = C.vesBuyPrice(g);
           add.push({i: i++, own: h.id, label: `${h.name}: выкупить ${Q.decl(b.n, b.sex).a} у хозяйки — ${R.priceText(price)}`, t: '', dis: (g.purse || 0) < price ? 'не хватает серебра' : undefined, do: g2 => { const hh = heroById(g2, h.id); if (!hh || (g2.purse || 0) < price) return SID; g2.purse -= price; const x = C.banshRun(g2, hh, b);
@@ -82119,7 +82119,7 @@ C.sceneOf = function (g, id) {
           return; }
         /* баня: разговор — когда позвал попарить, а большего не просил (Ник 28.11) */
         const steamed = h.kvSvc === day(g) && h.kvBanshTry !== day(g);
-        if (steamed && B.talkDay !== day(g) && (B.trust || 0) < (C.forestFirst && C.forestFirst(h) ? 2 : 3)) add.push({i: i++, own: h.id, label: `${h.name}: поговорить с ${B.known ? Q.decl(b.n, b.sex).i : v(b, 'банщиком', 'банщицей')}, пока ${v(b, 'он', 'она')} парит`, t: '', do: g2 => { const hh = heroById(g2, h.id) || h; g2.kvLast = C.banshTalk(g2, hh, b); return SID; }});
+        if (steamed && B.talkDay !== day(g) && (B.trust || 0) < (C.forestFirst && C.forestFirst(h) ? 2 : 3)) add.push({i: i++, own: h.id, label: `${h.name}: доплатить хозяину за долгий пар — и поговорить с ${B.known ? Q.decl(b.n, b.sex).i : v(b, 'банщиком', 'банщицей')}, пока ${v(b, 'он', 'она')} парит — ${R.priceText(BL.TALK)}`, t: '', dis: (g.purse || 0) < BL.TALK ? 'не хватает серебра' : undefined, do: g2 => { if ((g2.purse || 0) < BL.TALK) return SID; g2.purse -= BL.TALK; const hh = heroById(g2, h.id) || h; g2.kvLast = `Хозяин пересчитывает доплату и уходит, не спросив зачем. ` + C.banshTalk(g2, hh, b); return SID; }});
         if (steamed && (B.trust || 0) >= (C.forestFirst && C.forestFirst(h) ? 2 : 3) && !B.plea && B.talkDay !== day(g) && C.banshSpine && !C.banshSpine(h)) { if (B.soft !== day(g)) { B.soft = day(g); B.talkDay = day(g); const sf = C.banshSoft(h, b); g.kvLast = sf; sc.lines = (sc.lines || []).concat([['n', sf]]); } }
         else if (steamed && (B.trust || 0) >= (C.forestFirst && C.forestFirst(h) ? 2 : 3) && !B.plea && B.talkDay !== day(g)) { B.plea = day(g); B.talkDay = day(g); const pl = C.banshPlea(g, h, b); g.kvLast = pl; sc.lines = (sc.lines || []).concat([['n', pl]]); }
         if (B.plea && !B.refused) {
@@ -82897,8 +82897,8 @@ C.sceneOf = function (g, id) {
 /* ---------- как привечают спасителя новые — в бане и в весёлом доме (Ник 28.11) ----------
    Слух у них идёт без слов: оберег на шее, имя, что передают из бани в баню. Новая узнаёт сразу — и встречает иначе:
    не ластится и не торгуется, а смотрит, как на своего; парит дольше, шепчет новости; хозяйку отваживает. Доверие — сразу. */
-const MEET_B = ['{n} замирает с веником в руке, увидев оберег у вас на шее. Потом кланяется — не как гостю, а как старшему у костра — и говорит тихо, на своём: «Знаю, кто ты». Парит она вас вдвое дольше обычного, дубовым веником с мятой — «для своих». Денег на полке потом оставляет половину: «Остальное — не возьму».',
-  '{n} смотрит на вас из пара долго, не мигая, и вдруг улыбается — впервые за всё время, что вы её видите: «Ты — тот самый. Про тебя у нас шепчут из бани в баню». Хозяину она говорит, что вы — «родня издалека», и больше вас никто не торопит.',
+const MEET_B = ['{n} замирает с веником в руке, увидев оберег у вас на шее. Потом кланяется — не как гостю, а как старшему у костра — и говорит тихо, на своём: «Знаю, кто ты». Парит она вас вдвое дольше обычного, дубовым веником с мятой — «для своих». Хозяин за перегородкой и ухом не ведёт: ему всё равно, кого и как она парит, лишь бы ему платили. Ей самой с вашей платы не достанется ни медяка — она работает за еду.',
+  '{n} смотрит на вас из пара долго, не мигая, и вдруг улыбается — впервые за всё время, что вы её видите: «Ты — тот самый. Про тебя у нас шепчут из бани в баню». Потом оглядывается на дверь: «Хозяину не говори. Ему знать не надо. Ему вообще ничего знать не надо»',
   'Не успеваете вы раздеться, как {n} уже знает: «Тебя ждали. Наша, что ты спас, велела передать — она жива, у неё огород и коза». Говорит быстро, на смеси своего и вашего, будто боится, что не успеет. И на прощанье касается пальцами вашего оберега — как касаются того, что бережёт.'];
 const MEET_V = ['Хозяйка ещё считает ваше серебро, а {n} уже уводит вас наверх — мимо других, мимо очереди. Закрыв дверь, садится напротив и не раздевается: «Я знаю, кто ты. Они все знают. Ты ведь не за этим пришёл? Сиди. Отдохни. Здесь тебя никто не тронет».',
   '{n} встречает вас не так, как встречает всех: без улыбки на продажу. Только наклоняет голову и шепчет: «Спаситель». Слово звучит у неё не как лесть — как имя. Ночь она проводит, рассказывая шёпотом, кто из гостей ходит к хозяйке с доносами и в какую ночь стража бывает пьяна.',
@@ -82907,6 +82907,18 @@ C.saviorMeet = function (g, h, b, B, ves) {
   if (!h || !b || !B || !C.forestTaken(g, h)) return null; if (B.knew) return null;
   B.knew = day(g); B.trust = Math.max(B.trust || 0, 1);
   return fillAll(pk(ves ? MEET_V : MEET_B, b.key + h.id), {n: String(b.n || '').split(' ')[0], sex: b.sex, ppl: b.ppl}, h);
+};
+
+/* тайком — серебра ей самой (Ник 28.11: «хозяину всё равно, они за еду работают; можно докинуть денег — хозяину лучше не знать») */
+C.WIVES.TIP = C.WIVES.TIP || 500; // 5 зм
+C.saviorTip = function (g, h, b, B, ves, SID) {
+  if (!h || !b || !B || !C.forestTaken(g, h) || !B.knew || B.tipDay === day(g)) return null; const amt = K().TIP;
+  return {label: `${h.name}: тайком сунуть ${Q.decl(b.n, b.sex).d} серебра — ${R.priceText(amt)}`, dis: (g.purse || 0) < amt ? 'не хватает серебра' : undefined,
+    do: g2 => { if ((g2.purse || 0) < amt) return SID; g2.purse -= amt; B.tipDay = day(g2); B.tips = (B.tips || 0) + 1; B.trust = Math.min(4, (B.trust || 0) + (B.tips % 2 ? 1 : 0));
+      g2.kvLast = fillAll(pk(['{n} не берёт серебро в руки — только кивает на щель между брёвнами. Вы суёте туда. Хозяин никогда не найдёт: «Там у меня всё. На избу. Когда-нибудь»',
+        '{n} прячет серебро в косу, быстро, привычно, не глядя. «Хозяину — ни слова. Он ведь кормит. Хлебом. Иногда»',
+        '{n} сжимает монеты в кулаке так, что белеют пальцы. «Это первое за год — моё. Не его. Моё»'], b.key + B.tips), {n: String(b.n || '').split(' ')[0], sex: b.sex, ppl: b.ppl}, h);
+      return SID; }};
 };
 
 G.C = C;
