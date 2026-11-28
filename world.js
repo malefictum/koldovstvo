@@ -82068,6 +82068,7 @@ C.vesPillow = function (g, h, b, B, gap) {
   const P = {n: b.n}, pk = (L, s2) => L[hsh(b.key + h.id + day(g) + (s2 || '')) % L.length](P);
   if (gap > K().VES_GAP && (B.trust || 0) > 0 && !B.plan) { B.trust = Math.max(0, B.trust - 1); return pk(PILLOW.gap); }
   if (B.plan) return pk(PILLOW.t3, 'p');
+  if (C.banshOpen && !C.banshOpen(g, h)) return `${b.n} делает всё, за что заплачено, — умело, равнодушно, глядя в потолок. Ни слова о себе.`;
   const att = C.kvAttract ? C.kvAttract(g, h, 19, {rank: 'merchant'}) : 1;
   const c = R.check(h, 'cha', 'Убеждение', K().VES_DC - Math.round((att - 1) * 4)); // тайный бросок
   if (!c || !c.ok) return pk(PILLOW.no);
@@ -82120,7 +82121,7 @@ C.sceneOf = function (g, id) {
           return; }
         /* баня: разговор — когда позвал попарить, а большего не просил (Ник 28.11) */
         const steamed = h.kvSvc === day(g) && h.kvBanshTry !== day(g);
-        if (steamed && B.talkDay !== day(g) && (B.trust || 0) < (C.forestFirst && C.forestFirst(h) ? 2 : 3)) add.push({i: i++, own: h.id, label: `${h.name}: доплатить хозяину за долгий пар — и поговорить с ${B.known ? Q.decl(b.n, b.sex).i : v(b, 'банщиком', 'банщицей')}, пока ${v(b, 'он', 'она')} парит — ${R.priceText(BL.TALK)}`, t: '', dis: (g.purse || 0) < BL.TALK ? 'не хватает серебра' : undefined, do: g2 => { if ((g2.purse || 0) < BL.TALK) return SID; g2.purse -= BL.TALK; const hh = heroById(g2, h.id) || h; g2.kvLast = `Хозяин пересчитывает доплату и уходит, не спросив зачем. ` + C.banshTalk(g2, hh, b); return SID; }});
+        if (steamed && B.talkDay !== day(g) && (!C.banshOpen || C.banshOpen(g, h)) && (B.trust || 0) < (C.forestFirst && C.forestFirst(h) ? 2 : 3)) add.push({i: i++, own: h.id, label: `${h.name}: доплатить хозяину за долгий пар — и поговорить с ${B.known ? Q.decl(b.n, b.sex).i : v(b, 'банщиком', 'банщицей')}, пока ${v(b, 'он', 'она')} парит — ${R.priceText(BL.TALK)}`, t: '', dis: (g.purse || 0) < BL.TALK ? 'не хватает серебра' : undefined, do: g2 => { if ((g2.purse || 0) < BL.TALK) return SID; g2.purse -= BL.TALK; const hh = heroById(g2, h.id) || h; g2.kvLast = `Хозяин пересчитывает доплату и уходит, не спросив зачем. ` + C.banshTalk(g2, hh, b); return SID; }});
         if (steamed && (B.trust || 0) >= (C.forestFirst && C.forestFirst(h) ? 2 : 3) && !B.plea && B.talkDay !== day(g) && C.banshSpine && !C.banshSpine(h)) { if (B.soft !== day(g)) { B.soft = day(g); B.talkDay = day(g); const sf = C.banshSoft(h, b); g.kvLast = sf; sc.lines = (sc.lines || []).concat([['n', sf]]); } }
         else if (steamed && (B.trust || 0) >= (C.forestFirst && C.forestFirst(h) ? 2 : 3) && !B.plea && B.talkDay !== day(g)) { B.plea = day(g); B.talkDay = day(g); const pl = C.banshPlea(g, h, b); g.kvLast = pl; sc.lines = (sc.lines || []).concat([['n', pl]]); }
         if (B.plea && !B.refused) {
@@ -82193,6 +82194,7 @@ C.banshTalk = function (g, h, b) {
     story: ST[b.sex][b.story % ST[b.sex].length]({n: v(b, 'Он', 'Она'), sex: b.sex}).replace(/^(Он|Она) — /, '').replace(/^./, ch => ch.toUpperCase()).replace(/^Из лесного рода\./, v(b, 'Он', 'Она') + ' из лесного рода.')};
   const pk = L => L[b.sex][hsh(b.key + h.id + (B.trust || 0) + day(g)) % L[b.sex].length](P);
   if ((B.n || 0) >= 1) return pk(TALK.cold); // с кем спал — та не раскроется: «ты как все»
+  if (C.banshOpen && !C.banshOpen(g, h)) return C.banshClosed(g, h, b); // человек Ока — не рассмотрит (Ник 28.11)
   const st = Math.min(3, (B.trust || 0) + 1); B.trust = Math.max(B.trust || 0, st); if (st >= 1) B.known = 1;
   let out = st === 1 ? pk(TALK.s1) : st === 2 ? pk(TALK.s2) : pk(TALK.s3);
   if (st === 2) { const cu = (CUSTOM[b.ppl] || CUSTOM.nolgrim)[b.sex]; out += tr ? ` ${tr.name} говорит с ${v(b, 'ним', 'ней')} на ${v(b, 'его', 'её')} родном языке — и ${b.n} оживает: «${cu}»` : ` Здешнюю речь ${v(b, 'он', 'она')} знает плохо, слова подбирает долго: ` + BROKEN[b.sex][hsh(b.key + h.id) % BROKEN[b.sex].length](P); }
@@ -82979,6 +82981,22 @@ const pledgeTick = g => { try { const d = day(g);
     return ves ? `${n} встречает вас у лестницы — не так, как встречает всех. Ни слова о деле. Только смотрит на ваш пояс, где спрятан её гребень, и кивает: цел.`
       : `${n} встречает вас как жениха — краснеет, суетится, парит дубовым веником с мятой и украдкой целует ваше запястье, там, где нитка. «Держишь?» — шепчет. Держите.`; }
   return sm0 ? sm0.apply(this, arguments) : null; }; }
+
+/* ---------- человека Ока она не рассмотрит (Ник 28.11: «нужно, чтобы капища к вам хоть чуть-чуть хорошо относились,
+   а Око косилось — тогда она назовётся по имени и завяжется хоть какой-то разговор») ---------- */
+C.WIVES.OPEN = C.WIVES.OPEN || {kap: 1, oko: 0};
+const OKO_CLS = ['chernets', 'obetnik'];
+const trustOf = (g, k) => ((g.chron && g.chron.trust) || {})[k] || 0;
+C.banshOpen = function (g, h) {
+  if (!h) return false; if (C.forestTaken(g, h)) return true; // спасителя знают и так
+  if (OKO_CLS.includes(h.cls)) return false;
+  return trustOf(g, 'kap') >= K().OPEN.kap && trustOf(g, 'oko') <= K().OPEN.oko;
+};
+C.banshClosed = function (g, h, b) {
+  const n = v(b, 'Он', 'Она'), why = OKO_CLS.includes(h.cls) ? `Звезду у вас на груди ${v(b, 'он', 'она')} увидел${v(b, '', 'а')} раньше лица.`
+    : trustOf(g, 'oko') > K().OPEN.oko ? 'От вас пахнет храмом: Око вам доверяет — значит, ей с вами нельзя.' : 'В капищах о вас не слышали ни доброго, ни худого — а значит, вы для неё такой же, как все со Звездой.';
+  return `${n} парит молча, глядя мимо. На вопросы — «да, господин», «нет, господин». Имени не говорит. ${why}`;
+};
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
