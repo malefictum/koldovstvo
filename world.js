@@ -82310,9 +82310,14 @@ const HOME_M = [
    что старшая; считают это циклом природы древних и много говорят о Круге жизни»). Шепчет на своём: сперва не понять почти ни слова,
    с каждой ночью чужих слов меньше. */
 const HOT = {
-  f: ['Ночь жаркая — печь уже не нужна.', '{n} не ждёт ни слов, ни свечи — и до петухов вы не спите.', 'Она горячая, как камень из каменки, и не отпускает до рассвета.',
-    'Под утро {n} смеётся в темноте — тихо, довольно, как сытая рысь.', '{n} обвивает вас, как хмель тын, — и лучина догорает сама.'],
-  m: ['Ночь жаркая — печь уже не нужна.', '{n} горячий, как камень из каменки, и не отпускает до рассвета.', 'Под утро {n} смеётся в темноте — тихо, довольно, как сытый волк.']
+  f: ['{n} бросает в печь горсть можжевельника — изба наполняется горьким дымом. Она греет ладони у огня и кладёт их вам на грудь: «Так у нас начинают — с тепла, а не с рук». Ночь долгая и жаркая, и до рассвета она не отпускает вас ни на миг.',
+    '{n} пальцем, смоченным в травяном масле, рисует у вас на груди круг — медленно, от сердца и обратно: «Теперь мы в Круге». Дышит с вами в лад, глаза не закрывает ни разу — у них так не принято. Жарко так, что печь уже не нужна.',
+    'Свечу {n} не гасит — гасит её сама ночь. Она тихо поёт на своём, низко, без слов, будто баюкает вас и лес разом, и под эту песню всё и случается — без спешки, как течёт река.',
+    'У изголовья — миска с ключевой водой и пучок мяты. Под утро {n} умывает вам лицо этой водой — так у них заканчивают ночь: «Чтобы день был чистый». А до утра было жарко, как в бане на каменке.',
+    '{n} ложится так, чтобы слышать ваше сердце, и считает удары на своём языке. Сбивается — и начинает заново, смеясь. Счёт выходит долгий, до самых петухов.'],
+  m: ['{n} бросает в печь можжевельник, греет ладони у огня и кладёт их вам на плечи: «Так у нас начинают — с тепла». Ночь долгая и жаркая.',
+    '{n} рисует у вас на ладони круг травяным маслом: «Теперь ты в Круге». Глаз не закрывает — у них так не принято. До рассвета.',
+    'Под утро {n} умывает вам лицо ключевой водой — так у них кончают ночь. А до утра было жарко, как на каменке.']
 };
 const LEX = {
   stepnyak: {krug: 'шеңбер', ogon: 'от', solnce: 'күн', zemlya: 'жер', voda: 'су', ditya: 'бала', silny: 'мықты', zhizn: 'өмір', les: 'орман', muzh: 'күйеу', moy: 'менің', horosho: 'жақсы', eshche: 'тағы'},
@@ -82689,7 +82694,7 @@ if (C.AILS && !C.AILS.sglaz) C.AILS.sglaz = {name: 'Сглаз', dc: 99, self: 0
   catchTxt: h => `${v(h, 'сам не свой', 'сама не своя')}: тяжело на душе, всё валится из рук — будто кто-то сглазил`, pen: s => ({chk: 1, cha: 1})};
 const sglaz = (g, h, why) => { if (!h || !C.ailAdd || C.ailsOf(h).some(a => a.id === 'sglaz')) return; C.ailAdd(g, h, 'sglaz', 1); h.sglazWhy = why; };
 // послушался — снимут. Чем? Той же жаркой ночью (Ник 28.11)
-const unSglaz = (g, h) => { if (!h || !C.ailsOf || !C.ailsOf(h).some(a => a.id === 'sglaz') || h.sglazOk) return; h.sglazOk = 1; C.note(g, `${h.name}: тяжесть ещё на душе. Но теперь кто-то знает, как её снять, — и снимет. Ночью.`); };
+const unSglaz = (g, h) => { if (!h || !C.ailsOf || !C.ailsOf(h).some(a => a.id === 'sglaz') || h.sglazOk) return; h.sglazOk = 1; C.note(g, `${h.name}: тяжесть ещё на душе. Но теперь кто-то знает, как её снять. Зов: пора домой — на карте горит зелёное сердце.`); };
 C.sglazNight = function (g, h) { if (!h || !h.sglazOk || !C.ailsOf(h).some(a => a.id === 'sglaz')) return ''; C.ailDrop(h, 'sglaz'); h.sglazOk = 0; h.sglazWhy = null;
   const t = 'Под утро она дует вам в лицо, шепчет над теменем три слова на своём — и тяжесть уходит, как не было.'; C.note(g, `${h.name}: сглаз снят. ${t}`); return ' ' + t; };
 C.wifeSglaz = sglaz;
@@ -82794,6 +82799,95 @@ const badSleep = g => { try { const L = sglazed(g); if (!L.length) return; g.awa
 if (G.W && G.W.nightCamp) { const nc0 = G.W.nightCamp; G.W.nightCamp = function (g) { const r = nc0.apply(this, arguments); if (g && g.heroes) badSleep(g); return r; }; }
 { const p0 = C.pass; if (p0) C.pass = function (g, steps) { const a0 = g && g.awake; const r = p0.apply(this, arguments);
   try { if (g && g.heroes && !g._sleeping && steps > 0 && (g.awake || 0) > (a0 || 0) && sglazed(g).length) g.awake += steps * 0.5; } catch (e) {} return r; }; }
+
+/* ---------- зов домой: зелёное сердце на карте (Ник 28.11) ----------
+   Послушался — та, что обижена, зовёт: на карте над её селом — зелёное сердце, пока жаркая ночь не снимет сглаз. */
+C.homeCalls = function (g) {
+  const out = []; try { C.alive(g).forEach(h => { if (!h.sglazOk || !C.ailsOf(h).some(a => a.id === 'sglaz')) return;
+    let at = null; if (h.spouse && h.spouse.forest && (h.sglazWhy === 'wife' || !C.juniorsOf(g, h).length)) at = h.spouse.at; else { const J = C.juniorsOf(g, h); at = J.length ? J[0].at : (h.spouse && h.spouse.forest ? h.spouse.at : null); }
+    if (at) out.push({at, hero: h.id, heart: 1, st: 'call'}); }); } catch (e) {}
+  return out;
+};
+if (C.heroStatus) { const hs1 = C.heroStatus; C.heroStatus = function (g, h) { const out = hs1.apply(this, arguments) || [];
+  try { C.homeCalls(g).filter(E => E.hero === h.id).forEach(E => out.push({t: 'Зов домой', cls: '', why: `${(nodes(g)[E.at] || {}).name || ''}: там ждут. Ночь снимет тяжесть.`})); } catch (e) {} return out; }; }
+/* ---------- дети лесной — другие (Ник 28.11: «дети растут с иным воспитанием и не похожи на детей») ---------- */
+const FKID = {1: ['{k} не плачет, когда падает. Встаёт и смотрит на вас — серьёзно, как взрослый.', '{k} приносит вам жука и объясняет на её языке, как его зовут и чем он лечит.', '{k} засыпает не в люльке, а на шкуре у порога — «чтобы слышать лес».'],
+  2: ['{k} уходит в лес на полдня и возвращается с полной шапкой грибов — ни одного поганого.', '{k} знает по именам сорок трав. Вы — шесть.', 'Соседские дети дразнят {k} «лесным». {k} не дерётся — просто смотрит, и они уходят сами.', '{k} поёт на её языке песню про Круг — и вдруг замолкает, увидев вас: при чужих эту песню не поют.'],
+  3: ['{k} говорит мало, слушает много. Кланяется вам, как кланяются старшему у костра.', '{k} уже лечит соседскую корову — и денег не берёт: «Мать сказала, за травы не берут».', 'Взгляд у {k} — её. Тихий, долгий, всё видит.']};
+const famOfKid = (g, k) => { try { return C.kidsFams(g).find(F => (F.kids || []).includes(k)); } catch (e) { return null; } };
+if (C.kidPlayLine) { const kp0 = C.kidPlayLine; C.kidPlayLine = function (g, k) { try { const F = k && famOfKid(g, k);
+  if (F && isForestKey(g, F.key)) { const L = FKID[Math.max(1, Math.min(3, C.kidStage(g, k)))]; if (C.kidStage(g, k) >= 1) return pk(L, k.id + day(g)).replace(/\{k\}/g, k.n || (k.sex === 'f' ? 'Малышка' : 'Малыш')); } } catch (e) {}
+  return kp0.apply(this, arguments); }; }
+/* ---------- она учит детей — и тебя заодно; просит чтить память (её собственная беда) ---------- */
+const MEM_N = ['Ведана', 'Зорька', 'Мирава', 'Лесана', 'Отрада', 'Бажена', 'Цвета', 'Ясна', 'Голуба', 'Милея', 'Дарина', 'Веселина'];
+const MEM_W = ['ушла в лес в голодную зиму', 'умерла в бане под Бродом, в девятнадцать', 'не вернулась от опушки', 'отдала свой хлеб младшей — и не дожила до весны', 'попала к серым — больше её не видели'];
+C.fwMemNames = (g, key) => [0, 1, 2].map(i => ({n: MEM_N[hsh(key + i) % MEM_N.length], w: MEM_W[hsh(key + 'w' + i) % MEM_W.length]})).filter((x, i, a) => a.findIndex(y => y.n === x.n) === i);
+const so6 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so6.apply(this, arguments);
+  try {
+    if (!sc || id !== 'folk' || !g.folkRole) return sc; const at = g.folkAt || g.loc, key = g.folkRole + '@' + at; if (!isForestKey(g, key)) return sc;
+    const r = (g.folkRel || {})[key]; if (!r || r.bond !== 'wed') return sc; const h = heroById(g, r.who), s = recOf(g, key) || {}; if (!h) return sc;
+    const n = String(s.n || '').split(' ')[0], kids = C.kidsOf ? C.kidsOf(g, key).filter(k => C.kidStage(g, k) >= 1) : [];
+    const b = sc.choices.length && /^(Назад|Уйти)/.test(sc.choices[sc.choices.length - 1].label || '') ? 1 : 0, i = Math.max(0, ...sc.choices.map(c => c.i || 0)) + 1;
+    sc.choices.splice(sc.choices.length - b, 0, {i, own: h.id, label: r.teachDay === day(g) ? 'У огня сегодня уже сидели' : (kids.length ? 'Посидеть у огня, пока она учит детей' : 'Посидеть с ней у огня'), dis: r.teachDay === day(g) ? 'сегодня уже' : undefined,
+      do: g2 => { const rr = (g2.folkRel || {})[key], hh = heroById(g2, rr.who); rr.teachDay = day(g2); rr.teachN = (rr.teachN || 0) + 1;
+        if (C.wifeNightLang && s.ppl) { const L0 = C.wifeNightLang(g2, hh, s.ppl, n); if (L0) C.note(g2, L0); }
+        const M = C.fwMemNames(g2, key), m = M[(rr.teachN - 1) % M.length], who = kids.length ? (kids.length === 1 ? (kids[0].n || 'малой') : 'дети') : 'вы';
+        const lesson = pk([`${n} показывает ${kids.length ? 'детям' : 'вам'} травы — по одной, на ладони: «Эта — от жара. Эта — чтобы спать. А эта — никогда, слышите? Никогда». ${kids.length ? 'Дети повторяют на её языке. Вы — тоже, тише всех.' : 'Вы повторяете за ней на её языке.'}`,
+          `${n} учит ${kids.length ? 'детей' : 'вас'} считать на своём языке — по звёздам, по пальцам, по зарубкам на косяке. ${kids.length ? 'Дети смеются над вашим выговором.' : 'Смеётся над вашим выговором.'}`,
+          `${n} рассказывает, как найти дорогу в лесу без солнца: по мху, по муравейнику, по тому, куда клонится трава. ${kids.length ? 'Дети слушают, не моргая. Вы — тоже.' : ''}`], key + rr.teachN);
+        const memory = `Потом ${n} говорит тихо, глядя в огонь: «А теперь — имена. ${m.n}. Она ${m.w}. Повторите». ${cap(who === 'вы' ? 'вы повторяете' : who + ' повторяют — и вы с ними')}. «Пока имя говорят — человек не ушёл совсем. Наши нас забыли. Мы — не забудем. Чтите память»`;
+        const vow = rr.teachN === 2 ? ` И ещё — совсем тихо: «Когда тебя не станет — другого я не возьму. У нас мужей не меняют. Потому мы и спешим с детьми».` : '';
+        hh.fwMemory = [...new Set((hh.fwMemory || []).concat(m.n))];
+        g2.folkLast = `${lesson} ${memory}${vow}`; if (C.spiritAdd) try { C.spiritAdd(g2, 1, 'Вечер у огня с лесной.', hh); } catch (e) {} return 'folk'; }});
+  } catch (e) {}
+  return sc;
+};
+
+/* ---------- лесная романтика и обряды по временам года (Ник 28.11: «без привычных пошлостей; защищают оберегами;
+   летом водят в реку, зимой тащат в снег, весной — купальский обряд») ---------- */
+const RITE = {
+  winter: {label: 'Она тащит вас в снег', t: [
+    '{n} смеётся, хватает вас за руку и тащит из избы — босиком, в одной рубахе — прямо в сугроб. Снег обжигает, она валит вас в него с головой и хохочет: «Так у нас зиму встречают! Кто не замёрз — тот живой!» Обратно в избу вы влетаете вдвоём, красные, как жар в печи, и долго не можете отдышаться от смеха.',
+    'Ночью {n} будит вас и ведёт за околицу — к лесу, по колено в снегу. Тишина такая, что слышно, как падает иней. Она ставит вас под старую ель, прижимается спиной и шепчет: «Слушай. Это лес спит. Он всё про нас знает — и не выдаст». Звёзды над ёлками — крупные, как клюква.']},
+  spring: {label: 'Купальская ночь: венки, костёр, папоротник', t: [
+    '{n} плетёт два венка — себе и вам — из травы, что только-только поднялась. Ночью у реки она разводит костёр, берёт вас за руку и прыгает с вами через огонь: «Не разжимай руки! Разожмёшь — Круг разорвётся». Венки уплывают по чёрной воде вместе, бок о бок. {n} смотрит им вслед и улыбается так, будто знает наперёд всю вашу жизнь.',
+    'В купальскую ночь {n} ведёт вас в чащу — искать цвет папоротника. «Найдём — не скажем никому. Не найдём — тоже не скажем», — смеётся она. Цвета вы не находите. Зато находите поляну, где светляки висят над травой, как звёзды, упавшие слишком низко, — и остаётесь там до росы.']},
+  summer: {label: 'Ночью — к реке', t: [
+    'Когда в селе гаснут огни, {n} уводит вас к реке. Вода тёплая, тёмная, звёзды плавают в ней, как рыбы. Она учит вас лежать на воде, не шевелясь: «Река держит того, кто ей верит». И правда держит. Вы лежите рядом на чёрной воде, держась за руки, и смотрите в небо, пока не начинают петь первые птицы.',
+    '{n} тащит вас к реке на рассвете — в туман. Брызгается, ныряет, пропадает надолго — вы уже начинаете звать — и выныривает за спиной с кувшинкой в зубах. «Испугался? Хорошо. Значит, нужна».']},
+  autumn: {label: 'Рябиновая ночь: проводить солнце', t: [
+    '{n} собирает рябину — гроздь за гроздью — и вешает над дверью, над окнами, над вашим изголовьем: «Зима злая. Рябина — злее». Потом разводит маленький костёр во дворе и бросает в него горсть зерна: «Солнце уходит. Пусть знает — мы его ждём». Сидите у огня до последней искры, укрывшись одной шкурой.',
+    'В листопад {n} ведёт вас в лес — по шуршащей рыжей тропе — и вдруг падает в кучу листьев и тянет вас за собой. Листья пахнут грибами и дымом. «Вот так у нас говорят солнцу „до весны“, — смеётся она, вытряхивая лист из ваших волос. — Громко. Чтобы услышало».']}
+};
+const OBEREG_T = ['Перед сном {n} надевает вам на шею оберег — шнурок, узелок, зуб зверя, что-то сушёное внутри: «Не снимай. Никогда. Это от железа, от лихих людей и от чужих баб». Последнее — со смехом. Но только последнее.',
+  'Утром вы находите у себя под рубахой новый оберег — вы не помните, когда она его надела. «Сплела, пока ты спал. Из своих волос. Теперь ты под Кругом».'];
+const riteKey = g => `${Math.floor(day(g) / 360)}|${C.seasonOf ? C.seasonOf(g) : 'summer'}`;
+const riteDo = (g2, h, p, flag, back) => { const sz = C.seasonOf ? C.seasonOf(g2) : 'summer', R0 = RITE[sz] || RITE.summer; flag.riteKey = riteKey(g2); flag.riteN = (flag.riteN || 0) + 1;
+  let t = fillAll(pk(R0.t, (flag.riteN) + p.n), p, h);
+  if (!flag.obereg && h && Array.isArray(h.inv) && R.item('obereg_znak_boga')) { flag.obereg = 1; h.inv.push('obereg_znak_boga'); t += ' ' + fillAll(pk(OBEREG_T, p.n), p, h); }
+  if (C.passH) C.passH(g2, 4); g2.awake = 0; if (C.spiritAdd) try { C.spiritAdd(g2, 2, 'Ночь лесного обряда.', h); } catch (e) {}
+  if (C.sglazNight && h.sglazOk) t += C.sglazNight(g2, h);
+  return t; };
+const so7 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so7.apply(this, arguments);
+  try {
+    if (!sc) return sc; const sz = C.seasonOf ? C.seasonOf(g) : 'summer', R0 = RITE[sz] || RITE.summer;
+    const ins = c => { const b = sc.choices.length && /^(Назад|Уйти)/.test(sc.choices[sc.choices.length - 1].label || '') ? 1 : 0; sc.choices.splice(sc.choices.length - b, 0, c); }, nextI = () => Math.max(0, ...sc.choices.map(c => c.i || 0)) + 1;
+    if (id === 'folk' && g.folkRole) { const at = g.folkAt || g.loc, key = g.folkRole + '@' + at; if (!isForestKey(g, key)) return sc;
+      const r = (g.folkRel || {})[key]; if (!r || r.bond !== 'wed') return sc; const h = heroById(g, r.who), s = recOf(g, key) || {}; if (!h || s.sex !== 'f') return sc;
+      const done = r.riteKey === riteKey(g);
+      ins({i: nextI(), own: h.id, label: done ? R0.label + ' — в эту пору уже было' : R0.label, dis: done ? 'раз в пору года' : undefined,
+        do: g2 => { const rr = (g2.folkRel || {})[key], hh = heroById(g2, rr.who); g2.folkLast = riteDo(g2, hh, {n: String(s.n || '').split(' ')[0], sex: 'f', ppl: s.ppl}, rr, 'folk'); return 'folk'; }}); }
+    if (id === 'kv_local') { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur), h = r && heroById(g, r.hid); if (!r || !h || !r.junior || r.sex !== 'f') return sc;
+      const done = r.riteKey === riteKey(g);
+      ins({i: nextI(), own: h.id, label: done ? R0.label + ' — в эту пору уже было' : R0.label, dis: done ? 'раз в пору года' : undefined,
+        do: g2 => { const rr = C.kvLocOf(g2, r.id), hh = heroById(g2, rr.hid); g2.kvLast = riteDo(g2, hh, {n: String(rr.n || '').split(' ')[0], sex: 'f', ppl: rr.banshPpl}, rr, 'kv_local'); return 'kv_local'; }}); }
+  } catch (e) {}
+  return sc;
+};
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
