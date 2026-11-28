@@ -61859,15 +61859,16 @@ if (C.toolBonus) { const tb0 = C.toolBonus; C.toolBonus = (h, kind) => { const b
 const back = g => { const n = nodeOf(g); return n ? n.scene : 'map'; };
 const SC = {};
 SC.dt_hub = g => {
-  const P = placeOf(g), D = DT(g), lines = [['n', 'Дела подождут день-другой. Можно посидеть над книгами и расспросами, поучиться у мастера или заняться ремеслом.']];
+  const P = placeOf(g), D = DT(g), lines = [['n', C.roofHere && C.roofHere(g) ? 'Можно переждать час-другой, отдохнуть, сварить зелье или сготовить, посидеть над книгами и расспросами, поучиться у мастера или заняться ремеслом.' : 'Дела подождут день-другой. Можно посидеть над книгами и расспросами, поучиться у мастера или заняться ремеслом.']];
   if (D.last) lines.push(['n', D.last]);
   C.alive(g).forEach(h => Object.keys(h.dtProg || {}).forEach(key => lines.push(['n', `${h.name} учится: ${C.dtTrainName(key)} — осталось ${C.dayText ? C.dayText(C.dtTrainLeft(h, key)) : C.dtTrainLeft(h, key)}.`])));
   const ch = [];
   ch.push({t: P ? `Изыскания: ${PLACE_W[P]} поможет узнать о тварях, курганах и находках` : 'Изыскания', if: () => !!P, off: 'книг и знающих людей здесь нет', do: g2 => { DT(g2).last = null; return 'dt_research'; }});
+  if (C.roofHere && C.roofHere(g)) ch.unshift({t: 'Под крышей: подождать, отдохнуть, зелья, стряпня, вещи', roof: 1, do: () => 'dt_hub'}); // roof.js: окно дел каждого героя
   ch.push({t: 'Учёба: язык или снасть у мастера', do: g2 => { DT(g2).last = null; g2.dtPick = C.alive(g2).length === 1 ? C.alive(g2)[0].id : null; return 'dt_train'; }});
   if (C.folkHere && C.folkHere(g).length && (C.CAMPS[g.camp].scenes || {}).folk_hub) ch.push({t: 'К мастерам: ремесло и науки', do: g2 => { g2.folkAt = null; const roles = C.folkHere(g2); if (roles.length === 1) { g2.folkRole = roles[0]; return 'folk'; } return 'folk_hub'; }});
   ch.push({t: 'Назад', do: g2 => { DT(g2).last = null; return back(g2); }});
-  return {title: 'Между делами', bg: 'town', art: P === 'kap' ? 'shrine' : P === 'oko' ? 'edvin_khram' : 'edvin_skriptoriy', lines, choices: ch};
+  return {title: 'Дела', bg: 'town', art: P === 'kap' ? 'shrine' : P === 'oko' ? 'edvin_khram' : 'edvin_skriptoriy', lines, choices: ch};
 };
 SC.dt_research = g => {
   const P = placeOf(g), D = DT(g);
@@ -61901,7 +61902,7 @@ if (Q && Q.inject) { const inj0 = Q.inject;
     const out = inj0.apply(this, arguments); const n = nodeOf(g);
     if (!n || n.scene !== sceneId || !(C.LS.town.includes(n.kind) || n.kind === 'капище')) return out;
     const res = out.slice(); const i = res.length ? Math.max(...res.map(c => c.i || 0)) + 1 : 0;
-    res.push({i, label: 'Между делами: изыскания, учёба, ремесло', go: 'dt_hub'});
+    res.push({i, label: 'Дела: подождать, зелья, учёба, ремесло', go: 'dt_hub'});
     return res;
   }; }
 
@@ -71014,7 +71015,7 @@ const SKIP = /^(Уйти на карту|Улица: поболтать|Прой
 const isPerson = c => c.tale || /^(Поговорить|Навестить)[: ]/.test(c.label || '') || (c.w2 === 'ppl') || / — (ищет|просит|просится|не может|вписан|не спит|зовёт|ждёт)/.test(c.label || '');
 const kindOfChoice = c => { const t = c.label || '';
   if (isPerson(c)) return 'person';
-  if (c.go === 'folk_tavern' || /^Корчма/.test(t) || c.inn || /^Заночевать/.test(t) || /^Весёлый дом/.test(t) || c.go === 'dt_hub' || /^Между делами/.test(t)) return 'korchma';
+  if (c.go === 'folk_tavern' || /^Корчма/.test(t) || c.inn || /^Заночевать/.test(t) || /^Весёлый дом/.test(t) || c.go === 'dt_hub' || /^(Между делами|Дела:)/.test(t)) return 'korchma';
   if (/^(Торг|Лавка)$/.test(t)) return 'kupec';
   if (/храм/i.test(t) && !/кружк/.test(t)) return 'hram';
   if (/мастера и люди/.test(t)) return 'kuznya';
@@ -82854,7 +82855,7 @@ const so0 = C.sceneOf;
 C.sceneOf = function (g, id) {
   const sc = so0.apply(this, arguments);
   try { const n = nodeOf(g); if (!sc || !n || !C.roofHere(g) || g.folkRole && id !== 'folk') return sc;
-    if (id !== n.scene && id !== 'folk') return sc; if (id === 'folk') { const r = (g.folkRel || {})[g.folkRole + '@' + (g.folkAt || g.loc)]; if (!r || !['wed', 'kin'].includes(r.bond)) return sc; } if (sc.choices.some(c => c.roof)) return sc;
+    if (id !== n.scene && id !== 'folk') return sc; if (id === 'folk') { const r = (g.folkRel || {})[g.folkRole + '@' + (g.folkAt || g.loc)]; if (!r || !['wed', 'kin'].includes(r.bond)) return sc; } if (sc.choices.some(c => c.roof || c.go === 'dt_hub' || /^Дела:/.test(c.label || ''))) return sc; // в городах — внутри «Дел» (dt_hub)
     const i = Math.max(0, ...sc.choices.map(c => c.i || 0)) + 1, b = sc.choices.length && /^(Назад|Уйти|На карту)/.test(sc.choices[sc.choices.length - 1].label || '') ? 1 : 0;
     sc.choices.splice(sc.choices.length - b, 0, {i, roof: 1, label: 'Дела: подождать, зелья, стряпня, вещи', do: () => id});
   } catch (e) {}
