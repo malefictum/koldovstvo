@@ -82029,6 +82029,16 @@ const banshOf = (g, at, sex, kind) => { g.bansh = g.bansh || {}; const ves = kin
     let face = C.banshFace ? C.banshFace(sex, key) : '';
     b = g.bansh[key] = {key, n: p.n, sex, face, ppl: p.ppl || 'nolgrim', story: hsh(key) % (ves ? STORY_V : STORY)[sex].length, at, ves: ves ? 1 : 0, since: day(g), age: ves ? 18 : 18 + (hsh(key + 'age') % 2), gen: 0};
     if (ves) b.expel = day(g) + K().VES_DAYS + (hsh(key + 'ex') % 12); } // «лучшей в доме» вот-вот девятнадцать — и её выгонят
+  /* увёл её — назавтра на её месте уже другая (Ник 28.11: «чего не появляется выкуп Камиле» — в доме так и сидела спасённая). Спасённая и её след уходят в архив под своим ключом */
+  { const run = (g.banshRun || {})[key]; if (run && (run.gen || 0) === (b.gen || 0) && day(g) > run.day) { const old = b, ak = key + '#' + (old.gen || 0);
+    g.bansh[ak] = Object.assign({}, old, {key: ak, gone: 1}); g.banshRun[ak] = run; delete g.banshRun[key];
+    Object.values(g.kvLoc || {}).forEach(r => { if (r && r.fromBansh === key) r.fromBansh = ak; });
+    Object.values(g.homeSp || {}).forEach(x => { if (x && x.fromBansh === key) x.fromBansh = ak; });
+    let p = null; try { p = Q.person(g, sex, pplFor(g, at, key + ((old.gen || 0) + 1))); } catch (e) { p = Q.decl(sex === 'f' ? 'Малуша' : 'Ждан', sex); }
+    b = g.bansh[key] = Object.assign({}, old, {n: p.n, ppl: p.ppl || old.ppl, since: day(g), age: ves ? 18 : 18 + (hsh(key + 'age' + ((old.gen || 0) + 1)) % 2), gen: (old.gen || 0) + 1, prev: old.n, story: hsh(key + p.n) % (ves ? STORY_V : STORY)[sex].length, expel: ves ? day(g) + K().VES_DAYS + (hsh(key + p.n) % 12) : 0,
+      fate: ves ? `Прежней, ${old.n}, здесь больше нет — ушла и не вернулась. Хозяйка о ней не вспоминает, а девушки — шёпотом.` : `${old.n} здесь больше не работает — ушла однажды утром. Хозяин злится, когда спрашивают.`});
+    try { b.face = (C.banshFace ? C.banshFace(sex, key + b.gen) : '') || old.face; } catch (e) {}
+    Object.keys(g.banshB || {}).forEach(k => { if (k.indexOf(key + '|') === 0) { g.banshB[ak + k.slice(key.length)] = g.banshB[k]; delete g.banshB[k]; } }); } }
   /* им всегда восемнадцать-девятнадцать, когда их встречаешь: тех, кому за двадцать, хозяин выгоняет (Ник 28.11). Вернулся через два года — там уже другая. */
   if (!(g.banshRun || {})[key] && (b.expel ? day(g) > b.expel : day(g) - (b.since || 0) > K().GONE)) { const old = b; let p = null; try { p = Q.person(g, sex, pplFor(g, at, key + (old.gen + 1))); } catch (e) { p = Q.decl(sex === 'f' ? 'Малуша' : 'Ждан', sex); }
     const fate = FATE[sex][hsh(key + old.n) % FATE[sex].length](old);
@@ -82098,7 +82108,7 @@ C.banshRun = function (g, h, b) {
     : `«Люди говорят — ты сбежала ${b.ves ? 'с гулякой из весёлого дома' : 'с банщиком из чужого села'}. Без венца, без стыда. Я ждал. Больше не жду. ${s.n}»`);
   const r = C.kvMakeLoc(g, {at, hid: h.id, n: b.n, sex: b.sex, face: b.face, ppl: b.ppl, st: 'maid', t: v(b, 'ушёл', 'ушла') + (b.ves ? ' из весёлого дома' : ' из бани') + ` за ${Q.decl(h.name, h.sex).i}`}, 70);
   if (r) { r.fromBansh = b.key; r.forest = 1; r.banshPpl = b.ppl; }
-  g.banshRun = (g.banshRun || {}); g.banshRun[b.key] = {hero: h.id, day: day(g), to: at};
+  g.banshRun = (g.banshRun || {}); g.banshRun[b.key] = {hero: h.id, day: day(g), to: at, gen: b.gen || 0};
   try { C.banshKin(g, h, b, at); } catch (e) {}
   try { if (C.repAdd) C.repAdd(g, b.at, -1, b.ves ? 'увели девицу из весёлого дома' : 'увели работницу из бани'); } catch (e) {}
   if (h.deeds) h.deeds = h.deeds.concat(`${v(h, 'увёз', 'увезла')} ${b.ves ? 'из весёлого дома' : 'из бани'}: ${b.n}`).slice(-12);
@@ -82513,7 +82523,7 @@ C.wifeJunior = function (g, h, b) {
   const at = L.length ? L[hsh(b.key + h.id) % L.length] : b.at, name = (nodes(g)[at] || {}).name || 'село';
   const r = C.kvMakeLoc(g, {at, hid: h.id, n: b.n, sex: b.sex, face: b.face, ppl: b.ppl, st: 'maid', t: v(b, 'считает вас своей женой', 'считает вас своим мужем')}, 100);
   if (r) { Object.assign(r, {fromBansh: b.key, forest: 1, junior: 1, banshPpl: b.ppl, rel: 100}); }
-  g.banshRun = g.banshRun || {}; g.banshRun[b.key] = {hero: h.id, day: day(g), to: at, junior: 1};
+  g.banshRun = g.banshRun || {}; g.banshRun[b.key] = {hero: h.id, day: day(g), to: at, junior: 1, gen: b.gen || 0};
   if (h.deeds) h.deeds = h.deeds.concat(`${v(h, 'спас', 'спасла')} ${b.ves ? 'из весёлого дома' : 'из бани'}: ${b.n}`).slice(-12);
   const s = h.spouse; if (s && s.forest) { const p = {n: String(s.n || '').split(' ')[0], sex: s.sex, ppl: s.ppl}, line = fillAll(pk(PROUD[p.sex === 'f' ? 'f' : 'm'], b.key), p, h);
     g.mail = (g.mail || []).concat({from: s.n, t: s.t || v(s, 'муж', 'жена'), face: s.face, sex: s.sex, kind: 'kv', head: v(s, 'От мужа', 'От жены'), to: h.name, text: line, day: day(g)}).slice(-6);
