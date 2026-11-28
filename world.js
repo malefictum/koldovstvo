@@ -82998,6 +82998,19 @@ C.banshClosed = function (g, h, b) {
   return `${n} парит молча, глядя мимо. На вопросы — «да, господин», «нет, господин». Имени не говорит. ${why}`;
 };
 
+/* ---------- её село должно быть на карте (Ник 28.11: «где найти ту банщицу? я сбежал с ней») ----------
+   Беглянку могли увезти в село, которого игрок ещё не открыл (в «Пепле списков» Ольшанка видна не всем) — тогда его
+   не найти. Село, где живёт твоя лесная (беглянка, младшая, жена), открывается на карте: дорогу она тебе сказала. */
+C.revealNode = function (g, id) { if (!g || !id) return; g.revealNodes = g.revealNodes || {}; if (g.revealNodes[id]) return; g.revealNodes[id] = 1; const n = nodes(g)[id]; if (n) C.note(g, `${n.name}: дорогу туда вы теперь знаете — там вас ждут.`); };
+Object.values(C.CAMPS || {}).forEach(cp => { const N = cp && cp.map && cp.map.nodes; if (!N) return; Object.entries(N).forEach(([id, n]) => { if (typeof n.if !== 'function' || n._rv) return; const f0 = n.if; n._rv = 1; n.if = function (g) { return !!(g && g.revealNodes && g.revealNodes[id]) || f0.apply(this, arguments); }; }); });
+const hiddenAt = (g, id) => { const n = nodes(g)[id]; try { return !!(n && typeof n.if === 'function' && !n.if(g, C.ctx ? C.ctx(g) : {})); } catch (e) { return false; } };
+const revealOwn = g => { try { Object.values(g.kvLoc || {}).forEach(r => { if (r && r.camp === g.camp && (r.forest || r.fromBansh) && r.st !== 'gone' && hiddenAt(g, r.at)) C.revealNode(g, r.at); });
+  (g.heroes || []).forEach(h => { const s = h.spouse; if (s && s.forest && s.camp === g.camp && hiddenAt(g, s.at)) C.revealNode(g, s.at); }); } catch (e) {} };
+C.revealOwn = revealOwn;
+{ const br2 = C.banshRun; if (br2) C.banshRun = function (g) { const r = br2.apply(this, arguments); revealOwn(g); return r; }; }
+['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); revealOwn(g); return r; }; });
+{ const so8 = C.sceneOf; C.sceneOf = function (g) { if (g && g.kvLoc && g.revealChk !== day(g)) { g.revealChk = day(g); revealOwn(g); } return so8.apply(this, arguments); }; }
+
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
