@@ -82108,13 +82108,14 @@ C.sceneOf = function (g, id) {
       const helpP = (h, b) => (!VES && C.forestFirst && C.forestFirst(h)) ? C.juniorPrice(g, b) : 0; // есть первая лесная жена: младшую не увозят — ей дают на дом и огород
       const runLbl = (h, b, pre) => helpP(h, b) ? `${h.name}: дать ${Q.decl(b.n, b.sex).d} на дом и огород — ${R.priceText(helpP(h, b))}` : `${h.name}: ${pre} ${Q.decl(b.n, b.sex).a} с собой${h.spouse && !(C.forestFirst && C.forestFirst(h)) ? (h.sex === 'f' ? ' — мужа придётся бросить' : ' — жену придётся бросить') : ''}`;
       const runDis = (h, b) => helpP(h, b) && (g.purse || 0) < helpP(h, b) ? 'не хватает серебра' : undefined;
-      const runDo = (h, b) => g2 => { const hh = heroById(g2, h.id); if (!hh) return SID; const pr = helpP(hh, b); if (pr) { if ((g2.purse || 0) < pr) return SID; g2.purse -= pr; } const x = C.banshRun(g2, hh, b); if (x && x.junior) { g2.kvLast = x.text; return SID; }
-        g2.kvLast = `Ночью, пока ${b.ves ? 'хозяйка дома считает выручку' : 'хозяин бани спит'}, ${b.n} выходит к коновязи с узелком — всё ${v(b, 'его', 'её')} добро. ${v(b, 'Он', 'Она')} не плачет и не оглядывается. «Куда? — В ${(nodes(g2)[x.at] || {}).name || 'соседнее село'}. Там тебя никто не знает». Утром ${b.ves ? 'хозяйка дома' : 'хозяин бани'} будет кричать на всю улицу. Пусть кричит.`; return SID; };
+      const runDo = (h, b) => g2 => { const hh = heroById(g2, h.id); if (!hh) return SID; const pr = helpP(hh, b); if (pr) { if ((g2.purse || 0) < pr) return SID; g2.purse -= pr; } const x = C.banshRun(g2, hh, b); const kept = C.pledgeKept ? C.pledgeKept(g2, hh, b, bondOf(g2, b, hh)) : ''; if (x && x.junior) { g2.kvLast = x.text + kept; return SID; }
+        g2.kvLast = `Ночью, пока ${b.ves ? 'хозяйка дома считает выручку' : 'хозяин бани спит'}, ${b.n} выходит к коновязи с узелком — всё ${v(b, 'его', 'её')} добро. ${v(b, 'Он', 'Она')} не плачет и не оглядывается. «Куда? — В ${(nodes(g2)[x.at] || {}).name || 'соседнее село'}. Там тебя никто не знает». Утром ${b.ves ? 'хозяйка дома' : 'хозяин бани'} будет кричать на всю улицу. Пусть кричит.` + kept; return SID; };
       hs.forEach(h => { if (!VES && !C.banshSpecial(g, g.loc)) return; const b = banshOf(g, g.loc, h.sex === 'f' ? 'm' : 'f', VES ? 'ves' : 'bansh'); if ((g.banshRun || {})[b.key]) return; const B = bondOf(g, b, h); if (C.saviorMeet) { const L = C.saviorMeet(g, h, b, B, VES); if (L) sc.lines = (sc.lines || []).concat([['n', L]]); } if (C.saviorTip) { const c = C.saviorTip(g, h, b, B, VES, SID); if (c) add.push(Object.assign({i: i++, own: h.id, t: ''}, c)); }
         if (VES) { /* весёлый дом: план выкупа после постельных разговоров */
           if (!B.plan) return; const price = C.vesBuyPrice(g);
           add.push({i: i++, own: h.id, label: `${h.name}: выкупить ${Q.decl(b.n, b.sex).a} у хозяйки — ${R.priceText(price)}`, t: '', dis: (g.purse || 0) < price ? 'не хватает серебра' : undefined, do: g2 => { const hh = heroById(g2, h.id); if (!hh || (g2.purse || 0) < price) return SID; g2.purse -= price; const x = C.banshRun(g2, hh, b);
             g2.kvLast = `Хозяйка долго листает книгу долгов, вычёркивает строку и пересчитывает серебро дважды. «Забирай. Всё равно через седмицу за дверь». ${b.n} выходит на крыльцо — впервые днём — и щурится на солнце, как будто видит его в первый раз.`; return SID; }});
+          if (C.pledgeChoice && !B.promise) { const pc = C.pledgeChoice(g, h, b, B, true, SID); if (pc) add.push(Object.assign({i: i++, own: h.id, t: ''}, pc)); }
           add.push({i: i++, own: h.id, label: `${h.name}: увезти ${Q.decl(b.n, b.sex).a} по её плану — в ночь торга, через заднюю калитку (Ловкость, Скрытность)`, t: '', do: g2 => { const hh = heroById(g2, h.id); if (!hh) return SID; g2.kvLast = C.vesEscape(g2, hh, b); return SID; }});
           return; }
         /* баня: разговор — когда позвал попарить, а большего не просил (Ник 28.11) */
@@ -82124,6 +82125,7 @@ C.sceneOf = function (g, id) {
         else if (steamed && (B.trust || 0) >= (C.forestFirst && C.forestFirst(h) ? 2 : 3) && !B.plea && B.talkDay !== day(g)) { B.plea = day(g); B.talkDay = day(g); const pl = C.banshPlea(g, h, b); g.kvLast = pl; sc.lines = (sc.lines || []).concat([['n', pl]]); }
         if (B.plea && !B.refused) {
           add.push({i: i++, own: h.id, label: runLbl(h, b, 'согласиться: увезти'), t: '', dis: runDis(h, b), do: runDo(h, b)});
+          if (C.pledgeChoice) { const pc = C.pledgeChoice(g, h, b, B, false, SID); if (pc) add.push(Object.assign({i: i++, own: h.id, t: ''}, pc)); }
           add.push({i: i++, own: h.id, label: `${h.name}: отказать ${Q.decl(b.n, b.sex).d}`, t: '', do: g2 => { const BB = bondOf(g2, b, heroById(g2, h.id) || h); BB.refused = day(g2); if (!b.expel) b.expel = day(g2) + K().YEAR;
             g2.kvLast = `${b.n} отпускает ваш рукав. Не плачет. «Иди. Я… буду считать зимы. Если вспомнишь — у меня ещё есть год. Потом меня тут не будет»`; return SID; }});
         } else if (B.refused) add.push({i: i++, own: h.id, label: runLbl(h, b, 'вернуться за'), t: '', dis: runDis(h, b), do: runDo(h, b)});
@@ -82920,6 +82922,63 @@ C.saviorTip = function (g, h, b, B, ves, SID) {
         '{n} сжимает монеты в кулаке так, что белеют пальцы. «Это первое за год — моё. Не его. Моё»'], b.key + B.tips), {n: String(b.n || '').split(' ')[0], sex: b.sex, ppl: b.ppl}, h);
       return SID; }};
 };
+
+/* ---------- обещание вернуться (Ник 28.11) ----------
+   Третий ответ на её просьбу — «пообещать вернуться». В бане она клянётся лбом и вяжет нитку из косы на запястье;
+   в весёлом доме — сперва не верит: верующие Оку таким не обещают ничего, для них они — «мясо»; не верит, что тут оказался
+   хоть кто-то «свой». Потом отдаёт единственное своё — гребень. Срок — до её изгнания. Пришёл — «Ты держал».
+   Не пришёл — нитка рвётся сама; на тебе сглаз тяжелее, ночь его не снимет — только следующая спасённая. */
+const PLEDGE = {b: {name: 'Нитка из её косы', notes: 'Три узла на запястье. Пока узел цел — она ждёт.'}, v: {name: 'Костяной гребень', notes: 'Её единственное. «Вернёшь, когда заберёшь».'}};
+C.pledgeState = C.pledgeState || {};
+{ const it1 = R.item; R.item = function (id) { const x = it1.apply(this, arguments); if (x || !/^ob:[bv]:/.test(id || '')) return x; const k = id[3], P0 = PLEDGE[k], st = C.pledgeState[id] || '';
+  return {_t: 'g', id, name: P0.name, price: 0, weight_kg: 0, category: 'обеты', notes: P0.notes + (st ? ' ' + st : ''), noSell: 1}; }; }
+const pledgeId = (b, ves) => `ob:${ves ? 'v' : 'b'}:${b.key}`;
+const dropItem = (h, id) => { if (!h || !Array.isArray(h.inv)) return; const i = h.inv.indexOf(id); if (i >= 0) h.inv.splice(i, 1); };
+C.pledgeChoice = function (g, h, b, B, ves, SID) {
+  if (!h || !b || !B || B.promise || B.refused) return null; if (!ves && !B.plea) return null;
+  return {label: `${h.name}: пообещать вернуться за ${Q.decl(b.n, b.sex).i}`, do: g2 => {
+    const hh = heroById(g2, h.id) || h; B.promise = day(g2); B.refused = day(g2); B.pledgeHero = hh.id; if (!b.expel) b.expel = day(g2) + (C.BL ? C.BL.YEAR : 360);
+    const id = pledgeId(b, ves); if (Array.isArray(hh.inv) && !hh.inv.includes(id)) hh.inv.push(id);
+    const n = String(b.n || '').split(' ')[0], own = C.speaks && b.ppl && C.speaks(hh, b.ppl);
+    g2.kvLast = ves
+      ? (own ? `${n} слышит от вас слово на своём языке — и бледнеет, будто увидела мёртвого. «Ты… откуда?» ` : `${n} долго молчит. Потом смеётся — коротко, зло, не на вас. `) +
+        `«Ваши такого не обещают. Ваши со Звездой вообще ничего нам не обещают — мы для них мясо. Даже жёны их не ревнуют: что ревновать к мясу?» Она смотрит на вас, как на чудо, в которое нельзя верить, чтобы не было больно. Потом снимает с волос костяной гребень — единственное своё — и кладёт вам в ладонь: «Вернёшь, когда заберёшь. Не вернёшь — значит, я ошиблась. Опять». Эту ночь она не работает: просит хозяйку не будить до обеда, а сама сидит у окна и смотрит на дорогу.`
+      : `${n} бросает веник и садится прямо на мокрый пол. Берёт вашу руку и прижимает к своему лбу — у них клянутся лбом, а не губами. Потом выдёргивает нитку из косы и обвязывает вам запястье, тремя узлами: «Это не я тебя держу. Это ты меня держишь. Пока узел цел — я жду». И вдруг смеётся — впервые при вас: «Теперь у меня есть, зачем мыться»`;
+    C.pledgeState[id] = 'Узел крепок.'; return SID; }};
+};
+C.pledgeKept = function (g, h, b, B) {
+  if (!B || !B.promise || B.kept) { if (B && B.keptTxt && !B.keptShown) { B.keptShown = 1; return ' ' + B.keptTxt; } return ''; }
+  B.kept = day(g); const ves = !!b.ves, id = pledgeId(b, ves), hh = heroById(g, B.pledgeHero) || h; dropItem(hh, id); delete C.pledgeState[id];
+  const n = String(b.n || '').split(' ')[0];
+  B.keptTxt = ves ? `${n} забирает у вас свой гребень и долго держит, не втыкая в волосы. «Не ошиблась», — говорит она. И только тогда плачет.`
+    : `${n} развязывает узлы на вашем запястье сама — зубами, по одному, не торопясь. «Ты держал», — говорит она. Нитку она прячет за пазуху.`;
+  if (hh) hh.fwKept = (hh.fwKept || 0) + 1;
+  if (hh && hh.sglazHard) { hh.sglazHard = 0; if (C.ailDrop) C.ailDrop(hh, 'sglaz'); C.note(g, `${hh.name}: тяжесть старого обещания уходит — вместе с этой спасённой.`); }
+  return '';
+};
+if (C.banshRun) { const br1 = C.banshRun; C.banshRun = function (g, h, b) { const r = br1.apply(this, arguments);
+  try { const B = (g.banshB || {})[b.key + '|' + h.id]; if (B && B.promise && !B.kept) { C.pledgeKept(g, h, b, B); if (b.ves) C.note(g, B.keptTxt), B.keptShown = 1; }
+    if (h.sglazHard) { h.sglazHard = 0; if (C.ailDrop) C.ailDrop(h, 'sglaz'); } } catch (e) {} return r; }; }
+// пока ждёт — встречает как жениха; ближе к сроку нитка темнеет; не пришёл — рвётся
+const pledgeTick = g => { try { const d = day(g);
+  Object.entries(g.banshB || {}).forEach(([k, B]) => { if (!B || !B.promise || B.kept || B.broken) return; const bkey = k.split('|').slice(0, -1).join('|'), b = (g.bansh || {})[bkey]; if (!b) return;
+    const ves = !!b.ves, id = pledgeId(b, ves), left = (b.expel || d) - d, total = (b.expel || d) - B.promise || 1;
+    C.pledgeState[id] = left <= 0 ? '' : left / total > 0.5 ? 'Узел крепок.' : left / total > 0.2 ? (ves ? 'Зубцы потемнели.' : 'Узел ослаб, нить потемнела.') : (ves ? 'Гребень почти чёрный, будто его жгли.' : 'Нить почти чёрная.');
+    if (left > 0 || (g.banshRun || {})[bkey]) return;
+    B.broken = d; const h = heroById(g, B.pledgeHero); dropItem(h, id); delete C.pledgeState[id]; if (!h) return;
+    C.note(g, ves ? `${h.name}: костяной гребень в сумке ломается сам — пополам. Где-то её выставили за дверь.` : `${h.name}: нитка на запястье лопается сама — тихо, как волос. Где-то её выгнали из бани.`);
+    if (C.ailAdd && !C.ailsOf(h).some(a => a.id === 'sglaz')) C.ailAdd(g, h, 'sglaz', 2); h.sglazHard = 1; h.sglazOk = 0;
+    const s = h.spouse; if (s && s.forest) { const line = '«Ты обещал». — больше в бересте ничего нет.'; g.mail = (g.mail || []).concat({from: s.n, t: s.t, face: s.face, sex: s.sex, kind: 'kv', head: 'Береста с птицей', to: h.name, text: line, day: d}).slice(-6); C.note(g, `Береста от ${Q.decl(s.n, s.sex).g}: ${line}`); } }); } catch (e) {} };
+['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); try { pledgeTick(g); } catch (e) {} return r; }; });
+// тяжёлый сглаз ночь не снимает
+{ const sn0 = C.sglazNight; C.sglazNight = function (g, h) { if (h && h.sglazHard) return ''; return sn0.apply(this, arguments); }; }
+{ const hc1 = C.homeCalls; C.homeCalls = function (g) { return hc1.apply(this, arguments).filter(E => { const h = heroById(g, E.hero); return !(h && h.sglazHard); }); }; }
+
+{ const sm0 = C.saviorMeet; C.saviorMeet = function (g, h, b, B, ves) {
+  if (B && B.promise && !B.kept && !B.broken && B.pledgeHero === (h && h.id) && B.waitSeen !== day(g)) { B.waitSeen = day(g); const n = String(b.n || '').split(' ')[0];
+    return ves ? `${n} встречает вас у лестницы — не так, как встречает всех. Ни слова о деле. Только смотрит на ваш пояс, где спрятан её гребень, и кивает: цел.`
+      : `${n} встречает вас как жениха — краснеет, суетится, парит дубовым веником с мятой и украдкой целует ваше запястье, там, где нитка. «Держишь?» — шепчет. Держите.`; }
+  return sm0 ? sm0.apply(this, arguments) : null; }; }
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
