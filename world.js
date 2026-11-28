@@ -82335,7 +82335,7 @@ C.forestWhisper = function (ppl, known, salt) { const L = LEX[ppl] || LEX.loss; 
 function forestBed(g, p, h, salt) {
   const ppl = p.ppl, known = h && h.wifeLang && h.wifeLang[ppl] ? 1 : Math.min(1, ((h && h.wifeTongue && h.wifeTongue[ppl]) || 0) / K().TONGUE);
   const hot = fillAll(pk(HOT[p.sex === 'f' ? 'f' : 'm'], salt), p, h), wh = C.forestWhisper(ppl, known, salt);
-  return `${hot} ${p.n} шепчет на своём: «${wh}»`;
+  return `${hot} ${p.n} шепчет на своём: «${wh}»` + (C.sglazNight ? C.sglazNight(g, h) : '');
 }
 const ROY_HOME = {
   f: ['{n} принимает вас в покоях, как посла: прямая спина, холодные пальцы для поцелуя. Наедине — теплеет. Немного.',
@@ -82453,6 +82453,7 @@ C.wifeFollow = function (g, h, at1) {
     const md = r.w2moveDay, q0 = C.moveQuote; delete r.w2moveDay; C.moveQuote = function () { return {price: 0, sale: 0, debt: 0, pay: 0, rest: 0, left: 0, need: 0, ok: true}; };
     let res; try { res = C.moveFamily(g, key, at1, {free: 1}); } catch (e) { res = {err: 'нельзя'}; } finally { C.moveQuote = q0; }
     if (res && res.err) { if (md != null) r.w2moveDay = md; return; }
+    try { const S = g.w2move; if (S && S.road) S.road = S.road.filter(x => !(x.hero === h.id && x.at === at1 && x.day0 === day(g))); } catch (e) {} // в тот же день — без дороги
     out.push(fillAll(s.sex === 'f' ? '{n} узнаёт о наделе в тот же день — и к вечеру уже там: узелок, горшок, травы в мешочках и чья-то коза. «Дом — где ты», — говорит она и метёт порог.'
       : '{n} узнаёт о наделе в тот же день — и к вечеру уже там: топор, шкура, связка трав. «Дом — где ты», — говорит он и чинит крыльцо.', {n: String(s.n || '').split(' ')[0], sex: s.sex, ppl: s.ppl}, h) + (templeAt(g, at1) ? ' Только изба её — за околицей, у леса: под звездой храма она спать не станет.' : '')); });
   // та, с кем живут без брака, — тоже
@@ -82675,5 +82676,189 @@ C.sceneOf = function (g, id) {
 };
 if (C.forestWed) { const fw0 = C.forestWed; C.forestWed = function (g, rid) { const r = C.kvLocOf && C.kvLocOf(g, rid), h = r && heroById(g, r.hid); if (h && h.sex === 'f') return null; return fw0.apply(this, arguments); }; }
 
+/* ---------- деньги у лесной, её просьбы «за своих», сглаз (Ник 28.11) ----------
+   • Много денег: берёт на еду, лишнее — в дупло «на твой чёрный день» (отдаст, когда придёт нужда) и своим, кому хуже.
+   • Мало: упрёков нет — кормит лес; стол из грибов и кореньев.
+   • Просьбы приходят птицей (береста). Не ответил — или ответил «нечего» — она обиды не скажет. Но знают они всё: тайно
+     вешают сглаз — тяжесть на душе, всё валится из рук. Снимется, когда поможешь.
+   • Спасённые просят помочь своим. Отказал — в сёлах и городах к тебе иногда подходит такая же: не просит, только смотрит
+     жалобно. Неделю не замечаешь — тебе не по себе: тот же сглаз. */
+if (C.AILS && !C.AILS.sglaz) C.AILS.sglaz = {name: 'Сглаз', dc: 99, self: 0, grow: 0,
+  say: ['тяжело на душе, всё валится из рук', 'не по себе: будто кто-то смотрит в спину', 'сглаз давит: сон не в сон, хлеб не в хлеб'],
+  catchTxt: h => `${v(h, 'сам не свой', 'сама не своя')}: тяжело на душе, всё валится из рук — будто кто-то сглазил`, pen: s => ({chk: 1, cha: 1})};
+const sglaz = (g, h, why) => { if (!h || !C.ailAdd || C.ailsOf(h).some(a => a.id === 'sglaz')) return; C.ailAdd(g, h, 'sglaz', 1); h.sglazWhy = why; };
+// послушался — снимут. Чем? Той же жаркой ночью (Ник 28.11)
+const unSglaz = (g, h) => { if (!h || !C.ailsOf || !C.ailsOf(h).some(a => a.id === 'sglaz') || h.sglazOk) return; h.sglazOk = 1; C.note(g, `${h.name}: тяжесть ещё на душе. Но теперь кто-то знает, как её снять, — и снимет. Ночью.`); };
+C.sglazNight = function (g, h) { if (!h || !h.sglazOk || !C.ailsOf(h).some(a => a.id === 'sglaz')) return ''; C.ailDrop(h, 'sglaz'); h.sglazOk = 0; h.sglazWhy = null;
+  const t = 'Под утро она дует вам в лицо, шепчет над теменем три слова на своём — и тяжесть уходит, как не было.'; C.note(g, `${h.name}: сглаз снят. ${t}`); return ' ' + t; };
+C.wifeSglaz = sglaz;
+const FW = g => (g.fwRes = g.fwRes || {plea: {}, refuse: {}, seen: {}});
+const isForestKey = (g, key) => C.wifeKind(g, key) === 'forest';
+// её просьбы — береста с птицей
+if (C.hearthUpkeep) { const hu0 = C.hearthUpkeep; C.hearthUpkeep = function (g) {
+  const m0 = (g && g.mail || []).length, r = hu0.apply(this, arguments);
+  try { (g.mail || []).slice(m0).forEach(m => { if (!m.hk || !m.ask || !isForestKey(g, m.hk)) return; const s = recOf(g, m.hk) || {}, p = {n: String(s.n || '').split(' ')[0], sex: s.sex, ppl: s.ppl};
+      m.head = 'Береста с птицей'; m.bird = 1; m.ask = Math.max(10, Math.round(m.ask / 2 / 10) * 10);
+      m.text = fillAll(pk(['«{d}. Соль кончилась, и мука. Ягод много, грибов много — а соли лес не даёт. Пришли немного. Дети здоровы. Я — твоя. {n}»',
+        '«Птица знает дорогу — ей и отдай, что не жалко. Немного: на соль и на хлеб. Остальное — лес. {Y}. {n}»',
+        '«Зима близко. Нужно на валенки малым — больше ничего. Если нет — не надо, обойдёмся. Но если есть — пришли. {n}»'], m.hk + g.day), p, null);
+      m.acts = [{id: 'send', t: `Отправить с птицей: ${R.priceText(m.ask)}`}, {id: 'no', t: 'Сейчас нечего послать'}];
+      C.note(g, `На плечо садится птица — к лапке привязана береста. От ${Q.decl(s.n || '', s.sex).g}.`); });
+    // много денег: лишнее — в дупло и своим
+    Object.keys(g.w2hearth || {}).forEach(key => { if (!isForestKey(g, key)) return; const H = g.w2hearth[key], need = C.hearthWeek(g, key) || 10;
+      if ((H.coin || 0) > need * 8) { const ex = H.coin - need * 4; H.coin -= ex; const d = Math.round(ex / 2); H.duplo = (H.duplo || 0) + d; H.gaveOwn = (H.gaveOwn || 0) + (ex - d);
+        const s = recOf(g, key) || {}; if (!H.richSaid || day(g) - H.richSaid > 60) { H.richSaid = day(g);
+          C.note(g, `${String(s.n || '').split(' ')[0]} берёт из ваших денег на соль и муку. Остальное — половину в дупло за избой, «на твой чёрный день», половину — тем, кому хуже: вдове на краю села, выгнанной девочке у брода.`); } } });
+  } catch (e) {}
+  return r; }; }
+// ответ на бересту
+if (C.mailAct) { const ma1 = C.mailAct; C.mailAct = function (g, m, id) {
+  const r = ma1.apply(this, arguments);
+  try { if (m && m.bird && m.hk && isForestKey(g, m.hk)) { const s = recOf(g, m.hk), h = s && heroById(g, s.hero);
+      if (r === 'sent') { m.ask = 0; unSglaz(g, h); }
+      else if (r === 'no' || r === 'poor') { m.ask = 0; m.acts = []; const W = FW(g); W.no = W.no || {}; W.no[m.hk] = (W.no[m.hk] || 0) + 1; if (W.no[m.hk] >= 2) { W.no[m.hk] = 0; sglaz(g, h, 'wife'); } } } } catch (e) {}
+  return r; }; }
+// просьбы «за своих»
+const PLEA = [
+  'В селе за рекой — девочка из наших. Её выгнали из бани: девятнадцать. Ей бы угол и корову — и выживет.',
+  'В круге у брода зима голодная. Малые пухнут. Хлеба бы им — на месяц.',
+  'Одна из наших слегла у чужих людей. Её держат за работу, а лечить не лечат. Её бы выкупить — пока жива.',
+  'У нашей старой матери круга отняли козу. Без козы она зиму не переживёт.'
+];
+const pleaAmt = (g, h) => (50 + hsh(h.id + Math.floor(day(g) / 30)) % 11 * 10) * 100;
+C.fwPleaDue = (g, h) => { if (!h || !C.forestTaken(g, h)) return null; const W = FW(g), P = W.plea[h.id]; if (W.refuse[h.id]) return null; if (P && day(g) - P.day < 30) return null; return {amt: pleaAmt(g, h), text: pk(PLEA, h.id + Math.floor(day(g) / 30))}; };
+C.fwPleaGive = function (g, h, amt) { if ((g.purse || 0) < amt) return 'не хватает серебра'; g.purse -= amt; const W = FW(g); W.plea[h.id] = {day: day(g), gave: 1}; delete W.refuse[h.id];
+  h.fwHelped = (h.fwHelped || 0) + 1; unSglaz(g, h); if (C.spiritAdd) try { C.spiritAdd(g, 1, 'Помогли своим — лесным.', h); } catch (e) {} return null; };
+C.fwPleaRefuse = function (g, h) { const W = FW(g); W.plea[h.id] = {day: day(g), gave: 0}; W.refuse[h.id] = {day: day(g), amt: pleaAmt(g, h)}; };
+const PLEA_BY = n => `${n} садится рядом и говорит тихо, без слёз — так у них просят: «Помоги нашим. ${'{T}'}» И ждёт.`;
+const GAZE = ['У колодца стоит девушка в лыковом очелье — из тех, из лесных. Не просит. Просто смотрит на вас — долго, жалобно, пока вы не отведёте глаз.',
+  'У ворот — худая женщина с ребёнком на руках, в чужих лаптях. Ни слова. Только смотрит вам вслед, как смотрят на того, кто мог — и не стал.',
+  'На торгу, за возами, — девчонка лет девятнадцати с выцветшей лентой в косе. Встречается с вами взглядом — и не опускает глаз.'];
+// подходят и смотрят; неделю не замечаешь — сглаз
+const so4 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so4.apply(this, arguments);
+  try {
+    if (!sc || !g || !g.heroes) return sc; const W = FW(g), N = nodes(g), nd = N[g.loc];
+    const ins = c => { const b = sc.choices.length && /^(Назад|Уйти|На карту)/.test(sc.choices[sc.choices.length - 1].label || '') ? 1 : 0; sc.choices.splice(sc.choices.length - b, 0, c); }, nextI = () => Math.max(0, ...sc.choices.map(c => c.i || 0)) + 1;
+    // просьба за своих — дома у первой и у младших
+    let asker = null, who = null;
+    if (id === 'folk' && g.folkRole) { const at = g.folkAt || g.loc, r = (g.folkRel || {})[g.folkRole + '@' + at]; if (r && r.bond === 'wed' && isForestKey(g, g.folkRole + '@' + at)) { who = heroById(g, r.who); asker = String(((g.homeSp || {})[g.folkRole] || {}).n || '').split(' ')[0]; } }
+    if (id === 'kv_local') { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur); if (r && r.junior) { who = heroById(g, r.hid); asker = String(r.n || '').split(' ')[0]; } }
+    if (who && asker) { const D = C.fwPleaDue(g, who);
+      if (D) { sc.lines = (sc.lines || []).concat([['n', PLEA_BY(asker).replace('{T}', D.text)]]);
+        ins({i: nextI(), own: who.id, label: `Дать на своих — ${R.priceText(D.amt)}`, dis: (g.purse || 0) < D.amt ? 'не хватает серебра' : undefined, do: g2 => { const e = C.fwPleaGive(g2, heroById(g2, who.id), D.amt); if (!e) C.note(g2, `${asker} берёт серебро двумя руками и прячет — не за пазуху, а в ладанку на шее. «Они будут знать, чьё»`); return id; }});
+        ins({i: nextI(), own: who.id, label: 'Отказать — сейчас не могу', do: g2 => { C.fwPleaRefuse(g2, heroById(g2, who.id)); C.note(g2, `${asker} кивает. Ни слова упрёка. Только глаза другие.`); return id; }}); } }
+    // в сёлах и городах — та, что смотрит
+    if (nd && id === nd.scene && ['село', 'город', 'подворье', 'площадь', 'ворота', 'выселки'].includes(nd.kind)) {
+      C.alive(g).forEach(h => { const R0 = W.refuse[h.id]; if (!R0) return; const sk = h.id + '|' + day(g);
+        if (W.seen[sk] == null) W.seen[sk] = (hsh(sk + g.loc) % 100) < 40 ? 1 : 0;
+        if (!W.seen[sk]) return; const amt = Math.round(R0.amt / 2 / 1000) * 1000 || 2000;
+        sc.lines = (sc.lines || []).concat([['n', pk(GAZE, sk)]]);
+        ins({i: nextI(), own: h.id, label: `${h.name}: подойти и дать ей ${R.priceText(amt)}`, dis: (g.purse || 0) < amt ? 'не хватает серебра' : undefined, do: g2 => { const hh = heroById(g2, h.id); if ((g2.purse || 0) < amt) return id; g2.purse -= amt; delete FW(g2).refuse[h.id]; FW(g2).plea[h.id] = {day: day(g2), gave: 1}; unSglaz(g2, hh);
+          C.note(g2, `Она берёт серебро, не поднимая глаз, и шепчет что-то на своём. Вы не понимаете слов — но понимаете, что это благодарность. И что о вас узнают «свои».`); return id; }}); });
+    }
+  } catch (e) {}
+  return sc;
+};
+// неделю не замечаешь — сглаз; береста без ответа две недели — тоже
+const fwDaily = g => { try { const W = FW(g), d = day(g); if (W.day === d) return; W.day = d;
+  C.alive(g).forEach(h => { const R0 = W.refuse[h.id]; if (R0 && d - R0.day >= 7) sglaz(g, h, 'own'); });
+  (g.mail || []).forEach(m => { if (m.bird && m.ask && d - (m.day || d) >= 14) { const s = recOf(g, m.hk), h = s && heroById(g, s.hero); m.ask = 0; m.acts = []; sglaz(g, h, 'wife'); } });
+  Object.keys(W.seen).forEach(k => { if (+k.split('|')[1] < d - 3) delete W.seen[k]; }); } catch (e) {} };
+['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); try { fwDaily(g); } catch (e) {} return r; }; });
+// дома: дупло на чёрный день, стол из леса; у младших — лечат даром и предупреждают о дороге
+const so5 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so5.apply(this, arguments);
+  try {
+    if (sc && id === 'folk' && g.folkRole) { const at = g.folkAt || g.loc, key = g.folkRole + '@' + at;
+      if (isForestKey(g, key)) { const H = (g.w2hearth || {})[key] || {}, s = recOf(g, key) || {}, n = String(s.n || '').split(' ')[0];
+        if ((H.duplo || 0) > 0 && (g.purse || 0) < 2000) { const d = H.duplo; H.duplo = 0; g.purse = (g.purse || 0) + d;
+          sc.lines = (sc.lines || []).concat([['n', `${n} молча уходит за избу и возвращается с узелком — тёплым от земли. «Это твоё. Я знала, что придёт». В узелке — ${R.priceText(d)}.`]]); }
+        else if ((H.coin || 0) <= 0) sc.lines = (sc.lines || []).concat([['n', `Стол — из леса: грибы, коренья, рыба из её сетей, мёд диких пчёл. Дети босые и весёлые. ${n} не жалуется — ей и так хорошо.`]]); } }
+    if (sc && id === 'kv_local') { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur), h = r && heroById(g, r.hid);
+      if (r && r.junior && h && r.healDay !== day(g)) { r.healDay = day(g); let healed = 0; C.alive(g).forEach(x => { if (x.hp < x.hpMax) { x.hp = Math.min(C.ailHpCap ? C.ailHpCap(x) : x.hpMax, x.hp + Math.ceil(x.hpMax / 2)); healed++; } });
+        const n = String(r.n || '').split(' ')[0];
+        sc.lines = (sc.lines || []).concat([['n', (healed ? `${n} молча перевязывает ваших — травой и чистой тряпицей, без счёта и без вопросов. ` : '') + pk([`«На старой дороге трое с топорами сидят, — говорит она между делом. — Иди низом, у ручья».`, `«В городе спрашивали про тебя — двое, в сером. Я сказала: не знаю такого».`, `«Волки ушли за реку. Дорога на полдень чистая».`, `«Мост у мельницы гнилой. Не верь ему».`], r.id + day(g))]]); } }
+  } catch (e) {}
+  return sc;
+};
+
+/* сглаз портит сон: не высыпаешься, устаёшь быстрее (Ник 28.11: «если их игнорировать и забывать помогать им») */
+const sglazed = g => C.alive(g).filter(h => C.ailsOf && C.ailsOf(h).some(a => a.id === 'sglaz'));
+const badSleep = g => { try { const L = sglazed(g); if (!L.length) return; g.awake = Math.max(g.awake || 0, 3);
+  if (g.sglazSleep !== day(g)) { g.sglazSleep = day(g); C.note(g, `${L.map(h => h.name).join(', ')} ${L.length > 1 ? 'ворочаются' : 'ворочается'} всю ночь: сон не в сон. Утром — будто и не ложились.`); } } catch (e) {} };
+{ const r0 = C.rest; if (r0) C.rest = function (g, full) { const r = r0.apply(this, arguments); if (full && g && g.heroes) badSleep(g); return r; }; }
+if (G.W && G.W.nightCamp) { const nc0 = G.W.nightCamp; G.W.nightCamp = function (g) { const r = nc0.apply(this, arguments); if (g && g.heroes) badSleep(g); return r; }; }
+{ const p0 = C.pass; if (p0) C.pass = function (g, steps) { const a0 = g && g.awake; const r = p0.apply(this, arguments);
+  try { if (g && g.heroes && !g._sleeping && steps > 0 && (g.awake || 0) > (a0 || 0) && sglazed(g).length) g.awake += steps * 0.5; } catch (e) {} return r; }; }
+
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
+
+/* roof.js */
+/* Колдовство — «Дела» под крышей: в городе, селе и дома (Ник 28.11: «нужна кнопка действий в городе или доме — открыть
+   инвентарь, что можно, как в лагере: подождать часик, поварить зелья, почитать… куча действий есть, а в городе делать нельзя»).
+   То же, что сборы на привал, только без охоты, рыбалки, обыска и разведки, без ночных гостей и костра:
+   • очаг есть дома и на кухне корчмы — там стряпня и копчение; на улице — нет;
+   • зелья, медитация, долгие чары и обряды — дома или в снятом углу корчмы; у храма Ока чары видны чужим глазам;
+   • подождать — час или до вечера; отдохнуть — перевязать раны (спать — в корчме или дома, как прежде).
+   Вещи — лист героя с куклой (кликнуть на героя). Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W;
+if (!C || !C.restTasks || !C.restRun) return;
+C.ROOF = Object.assign({KINDS: ['город', 'село', 'подворье', 'площадь', 'ворота', 'выселки', 'стан', 'хутор', 'мельница'], INN: ['город', 'село', 'подворье', 'стан', 'площадь']}, C.ROOF || {});
+const nodeOf = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes[g.loc]) || null;
+const team = g => C.alive(g).concat(g.mercs || []);
+C.roofHere = g => { const n = g && nodeOf(g); return !!(n && C.ROOF.KINDS.includes(n.kind)); };
+C.roofPlace = g => { const n = nodeOf(g); if (!n) return 'street';
+  if (Object.values(g.homeSp || {}).some(s => s && s.at === g.loc && C.alive(g).some(h => h.id === s.hero))) return 'home';
+  return C.ROOF.INN.includes(n.kind) ? 'inn' : 'street'; };
+const WILD = ['hunt', 'fish', 'search', 'scout', 'watch'];
+const toEve = g => { const q = (g.time || 0) % 4; return q >= 2 ? 0 : Math.max(1, (2 - q) * 6 - (g.walk || 0)); };
+C.roofTasks = function (g, h) {
+  const place = C.roofPlace(g), fire = place !== 'street', temple = C.kvTempleHere ? !!C.kvTempleHere(g) : false;
+  let base = []; try { base = C.restTasks(g, h, 'halt'); } catch (e) {}
+  const out = [{k: 'rest', t: 'Отдохнуть, перевязать раны', grp: 'Отдых'}];
+  const e = toEve(g); out.push({k: 'wait', arg: 1, t: 'Подождать час', grp: 'Время'}); if (e > 1) out.push({k: 'wait', arg: e, t: 'Подождать до вечера', grp: 'Время'});
+  base.forEach(o => { if (o.k === 'rest' || WILD.includes(o.k)) return; const x = Object.assign({}, o);
+    if (['cook', 'cookall', 'smoke'].includes(o.k)) { if (!fire) x.why = 'нужен очаг: дома или на кухне корчмы'; else if (x.why && /костёр/.test(x.why)) x.why = ''; }
+    if (['brew', 'brewr', 'med', 'abil', 'ocast'].includes(o.k)) { if (!fire) x.why = x.why || 'негде разложиться: дома или в корчме'; else if (x.why === C.REST_HINT) x.why = '';
+      if (temple && place !== 'home' && ['abil', 'ocast'].includes(o.k) && !x.why) x.t += ' (храм Ока рядом — могут заметить)'; }
+    out.push(x); });
+  return out;
+};
+/* исполнить: tasks = {hid: {k, arg}} */
+C.roofRun = function (g, tasks) {
+  if (!C.roofHere(g)) return {err: 'здесь не под крышей'};
+  const T = tasks || {}, lines = [], wait = Math.max(0, ...Object.values(T).filter(t => t && t.k === 'wait').map(t => +t.arg || 0));
+  const work = {}; Object.entries(T).forEach(([hid, t]) => { if (t && t.k !== 'wait') work[hid] = t; });
+  const any = Object.values(work).some(t => t.k !== 'rest');
+  if (any || Object.keys(work).length) {
+    g.restPlan = {kind: 'halt', tasks: {}, ready: {}}; team(g).forEach(h => { g.restPlan.tasks[h.id] = work[h.id] || {k: 'rest'}; });
+    const isHex0 = W && W.isHex; if (W) W.isHex = () => false; // под крышей: ни лагеря, ни ночных гостей
+    let r; try { r = C.restRun(g); } finally { if (W) W.isHex = isHex0; }
+    if (r && r.lines) lines.push(...r.lines);
+    // чары у храма: видели
+    if (C.kvTempleHere && C.kvTempleHere(g) && C.roofPlace(g) !== 'home' && Object.values(work).some(t => ['abil', 'ocast'].includes(t.k)) && R.rand() < 0.25) {
+      lines.push('Наутро у корчмы шепчутся: у постояльцев «дымом пахло и шептали не по-нашему». Брат из храма уже спрашивал, кто такие.');
+      if (C.trust && g.chron) try { C.trust(g, 'oko', -1); } catch (e) {} }
+  }
+  if (wait > 0) { C.passH(g, wait); lines.push(wait <= 1 ? 'Прошёл час.' : 'Время тянется до вечера.'); }
+  return {ok: true, lines};
+};
+/* кнопка «Дела» — в сцене места и дома */
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try { const n = nodeOf(g); if (!sc || !n || !C.roofHere(g) || g.folkRole && id !== 'folk') return sc;
+    if (id !== n.scene && id !== 'folk') return sc; if (id === 'folk') { const r = (g.folkRel || {})[g.folkRole + '@' + (g.folkAt || g.loc)]; if (!r || !['wed', 'kin'].includes(r.bond)) return sc; } if (sc.choices.some(c => c.roof)) return sc;
+    const i = Math.max(0, ...sc.choices.map(c => c.i || 0)) + 1, b = sc.choices.length && /^(Назад|Уйти|На карту)/.test(sc.choices[sc.choices.length - 1].label || '') ? 1 : 0;
+    sc.choices.splice(sc.choices.length - b, 0, {i, roof: 1, label: 'Дела: подождать, зелья, стряпня, вещи', do: () => id});
+  } catch (e) {}
+  return sc;
+};
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);

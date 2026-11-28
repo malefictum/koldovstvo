@@ -50380,7 +50380,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611280223"></script><script>
+</script><script src="world.js?v=202611280530"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -52865,6 +52865,7 @@ function feedShow(id, sc) { const F = FEED; FEED = null; try { const box = $('#m
   setTimeout(() => { try { (d.nextElementSibling || d).scrollIntoView({block: 'start', behavior: 'smooth'}); } catch (e) {} }, 30); } catch (e) {} }
 function choose(id, i) {
   feedKeep(id, i);
+  { const sc0 = C.sceneOf(g, id), c0 = sc0 && sc0.choices.find(x => x.i === i); if (c0 && c0.roof) return roofShow(id); }
   if (NET() && g && g.net && C.splitOn && C.splitOn(g)) { const w = splitWaiting(myPid()); if (w) return toast(w); }
   if (NET()) { const sc = C.sceneOf(g, id), c = sc && sc.choices.find(x => x.i === i);
     if (c && c.swap && !c.dis) return showSwap(id);
@@ -53274,6 +53275,26 @@ function showPaperMap() {
     Object.entries(w.nodeAt).forEach(([id, c]) => { if (!W.visibleNode(g, c)) return; const p = P(c.c, c.r), d = (p.x - mx) ** 2 + (p.y - my) ** 2; if (d < bd) { bd = d; best = id; } });
     if (!best || bd > (k * 3) ** 2) return; if (best === g.loc) return toast('Вы и так здесь.');
     closeModal(); if (NET()) return act({a: 'goto', node: best}); walkTo(W.world(g).nodeAt[best]); };
+}
+
+/* ---------- «Дела» под крышей (roof.js) ---------- */
+function roofShow(back) {
+  if (NET()) return toast('В сетевой игре дела делают на привале.');
+  const heroes = C.alive(g), RT = roofShow.t = roofShow.t || {}, place = C.roofPlace(g);
+  const where = place === 'home' ? 'Дома' : place === 'inn' ? 'В корчме' : 'На улице';
+  const rows = heroes.map(h => { const os = C.roofTasks(g, h), cur = RT[h.id] || {k: 'rest'}, grp = {};
+    os.forEach(o => { (grp[o.grp || 'Прочее'] = grp[o.grp || 'Прочее'] || []).push(o); });
+    const sel = Object.entries(grp).map(([gn, L]) => `<optgroup label="${esc(gn)}">${L.map(o => { const on = o.k === cur.k && String(o.arg || '') === String(cur.arg || '');
+      return `<option value="${esc(o.k + '\u0001' + (o.arg == null ? '' : o.arg))}" ${on ? 'selected' : ''} ${o.why ? 'disabled' : ''}>${esc(o.t)}${o.why ? ' — ' + esc(o.why) : ''}</option>`; }).join('')}</optgroup>`).join('');
+    return `<div class="row" style="gap:8px;align-items:center;margin:6px 0;flex-wrap:wrap">${heroFace(h, 'tface')}<b style="min-width:7em">${esc(h.name)}</b>
+      <select data-rf="${esc(h.id)}" style="flex:1;min-width:12em">${sel}</select><button class="btn" data-rinv="${esc(h.id)}">Вещи</button></div>`; }).join('');
+  openModal(`<h3>Дела</h3><p class="note">${esc(where)} · ${esc(C.timeName(g))}. Каждый занят своим; время идёт по самому долгому делу.</p>${rows}
+    <div class="row" style="gap:8px;margin-top:10px"><button class="btn primary" id="rf-go">Заняться</button><button class="btn" id="rf-x">Назад</button></div>`); try { paintFaces(); } catch (e) {}
+  $('#modal').querySelectorAll('[data-rf]').forEach(s => s.onchange = () => { const [k, a] = s.value.split('\u0001'); RT[s.dataset.rf] = {k, arg: a === '' ? undefined : (/^\d+(\.\d+)?$/.test(a) ? +a : a)}; });
+  $('#modal').querySelectorAll('[data-rinv]').forEach(b => b.onclick = () => { const h = heroes.find(x => x.id === b.dataset.rinv); if (h) heroSheet(h); });
+  $('#rf-x').onclick = () => { closeModal(); };
+  $('#rf-go').onclick = () => { const r = C.roofRun(g, RT); roofShow.t = {}; save(); closeModal(); renderTop();
+    if (r && r.err) return toast(r.err); showScene(back); if (r && r.lines && r.lines.length) setTimeout(() => openModal(`<h3>Дела сделаны</h3>${r.lines.slice(0, 12).map(l => `<p>${esc(l)}</p>`).join('')}<div class="row"><button class="btn primary" id="rf-ok">Хорошо</button></div>`), 50), setTimeout(() => { const b = $('#rf-ok'); if (b) b.onclick = closeModal; }, 80); };
 }
 
 /* ---------- сборы на привал ---------- */
