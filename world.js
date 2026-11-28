@@ -83145,6 +83145,52 @@ const EVE_F = ['Ужин — из леса: грибы, коренья, рыба
       return res; }}) : c); } } catch (e) {}
   return sc; }; }
 
+/* ---------- наводки после ночи — без «брата» и «отца»: родни у неё нет, есть круг (Ник 28.11: «про брата режет») ---------- */
+const TALE_F = ['Под утро {P} говорит вполголоса: «Наши, когда уходили в чащу, оставили схрон — для своих. Ты — свой. {X}. Скажи там слово «круг» на моём языке — откроется»',
+  '{P} приподнимается на локте: «Старая мать круга говорила — там лежит то, что Око забрало у наших и не довезло. {X}. Возьми. Пусть служит тому, кто нас спасает»',
+  'Под утро {P} рисует пальцем у вас на ладони дорогу: «Птицы говорят — {X}. Там лежит. Мне не нужно. Тебе нужно»'];
+if (C.taleMake) { const tm0 = C.taleMake; C.taleMake = function (g, h, o) { const line = tm0.apply(this, arguments);
+  try { if (typeof line === 'string' && o) { const r = o.loc && C.kvLocOf ? C.kvLocOf(g, o.loc) : null, fwife = h && h.spouse && h.spouse.forest && o.p && String(o.p.n || '') && String(h.spouse.n || '').indexOf(String(o.p.n).split(' ')[0]) === 0;
+    if ((r && isForestLoc(r)) || (r && r.junior) || fwife) { const m = line.match(/(На (?:восход|полдень|закат|полночь)), ([^,]+?) пути, — ([^.»]+)/); if (m) {
+      const P = String((o.p && o.p.n) || (r && r.n) || '').split(' ')[0]; return pk(TALE_F, line).replace('{P}', P).replace('{X}', `${m[1]}, ${m[2]} пути, — ${m[3]}`) + ' Место отмечено на карте.'; } } } } catch (e) {}
+  return line; }; }
+
+/* ---------- соседи её не жалуют: чужой веры ---------- */
+const SHUN = ['Соседки обходят её избу стороной — чужой веры. Только ребятишки бегают украдкой: за травяными леденцами и сказками на непонятном языке.',
+  'У колодца при её появлении бабы замолкают и расходятся. {n} набирает воду последней — и не торопится: «Пусть. Им страшно, не мне».',
+  'Кто-то ночью нацарапал на её воротах Звезду — «чтоб не колдовала». {n} не стирает: «Пусть висит. Мне она не мешает. Это им мешаю я».'];
+/* вести от других спасённых — птицами, издалека */
+const NEWS_F = ['Птица принесла бересту от {Jg} {P}: «Огород взошёл. Коза доится. Жду его». {n} читает — по-своему, по узелкам на бересте — и улыбается.',
+  '{n} говорит между делом: «{J} {P} прислала весть — живая, сытая, у соседей её боятся. Это хорошо: значит, не трогают».',
+  'На подоконнике — перо и узелок с травой. «От {Jg}, — объясняет {n}. — {Pc}. Значит, у неё всё ладно. Если б плохо — прислала бы золу».'];
+/* сколько спасено — новый род (Ник 28.11: «ваша цель — спасти как можно больше женщин; ты для неё — символ возрождения нового рода») */
+/* падежи места: «Липки» → «из Липок», «в Липках» */
+const placeCase = nm => { const w = String(nm); if (/\s/.test(w)) { const [a, ...b] = w.split(' '); return {g: w, p: w}; } if (/[кгх]и$/.test(w)) return {g: w.replace(/и$/, '').replace(/([кгх])$/, 'о$1'), p: w.replace(/и$/, 'ах')}; if (/ы$/.test(w)) return {g: w.replace(/ы$/, ''), p: w.replace(/ы$/, 'ах')}; if (/\s/.test(w) && !/[ая]$/.test(w.split(' ')[0])) return {g: w, p: w}; return Q.decl(w, /[ая]$/.test(w) ? 'f' : 'm'); };
+const NUMW = ['ни одной', 'одну', 'двоих', 'троих', 'четверых', 'пятерых', 'шестерых', 'семерых', 'восьмерых', 'девятерых', 'десятерых'];
+C.savedOf = (g, h) => { if (!h) return 0; const run = Object.values(g.banshRun || {}).filter(x => x && x.hero === h.id).length; return run + (h.spouse && h.spouse.forest && h.spouse.bansh ? 0 : 0); };
+const savedWord = n => n < NUMW.length ? NUMW[n] : 'многих';
+const ROD = n => n <= 0 ? null : n === 1 ? 'Ты спас меня. Одну. А наших в банях — как ягод на кусте. Иди. Я подожду — я умею ждать.'
+  : n < 4 ? `Ты спас ${savedWord(n)}. Это уже не одна — это начало. У нас говорят: три костра — уже круг.`
+  : n < 8 ? `Ты спас ${savedWord(n)}. Нас уже — круг. Новый. Не тот, что нас выгнал. Твой. Наши дети будут говорить: «мы — от него».`
+  : `Ты спас ${savedWord(n)}. Знаешь, как нас теперь зовут в банях? «Его». Не «лесные», не «чужие» — его. Новый род. Ты — его корень.`;
+const nearBath = (g, h) => { try { const N = nodes(g); const L = Object.keys(N).filter(k => C.banshSpecial && C.banshSpecial(g, k) && !Object.values(g.banshRun || {}).some(x => x.from === k) && !Object.values(g.bansh || {}).some(b => b.at === k && (g.banshRun || {})[b.key]));
+  return L.length ? L[hsh(h.id + Math.floor(day(g) / 20)) % L.length] : null; } catch (e) { return null; } };
+{ const so16 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so16.apply(this, arguments);
+  try { const fk = id === 'folk' ? forestHomeKey(g) : null; if (sc && fk) { const s0 = recOf(g, fk) || {}, h = heroById(g, s0.hero), n = String(s0.n || '').split(' ')[0], p = {n, sex: s0.sex, ppl: s0.ppl};
+    // кум и соседка «на минутку» — не к ней
+    sc.lines = (sc.lines || []).map(l => (l && typeof l[1] === 'string' && /^Заглянул кум|^Соседка «на минутку»/.test(l[1])) ? [l[0], fillAll(pk(SHUN, fk + day(g)), p, h)] : l);
+    // праздники: свои — Купала и Деды; чужие (и праздники Ока) — не её (Ник 28.11: «далеко не все праздники она отмечает»)
+    (C.FL_HOL || []).forEach(H => { if (['kup', 'dedy'].includes(H.id)) return; [H.old, H.oko].forEach(nm => { const pre = nm + '! ';
+      sc.lines = sc.lines.map(l => (l && typeof l[1] === 'string' && l[1].indexOf(pre) === 0) ? [l[0], `В селе гуляют ${nm} — ${n} не идёт: «Это ваш праздник, не наш». Сидит дома, плетёт оберег и тихо поёт своё.`] : l); }); });
+    if (h && s0.sex === 'f') { const r = (g.folkRel || {})[fk] || {}; if (r.newsDay !== day(g)) { r.newsDay = day(g); const add = [];
+      const J = C.juniorsOf(g, h).concat(Object.values(g.kvLoc || {}).filter(x => isForestLoc(x) && x.hid === h.id && !x.junior));
+      if (J.length && hsh(fk + day(g)) % 3 === 0) { const j = J[hsh(fk + day(g) + 'j') % J.length]; const jn = String(j.n || '').split(' ')[0], pn = (nodes(g)[j.at] || {}).name || '', pd = pn ? placeCase(pn) : null, from = pd ? 'из ' + pd.g : 'издалека';
+        add.push(fillAll(pk(NEWS_F, fk + day(g)), p, h).replace(/\{Jg\}/g, Q.decl(jn, j.sex).g).replace(/\{J\}/g, jn).replace(/\{Pc\}/g, cap(from)).replace(/\{P\}/g, from)); }
+      const nS = C.savedOf(g, h); if (hsh(fk + day(g) + 'r') % 4 === 0) { const t = ROD(nS); if (t) add.push(`${n} говорит, глядя на вас так, как смотрят на огонь: «${t}»`);
+        const b = nearBath(g, h); if (b) { const bn = (nodes(g)[b] || {}).name || '', bd = bn ? placeCase(bn) : null; add.push(`«Птицы говорят — ${bd ? 'в ' + bd.p : 'неподалёку'} в бане новая девочка. Из наших. Ей восемнадцать». ${n} больше ничего не говорит. Ей и не нужно.`); } }
+      if (add.length) sc.lines = sc.lines.concat(add.map(t => ['n', t])); } } } } catch (e) {}
+  return sc; }; }
+
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
