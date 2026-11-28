@@ -50380,7 +50380,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611281042"></script><script>
+</script><script src="world.js?v=202611281125"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -54155,7 +54155,9 @@ function groundTiles(S, F, s, cells, off, cellBase, cellOver, UNK) {
     ctx.fillStyle = F.bf && F.bf.kind === 'dungeon' ? 'rgba(10,8,5,.58)' : 'rgba(10,8,5,.8)'; ctx.fill(dim); ctx.strokeStyle = 'rgba(0,0,0,.25)'; ctx.lineWidth = 1; ctx.stroke(grid); ctx.fillStyle = UNK; ctx.fill(dark); }
   vis.forEach(([c, p]) => { if (F.fog && bfFogOf(S, c) === 0) return; cellOver(c, p); });
 }
-function drawField(noFollow) {
+let DRAW_MS = 0; // сколько заняла последняя отрисовка поля — по ней редкие «живые» перерисовки сбавляют ход
+function drawField(noFollow) { const t0df = performance.now(); try { return drawField0(noFollow); } finally { DRAW_MS = performance.now() - t0df; } }
+function drawField0(noFollow) {
   if (!battle || !cv) return;
   layout();
   const S = battle, s = geo.s, F = S.field;
@@ -54772,11 +54774,13 @@ const BF_PROPS = new Set(['hill', 'ravine', 'column', 'bed', 'table', 'cauldron'
 let BF_FOGK = null, BF_FOGV = null, BF_FOGE = null;
 /* на прогулке поле показывает только то, что видно сейчас: прочее — темень (в миникарте разведанное остаётся) */
 function fogShow(S, c) { return bfFogOf(S, c); }
+let FOGL = null; const fogSig = S => { let k = (S.turn || 0) + '|' + (S.round || 0) + '|' + (B.BF.viewMine ? 'm' : '') + '|'; (S.units || []).forEach(u => { if (u.side === 'party' || u.hp > 0) k += u.id + ':' + u.c + ',' + u.r + ',' + (u.hp > 0 ? 1 : 0) + ';'; }); let dn = 0; const cs = S.field.cells; if (cs) (Array.isArray(cs) ? cs : Object.values(cs)).forEach(c => { if (c && /door|open/.test(c.t || '')) dn += c.t.length; }); return k + '|' + dn + '|' + (S.time != null ? S.time : '') + '|' + (S.night ? 1 : 0); };
 let FOGC = null; /* на время одной отрисовки поля: что видно и что разведано считаем один раз, а не на каждую клетку */
 function bfFogOf(S, c) { /* 0 — не разведано, 1 — разведано, но не видно сейчас, 2 — видно */
   const BF = B.BF; if (!BF || !S.field.fog) return 2;
   let Z = FOGC && FOGC.S === S && FOGC.ex === (S.bfEx || '') ? FOGC : null;
-  if (!Z) { const v = BF.vis(S); Z = {S, v, ex: S.bfEx || '', w: S.field.w, c0: S.field.c0 || 0, r0: S.field.r0 || 0, view: BF.viewMine && BF.visView ? BF.visView(S) : null}; if (FOGC === false) FOGC = Z; }
+  if (!Z) { const sig = fogSig(S); if (FOGL && FOGL.S === S && FOGL.ex === (S.bfEx || '') && FOGL.sig === sig) Z = FOGL; // видимость не менялась — не считаем заново (большое поле: BF.vis тяжёл)
+    else { const v = BF.vis(S); Z = FOGL = {S, v, sig, ex: S.bfEx || '', w: S.field.w, c0: S.field.c0 || 0, r0: S.field.r0 || 0, view: BF.viewMine && BF.visView ? BF.visView(S) : null}; } if (FOGC === false) FOGC = Z; }
   const kk = c.c + ',' + c.r, exp = () => (!BF.explored || Z.ex[(c.r - Z.r0) * Z.w + (c.c - Z.c0)] === '1') ? 1 : 0;
   if (c.hb != null && Z.view && !Z.view[kk]) return exp(); // внутри дома — как видят мои герои
   if (Z.v && Z.v[kk]) return 2; return exp(); }
@@ -54850,7 +54854,7 @@ function bfOver(S, cur) {
   (S.bfRein || []).forEach(gr => { if (gr.state !== 'come' || !gr.at || !gr.at.length) return; const [c0, r0] = gr.at[Math.floor(gr.at.length / 2)], p = hexXY(c0, r0), t = (performance.now() / 600) % 1;
     X.strokeStyle = gr.side === 'party' ? `rgba(166,211,138,${0.8 - t * 0.6})` : `rgba(255,120,90,${0.8 - t * 0.6})`; X.lineWidth = 2; for (let i = 0; i < 3; i++) { X.beginPath(); X.arc(p.x, p.y, s * (0.5 + i * 0.45 + t * 0.45), 0, 7); X.stroke(); }
     X.fillStyle = gr.side === 'party' ? '#c8e8b0' : '#ffb09a'; X.font = `600 ${Math.max(11, Math.round(s * 0.36))}px Georgia,serif`; X.textAlign = 'center'; X.fillText(gr.side === 'party' ? 'крики, бегут' : 'шаги, голоса', p.x, p.y - s * 1.1);
-    if (!bfOver.raf) bfOver.raf = requestAnimationFrame(() => { bfOver.raf = 0; if (battle && !PLAY.busy) drawField(true); }); });
+    if (!bfOver.raf) bfOver.raf = setTimeout(() => { bfOver.raf = 0; if (battle && !PLAY.busy) drawField(true); }, Math.max(120, Math.min(700, (DRAW_MS || 0) * 5))); }); // подмога: пульс — не каждый кадр (на большом поле перерисовка тяжела)
   // дым
   (S.fogs || []).filter(f => f.smoke).forEach(f => { const p = hexXY(f.c, f.r), gr = X.createRadialGradient(p.x, p.y - s * 0.5, s * 0.2, p.x, p.y - s * 0.5, s * (f.rad + 0.8) * 1.6); gr.addColorStop(0, 'rgba(70,66,60,.55)'); gr.addColorStop(1, 'rgba(70,66,60,0)'); X.fillStyle = gr; X.beginPath(); X.arc(p.x, p.y - s * 0.5, s * (f.rad + 0.8) * 1.6, 0, 7); X.fill(); });
   // пчёлы
@@ -55024,6 +55028,7 @@ function drawGame(u) {
   ctx.restore(); if (!dead) { ctx.save(); ctx.font = `600 ${Math.max(10, Math.round(s * 0.3))}px "Alegreya SC", Georgia, serif`; ctx.textAlign = 'center'; ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(15,10,6,.8)'; ctx.strokeText(u.name, p.x, p.y - s * (u.art === 'deer' ? 1.2 : 0.55)); ctx.fillStyle = '#d8c8a8'; ctx.fillText(u.name, p.x, p.y - s * (u.art === 'deer' ? 1.2 : 0.55)); ctx.restore(); }
 }
 function drawUnit(u) {
+  try { const p = unitXY(u), s = geo.s; if (p.x < -s * 3 || p.x > geo.W + s * 3 || p.y < -s * 4 || p.y > geo.H + s * 3) return; } catch (e) {} // за краем окна — не рисуем (большое поле)
   ctx.save();
   try { if (u.art && (u.art === 'hare' || u.art === 'deer')) drawGame(u); else if (lyingU(u)) drawLying(u); else drawUnit0(u); }
   catch (e) {

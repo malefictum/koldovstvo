@@ -1,6 +1,6 @@
 // Сервис-воркер «Колдовства».
 // Новая сборка = новое имя кэша, старый удаляется.
-var CACHE = 'kldv-202611281042';
+var CACHE = 'kldv-202611281125';
 var CORE = ["./", "index.html", "manifest.webmanifest", "img/atlas.json", "img/fonts/alegreya-italic.woff2", "img/fonts/alegreya-sc-bold.woff2", "img/fonts/alegreya-sc.woff2", "img/fonts/alegreya.woff2", "img/fonts/ruslan.woff2", "img/fonts/kl-copt.woff2", "img/fonts/kl-cyrx.woff2", "img/fonts/kl-glag.woff2", "img/fonts/kl-goth.woff2", "img/fonts/kl-ogham.woff2", "img/fonts/kl-oital.woff2", "img/fonts/kl-oturk.woff2", "img/fonts/kl-runic.woff2", "img/fonts/kl-syr.woff2", "img/fonts/kl-tifi.woff2", "img/icons/icon-150.png", "img/icons/icon-180.png", "img/icons/icon-192.png", "img/icons/icon-32.png", "img/icons/icon-44.png", "img/icons/icon-512.png", "img/icons/maskable-512.png"];
 
 self.addEventListener('install', function (e) {
@@ -10,7 +10,7 @@ self.addEventListener('install', function (e) {
 
 self.addEventListener('activate', function (e) {
   e.waitUntil(caches.keys().then(function (ks) {
-    return Promise.all(ks.filter(function (k) { return k.indexOf('kldv-202611281042') === 0 && k !== CACHE; })
+    return Promise.all(ks.filter(function (k) { return k.indexOf('kldv-202611281125') === 0 && k !== CACHE; })
       .map(function (k) { return caches.delete(k); }));
   }).then(function () { return self.clients.claim(); }));
 });
