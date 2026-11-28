@@ -82020,9 +82020,11 @@ const CUSTOM = {
   gorets: {f: 'У горцев жена — очаг. Очаг не уходит из дома. Даже если дом — палатка на перевале.', m: 'Горец клянётся огнём. Огонь не гаснет, пока я жив.'},
   yuzhnober: {f: 'У нас на южном берегу жена поёт мужу, когда он уходит в море. Я буду петь тебе. Всю жизнь.', m: 'На южном берегу муж приносит жене первую рыбу из каждого улова. Всю жизнь.'},
 };
+/* портрет: юное лицо (не детское) — у беглянок и спасённых он тот же (Ник 28.11: «а где портретик?») */
+C.banshFace = (sex, key) => { let f = ''; try { if (C.D1U && C.D1U.faceRole) f = C.D1U.faceRole('young', sex, key); } catch (e) {} if (!f && C.fightFace) try { f = C.fightFace(sex, key); } catch (e) {} return f || (sex === 'f' ? 'p36' : 'p32'); };
 const banshOf = (g, at, sex, kind) => { g.bansh = g.bansh || {}; const ves = kind === 'ves', key = g.camp + '|' + at + '|' + sex + (ves ? '|ves' : ''); let b = g.bansh[key];
   if (!b) { let p = null; try { p = Q.person(g, sex, pplFor(g, at, key)); } catch (e) { p = Q.decl(sex === 'f' ? 'Малуша' : 'Ждан', sex); }
-    let face = ''; try { face = (C.D1 && C.D1.faceRole) ? C.D1.faceRole('young', sex, key) : ''; } catch (e) {}
+    let face = C.banshFace ? C.banshFace(sex, key) : '';
     b = g.bansh[key] = {key, n: p.n, sex, face, ppl: p.ppl || 'nolgrim', story: hsh(key) % (ves ? STORY_V : STORY)[sex].length, at, ves: ves ? 1 : 0, since: day(g), age: ves ? 18 : 18 + (hsh(key + 'age') % 2), gen: 0};
     if (ves) b.expel = day(g) + K().VES_DAYS + (hsh(key + 'ex') % 12); } // «лучшей в доме» вот-вот девятнадцать — и её выгонят
   /* им всегда восемнадцать-девятнадцать, когда их встречаешь: тех, кому за двадцать, хозяин выгоняет (Ник 28.11). Вернулся через два года — там уже другая. */
@@ -83010,6 +83012,13 @@ C.revealOwn = revealOwn;
 { const br2 = C.banshRun; if (br2) C.banshRun = function (g) { const r = br2.apply(this, arguments); revealOwn(g); return r; }; }
 ['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); revealOwn(g); return r; }; });
 { const so8 = C.sceneOf; C.sceneOf = function (g) { if (g && g.kvLoc && g.revealChk !== day(g)) { g.revealChk = day(g); revealOwn(g); } return so8.apply(this, arguments); }; }
+
+/* лица: старые записи без портрета (до починки) — берут юное лицо по тому же ключу */
+const fixFaces = g => { try { Object.values(g.bansh || {}).forEach(b => { if (b && !b.face && C.banshFace) b.face = C.banshFace(b.sex, b.key); });
+  Object.values(g.kvLoc || {}).forEach(r => { if (r && !r.face && r.fromBansh) { const b = (g.bansh || {})[r.fromBansh]; r.face = (b && b.face) || (C.banshFace ? C.banshFace(r.sex, r.fromBansh) : ''); } });
+  Object.values(g.homeSp || {}).forEach(s => { if (s && !s.face && (s.forest || s.bansh) && C.banshFace) s.face = C.banshFace(s.sex, s.n); });
+  (g.heroes || []).forEach(h => { const s = h.spouse; if (s && !s.face && s.forest && C.banshFace) s.face = ((g.homeSp || {})[s.role] || {}).face || C.banshFace(s.sex, s.n); }); } catch (e) {} };
+{ const so9 = C.sceneOf; C.sceneOf = function (g) { if (g && (g.bansh || g.kvLoc) && !g._faceFix) { g._faceFix = 1; fixFaces(g); } return so9.apply(this, arguments); }; }
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
