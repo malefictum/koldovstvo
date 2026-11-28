@@ -50380,7 +50380,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611280956"></script><script>
+</script><script src="world.js?v=202611281020"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53655,7 +53655,7 @@ function drawWorld() {
   // свой дом и владения на карте края (Ник 25.11): домик над селом — где семья, кружок с числом — сколько владений
   try { const homes = {}; (g.heroes || []).forEach(h => { const s0 = h && h.spouse; if (s0 && s0.at && (!s0.camp || s0.camp === g.camp)) homes[s0.at] = (homes[s0.at] || 0) | 1; });
     (g.estate || []).forEach(e => { if (e && e.node) homes[e.node] = (homes[e.node] || 0) | 2; });
-    Object.entries(homes).forEach(([at, f]) => { const cell = w.nodeAt[at]; if (!cell) return; const p = wxy(cell.c, cell.r), x0 = p.x - s * 0.62, y0 = p.y - s * 0.62, r0 = s * 0.38;
+    Object.entries(homes).forEach(([at, f]) => { const cell = w.nodeAt[at], nd = camp.map.nodes[at]; if (!cell || (nd && nd.if && !nd.if(g, C.ctx ? C.ctx(g) : {}))) return; // скрытое место — без домика const p = wxy(cell.c, cell.r), x0 = p.x - s * 0.62, y0 = p.y - s * 0.62, r0 = s * 0.38;
       x2.beginPath(); x2.arc(x0, y0, r0, 0, Math.PI * 2); x2.fillStyle = f & 1 ? '#7a4a1e' : '#4a5a3a'; x2.fill(); x2.lineWidth = 2; x2.strokeStyle = '#f3e3bd'; x2.stroke();
       x2.beginPath(); x2.moveTo(x0 - r0 * 0.55, y0 + r0 * 0.05); x2.lineTo(x0, y0 - r0 * 0.55); x2.lineTo(x0 + r0 * 0.55, y0 + r0 * 0.05); x2.closePath(); x2.fillStyle = '#f3e3bd'; x2.fill();
       x2.fillRect(x0 - r0 * 0.38, y0 + r0 * 0.02, r0 * 0.76, r0 * 0.48); x2.fillStyle = f & 1 ? '#7a4a1e' : '#4a5a3a'; x2.fillRect(x0 - r0 * 0.1, y0 + r0 * 0.18, r0 * 0.2, r0 * 0.32); }); } catch (e) {}

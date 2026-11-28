@@ -83005,7 +83005,7 @@ C.banshClosed = function (g, h, b) {
    не найти. Село, где живёт твоя лесная (беглянка, младшая, жена), открывается на карте: дорогу она тебе сказала. */
 C.revealNode = function (g, id) { if (!g || !id) return; g.revealNodes = g.revealNodes || {}; if (g.revealNodes[id]) return; g.revealNodes[id] = 1; const n = nodes(g)[id]; if (n) C.note(g, `${n.name}: дорогу туда вы теперь знаете — там вас ждут.`); };
 Object.values(C.CAMPS || {}).forEach(cp => { const N = cp && cp.map && cp.map.nodes; if (!N) return; Object.entries(N).forEach(([id, n]) => { if (typeof n.if !== 'function' || n._rv) return; const f0 = n.if; n._rv = 1; n.if = function (g) { return !!(g && g.revealNodes && g.revealNodes[id]) || f0.apply(this, arguments); }; }); });
-const hiddenAt = (g, id) => { const n = nodes(g)[id]; try { return !!(n && typeof n.if === 'function' && !n.if(g, C.ctx ? C.ctx(g) : {})); } catch (e) { return false; } };
+const hiddenAt = (g, id) => { if (!g || g.camp === 'free') return false; /* в Вечном мире «скрыто» = ещё не разведано: туда дойдёшь сам */ const n = nodes(g)[id]; try { return !!(n && typeof n.if === 'function' && !n.if(g, C.ctx ? C.ctx(g) : {})); } catch (e) { return false; } };
 /* Ник 28.11: «не надо телепортировать города между кампаниями — пересели её в ближайшее село, что видно на карте». Скрытое
    село не открываем: беглянка (младшая) селится в ближайшем видимом селе, кроме того, где баня. */
 const VIS_KINDS = ['село', 'подворье', 'выселки', 'хутор', 'город'];
@@ -83018,7 +83018,13 @@ const revealOwn = g => { try {
   Object.values(g.kvLoc || {}).forEach(r => { if (!r || r.camp !== g.camp || !(r.forest || r.fromBansh) || r.st === 'gone' || !hiddenAt(g, r.at)) return;
     const b = (g.bansh || {})[r.fromBansh], to = C.nearVisible(g, r.at, [b && b.at]); if (!to) return; const was = r.at; r.at = to; if ((g.banshRun || {})[r.fromBansh]) g.banshRun[r.fromBansh].to = to;
     C.note(g, `${String(r.n || '').split(' ')[0]} перебралась: ${(nodes(g)[to] || {}).name || ''} — там её никто не знает. Ищите её там.`); });
-  (g.heroes || []).forEach(h => { const s = h.spouse; if (!s || !s.forest || s.camp !== g.camp || !hiddenAt(g, s.at)) return; const to = C.nearVisible(g, s.at, []); if (to && C.moveFamily) { const key = s.role + '@' + s.at; try { const q0 = C.moveQuote; C.moveQuote = () => ({price: 0, sale: 0, debt: 0, pay: 0, rest: 0, left: 0, need: 0, ok: true}); try { C.moveFamily(g, key, to, {free: 1}); } finally { C.moveQuote = q0; } } catch (e) {} } });
+  (g.heroes || []).forEach(h => { const s = h.spouse; if (!s || !s.forest || (s.camp && s.camp !== g.camp) || !hiddenAt(g, s.at)) return; const to = C.nearVisible(g, s.at, []); if (!to) return; const was = s.at, key = s.role + '@' + s.at, rr = (g.folkRel || {})[key];
+    let ok = false; if (C.moveFamily) { const md = rr && rr.w2moveDay, q0 = C.moveQuote; if (rr) delete rr.w2moveDay; C.moveQuote = () => ({price: 0, sale: 0, debt: 0, pay: 0, rest: 0, left: 0, need: 0, ok: true});
+      try { const res = C.moveFamily(g, key, to, {free: 1}); ok = !!res && !res.err; } catch (e) {} finally { C.moveQuote = q0; if (!ok && rr && md != null) rr.w2moveDay = md; }
+      try { const S = g.w2move; if (ok && S && S.road) S.road = S.road.filter(x => !(x.hero === h.id && x.at === to)); } catch (e) {} }
+    if (!ok) { // переезд не дался — переносим запись прямо: жена, дом, узы
+      const role = s.role, sp = (g.homeSp || {})[role]; if (sp) sp.at = to; s.at = to; if (rr) { g.folkRel[role + '@' + to] = rr; delete g.folkRel[key]; } }
+    C.note(g, `${String(s.n || '').split(' ')[0]} перебралась с семьёй: ${(nodes(g)[to] || {}).name || ''}. Ищите дом там.`); void was; });
 } catch (e) {} };
 C.revealOwn = revealOwn;
 { const br2 = C.banshRun; if (br2) C.banshRun = function (g) { const r = br2.apply(this, arguments); revealOwn(g); return r; }; }
