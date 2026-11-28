@@ -74875,6 +74875,8 @@ C.sceneOf = function () { const sc = so0.apply(this, arguments);
 const C = G.C, W = G.W;
 if (!C || !W || !W.build || !C.CAMPS || !C.CAMPS.free) return;
 C.SHARED_CAMPS = C.SHARED_CAMPS || ['dead_water', 'ashes', 'edvin', 'terak', 'swamp', 'late_olsha', 'late_dub', 'late_edvin', 'late_terak', 'late_boloto', 'late2_podzem', 'late2_moshchi']; // таррен-главы (sud, late_navi, late2_zakat) — своя сборная карта, пока на ней
+/* Ник 28.11: «убери барьеры между локациями» — чужие края больше не закрыты рубежом: ходить можно везде (вернуть — C.SHARED_SHUT = true) */
+if (C.SHARED_SHUT == null) C.SHARED_SHUT = false;
 const campId = camp => Object.keys(C.CAMPS).find(k => C.CAMPS[k] === camp) || null;
 /* край кампании: свой (r.camp) или по той же карте (поздние главы рисуют тот же край — то же зерно и размер) */
 const sameMap = (a, b) => { const A = a && a.map && a.map.hex, Bh = b && b.map && b.map.hex; return !!(A && Bh && A.seed === Bh.seed && A.cols === Bh.cols && A.rows === Bh.rows); };
@@ -74897,7 +74899,7 @@ const buildShared = function (camp) {
   const cells = {}, nodeAt = {};
   // чужие края — видны, но за рубежом; свой край — клетки самой кампании (с её местами, приметами, святилищами), со сдвигом
   Object.values(fw.cells).forEach(s => { const n = Object.assign({}, s); delete n.node; delete n.poi; delete n.poiId; delete n.folk;
-    if (s.reg !== X.id) n.shut = 1; cells[W.key(n.c, n.r)] = n; });
+    if (s.reg !== X.id && (C.SHARED_SHUT || s.reg === 'pod')) n.shut = 1; /* Подземье — под землёй: туда только через врата */ cells[W.key(n.c, n.r)] = n; });
   Object.values(small.cells).forEach(s => { const k = W.key(s.c + off.dc, s.r + off.dr); if (!cells[k]) return; const n = Object.assign({}, s, {c: s.c + off.dc, r: s.r + off.dr, reg: X.id}); delete n.shut; cells[k] = n; if (n.node) nodeAt[n.node] = n; });
   const world = {cols: fw.cols, rows: fw.rows, cells, nodeAt, camp, shared: X.id, off};
   return (camp._worldShared = world); };
@@ -74946,7 +74948,7 @@ const buildSpread = function (camp) {
     const L = Object.values(cells).filter(x => x.reg === a.reg && !x.node && !used.has(W.key(x.c, x.r)) && !['water', 'mountains'].includes(x.t) && W.dist(x, a) >= d0 && W.dist(x, a) <= d1 && !Object.values(fw.nodeAt).some(n => W.dist(n, x) <= 1) && !Object.values(nodeAt).some(n => W.dist(n, x) <= 1))
       .sort((p, q) => hsh(cid + p.c + ',' + p.r) - hsh(cid + q.c + ',' + q.r));
     put(cid, L[0]); });
-  Object.values(cells).forEach(x => { if (!regs.has(x.reg)) x.shut = 1; });
+  Object.values(cells).forEach(x => { if (!regs.has(x.reg) && (C.SHARED_SHUT || x.reg === 'pod')) x.shut = 1; });
   const world = {cols: fw.cols, rows: fw.rows, cells, nodeAt, camp, shared: [...regs].join(','), off: {dc: 0, dr: 0}, spread: 1};
   // время в пути — как на сборной карте главы: по среднему отношению путей от Таррена
   try { const sm = W.buildBase(camp), st = camp.start || 'tarren', cst = (wd, a, b) => { const p = W.path(wd, a, b, {}); return p ? p.reduce((q, x) => q + W.cost(x), 0) : 0; };

@@ -50380,7 +50380,7 @@ C.iaApplyNotes = function () {
 };
 C.iaApplyNotes();
 })(typeof window !== 'undefined' ? window : globalThis);
-</script><script src="world.js?v=202611281125"></script><script>
+</script><script src="world.js?v=202611281141"></script><script>
 /* net.js */
 /* Колдовство — сетевой стол.
    Связь напрямую (WebRTC) через публичный брокер PeerJS; своего сервера нет, игра остаётся страницей на itch.io.
@@ -53072,29 +53072,31 @@ function weatherFx(host, target) {
   const cv = document.createElement('canvas'); cv.className = 'wfx'; host.appendChild(cv);
   const x = cv.getContext('2d'), P = [], night = C.isNight && C.isNight(g);
   const N = {rain: 140, downpour: 320, snow: 120, blizzard: 260, fog: 7, cloudy: 0, heat: 0}[kind];
-  const fit = () => { const r = target.getBoundingClientRect(), hr = host.getBoundingClientRect(); cv.width = Math.max(1, r.width); cv.height = Math.max(1, r.height); cv.style.left = (r.left - hr.left) + 'px'; cv.style.top = (r.top - hr.top) + 'px'; cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; };
+  const RS = 0.5; // Ник 28.11 «дождь фризит»: холст погоды — в полразмера (браузер растянет), в 4 раза меньше точек на каждый кадр
+  const fit = () => { const r = target.getBoundingClientRect(), hr = host.getBoundingClientRect(); cv.width = Math.max(1, Math.round(r.width * RS)); cv.height = Math.max(1, Math.round(r.height * RS)); cv.style.left = (r.left - hr.left) + 'px'; cv.style.top = (r.top - hr.top) + 'px'; cv.style.width = r.width + 'px'; cv.style.height = r.height + 'px'; };
   fit(); for (let i = 0; i < N; i++) P.push({x: Math.random() * cv.width, y: Math.random() * cv.height, v: 0.5 + Math.random(), s: Math.random()});
   let last = performance.now(), lastFit = 0;
   /* Ник 25.11: «в бою лагает?» — погода крутилась 60 кадров в секунду и туман строил градиенты каждый кадр (Edge — 20% процессора).
      Теперь: дождь и снег — 24 кадра, туман и пасмурь — 10; туман — из одного заранее нарисованного клуба; размер — раз в полсекунды */
-  const FPS = {fog: 10, cloudy: 4, heat: 4}[kind] || 24, GAP = 1000 / FPS;
+  const FPS = {fog: 6, cloudy: 0, heat: 0}[kind] != null ? {fog: 6, cloudy: 0, heat: 0}[kind] : 14, GAP = FPS ? 1000 / FPS : 1e9;
+  // постоянная подкраска (пасмурь, ночь, жара, ливень) — фоном самого холста, а не заливкой каждый кадр
+  cv.style.background = kind === 'cloudy' ? 'rgba(60,66,78,.16)' : kind === 'heat' ? 'rgba(255,190,90,.07)' : kind === 'downpour' ? 'rgba(50,60,75,.18)' : kind === 'rain' ? 'rgba(60,70,85,.08)' : kind === 'blizzard' ? 'rgba(225,232,240,.16)' : kind === 'fog' ? 'rgba(215,220,224,.16)' : night ? 'rgba(20,24,40,.10)' : 'transparent';
+  if (!FPS) { WFX = {cv, raf: 0}; return; } // пасмурь и жара — без движения: одна подкраска
   const puff = kind === 'fog' ? (() => { const c = document.createElement('canvas'); c.width = c.height = 256; const q = c.getContext('2d'), gr = q.createRadialGradient(128, 128, 5, 128, 128, 128); gr.addColorStop(0, 'rgba(225,228,230,.30)'); gr.addColorStop(1, 'rgba(225,228,230,0)'); q.fillStyle = gr; q.fillRect(0, 0, 256, 256); return c; })() : null;
   const step = now => {
     if (!cv.isConnected) { cancelAnimationFrame(WFX && WFX.raf); return; }
     if (now - last < (typeof playActive === 'function' && battle && playActive() ? GAP * 2 : GAP)) { WFX.raf = requestAnimationFrame(step); return; } // пока бойцы ходят — дождь вдвое реже (лаги при ходе в дождь)
     const dt = Math.min(120, now - last) / 16; last = now;
-    if (now - lastFit > 500) { lastFit = now; const r = target.getBoundingClientRect(); if (Math.abs(r.width - cv.width) > 2 || Math.abs(r.height - cv.height) > 2) fit(); }
+    if (now - lastFit > 500) { lastFit = now; const r = target.getBoundingClientRect(); if (Math.abs(r.width * RS - cv.width) > 2 || Math.abs(r.height * RS - cv.height) > 2) fit(); }
     const W0 = cv.width, H0 = cv.height; x.clearRect(0, 0, W0, H0);
-    if (kind === 'cloudy' || night && kind !== 'heat') { x.fillStyle = kind === 'cloudy' ? 'rgba(60,66,78,.16)' : 'rgba(20,24,40,.10)'; x.fillRect(0, 0, W0, H0); }
-    if (kind === 'heat') { x.fillStyle = 'rgba(255,190,90,.07)'; x.fillRect(0, 0, W0, H0); }
-    if (kind === 'rain' || kind === 'downpour') { const hv = kind === 'downpour'; x.fillStyle = hv ? 'rgba(50,60,75,.18)' : 'rgba(60,70,85,.08)'; x.fillRect(0, 0, W0, H0);
+    if (kind === 'rain' || kind === 'downpour') { const hv = kind === 'downpour';
       x.strokeStyle = hv ? 'rgba(200,215,235,.45)' : 'rgba(200,215,235,.35)'; x.lineWidth = 1; x.beginPath();
-      P.forEach(p => { const sp = (hv ? 16 : 11) * p.v * dt; p.y += sp; p.x -= sp * 0.25; if (p.y > H0) { p.y = -10; p.x = Math.random() * (W0 + 60); } if (p.x < -10) p.x += W0 + 20; const l = hv ? 16 : 11; x.moveTo(p.x, p.y); x.lineTo(p.x + l * 0.25, p.y - l); }); x.stroke(); }
-    if (kind === 'snow' || kind === 'blizzard') { const bz = kind === 'blizzard'; if (bz) { x.fillStyle = 'rgba(225,232,240,.16)'; x.fillRect(0, 0, W0, H0); }
+      P.forEach(p => { const sp = (hv ? 8 : 5.5) * p.v * dt; p.y += sp; p.x -= sp * 0.25; if (p.y > H0) { p.y = -10; p.x = Math.random() * (W0 + 60); } if (p.x < -10) p.x += W0 + 20; const l = hv ? 8 : 5.5; x.moveTo(p.x, p.y); x.lineTo(p.x + l * 0.25, p.y - l); }); x.stroke(); }
+    if (kind === 'snow' || kind === 'blizzard') { const bz = kind === 'blizzard';
       x.fillStyle = 'rgba(255,255,255,.85)';
-      P.forEach(p => { p.y += (bz ? 2.4 : 0.9) * p.v * dt; p.x += (bz ? -3.2 : Math.sin(now / 900 + p.s * 6) * 0.5) * dt; if (p.y > H0) { p.y = -4; p.x = Math.random() * W0; } if (p.x < -6) p.x = W0 + 4; if (p.x > W0 + 6) p.x = -4; x.beginPath(); x.arc(p.x, p.y, 1 + p.s * (bz ? 1.4 : 2), 0, Math.PI * 2); x.fill(); }); }
-    if (kind === 'fog') { P.forEach(p => { p.x += 0.25 * p.v * dt; if (p.x - 300 > W0) p.x = -300; const rr = 260 + p.s * 160; x.drawImage(puff, p.x - rr, p.y - rr, rr * 2, rr * 2); });
-      x.fillStyle = 'rgba(215,220,224,.16)'; x.fillRect(0, 0, W0, H0); }
+      P.forEach(p => { p.y += (bz ? 1.2 : 0.45) * p.v * dt; p.x += (bz ? -1.6 : Math.sin(now / 900 + p.s * 6) * 0.25) * dt; if (p.y > H0) { p.y = -4; p.x = Math.random() * W0; } if (p.x < -6) p.x = W0 + 4; if (p.x > W0 + 6) p.x = -4; x.fillRect(p.x, p.y, 1 + p.s * (bz ? 1 : 1.4), 1 + p.s * (bz ? 1 : 1.4)); }); }
+    if (kind === 'fog') { P.forEach(p => { p.x += 0.25 * p.v * dt; if (p.x - 300 * RS > W0) p.x = -300 * RS; const rr = (260 + p.s * 160) * RS; x.drawImage(puff, p.x - rr, p.y - rr, rr * 2, rr * 2); });
+      }
     WFX.raf = requestAnimationFrame(step);
   };
   WFX = {cv, raf: requestAnimationFrame(step)};
@@ -53930,7 +53932,9 @@ async function playRun() {
   }
 }
 const pU = (S, id) => id == null ? null : B.U(S, id);
-function playFollow(c, r) { if (c != null && geo && geo.big && !(CAM.drag && CAM.drag.moved)) camFollow({c, r}); }
+/* Ник 28.11: «камера не прыгает на чужой ход, а стоит на тебе» — за врагами и прохожими не ездит */
+const camMine = u => !!u && u.side === 'party' && u.kind === 'hero';
+function playFollow(c, r, u) { if (u && !camMine(u)) return; if (c != null && geo && geo.big && !(CAM.drag && CAM.drag.moved)) camFollow({c, r}); }
 /* одна запись: сколько ждать до следующей — по смыслу */
 async function playEv(S, e) {
   const now = () => performance.now(), k = e.kind;
@@ -53940,7 +53944,7 @@ async function playEv(S, e) {
     // кого не видит отряд (туман, чаща, затаился) — без показа: и время не тянуть, и не выдавать
     if (u.side !== 'party' && !seenByParty(S, Object.assign({}, u, {c: e.path[0].c, r: e.path[0].r})) && !seenByParty(S, Object.assign({}, u, {c: end.c, r: end.r}))) { delete PLAY.pos[e.id]; PLAY.posK[e.id] = end.c + ',' + end.r; return; }
     PLAY.actor = e.id; PLAY.mode = null; const pts = e.path.map(p => wpt(p.c, p.r));
-    if (!(S.walk && !S.walk.fight && u.side !== 'party')) playFollow(end.c, end.r); // прогулка: камера не скачет за прохожими (Ник 25.11)
+    playFollow(end.c, end.r, u); // прогулка: камера не скачет за прохожими (Ник 25.11)
     PLAY.anim[e.id] = {k: 'walk', pts, t0: now(), step: STEP_MS * pk()}; PLAY.pos[e.id] = pts[0]; playKick();
     const fin = () => { if (PLAY.anim[e.id] && PLAY.anim[e.id].k === 'walk' && PLAY.anim[e.id].pts === pts) delete PLAY.anim[e.id]; PLAY.pos[e.id] = pts[pts.length - 1]; PLAY.posK[e.id] = end.c + ',' + end.r; playKick(); };
     // прогулка: прохожие идут все разом, не по очереди — без задержек (Ник 25.11: «лагает при перемещениях»)
@@ -53952,7 +53956,7 @@ async function playEv(S, e) {
     const u = pU(S, e.uid), t = pU(S, e.tid); PLAY.actor = e.uid != null ? e.uid : PLAY.actor;
     PLAY.mode = {k: k === 'slash' ? 'melee' : 'shot', uid: e.uid, tid: e.tid};
     if (u && !seenByParty(S, u)) { PLAY.gate = e.n; return; }
-    if (u) playFollow(u.c, u.r);
+    if (u) playFollow(u.c, u.r, u);
     PLAY.aim = {a: e.uid, b: e.tid, from: e.from, to: e.to, t0: now(), dur: 200 * pk(), side: u ? u.side : 'foe'}; playKick();
     await pwait(200);
     PLAY.gate = e.n; // удар или выстрел виден с этой минуты
@@ -53960,7 +53964,7 @@ async function playEv(S, e) {
     return;
   }
   if (k === 'cast') {
-    const u = S.units.find(x => x.c === e.from.c && x.r === e.from.r && !x.gone) || null; if (u) { PLAY.actor = u.id; PLAY.anim[u.id] = {k: 'pose', pose: 'cast', t0: now(), dur: 700 * pk()}; playFollow(u.c, u.r); }
+    const u = S.units.find(x => x.c === e.from.c && x.r === e.from.r && !x.gone) || null; if (u) { PLAY.actor = u.id; PLAY.anim[u.id] = {k: 'pose', pose: 'cast', t0: now(), dur: 700 * pk()}; playFollow(u.c, u.r, u); }
     PLAY.mode = {k: 'cast', uid: u ? u.id : null}; PLAY.gate = e.n; playKick();
     // выкрик заклинателя (он следом) — сразу, вместе с чарами
     const nx = (S.evq || []).find(x => x.n === e.n + 1); if (nx && nx.kind === 'shout') PLAY.gate = nx.n;
@@ -54164,7 +54168,7 @@ function drawField0(noFollow) {
   playSync(S);
   // ход перешёл к другому или боец сдвинулся — камера к нему (пока идёт показ хода — камера у того, кто действует)
   if (!noFollow && geo.big && !PLAY.busy) { const cu = B.current(S), pos = cu ? cu.c + ',' + cu.r : '';
-    if (cu && (CAM.lastCur !== cu.id || CAM.lastPos !== pos)) { const first = CAM.lastCur == null; CAM.lastCur = cu.id; CAM.lastPos = pos;
+    if (cu && (camMine(cu) || CAM.lastCur == null) && (CAM.lastCur !== cu.id || CAM.lastPos !== pos)) { const first = CAM.lastCur == null; CAM.lastCur = cu.id; CAM.lastPos = pos;
       if (first) { CAM.cx = SQ3 * (cu.c + 0.5 + (cu.r & 1) * 0.5); CAM.cy = 1 + cu.r * 1.5; layout(); } else { camFollow(cu); } } }
   ctx.fillStyle = '#1a1510'; ctx.fillRect(0, 0, geo.W, geo.H);
   const pat = gImg(GROUND2.includes(F.bg) ? F.bg : (F.bg === 'forest' ? 'forest' : F.bg === 'marsh' ? 'marsh' : F.bg === 'plain' ? 'plain' : F.bg === 'road' ? 'road' : F.bg === 'rock' ? 'rock' : F.bg === 'wasteland' ? 'wasteland' : 'meadow'));
