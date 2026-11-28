@@ -81739,7 +81739,7 @@ r3: {title: 'Сватовство у камня', giver: 'ing', vic: 'hauk', wit
   fork: c => `Сосватать её за Хаука — сто мечей и мир с ярлами. Убедить держать Ставку самой — против обычая, но по её нраву. Или выйти к камню самому.`,
   ask2: 'Что сказать у камня?',
   ends: [
-    {t: c => `Посвататься самому${(heroOf(c.g, 'm') || {}).spouse ? ' (прежние обеты здесь не в счёт)' : ''}`, if: (c, g) => !!heroOf(g, 'm'), check: ['cha', 'Дипломатия', 3], set: {wed: 1}, badSet: {hauk: 1}, mul: 1.5, badMul: 0.8, ex: {fame: 2, xp: 1.5},
+    {t: c => `Посвататься самому${(heroOf(c.g, 'm') || {}).spouse ? ' (прежние обеты здесь не в счёт)' : ''}`, if: (c, g) => !!heroOf(g, 'm') && !(C.forestTaken && C.forestTaken(g, heroOf(g, 'm'))), check: ['cha', 'Дипломатия', 3], set: {wed: 1}, badSet: {hauk: 1}, mul: 1.5, badMul: 0.8, ex: {fame: 2, xp: 1.5},
       ok: c => `Вы выходите к камню. Ярлы замолкают. Ингвильд смеётся — впервые за весь Йоль — и кладёт ладонь на камень рядом с вашей. «Камень рода не слышит чужих обетов, — говорит скальд. — Он слышит этот». Свадьбу играют три дня. Хаук пьёт за ваше здоровье и не улыбается.`,
       bad: c => `Ярлы ропщут: чужак, без рода, без хирда. Ингвильд молчит — и не протягивает руки. Тинг выбирает за неё: Хаука.`,
       act: (g, t, j, c, ok) => { if (ok) { const h = heroOf(g, 'm'); if (h) ROY.wed(g, h, 'ingvild'); } else ROY.set(g, 'ingvild', {note: 'Тинг выдал её за ярла Хаука.'}); },
@@ -82104,8 +82104,10 @@ C.sceneOf = function (g, id) {
   const sc = so0.apply(this, arguments);
   try {
     if (sc && (id === 'kv_banya' || id === 'kv_vesely')) { const SID = id, VES = id === 'kv_vesely'; const hs = C.alive(g).filter(h => h.kind !== 'merc'), back = sc.choices.length - 1; let i = sc.choices.length ? Math.max(...sc.choices.map(c => c.i || 0)) + 1 : 0; const add = [];
-      const runLbl = (h, b, pre) => `${h.name}: ${pre} ${Q.decl(b.n, b.sex).a} с собой${h.spouse ? (h.sex === 'f' ? ' — мужа придётся бросить' : ' — жену придётся бросить') : ''}`;
-      const runDo = (h, b) => g2 => { const hh = heroById(g2, h.id); if (!hh) return SID; const x = C.banshRun(g2, hh, b);
+      const helpP = (h, b) => (!VES && C.forestFirst && C.forestFirst(h)) ? C.juniorPrice(g, b) : 0; // есть первая лесная жена: младшую не увозят — ей дают на дом и огород
+      const runLbl = (h, b, pre) => helpP(h, b) ? `${h.name}: дать ${Q.decl(b.n, b.sex).d} на дом и огород — ${R.priceText(helpP(h, b))}` : `${h.name}: ${pre} ${Q.decl(b.n, b.sex).a} с собой${h.spouse && !(C.forestFirst && C.forestFirst(h)) ? (h.sex === 'f' ? ' — мужа придётся бросить' : ' — жену придётся бросить') : ''}`;
+      const runDis = (h, b) => helpP(h, b) && (g.purse || 0) < helpP(h, b) ? 'не хватает серебра' : undefined;
+      const runDo = (h, b) => g2 => { const hh = heroById(g2, h.id); if (!hh) return SID; const pr = helpP(hh, b); if (pr) { if ((g2.purse || 0) < pr) return SID; g2.purse -= pr; } const x = C.banshRun(g2, hh, b); if (x && x.junior) { g2.kvLast = x.text; return SID; }
         g2.kvLast = `Ночью, пока ${b.ves ? 'хозяйка дома считает выручку' : 'хозяин бани спит'}, ${b.n} выходит к коновязи с узелком — всё ${v(b, 'его', 'её')} добро. ${v(b, 'Он', 'Она')} не плачет и не оглядывается. «Куда? — В ${(nodes(g2)[x.at] || {}).name || 'соседнее село'}. Там тебя никто не знает». Утром ${b.ves ? 'хозяйка дома' : 'хозяин бани'} будет кричать на всю улицу. Пусть кричит.`; return SID; };
       hs.forEach(h => { if (!VES && !C.banshSpecial(g, g.loc)) return; const b = banshOf(g, g.loc, h.sex === 'f' ? 'm' : 'f', VES ? 'ves' : 'bansh'); if ((g.banshRun || {})[b.key]) return; const B = bondOf(g, b, h);
         if (VES) { /* весёлый дом: план выкупа после постельных разговоров */
@@ -82116,14 +82118,14 @@ C.sceneOf = function (g, id) {
           return; }
         /* баня: разговор — когда позвал попарить, а большего не просил (Ник 28.11) */
         const steamed = h.kvSvc === day(g) && h.kvBanshTry !== day(g);
-        if (steamed && B.talkDay !== day(g) && (B.trust || 0) < 3) add.push({i: i++, own: h.id, label: `${h.name}: поговорить с ${B.known ? Q.decl(b.n, b.sex).i : v(b, 'банщиком', 'банщицей')}, пока ${v(b, 'он', 'она')} парит`, t: '', do: g2 => { const hh = heroById(g2, h.id) || h; g2.kvLast = C.banshTalk(g2, hh, b); return SID; }});
-        if (steamed && (B.trust || 0) >= 3 && !B.plea && B.talkDay !== day(g) && C.banshSpine && !C.banshSpine(h)) { if (B.soft !== day(g)) { B.soft = day(g); B.talkDay = day(g); const sf = C.banshSoft(h, b); g.kvLast = sf; sc.lines = (sc.lines || []).concat([['n', sf]]); } }
-        else if (steamed && (B.trust || 0) >= 3 && !B.plea && B.talkDay !== day(g)) { B.plea = day(g); B.talkDay = day(g); const pl = C.banshPlea(g, h, b); g.kvLast = pl; sc.lines = (sc.lines || []).concat([['n', pl]]); }
+        if (steamed && B.talkDay !== day(g) && (B.trust || 0) < (C.forestFirst && C.forestFirst(h) ? 2 : 3)) add.push({i: i++, own: h.id, label: `${h.name}: поговорить с ${B.known ? Q.decl(b.n, b.sex).i : v(b, 'банщиком', 'банщицей')}, пока ${v(b, 'он', 'она')} парит`, t: '', do: g2 => { const hh = heroById(g2, h.id) || h; g2.kvLast = C.banshTalk(g2, hh, b); return SID; }});
+        if (steamed && (B.trust || 0) >= (C.forestFirst && C.forestFirst(h) ? 2 : 3) && !B.plea && B.talkDay !== day(g) && C.banshSpine && !C.banshSpine(h)) { if (B.soft !== day(g)) { B.soft = day(g); B.talkDay = day(g); const sf = C.banshSoft(h, b); g.kvLast = sf; sc.lines = (sc.lines || []).concat([['n', sf]]); } }
+        else if (steamed && (B.trust || 0) >= (C.forestFirst && C.forestFirst(h) ? 2 : 3) && !B.plea && B.talkDay !== day(g)) { B.plea = day(g); B.talkDay = day(g); const pl = C.banshPlea(g, h, b); g.kvLast = pl; sc.lines = (sc.lines || []).concat([['n', pl]]); }
         if (B.plea && !B.refused) {
-          add.push({i: i++, own: h.id, label: runLbl(h, b, 'согласиться: увезти'), t: '', do: runDo(h, b)});
+          add.push({i: i++, own: h.id, label: runLbl(h, b, 'согласиться: увезти'), t: '', dis: runDis(h, b), do: runDo(h, b)});
           add.push({i: i++, own: h.id, label: `${h.name}: отказать ${Q.decl(b.n, b.sex).d}`, t: '', do: g2 => { const BB = bondOf(g2, b, heroById(g2, h.id) || h); BB.refused = day(g2); if (!b.expel) b.expel = day(g2) + K().YEAR;
             g2.kvLast = `${b.n} отпускает ваш рукав. Не плачет. «Иди. Я… буду считать зимы. Если вспомнишь — у меня ещё есть год. Потом меня тут не будет»`; return SID; }});
-        } else if (B.refused) add.push({i: i++, own: h.id, label: runLbl(h, b, 'вернуться за'), t: '', do: runDo(h, b)});
+        } else if (B.refused) add.push({i: i++, own: h.id, label: runLbl(h, b, 'вернуться за'), t: '', dis: runDis(h, b), do: runDo(h, b)});
       });
       if (add.length) sc.choices.splice(Math.max(0, back), 0, ...add);
     }
@@ -82252,7 +82254,7 @@ C.WIVES = Object.assign({
   CUP: {forest: {'измена': 0, 'нищета': 0, 'разлука': 0, 'не по чину': 0, 'дешёвый подарок': 0, _: 0.5},
         royal: {'измена': 1.5, 'нищета': 2, 'не по чину': 2, 'дешёвый подарок': 2, 'разлука': 0.5, _: 1}},
   KIDS: {SEASON: 30, P: 0.3, P2: 0.45, BARREN: 0, MAX: 7, SPACE: 420},
-  HEARTH: {forest: 0.6, royal: 1.5},
+  HEARTH: {forest: 0.25, royal: 1.5}, JUNIOR: [250, 400], // на дом и огород, зм
   SPINE_LV: 3, SPINE_DEEDS: 3
 }, C.WIVES || {}); // тайна мастера
 const K = () => C.WIVES;
@@ -82399,6 +82401,7 @@ if (C.kvBetray) { const kb0 = C.kvBetray; C.kvBetray = function (g, h, how) {
 }; }
 /* бросил лесную — она не проклинает: ждёт */
 if (C.ROY && C.ROY.abandon) { const ab0 = C.ROY.abandon; C.ROY.abandon = function (g, h, why, letter) {
+  if (kindOfHero(g, h) === 'forest' && !(g && g._wifeForce)) return null; // первую лесную не бросить
   if (kindOfHero(g, h) === 'forest') { const s = h.spouse, p = {n: String(s.n || '').split(' ')[0], sex: s.sex, ppl: s.ppl};
     letter = () => fillAll(p.sex === 'f' ? '«Ты взял другую. Что ж — сильному и две жены не много. Дверь не запру, травы для тебя сушу, как сушила. Придёшь — накормлю. {d}. {n}»'
       : '«Ты ушла к другому. Ладно. Дверь не запру. Придёшь — накормлю. {n}»', p, h); }
@@ -82441,6 +82444,138 @@ C.banshSpine = h => !!h && ((h.level || 1) >= K().SPINE_LV || (h.deeds || []).le
 C.banshSoft = (h, b) => b && b.sex === 'm'
   ? `${b.n} смотрит на вас долго, потом качает головой: «Ты добрая. Но мягкая. Наши за таких не идут — пропадём вдвоём». И отворачивается к печи.`
   : `${b.n} смотрит на вас долго, потом качает головой: «Ты добрый. Но мягкий. Наши за таких не идут — пропадём вдвоём. Приходи, когда в тебе будет стержень». И отворачивается к печи.`;
+
+/* ---------- первая лесная и младшие (Ник 28.11) ----------
+   Первую лесную не бросить: она едет за тобой и живёт в селе бедно, с кучей детей, берёт чуть-чуть — на еду.
+   Другие из бань и весёлых домов видят в тебе спасителя: просят на дом и огород. Спасённые живут каждая в своём
+   селе, одни, — но считают тебя мужем: там всегда можно остановиться. Первая тобой гордится.
+   Женщины Ока за такого не идут. */
+C.forestFirst = h => !!(h && h.spouse && h.spouse.forest);
+C.forestTaken = (g, h) => !!h && (C.forestFirst(h) || Object.values((g && g.kvLoc) || {}).some(r => r && r.hid === h.id && (r.forest || r.fromBansh) && r.st !== 'gone'));
+C.juniorPrice = (g, b) => { const [a, z] = K().JUNIOR; return (a + (hsh((b && b.key) || '') % (Math.floor((z - a) / 10) + 1)) * 10) * 100; };
+C.juniorsOf = (g, h) => Object.values((g && g.kvLoc) || {}).filter(r => r && r.junior && r.hid === h.id && r.st !== 'gone');
+const PROUD = {f: ['«Говорят, ты спас ещё одну — дал ей дом и огород. Я горжусь. Сильному мужчине и дом большой. Пусть живёт, пусть рожает. {d}. {n}»',
+    '«Мне рассказали про ту, из бани. Хорошо сделал. У нас в круге так и надо: кто может — тот кормит. Я тобой горжусь. {Y}. {n}»'],
+  m: ['«Говорят, ты спасла ещё одного. Правильно. Горжусь тобой. {n}»']};
+const villages = g => { const N = nodes(g); return Object.keys(N).filter(k => VIL.includes(N[k].kind)); };
+C.wifeJunior = function (g, h, b) {
+  const skip = [b.at, h.spouse && h.spouse.at].concat(C.juniorsOf(g, h).map(r => r.at)), V = villages(g).filter(k => !skip.includes(k)), L = V.length ? V : villages(g);
+  const at = L.length ? L[hsh(b.key + h.id) % L.length] : b.at, name = (nodes(g)[at] || {}).name || 'село';
+  const r = C.kvMakeLoc(g, {at, hid: h.id, n: b.n, sex: b.sex, face: b.face, ppl: b.ppl, st: 'maid', t: v(b, 'считает вас своей женой', 'считает вас своим мужем')}, 100);
+  if (r) { Object.assign(r, {fromBansh: b.key, forest: 1, junior: 1, banshPpl: b.ppl, rel: 100}); }
+  g.banshRun = g.banshRun || {}; g.banshRun[b.key] = {hero: h.id, day: day(g), to: at, junior: 1};
+  if (h.deeds) h.deeds = h.deeds.concat(`${v(h, 'спас', 'спасла')} ${b.ves ? 'из весёлого дома' : 'из бани'}: ${b.n}`).slice(-12);
+  const s = h.spouse; if (s && s.forest) { const p = {n: String(s.n || '').split(' ')[0], sex: s.sex, ppl: s.ppl}, line = fillAll(pk(PROUD[p.sex === 'f' ? 'f' : 'm'], b.key), p, h);
+    g.mail = (g.mail || []).concat({from: s.n, t: s.t || v(s, 'муж', 'жена'), face: s.face, sex: s.sex, kind: 'kv', head: v(s, 'От мужа', 'От жены'), to: h.name, text: line, day: day(g)}).slice(-6);
+    C.note(g, `Грамотка от ${Q.decl(s.n, s.sex).g}: ${line}`); }
+  if (C.spiritAdd) try { C.spiritAdd(g, 2, `${b.n} спасена.`, h); } catch (e) {}
+  const text = `${b.n} пересчитывает серебро трижды, потом прячет его за пазуху и вдруг кланяется вам в ноги — как кланяются мужу. «Я куплю избу в селе ${name}. С огородом. Буду ждать. Ты не забывай — я твоя». Наутро ${b.ves ? 'в весёлом доме' : 'в бане'} её уже нет.`;
+  C.note(g, `${b.n} уходит жить в село ${name} — одна, в свою избу. Считает ${h.name} своим ${v(h, 'мужем', 'женой')}.`);
+  return {r, at, name, junior: 1, text};
+};
+if (C.banshRun) { const br0 = C.banshRun; C.banshRun = function (g, h, b) { if (C.forestFirst(h)) return C.wifeJunior(g, h, b); return br0.apply(this, arguments); }; }
+if (C.banshPlea) { const bp0 = C.banshPlea; C.banshPlea = function (g, h, b) { if (!C.forestFirst(h)) return bp0.apply(this, arguments);
+  const w = String(h.spouse.n || '').split(' ')[0];
+  return b.sex === 'f' ? `${b.n} бросает веник и садится рядом, близко-близко: «Я знаю, кто ты. Ты — тот, кто увёз ${w}. Все наши знают. Ты наш… спаситель. Меня не увози — у тебя есть она. Дай только на избу и огород. Я буду одна жить. Тихо. Но твоя». И держит вас за руку, будто вы уже согласились.`
+    : `${b.n} откладывает веник: «Ты — та, что увезла ${w}. Наши знают. Дай на избу и огород — буду жить один. Но твой».`; }; }
+/* первую лесную не бросить: ни у камня, ни у двора, ни у капища */
+if (C.ROY && C.ROY.wed) { const rw0 = C.ROY.wed; C.ROY.wed = function (g, h) { if (C.forestTaken(g, h)) return null; return rw0.apply(this, arguments); }; }
+/* ---------- женщины Ока за такого не идут ---------- */
+const AVOID = {f: ['«Про тебя говорят — в каждом селе у тебя кто-то ждёт, и все без Звезды. Я за такого не пойду, хоть ты мне и мил».',
+    '«Мать сказала: за кого угодно, только не за того, кто с дикаркой живёт. Прости».',
+    '«Ты хороший. Но у тебя уже есть жена — пусть и не по Оку. Второй я не буду».',
+    '«Брат из храма не обвенчает того, кто с лесной живёт. А без венца я — нет».',
+    '«Ночевать — ночуй, если позову. А под венец — нет. Ты чужой нам, хоть и ласковый».',
+    '«Подружки смеются: пойдёшь за него — будешь пятая. Я не пойду пятой».'],
+  m: ['«Про тебя говорят — ты с лесным живёшь, без Звезды. Я за такую не посватаюсь».', '«Отец сказал: только не за ту, что с дикарём. Прости».']};
+C.okoAvoid = (h, p, salt) => (AVOID[p && p.sex === 'm' ? 'm' : 'f'])[hsh(String(salt || '') + (h && h.id)) % AVOID[p && p.sex === 'm' ? 'm' : 'f'].length];
+if (C.kvLocalWhy) { const lw0 = C.kvLocalWhy; C.kvLocalWhy = function (g, r, what) {
+  if (what === 'svat' && r && !r.forest && !r.fromBansh) { const h = heroById(g, r.hid); if (C.forestTaken(g, h)) return v(r, 'он', 'она') + ' и слышать не хочет о свадьбе'; }
+  return lw0.apply(this, arguments); }; }
+if (C.mwWedWhy) { const mw1 = C.mwWedWhy; C.mwWedWhy = function (g, m) { try { const h = (g.heroes || []).find(x => m && m.mw && x.id === m.mw.who); if (h && C.forestTaken(g, h)) return 'avoid_forest'; } catch (e) {} return mw1.apply(this, arguments); }; }
+if (C.compSay) { const cs0 = C.compSay; C.compSay = function (g, m, why) { if (why === 'avoid_forest') return `${m.name}: «Ты знаешь, почему нет. У тебя уже есть та, что без Звезды. Второй я не стану»`; return cs0.apply(this, arguments); }; }
+const so1 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so1.apply(this, arguments);
+  try {
+    if (sc && id === 'folk' && g.folkRole) { const at = g.folkAt || g.loc, r = (g.folkRel || {})[g.folkRole + '@' + at], h = r && heroById(g, r.who);
+      if (r && !r.bond && h && C.forestTaken(g, h)) { const was = sc.choices.length;
+        sc.choices = sc.choices.filter(c => !/сделать предложение|ответить «да»/.test(c.label || c.t || ''));
+        sc.lines = (sc.lines || []).filter(l => !/Выходи за меня/.test(l[1] || ''));
+        if (sc.choices.length < was) { let p = null; try { p = C.folkPerson(g, g.folkRole, at); } catch (e) {} sc.lines.push(['n', `${(p && p.n) || ''} смотрит на вас долго и тепло — и отводит глаза. ${C.okoAvoid(h, p, g.folkRole + at)}`.trim()]); } } }
+    if (sc && id === 'kv_local') { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur), h = r && heroById(g, r.hid);
+      if (r && h && r.junior) { const p = {n: String(r.n || '').split(' ')[0], sex: r.sex, ppl: r.banshPpl || r.ppl};
+        sc.lines = [['n', fillAll(pk(r.sex === 'f' ? JUN_F : JUN_M, (r.id || r.n) + day(g) + (g.time || 0)), p, h)]].concat(sc.lines || []); }
+      if (r && h && (r.forest || r.fromBansh) && C.forestFirst(h)) sc.choices = sc.choices.filter(c => !/лесному закону/.test(c.label || '') && !(r.junior && /^Посвататься|^Сватать|свадьб|Пообещать посвататься/i.test(c.label || '')));
+      if (r && h && !r.forest && !r.fromBansh && C.forestTaken(g, h) && sc.choices.some(c => /свата|Посвататься/i.test(c.label || ''))) sc.lines = (sc.lines || []).concat([['n', C.okoAvoid(h, r, r.id)]]); }
+  } catch (e) {}
+  return sc;
+};
+const JUN_F = ['{n} бежит к вам через двор, не стыдясь соседей: «{d}! Муж пришёл!» Изба у неё крохотная, но своя, и огород в порядке.',
+  '{n} кланяется вам, как мужу, и ставит на стол всё, что есть: репу, ягоды, хлеб. «Ты меня спас. {E}».',
+  '«Соседи спрашивают — кто тебе этот? Я говорю — муж. Смеются. Пусть», — {n} очень довольна.',
+  '{n} показывает грядки: «Это лук. Это тоже лук. А это не трогай — это от дурного глаза».',
+  '{n} одна, и ей это нравится: «Хозяина нет, хозяйки нет, веника нет. Есть ты. Иногда. {Y} — хватает».'];
+const JUN_M = ['{n} встречает вас у плетня: «{d}! Жена пришла!» Изба у него крохотная, но своя.', '«Соседи спрашивают — кто тебе эта? Я говорю — жена. Смеются. Пусть», — {n} доволен.'];
+
+/* ---------- её язык и её сказы (Ник 28.11: «чем больше живёшь с лесной — она рассказывает их лор, он у них только устный;
+   а пока спишь с женой — учишь её язык лучше») ---------- */
+C.WIVES.TONGUE = C.WIVES.TONGUE || 15;   // ночей с ней — и её речь своя
+C.WIVES.LORE_DAYS = C.WIVES.LORE_DAYS || 12; // каждые столько дней вместе — новый сказ
+const tongueOf = h => (h && h.wifeTongue) || {};
+if (C.speaks) { const sp0 = C.speaks; C.speaks = function (h, lang) { return sp0.apply(this, arguments) || !!(h && h.wifeLang && h.wifeLang[lang]); }; }
+C.wifeNightLang = function (g, h, ppl, n) {
+  if (!h || !ppl || !C.LANG || !C.LANG[ppl] || (h.wifeLang && h.wifeLang[ppl])) return '';
+  h.wifeTongue = h.wifeTongue || {}; h.wifeTongue[ppl] = (h.wifeTongue[ppl] || 0) + 1;
+  if (h.wifeTongue[ppl] < K().TONGUE) return '';
+  h.wifeLang = h.wifeLang || {}; h.wifeLang[ppl] = 1;
+  const t = `Однажды утром вы понимаете, что ${n} говорит на своём — а вы отвечаете на её же, не задумываясь. Теперь ${C.LANG[ppl][0]} — и ваша речь.`;
+  C.note(g, `${h.name}: ${t}`); return t;
+};
+const LORE = [
+  '«У нас нет сёл. Есть круг — костёр в чаще, и кто вокруг него сидит. Имя у круга — только у огня; отойдёшь от огня — и имени нет. Мужчины круга не пашут. Их пашня — дорога».',
+  '«Кого выгнали из круга — того больше не зовут по имени у костра. Для своих я — как умершая. Мать при мне говорит „та, что ушла“. Это не злоба. Так легче забыть».',
+  '«Отцы не злые. Зима злая. Мой отец вывел меня к опушке, дал хлеба на три дня и сказал: живи. У нас это — любовь. Вы, со Звездой, так не умеете».',
+  '«Наши камни стоят в лесу, к ним не ведёт тропа. Найдёшь — если тебя позвали. Под мхом — ленты, мёд, зубы зверя. Ваши братья со Звездой жгут их, если найдут. Находят редко: лес прячет».',
+  '«Травы, чтоб понести, знает каждая мать — и ни одна не скажет мужчине. Дитя у нас не твоё и не моё — круга. Чем больше детей, тем круг крепче. Пять — это мало. Ты не смейся».',
+  '«Стержень мы видим сразу. Не по плечам. По тому, как мужчина ест, когда голоден, и как молчит, когда больно. Мягкий говорит много. Ты — говоришь мало».',
+  '«Мужчин у нас мало — дорога их забирает, стрела, верёвка. Сильного делят, и в этом нет стыда. Ревность — для тех, у кого хлеба вдоволь».',
+  '«Наш язык никто не пишет. Записал слово — значит убил его: оно лежит и больше не ходит. Слово живёт, пока его говорят. Поэтому я тебе и говорю».',
+  '«Свадьба у нас — не слово, а пояс. Красный пояс не развязывают ни при жизни, ни после. Потому я тебя и не отпущу — хоть на край света, я сзади».',
+  '«Кто умер в лесу без огня, того лес не берёт. Они выходят к опушке и зовут голосом матери. Мы не откликаемся. Ты тоже не откликайся. Никогда. Даже если голос — мой».',
+  '«У каждого круга есть старая мать. Она помнит всех по именам — даже выгнанных. Пока она жива, мы ещё чьи-то. Когда умрёт — круг забудет нас совсем. Наша старая мать очень стара».',
+  '«Под самыми старыми камнями — не боги. Там те, кто был до нас и не ушёл. Мы им не молимся. Мы им оставляем соль и уходим не оглядываясь».'
+];
+const BROKEN = '«…круг… огонь… — она сбивается, ищет ваши слова, не находит и машет рукой. — Потом. Когда будешь понимать».';
+C.forestLoreNext = function (g, h, s) {
+  if (!h || !s) return ''; const r = (g.folkRel || {})[s.role + '@' + s.at] || {}, since = r.bondDay || 1, got = (h.forestLore || []).length;
+  if (got >= LORE.length || day(g) - since < K().LORE_DAYS * (got + 1)) return '';
+  if (!C.speaks(h, s.ppl)) return BROKEN;
+  h.forestLore = (h.forestLore || []).concat(got); const t = LORE[got];
+  C.note(g, `${String(s.n || '').split(' ')[0]} рассказывает: ${t}`); return `Вечером, у печи, ${String(s.n || '').split(' ')[0]} вдруг рассказывает — тихо, как говорят только своим: ${t}`;
+};
+C.forestLoreOf = h => (h && h.forestLore || []).map(i => LORE[i]).filter(Boolean);
+/* ночь дома и разговор по душам — с языком и сказами */
+{ const bh0 = C.kvBedHome; C.kvBedHome = function (g, role, at, h) { const t = bh0.apply(this, arguments);
+  try { if (t && C.wifeKind(g, role + '@' + at) === 'forest') { const s = (g.homeSp || {})[role] || {}; const L = C.wifeNightLang(g, h, s.ppl, String(s.n || '').split(' ')[0]); if (L) return t + ' ' + L; } } catch (e) {}
+  return t; }; }
+if (C.kvBedText) { const bt1 = C.kvBedText; C.kvBedText = function (g, r, h) { const t = bt1.apply(this, arguments);
+  try { if (r && h && r.junior) { const L = C.wifeNightLang(g, h, r.banshPpl || r.ppl, String(r.n || '').split(' ')[0]); if (L) return t + ' ' + L; } } catch (e) {} return t; }; }
+const so2 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so2.apply(this, arguments);
+  try {
+    if (!sc || id !== 'folk' || !g.folkRole) return sc;
+    const role = g.folkRole, at = g.folkAt || g.loc; if (C.wifeKind(g, role + '@' + at) !== 'forest') return sc;
+    const r = (g.folkRel || {})[role + '@' + at]; if (!r || r.bond !== 'wed') return sc; const h = heroById(g, r.who); if (!h) return sc;
+    sc.choices = sc.choices.map(c => (c && c.label === 'Поговорить по душам' && c.do && !c._lore) ? Object.assign({}, c, {_lore: 1, do: function (g2) {
+      const out = c.do.apply(this, arguments); try { const hh = heroById(g2, h.id), s = hh && hh.spouse; if (s && s.role === role) { const L = C.forestLoreNext(g2, hh, s); if (L) g2.folkLast = (g2.folkLast ? g2.folkLast + ' ' : '') + L; } } catch (e) {}
+      return out; }}) : c);
+    if ((h.forestLore || []).length) { const back = sc.choices.length && /^(Назад|Уйти)/.test(sc.choices[sc.choices.length - 1].label || '') ? 1 : 0, i = Math.max(0, ...sc.choices.map(c => c.i || 0)) + 1;
+      sc.choices.splice(sc.choices.length - back, 0, {i, label: `Вспомнить, что ${v(h.spouse, 'он', 'она')} рассказывал${v(h.spouse, '', 'а')}`, do: g2 => { const hh = heroById(g2, h.id); g2.folkLast = C.forestLoreOf(hh).join(' '); return 'folk'; }}); }
+  } catch (e) {}
+  return sc;
+};
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
