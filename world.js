@@ -83528,3 +83528,54 @@ C.sceneOf = function (g, id) {
 };
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
+
+/* caravan_go.js */
+/* Колдовство — караван между городами (Ник 28.11: «за 100 золотых поехать в другой город безопасно: срок на лошадях,
+   без встреч, еда не тратится; вернуться можно в те города, что ты посещал; в новые — ещё нельзя по кампании»).
+   В городе — «Уехать с караваном»: список городов, где отряд уже бывал и что видны на карте. Плата — C.CVG.PRICE,
+   время — по расстоянию (на лошадях), ни встреч, ни расхода еды. Без DOM. */
+(function (G) {
+'use strict';
+const R = G.R, C = G.C, W = G.W;
+if (!R || !C || !C.sceneOf) return;
+C.CVG = Object.assign({PRICE: 10000, MIN_H: 4, H_PER_CELL: 1.2, KINDS: ['город']}, C.CVG || {});
+const day = g => g.day || 1;
+const nodes = g => (C.CAMPS[g.camp] && C.CAMPS[g.camp].map && C.CAMPS[g.camp].map.nodes) || {};
+const shown = (g, id) => { const n = nodes(g)[id]; try { return !!n && (!n.if || n.if(g, C.ctx ? C.ctx(g) : {})); } catch (e) { return false; } };
+const seenKey = g => g.camp; // посещённые города — по кампании
+C.cvgSeen = g => { const S = (g.cvgSeen = g.cvgSeen || {}), k = seenKey(g); S[k] = S[k] || {}; return S[k]; };
+const markSeen = g => { const n = nodes(g)[g.loc]; if (n && C.CVG.KINDS.includes(n.kind)) C.cvgSeen(g)[g.loc] = day(g); };
+C.cvgTowns = g => { const N = nodes(g), S = C.cvgSeen(g);
+  // старые сохранения: города, чьи сцены отряд уже открывал
+  Object.keys(N).forEach(k => { if (C.CVG.KINDS.includes(N[k].kind) && !S[k] && g.visited && g.visited[N[k].scene] && Object.keys(N).filter(x => N[x].scene === N[k].scene).length === 1) S[k] = 1; });
+  return Object.keys(N).filter(k => k !== g.loc && C.CVG.KINDS.includes(N[k].kind) && S[k] && shown(g, k)); };
+C.cvgHours = (g, to) => { try { if (W && W.isHex && W.isHex(g)) { const w = W.world(g), a = w.nodeAt[g.loc], b = w.nodeAt[to]; if (a && b) return Math.max(C.CVG.MIN_H, Math.round(W.dist(a, b) * C.CVG.H_PER_CELL)); } } catch (e) {}
+  const N = nodes(g), A = N[g.loc] || {}, B = N[to] || {}; return Math.max(C.CVG.MIN_H, Math.round(Math.hypot((A.x || 0) - (B.x || 0), (A.y || 0) - (B.y || 0)) / 4)); };
+const whenWord = h => h <= 8 ? 'полдня пути' : h <= 16 ? 'день пути' : h <= 36 ? 'два дня пути' : h <= 60 ? 'три дня пути' : 'несколько дней пути';
+C.cvgGo = function (g, to) {
+  if (!C.cvgTowns(g).includes(to)) return {err: 'туда караван вас не повезёт'}; if ((g.purse || 0) < C.CVG.PRICE) return {err: 'не хватает серебра'};
+  g.purse -= C.CVG.PRICE; const h = C.cvgHours(g, to), f0 = C.FOOD_OFF; C.FOOD_OFF = true;
+  try { if (C.passH) C.passH(g, h); else if (C.pass) C.pass(g, Math.ceil(h / 6)); } finally { C.FOOD_OFF = f0; }
+  const from = (nodes(g)[g.loc] || {}).name || ''; g.loc = to; g.pos = null; g.posNode = null; markSeen(g);
+  const nm = (nodes(g)[to] || {}).name || ''; C.note(g, `Караван: ${from} — ${nm}. Дорога прошла спокойно: под охраной, на лошадях, с обозной кашей.`);
+  return {ok: true, to, scene: (nodes(g)[to] || {}).scene};
+};
+const SC = {cvg_list: g => {
+  const L = C.cvgTowns(g), back = (nodes(g)[g.loc] || {}).scene || 'map';
+  const ch = L.map(k => ({t: `${nodes(g)[k].name} — ${whenWord(C.cvgHours(g, k))}, ${R.priceText(C.CVG.PRICE)}`, if: g2 => (g2.purse || 0) >= C.CVG.PRICE, off: 'не хватает серебра', do: g2 => { const r = C.cvgGo(g2, k); return r.ok ? r.scene : back; }}));
+  ch.push({t: 'Назад', do: () => back});
+  return {title: 'Караван', bg: 'town', lines: [['n', L.length ? 'У ворот собирается обоз: возы, охрана с копьями, лошади под попонами. Старшина обоза берёт плату вперёд и не спрашивает, кто вы. Дорога — спокойная: ни засад, ни ночёвок в поле, кормёжка — обозная.' : 'Караван ходит только туда, где вы уже бывали. В новые города дорогу прокладывайте сами.']], choices: ch}; }};
+Object.values(C.CAMPS || {}).forEach(cp => { if (cp && cp.scenes) Object.assign(cp.scenes, SC); });
+if (C.register) { const rg0 = C.register; C.register = function (camp) { const r = rg0.apply(this, arguments); try { Object.assign((C.CAMPS[camp.id] || camp).scenes, SC); } catch (e) {} return r; }; }
+const so0 = C.sceneOf;
+C.sceneOf = function (g, id) {
+  const sc = so0.apply(this, arguments);
+  try { if (!sc || !g || !g.heroes) return sc; const n = nodes(g)[g.loc]; if (!n || id !== n.scene || !C.CVG.KINDS.includes(n.kind)) return sc;
+    markSeen(g); if (sc.choices.some(c => c.go === 'cvg_list')) return sc;
+    const i = Math.max(0, ...sc.choices.map(c => c.i || 0)) + 1, b = sc.choices.length && /^(Назад|Уйти|На карту|Уйти на карту)/.test(sc.choices[sc.choices.length - 1].label || '') ? 1 : 0;
+    sc.choices.splice(sc.choices.length - b, 0, {i, go: 'cvg_list', label: 'Уехать с караваном в другой город', do: () => 'cvg_list'});
+  } catch (e) {}
+  return sc;
+};
+G.C = C;
+})(typeof window !== 'undefined' ? window : globalThis);
