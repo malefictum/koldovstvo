@@ -83006,8 +83006,20 @@ C.banshClosed = function (g, h, b) {
 C.revealNode = function (g, id) { if (!g || !id) return; g.revealNodes = g.revealNodes || {}; if (g.revealNodes[id]) return; g.revealNodes[id] = 1; const n = nodes(g)[id]; if (n) C.note(g, `${n.name}: дорогу туда вы теперь знаете — там вас ждут.`); };
 Object.values(C.CAMPS || {}).forEach(cp => { const N = cp && cp.map && cp.map.nodes; if (!N) return; Object.entries(N).forEach(([id, n]) => { if (typeof n.if !== 'function' || n._rv) return; const f0 = n.if; n._rv = 1; n.if = function (g) { return !!(g && g.revealNodes && g.revealNodes[id]) || f0.apply(this, arguments); }; }); });
 const hiddenAt = (g, id) => { const n = nodes(g)[id]; try { return !!(n && typeof n.if === 'function' && !n.if(g, C.ctx ? C.ctx(g) : {})); } catch (e) { return false; } };
-const revealOwn = g => { try { Object.values(g.kvLoc || {}).forEach(r => { if (r && r.camp === g.camp && (r.forest || r.fromBansh) && r.st !== 'gone' && hiddenAt(g, r.at)) C.revealNode(g, r.at); });
-  (g.heroes || []).forEach(h => { const s = h.spouse; if (s && s.forest && s.camp === g.camp && hiddenAt(g, s.at)) C.revealNode(g, s.at); }); } catch (e) {} };
+/* Ник 28.11: «не надо телепортировать города между кампаниями — пересели её в ближайшее село, что видно на карте». Скрытое
+   село не открываем: беглянка (младшая) селится в ближайшем видимом селе, кроме того, где баня. */
+const VIS_KINDS = ['село', 'подворье', 'выселки', 'хутор', 'город'];
+C.nearVisible = function (g, from, avoid) { const N = nodes(g), f = N[from] || {}, A = [].concat(avoid || []);
+  const L = Object.keys(N).filter(k => !A.includes(k) && VIS_KINDS.includes(N[k].kind) && !hiddenAt(g, k));
+  const d = k => Math.hypot((N[k].x || 0) - (f.x || 0), (N[k].y || 0) - (f.y || 0)) + (N[k].kind === 'город' ? 15 : 0); // город — если сёл нет
+  return L.sort((a, b) => d(a) - d(b))[0] || null; };
+const revealOwn = g => { try {
+  if (g.revealNodes) { Object.keys(g.revealNodes).forEach(k => { if (k !== g.loc) delete g.revealNodes[k]; }); if (!Object.keys(g.revealNodes).length) delete g.revealNodes; } // прежняя починка — откат
+  Object.values(g.kvLoc || {}).forEach(r => { if (!r || r.camp !== g.camp || !(r.forest || r.fromBansh) || r.st === 'gone' || !hiddenAt(g, r.at)) return;
+    const b = (g.bansh || {})[r.fromBansh], to = C.nearVisible(g, r.at, [b && b.at]); if (!to) return; const was = r.at; r.at = to; if ((g.banshRun || {})[r.fromBansh]) g.banshRun[r.fromBansh].to = to;
+    C.note(g, `${String(r.n || '').split(' ')[0]} перебралась: ${(nodes(g)[to] || {}).name || ''} — там её никто не знает. Ищите её там.`); });
+  (g.heroes || []).forEach(h => { const s = h.spouse; if (!s || !s.forest || s.camp !== g.camp || !hiddenAt(g, s.at)) return; const to = C.nearVisible(g, s.at, []); if (to && C.moveFamily) { const key = s.role + '@' + s.at; try { const q0 = C.moveQuote; C.moveQuote = () => ({price: 0, sale: 0, debt: 0, pay: 0, rest: 0, left: 0, need: 0, ok: true}); try { C.moveFamily(g, key, to, {free: 1}); } finally { C.moveQuote = q0; } } catch (e) {} } });
+} catch (e) {} };
 C.revealOwn = revealOwn;
 { const br2 = C.banshRun; if (br2) C.banshRun = function (g) { const r = br2.apply(this, arguments); revealOwn(g); return r; }; }
 ['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { const r = f0.apply(this, arguments); revealOwn(g); return r; }; });
@@ -83019,6 +83031,54 @@ const fixFaces = g => { try { Object.values(g.bansh || {}).forEach(b => { if (b 
   Object.values(g.homeSp || {}).forEach(s => { if (s && !s.face && (s.forest || s.bansh) && C.banshFace) s.face = C.banshFace(s.sex, s.n); });
   (g.heroes || []).forEach(h => { const s = h.spouse; if (s && !s.face && s.forest && C.banshFace) s.face = ((g.homeSp || {})[s.role] || {}).face || C.banshFace(s.sex, s.n); }); } catch (e) {} };
 { const so9 = C.sceneOf; C.sceneOf = function (g) { if (g && (g.bansh || g.kvLoc) && !g._faceFix) { g._faceFix = 1; fixFaces(g); } return so9.apply(this, arguments); }; }
+
+/* ломаная речь: пока не знаешь её языка, лесная говорит наполовину по-своему (Ник 28.11: «она говорит нормально — я что, знаю их язык?») */
+const BROKEN_G = ['«[horosho:Хорошо]! Ты пришёл… [moy:мой]», — {n} путает слова, половину говорит на своём и помогает себе руками.',
+  '«[voda:Вода] — носить. Ты — [silny:сильный]. Помоги», — {n} суёт вам ведро и смеётся над вашим лицом.',
+  '«[les:Лес] шумит — к гостю. [horosho:Хорошо]», — говорит {n}, а остальное договаривает глазами и пальцами.',
+  '«Соседка… глаза — [eshche:много]. Ты — заходи. Быстро», — {n} тянет вас за рукав и оглядывается на плетень.',
+  '«[ogon:Огонь] есть, [voda:вода] есть, ты — есть. [horosho:Хорошо]», — {n} перечисляет, загибая пальцы, и довольна.'];
+const knownOf = (h, ppl) => (h && h.wifeLang && h.wifeLang[ppl]) || (C.speaks && C.speaks(h, ppl)) ? 1 : Math.min(1, ((h && h.wifeTongue && h.wifeTongue[ppl]) || 0) / K().TONGUE);
+C.forestBroken = function (g, h, p, salt) { const ppl = p.ppl, known = knownOf(h, ppl); if (known >= 1) return null; const L = LEX[ppl] || LEX.loss; let i = 0;
+  return pk(BROKEN_G, salt).replace(/\{n\}/g, p.n).replace(/\[(\w+):([^\]]+)\]/g, (m, k, ru) => { i++; const own = (hsh(salt + '|' + i) % 100) >= known * 100; const w = L[k] || ru; return own ? (/^[А-ЯЁ]/.test(ru) ? cap(w) : w) : ru; }); };
+{ const so10 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so10.apply(this, arguments);
+  try { if (sc && id === 'kv_local' && sc.lines && sc.lines.length) { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur), h = r && heroById(g, r.hid);
+    if (r && h && (r.forest || r.fromBansh) && !r.junior) { const p = {n: String(r.n || '').split(' ')[0], sex: r.sex, ppl: r.banshPpl || r.ppl}, tr = C.interpreter ? C.interpreter(g, p.ppl) : null;
+      const br = C.forestBroken(g, h, p, (r.id || '') + day(g) + (g.time || 0));
+      if (br && tr && tr.id !== h.id) sc.lines = sc.lines.concat([['n', `${tr.name} вполголоса переводит: она говорит по-своему, а по-нашему знает слов двадцать.`]]);
+      else if (br) { const j = sc.lines.findIndex(l => l && l[1] && l[1].indexOf(p.n) >= 0 && /«/.test(l[1])); if (j >= 0) sc.lines[j] = ['n', br]; else sc.lines = [['n', br]].concat(sc.lines); } } } } catch (e) {}
+  return sc; }; }
+
+/* ---------- лесная, с которой живёшь без брака: своя речь, свои разговоры, ночь — всегда (Ник 28.11: «в диалогах хаос;
+   и лечь поспать с ней нельзя») ----------
+   Она ушла с тобой — значит, выбрала: ни ступеней «сперва заигрывать», ни «сперва поговорить по душам». Разговоры — её,
+   а не сельских невест (никаких сватов на Покров и гаданий на воске), ломаные, пока не знаешь её языка. */
+const FTALK = ['«Здесь [horosho:хорошо]. Крыша есть. Хлеб есть. Только [les:лес] далеко — ночью слышу, как он зовёт», — {n} говорит это спокойно, как о погоде.',
+  '«Соседки спрашивают: ты кто ему? Я говорю — его. Они не понимают. У вас „его“ — это корова», — {n} смеётся.',
+  '«В бане я считала зимы. Теперь считаю тебя: пришёл — [eshche:ещё] один день. [horosho:Хорошо] считать»',
+  '«[ditya:Дитя] хочу. От тебя. Не сейчас — когда [solnce:солнце] повернёт. Травы знают, когда», — {n} говорит просто, глядя прямо.',
+  '«Я учу соседских малых считать по-нашему. Матери ругаются. [ditya:Дети] — смеются. [horosho:Хорошо]»',
+  '«Ты [silny:сильный]. Я видела в бане: как ты молчал. Так молчат наши мужчины, когда больно. Потому и пошла»',
+  '«У нас говорят: [ogon:огонь] не спрашивает, чьи дрова. Я — не спрашиваю, где ты ночуешь. Приходи — и [horosho:хорошо]»',
+  '{n} показывает вам пучок трав над дверью: «Это от лихорадки. Это — от серых. Это — чтобы ты [eshche:ещё] пришёл». Последний пучок — самый большой.'];
+const tokFill = (t, p, h, salt) => { const ppl = p.ppl, known = knownOf(h, ppl), L = LEX[ppl] || LEX.loss; let i = 0;
+  return t.replace(/\{n\}/g, p.n).replace(/\[(\w+):([^\]]+)\]/g, (m, k, ru) => { i++; const own = known < 1 && (hsh(salt + '|' + i) % 100) >= known * 100; const w = L[k] || ru; return own ? (/^[А-ЯЁ]/.test(ru) ? cap(w) : w) : ru; }); };
+const isForestLoc = r => !!(r && (r.forest || r.fromBansh) && r.st !== 'gone' && r.st !== 'wed');
+if (C.kvLocalWhy) { const lw2 = C.kvLocalWhy; C.kvLocalWhy = function (g, r, what) { if (what === 'night' && isForestLoc(r)) return r.nightDay === day(g) ? 'сегодня уже' : ''; return lw2.apply(this, arguments); }; }
+{ const so11 = C.sceneOf; C.sceneOf = function (g, id) {
+  try { if (g && id === 'kv_local') { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur); if (isForestLoc(r)) { r.rel = Math.max(r.rel || 0, 100); r.invite = day(g); g.kvTopic = null; } } } catch (e) {}
+  const sc = so11.apply(this, arguments);
+  try { if (sc && id === 'kv_local') { const r = C.kvLocOf && C.kvLocOf(g, g.kvCur), h = r && heroById(g, r.hid);
+    if (isForestLoc(r) && h) { const p = {n: String(r.n || '').split(' ')[0], sex: r.sex, ppl: r.banshPpl || r.ppl};
+      sc.lines = (sc.lines || []).filter(l => !/сватов|Покров|гадала на воске|свадьба на|Подружка гадала/.test(l[1] || ''));
+      sc.choices = sc.choices.filter(c => !/^Посвататься|^Заигрывать|^Поцеловать на прощание|^Пообещать посвататься/.test(c.label || ''))
+        .map(c => (c.label === 'Поговорить' && !c._ft) ? Object.assign({}, c, {_ft: 1, dis: r.talkDay === day(g) ? 'сегодня уже говорили' : undefined, do: g2 => { const x = C.kvLocOf(g2, r.id), hh = heroById(g2, x.hid); x.talkDay = day(g2); x.ftN = (x.ftN || 0) + 1; g2.kvTopic = null;
+          if (C.wifeNightLang) { const L0 = C.wifeNightLang(g2, hh, p.ppl, p.n); if (L0) C.note(g2, L0); }
+          g2.kvLast = tokFill(FTALK[(x.ftN + hsh(x.id)) % FTALK.length], p, hh, x.id + x.ftN); return 'kv_local'; }}) : c)
+        .map(c => (c.label === 'Остаться на ночь' && !c._fn) ? Object.assign({}, c, {_fn: 1, dis: r.nightDay === day(g) ? 'сегодня уже' : undefined, do: function (g2) {
+          const T = C.KVT || {}, ns = T.nightSay, gm = T.guestMorning; T.nightSay = null; T.guestMorning = Object.assign({}, gm, {local: ['']}); // сельские «отец узнает» — не про неё
+          try { return c.do.apply(this, arguments); } finally { T.nightSay = ns; T.guestMorning = gm; if (typeof g2.kvLast === 'string') g2.kvLast = g2.kvLast.replace(/\s{2,}/g, ' '); } }}) : c); } } } catch (e) {}
+  return sc; }; }
 
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
