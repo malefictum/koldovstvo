@@ -83086,6 +83086,65 @@ if (C.kvLocalWhy) { const lw2 = C.kvLocalWhy; C.kvLocalWhy = function (g, r, wha
           try { return c.do.apply(this, arguments); } finally { T.nightSay = ns; T.guestMorning = gm; if (typeof g2.kvLast === 'string') g2.kvLast = g2.kvLast.replace(/\s{2,}/g, ' '); } }}) : c); } } } catch (e) {}
   return sc; }; }
 
+/* ---------- чистка: у лесных — ни одной реплики обычной жены (Ник 28.11: «проверь вживую, чтобы там не было реплик стандартных жён») ---------- */
+const forestHomeKey = g => { if (!g || !g.folkRole) return null; const key = g.folkRole + '@' + (g.folkAt || g.loc); return C.wifeKind(g, key) === 'forest' ? key : null; };
+const GUEST_F = ['Ночью приходила старуха из её круга — тайком, через огород. Посидела у печи, посмотрела на детей и ушла, не сказав вам ни слова. {n} потом долго молчит — и улыбается.',
+  'У плетня с утра сидит худая девчонка с лентой в косе — «из наших». {n} кормит её, суёт в узелок хлеба и трав и провожает до леса.',
+  'Заходил лесной человек — в лыковом очелье, с луком. Кивнул вам, как равному, сказал {n} три слова на своём и ушёл. «Брат. Не родной — по кругу», — объясняет она.'];
+const RUMOR_RX = /^(\S+(?: \S+)?) (говорит, подливая щей|вспоминает, перебирая пряжу|рассказывает за столом): «(Бабы на торгу судачили|Слышала у колодца|Соседка забегала, рассказывала): /;
+{ const so12 = C.sceneOf; C.sceneOf = function (g, id) {
+  const fk = id === 'folk' ? forestHomeKey(g) : null; if (fk && g.spTopic && g.spTopic.key === fk) delete g.spTopic; // разговоры обычных жён — не про неё
+  const sc = so12.apply(this, arguments);
+  try { if (sc && fk) { const s0 = recOf(g, fk) || {}, n = String(s0.n || '').split(' ')[0], h = heroById(g, s0.hero), p = {n, sex: s0.sex, ppl: s0.ppl};
+    sc.lines = (sc.lines || []).map(l => { const t = l && l[1]; if (typeof t !== 'string') return l;
+      if (RUMOR_RX.test(t)) return [l[0], t.replace(RUMOR_RX, () => `${n} говорит, перебирая травы: «Сорока на плетне трещала — я птиц понимаю: `)];
+      if (/^В доме гостит мать |^Приехал (тесть|свёкор)|^Гостит (брат жены|сестра мужа)|Свекровь — то есть мать твоя/.test(t)) return [l[0], fillAll(pk(GUEST_F, fk + day(g)), p, h)];
+      return l; }); } } catch (e) {}
+  return sc; }; }
+// разговор по душам у лесной не открывает тем обычных жён
+{ const so13 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so13.apply(this, arguments);
+  try { const fk = id === 'folk' ? forestHomeKey(g) : null; if (sc && fk) sc.choices = sc.choices.map(c => (c && c.label === 'Поговорить по душам' && !c._nosp) ? Object.assign({}, c, {_nosp: 1, do: function (g2) { const r = c.do.apply(this, arguments); delete g2.spTopic; return r; }}) : c); } catch (e) {}
+  return sc; }; }
+// приветствие у плетня — её, а не сельской невесты
+if (C.kvGreet) { const kg0 = C.kvGreet; C.kvGreet = function (r, h) { try { if (r && (r.forest || r.fromBansh) && r.st !== 'gone') { const p = {n: String(r.n || '').split(' ')[0], sex: r.sex, ppl: r.banshPpl || r.ppl};
+    if (r.junior) return fillAll(pk(r.sex === 'f' ? JUN_F : JUN_M, (r.id || '') + (h && h.id)), p, h);
+    return tokFill(pk(BROKEN_G, (r.id || '') + (r.meets || 0)), p, h, (r.id || '') + 'g'); } } catch (e) {} return kg0.apply(this, arguments); }; }
+// лесные не дуются из-за гостинцев и не просят: им ничего не надо
+const noAsk = g => { try { Object.values(g.kvLoc || {}).forEach(r => { if (isForestLoc(r)) { delete r.ask; r.cold = 0; r.askNext = day(g) + 999; } }); } catch (e) {} };
+['pass', 'rest'].forEach(k => { const f0 = C[k]; if (typeof f0 !== 'function') return; C[k] = function (g) { noAsk(g); const r = f0.apply(this, arguments); noAsk(g); fixMail(g); return r; }; });
+{ const so14 = C.sceneOf; C.sceneOf = function (g) { if (g && g.kvLoc) noAsk(g); return so14.apply(this, arguments); }; }
+// понесла — по-своему
+{ const nt0 = C.note; C.note = function (g, t) { try { if (typeof t === 'string' && g && g.heroes) { const fw = g.heroes.map(h => h.spouse).filter(sp => sp && sp.forest);
+    fw.forEach(sp => { const full = String(sp.n || ''), n = full.split(' ')[0];
+      if (t.indexOf(full) === 0 && RUMOR_RX.test(t)) t = t.replace(RUMOR_RX, () => `${n} говорит, перебирая травы: «Сорока на плетне трещала — я птиц понимаю: `);
+      if (/^Гонец догоняет отряд: грамотка от /.test(t) && t.indexOf(Q.decl(full, sp.sex).g) >= 0) t = `На плечо садится птица — к лапке привязана береста от ${Q.decl(n, sp.sex).g}.`; }); }
+  if (typeof t === 'string' && /глядя в пол: «Я тяжёлая/.test(t)) { const r = Object.values(g.kvLoc || {}).find(x => isForestLoc(x) && t.indexOf(String(x.n || '').split(' ')[0]) >= 0);
+    if (r) t = `${String(r.n || '').split(' ')[0]} берёт вашу ладонь и кладёт себе на живот — и смеётся: «Травы сказали — будет. Круг растёт». Ни тени страха — только гордость.`; } } catch (e) {} return nt0.call(this, g, t, ...[].slice.call(arguments, 2)); }; }
+// грамотки первой лесной — только берестой с птицей, её словами
+const BIRD_L = ['«{d}. Дети здоровы. Коза ушла к соседям — вернётся. Лес шумит хорошо. Приходи, когда сможешь. {n}»',
+  '«Птица знает дорогу к тебе — я ей сказала. Ты {s}. Я {y}. Больше писать нечего — у нас не пишут. {n}»',
+  '«Малые выучили твоё имя. Говорят первым. Это у нас — честь. Приходи послушать. {n}»',
+  '«Сушу для тебя зверобой. Береги себя — железо глупое, оно не знает, кого рубит. {d}. {n}»'];
+const fixMail = g => { try { (g.heroes || []).forEach(h => { const s = h.spouse; if (!s || !s.forest) return; (g.mail || []).forEach(m => { if (!m || m.from !== s.n || m.bird || m.forestFix || m.ask) return;
+  const keep = (String(m.text || '').match(/В свёртке[^.]*\./) || [''])[0]; m.forestFix = 1; m.head = 'Береста с птицей';
+  m.text = fillAll(pk(BIRD_L, (m.day || 0) + s.n), {n: String(s.n || '').split(' ')[0], sex: s.sex, ppl: s.ppl}, h) + (keep ? ' ' + keep : ''); }); }); } catch (e) {} };
+C.forestFixMail = fixMail;
+
+/* ночь дома у лесной: её вечер, её ночь, потом утро — без «наливки для особого случая» */
+const EVE_F = ['Ужин — из леса: грибы, коренья, рыба из её сетей. {n} ест руками и смеётся над вашей ложкой.',
+  '{n} моет вам ноги отваром полыни — «чтобы дорога отпустила» — и разминает ступни, пока у вас не слипаются глаза. Почти.',
+  '{n} ставит на стол лепёшки с золы и мёд диких пчёл: «Ешь. Сила — для ночи».',
+  '{n} сушит над печью вашу мокрую одежду и ворчит на своём — ласково, как на ребёнка, который опять полез в реку.'];
+{ const so15 = C.sceneOf; C.sceneOf = function (g, id) { const sc = so15.apply(this, arguments);
+  try { const fk = id === 'folk' ? forestHomeKey(g) : null; if (sc && fk) { const s0 = recOf(g, fk) || {}, p = {n: String(s0.n || '').split(' ')[0], sex: s0.sex, ppl: s0.ppl};
+    sc.choices = sc.choices.map(c => (c && c.label === 'Остаться дома на ночь' && !c._fe && typeof c.do === 'function') ? Object.assign({}, c, {_fe: 1, do: function (g2) {
+      const bh = C.kvBedHome; let bed = null; C.kvBedHome = function () { const r = bh.apply(this, arguments); if (r) bed = r; return r; };
+      let res; try { res = c.do.apply(this, arguments); } finally { C.kvBedHome = bh; }
+      try { if (bed && typeof g2.folkLast === 'string') { const morn = (g2.folkLast.match(/(Утром|К утру)[^.]*\./) || [''])[0], h = heroById(g2, s0.hero);
+        g2.folkLast = [fillAll(pk(EVE_F, fk + day(g2)), p, h), bed, morn].filter(Boolean).join(' '); } } catch (e) {}
+      return res; }}) : c); } } catch (e) {}
+  return sc; }; }
+
 G.C = C;
 })(typeof window !== 'undefined' ? window : globalThis);
 
